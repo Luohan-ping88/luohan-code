@@ -1,0 +1,7 @@
+{
+  "main_process": "auto_scheduler_v8.py",
+  "check_interval": 30,
+  "max_restarts": 10,
+  "restart_cooldown": 60,
+  "prevent_sleep": true
+}

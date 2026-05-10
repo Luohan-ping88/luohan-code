@@ -1,0 +1,88 @@
+{
+  "enabled": true,
+  "draw_time": "21:25",
+  "email_time": "20:00",
+  "time_window": {
+    "start": "00:00",
+    "end": "17:30"
+  },
+  "time_strategy": {
+    "normal_threshold_hours": 4,
+    "critical_threshold_hours": 2,
+    "recovery_delay_hours": 3,
+    "email_buffer_minutes": 30
+  },
+  "retry": {
+    "max_retries": 3,
+    "base_delay": 1,
+    "max_delay": 60,
+    "backoff_factor": 2
+  },
+  "intelligent_scheduling": {
+    "enabled": true,
+    "check_interval": 60,
+    "early_execution_enabled": true,
+    "missed_task_catchup_enabled": true,
+    "time_based_optimization_enabled": true
+  },
+  "extra_tasks": {
+    "extra_training": {
+      "enabled": true,
+      "description": "额外模型训练"
+    },
+    "hyperparameter_tune": {
+      "enabled": true,
+      "description": "超参数调优"
+    },
+    "ensemble_refine": {
+      "enabled": true,
+      "description": "集成模型优化"
+    }
+  },
+  "state": {
+    "persistence_enabled": true,
+    "state_file_path": "logs/workflow_state.pkl"
+  },
+  "tasks": {
+    "data_fetch": {
+      "enabled": true,
+      "priority": 1
+    },
+    "training": {
+      "enabled": true,
+      "priority": 2
+    },
+    "optimization": {
+      "enabled": true,
+      "priority": 3
+    },
+    "evaluation": {
+      "enabled": true,
+      "priority": 4
+    },
+    "incremental_training_morning": {
+      "enabled": true,
+      "priority": 5
+    },
+    "incremental_training_noon": {
+      "enabled": true,
+      "priority": 6
+    },
+    "final_prediction": {
+      "enabled": true,
+      "priority": 7
+    },
+    "final_prediction_verification": {
+      "enabled": true,
+      "priority": 8
+    },
+    "pre_sale_prediction": {
+      "enabled": true,
+      "priority": 9
+    },
+    "send_report": {
+      "enabled": true,
+      "priority": 10
+    }
+  }
+}

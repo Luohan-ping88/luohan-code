@@ -1,0 +1,41 @@
+{
+  "system": {
+    "name": "排列五高阶数理分析预测系统",
+    "version": "5.3",
+    "debug": false
+  },
+  "scheduler": {
+    "data_fetch_time": "00:00",
+    "evaluation_time": "00:30",
+    "optimization_start": "01:00",
+    "training_start": "02:00",
+    "training_deadline": "17:00",
+    "email_send_time": "17:30",
+    "enabled": true
+  },
+  "prediction": {
+    "top_k": 8,
+    "confidence_threshold": 0.6,
+    "generate_report": true
+  },
+  "model": {
+    "hmm": {
+      "n_components": 4,
+      "covariance_type": "full",
+      "n_iter": 100
+    },
+    "ensemble": {
+      "n_models": 5,
+      "min_weight": 0.05
+    }
+  },
+  "data": {
+    "source_url": "http://data.17500.cn/pl5_asc.txt",
+    "max_records": 5000,
+    "update_on_start": true
+  },
+  "cpp_core": {
+    "enabled": true,
+    "fallback_to_python": true
+  }
+}

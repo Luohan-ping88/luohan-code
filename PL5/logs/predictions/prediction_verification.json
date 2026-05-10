@@ -1,0 +1,261 @@
+{
+  "verification_time": "2026-04-18T19:01:12.924870",
+  "latest_period": "2026097",
+  "next_period": "2026098",
+  "verification_predictions": {
+    "wan": {
+      "top_k": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "uncertainty": 0.5,
+      "fallback": true
+    },
+    "qian": {
+      "top_k": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "uncertainty": 0.5,
+      "fallback": true
+    },
+    "bai": {
+      "top_k": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "uncertainty": 0.5,
+      "fallback": true
+    },
+    "shi": {
+      "top_k": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "uncertainty": 0.5,
+      "fallback": true
+    },
+    "ge": {
+      "top_k": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "uncertainty": 0.5,
+      "fallback": true
+    }
+  },
+  "previous_predictions": {
+    "prediction_time": "2026-04-18T18:01:26.698079",
+    "latest_period": "2026097",
+    "next_period": "2026098",
+    "predictions": {
+      "wan": {
+        "top_k": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "probabilities": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "uncertainty": 0.5,
+        "fallback": true
+      },
+      "qian": {
+        "top_k": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "probabilities": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "uncertainty": 0.5,
+        "fallback": true
+      },
+      "bai": {
+        "top_k": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "probabilities": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "uncertainty": 0.5,
+        "fallback": true
+      },
+      "shi": {
+        "top_k": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "probabilities": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "uncertainty": 0.5,
+        "fallback": true
+      },
+      "ge": {
+        "top_k": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "probabilities": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "uncertainty": 0.5,
+        "fallback": true
+      }
+    }
+  },
+  "consistency": {
+    "wan": 1.0,
+    "qian": 1.0,
+    "bai": 1.0,
+    "shi": 1.0,
+    "ge": 1.0
+  }
+}

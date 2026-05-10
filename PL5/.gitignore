@@ -1,0 +1,93 @@
+# 环境配置文件
+.env
+.env.local
+.env.*.local
+
+# Python虚拟环境
+venv/
+env/
+.env/
+.python-version
+
+# 编译输出
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 数据文件
+data/*.csv
+data/*.txt
+data/*.db
+data/backups/
+
+# 模型文件
+models/*.pkl
+models/*.joblib
+models/*.json
+models/vector_index/
+
+# 日志文件
+logs/*.log
+logs/*.json
+logs/archive/
+logs/data/
+logs/performance/
+logs/reports/
+logs/sentinel/
+
+# 备份文件
+backups/
+*.zip
+
+# 健康检查报告
+health/*.json
+
+# 工作流文件
+workflows/*.json
+
+# 测试缓存
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# IDE配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 构建输出
+dist/
+build/
+*.egg-info/
+
+# 安全文件
+security_audit.log
+security_config.json
+
+# 临时文件
+*.tmp
+*.bak
+*.backup
+
+# C++编译输出
+cpp_core/*.obj
+cpp_core/*.dll
+cpp_core/*.so
+cpp_core/*.lib
+cpp_core/*.exp
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Docker相关
+docker-compose.override.yml

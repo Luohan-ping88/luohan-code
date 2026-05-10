@@ -1,0 +1,243 @@
+{
+  "version": "1.0",
+  "description": "PL5系统告警规则配置",
+  "last_updated": "2026-04-06",
+  
+  "rules": [
+    {
+      "id": "cpu_high",
+      "name": "CPU使用率过高",
+      "description": "CPU使用率持续超过阈值",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "cpu_percent",
+        "operator": ">",
+        "threshold": 80,
+        "duration_sec": 300
+      },
+      "actions": ["log", "email"],
+      "cooldown_sec": 600
+    },
+    {
+      "id": "memory_high",
+      "name": "内存使用过高",
+      "description": "内存使用超过1.8GB",
+      "enabled": true,
+      "severity": "critical",
+      "condition": {
+        "metric": "memory_used_mb",
+        "operator": ">",
+        "threshold": 1800,
+        "duration_sec": 60
+      },
+      "actions": ["log", "email", "alert"],
+      "cooldown_sec": 300
+    },
+    {
+      "id": "memory_critical",
+      "name": "内存使用临界",
+      "description": "内存使用超过2GB",
+      "enabled": true,
+      "severity": "critical",
+      "condition": {
+        "metric": "memory_used_mb",
+        "operator": ">",
+        "threshold": 2000,
+        "duration_sec": 30
+      },
+      "actions": ["log", "email", "alert", "notify_admin"],
+      "cooldown_sec": 180
+    },
+    {
+      "id": "training_slow",
+      "name": "训练耗时过长",
+      "description": "训练流程超过5分钟",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "training_duration_sec",
+        "operator": ">",
+        "threshold": 300,
+        "duration_sec": 0
+      },
+      "actions": ["log", "email"],
+      "cooldown_sec": 1800
+    },
+    {
+      "id": "prediction_slow",
+      "name": "预测耗时过长",
+      "description": "预测流程超过30秒",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "prediction_duration_sec",
+        "operator": ">",
+        "threshold": 30,
+        "duration_sec": 0
+      },
+      "actions": ["log"],
+      "cooldown_sec": 300
+    },
+    {
+      "id": "cache_hit_rate_low",
+      "name": "缓存命中率过低",
+      "description": "缓存命中率低于30%",
+      "enabled": true,
+      "severity": "info",
+      "condition": {
+        "metric": "cache_hit_rate",
+        "operator": "<",
+        "threshold": 30,
+        "duration_sec": 600
+      },
+      "actions": ["log"],
+      "cooldown_sec": 3600
+    },
+    {
+      "id": "disk_full",
+      "name": "磁盘空间不足",
+      "description": "磁盘使用率超过90%",
+      "enabled": true,
+      "severity": "critical",
+      "condition": {
+        "metric": "disk_percent",
+        "operator": ">",
+        "threshold": 90,
+        "duration_sec": 60
+      },
+      "actions": ["log", "email", "alert"],
+      "cooldown_sec": 3600
+    },
+    {
+      "id": "disk_io_high",
+      "name": "磁盘I/O过高",
+      "description": "磁盘I/O速率持续过高",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "disk_io_read_mb",
+        "operator": ">",
+        "threshold": 100,
+        "duration_sec": 120
+      },
+      "actions": ["log"],
+      "cooldown_sec": 600
+    },
+    {
+      "id": "process_memory_high",
+      "name": "进程内存使用过高",
+      "description": "单个进程内存使用超过1GB",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "process_memory_mb",
+        "operator": ">",
+        "threshold": 1024,
+        "duration_sec": 120
+      },
+      "actions": ["log", "email"],
+      "cooldown_sec": 600
+    },
+    {
+      "id": "thread_count_high",
+      "name": "线程数过多",
+      "description": "进程线程数超过100",
+      "enabled": true,
+      "severity": "info",
+      "condition": {
+        "metric": "thread_count",
+        "operator": ">",
+        "threshold": 100,
+        "duration_sec": 300
+      },
+      "actions": ["log"],
+      "cooldown_sec": 1800
+    },
+    {
+      "id": "system_error_rate_high",
+      "name": "系统错误率过高",
+      "description": "系统错误率超过阈值",
+      "enabled": true,
+      "severity": "critical",
+      "condition": {
+        "metric": "error_rate",
+        "operator": ">",
+        "threshold": 0.05,
+        "duration_sec": 300
+      },
+      "actions": ["log", "email", "alert"],
+      "cooldown_sec": 600
+    },
+    {
+      "id": "model_accuracy_drop",
+      "name": "模型准确率下降",
+      "description": "模型准确率显著下降",
+      "enabled": true,
+      "severity": "warning",
+      "condition": {
+        "metric": "model_accuracy",
+        "operator": "<",
+        "threshold": 0.1,
+        "duration_sec": 0
+      },
+      "actions": ["log", "email"],
+      "cooldown_sec": 3600
+    }
+  ],
+  
+  "notification_channels": {
+    "email": {
+      "enabled": true,
+      "recipients": ["admin@example.com"],
+      "smtp_server": "smtp.example.com",
+      "smtp_port": 587,
+      "use_tls": true
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "https://hooks.example.com/alerts",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    "sms": {
+      "enabled": false,
+      "provider": "twilio",
+      "recipients": []
+    }
+  },
+  
+  "escalation": {
+    "enabled": true,
+    "levels": [
+      {
+        "level": 1,
+        "trigger_after_minutes": 0,
+        "notify": ["oncall"]
+      },
+      {
+        "level": 2,
+        "trigger_after_minutes": 15,
+        "notify": ["oncall", "manager"]
+      },
+      {
+        "level": 3,
+        "trigger_after_minutes": 30,
+        "notify": ["oncall", "manager", "director"]
+      }
+    ]
+  },
+  
+  "silence_periods": [
+    {
+      "name": "maintenance_window",
+      "description": "系统维护时段",
+      "start_time": "02:00",
+      "end_time": "04:00",
+      "timezone": "Asia/Shanghai",
+      "days": ["Sunday"],
+      "affected_rules": ["*"]
+    }
+  ]
+}

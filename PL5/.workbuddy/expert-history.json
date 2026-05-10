@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "sessions": {
+    "7574df9f5e71480d983c2179256a13f1": [
+      {
+        "expertId": "CodeReviewExpert",
+        "name": "火眼眼",
+        "profession": "代码审查专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/CodeReviewExpert/CodeReviewExpert.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/CodeReviewExpert/CodeReviewExpert_zh.md",
+        "usedAt": 1777420240038,
+        "industryId": "02-Engineering"
+      }
+    ]
+  },
+  "lastUpdated": 1777420240038
+}

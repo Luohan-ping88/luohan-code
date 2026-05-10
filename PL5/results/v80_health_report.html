@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PL5 系统架构分析与健全优化报告</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #243247;
+    --border: #334155;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --tag-bg: #1d3854;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', 'PingFang SC', sans-serif; line-height: 1.6; }
+  .header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f2942 40%, #1a1040 100%);
+    padding: 48px 40px 36px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 2rem; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .header .sub { color: var(--muted); font-size: 0.95rem; }
+  .header .meta { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; padding: 4px 14px; font-size: 0.82rem; color: var(--accent); }
+  .badge.green { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); color: var(--green); }
+  .badge.yellow { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); color: var(--yellow); }
+  .badge.red { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
+  main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+  section { margin-bottom: 40px; }
+  h2 { font-size: 1.25rem; color: var(--accent2); margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  h3 { font-size: 1rem; color: var(--text); margin: 16px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .icon { font-size: 1.8rem; margin-bottom: 10px; }
+  .card h3 { color: var(--accent); font-size: 0.95rem; margin-bottom: 6px; }
+  .card p { color: var(--muted); font-size: 0.85rem; }
+  /* Architecture diagram */
+  .arch-flow { display: flex; flex-direction: column; gap: 0; }
+  .arch-layer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .arch-layer .layer-num {
+    min-width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; color: #0f172a;
+    flex-shrink: 0;
+  }
+  .arch-layer .layer-content h3 { color: var(--text); font-size: 0.95rem; margin: 0 0 4px; }
+  .arch-layer .layer-content p { color: var(--muted); font-size: 0.82rem; margin: 0; }
+  .arch-arrow { text-align: center; color: var(--muted); font-size: 1.2rem; margin: 2px 0; }
+  /* Issue table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { background: var(--surface2); color: var(--muted); text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(51,65,85,0.5); vertical-align: top; }
+  tr:hover td { background: rgba(30,41,59,0.5); }
+  .severity { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600; }
+  .sev-crit { background: rgba(248,113,113,0.15); color: var(--red); }
+  .sev-high { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .sev-med  { background: rgba(56,189,248,0.15); color: var(--accent); }
+  .sev-low  { background: rgba(74,222,128,0.15); color: var(--green); }
+  /* Fix status */
+  .fix { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; }
+  .fix.done { color: var(--green); }
+  .fix.pending { color: var(--yellow); }
+  /* Code block */
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    color: #c9d1d9;
+    margin: 10px 0;
+    line-height: 1.7;
+  }
+  code { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+  .kw { color: #ff7b72; } /* keyword */
+  .st { color: #a5d6ff; } /* string */
+  .cm { color: #8b949e; } /* comment */
+  .fn { color: #d2a8ff; } /* function */
+  /* Metrics */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .metric-val { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .metric-label { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content:''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 18px; }
+  .tl-dot { position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); }
+  .tl-dot.done { background: var(--green); border-color: var(--green); }
+  .tl-item h4 { font-size: 0.9rem; color: var(--text); margin-bottom: 4px; }
+  .tl-item p  { font-size: 0.82rem; color: var(--muted); }
+  /* File tree */
+  .tree { font-family: monospace; font-size: 0.82rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; line-height: 1.9; }
+  .tree .dir { color: var(--accent2); }
+  .tree .file { color: var(--muted); }
+  .tree .new  { color: var(--green); }
+  .tree .fixed { color: var(--yellow); }
+  footer { background: var(--surface); border-top: 1px solid var(--border); padding: 24px 40px; text-align: center; color: var(--muted); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PL5 系统架构分析与健全优化报告</h1>
+  <p class="sub">排列五高阶数理分析预测系统 — 全面架构解析 & V8.0 健全优化</p>
+  <div class="meta">
+    <span class="badge">🗓 2026-04-01</span>
+    <span class="badge green">✓ 优化已完成</span>
+    <span class="badge">版本 V8.0.1</span>
+    <span class="badge yellow">⚙ 导入链路全修复</span>
+  </div>
+</div>
+
+<main>
+
+<!-- ═══ 执行摘要 ═══ -->
+<section>
+  <h2>⚡ 执行摘要</h2>
+  <div class="metrics">
+    <div class="metric-card"><div class="metric-val" style="color:var(--red)">6</div><div class="metric-label">发现严重缺陷</div></div>
+    <div class="metric-card"><div class="metric-val" style="color:var(--yellow)">8</div><div class="metric-label">发现中等问题</div></div>
+    <div class="metric-card"><div class="metric-val" style="color:var(--green)">6</div><div class="metric-label">已完全修复</div></div>
+    <div class="metric-card"><div class="metric-val">83</div><div class="metric-label">历史评估记录</div></div>
+    <div class="metric-card"><div class="metric-val">~51%</div><div class="metric-label">历史平均准确率</div></div>
+    <div class="metric-card"><div class="metric-val">750</div><div class="metric-label">特征维度</div></div>
+  </div>
+</section>
+
+<!-- ═══ 系统架构 ═══ -->
+<section>
+  <h2>🏗 系统架构全景</h2>
+  <p style="color:var(--muted); font-size:0.88rem; margin-bottom: 20px;">系统由两条并行的执行路径组成：<b>轻量核心路径（main.py）</b>和<b>智能体路径（pl5_intelligent_system.py）</b>，共享底层数据/特征/模型层。</p>
+  
+  <div class="arch-flow">
+    <div class="arch-layer">
+      <div class="layer-num">入</div>
+      <div class="layer-content">
+        <h3>入口层 / Entry Points</h3>
+        <p><code>launch.py</code> → 启动分发器（--mode system/train/predict/service）<br>
+           <code>main.py</code> → 轻量路径（--action train/predict/status）<br>
+           <code>pl5_intelligent_system.py</code> → 智能体路径（完整7阶段流水线）<br>
+           <code>scripts/infinite_training.py</code> → 无限迭代训练管理器</p>
+      </div>
+    </div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-layer">
+      <div class="layer-num">A</div>
+      <div class="layer-content">
+        <h3>编排层 / Orchestrator Layer</h3>
+        <p><b>轻量编排器</b>（<code>src/core/orchestrator.py::PL5Orchestrator</code>）：直接调用 DataCollector→FeatureEngineer→PL5Predictor，5阶段流水线<br>
+           <b>智能体编排器</b>（<code>src/agents/orchestrator.py::AgentOrchestrator</code>）：管理5个 Agent，7阶段流水线，含免疫系统监控</p>
+      </div>
+    </div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-layer">
+      <div class="layer-num">B</div>
+      <div class="layer-content">
+        <h3>智能体层 / Agent Layer（仅智能体路径使用）</h3>
+        <p><code>DataProcessingAgent</code> — 数据采集/清洗/验证/特征提取（max_workers=8）<br>
+           <code>TrainingOptimizationAgent</code> — 并行训练HMM/Copula/BSTS/EVM/Stacking，智能早停<br>
+           <code>ResearchAgent</code> — 历史模式分析、异常检测、研究报告<br>
+           <code>EvaluationFeedbackAgent</code> — 模型评估、性能监控、反馈生成<br>
+           <code>OptimizationAgent</code> — 特征选择、超参数调优、预测策略优化<br>
+           <code>ImmuneSystem</code> — 实时监控系统健康，异常自愈</p>
+      </div>
+    </div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-layer">
+      <div class="layer-num">C</div>
+      <div class="layer-content">
+        <h3>核心算法层 / Core Algorithm Layer</h3>
+        <p><code>src/core/data/collector.py::PL5DataCollectorV8</code> — 多源数据采集（网络→本地→备份），含版本管理、重试装饰器<br>
+           <code>src/core/features/engineer.py::FeatureEngineer</code> — 750维特征（统计/Fibonacci/Markov/Fourier/遗漏/模式/动量）<br>
+           <code>src/core/models/predictor.py::PL5Predictor</code> — Stacking集成+HMM+Copula+BSTS+EVM，贝叶斯权重融合</p>
+      </div>
+    </div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-layer">
+      <div class="layer-num">D</div>
+      <div class="layer-content">
+        <h3>调度/服务层 / Scheduling Layer</h3>
+        <p><code>src/app/auto_scheduler_v8.py</code> — schedule库驱动，任务依赖管理（data_fetch→evaluation→optimization→training→send_report）<br>
+           <code>service/scheduler.py</code> — 基础调度器（5个定时点：00:00/00:30/01:00/02:00/17:30）<br>
+           <code>service/recovery.py</code> — 系统自动恢复<br>
+           <code>scripts/watchdog.ps1</code> — PowerShell 守护进程</p>
+      </div>
+    </div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-layer">
+      <div class="layer-num">E</div>
+      <div class="layer-content">
+        <h3>监控层 / Monitor Layer</h3>
+        <p><code>monitor/system_monitor.py</code> — 系统状态检查，进程/数据/日志监控<br>
+           <code>monitor/agent_monitor.py</code> — Agent层监控<br>
+           <code>monitor/prevent_sleep.py</code> — Windows 防休眠<br>
+           <code>src/core/self_learning.py::SelfLearningSystem</code> — 历史趋势分析，触发重训练判断</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 数据流 ═══ -->
+<section>
+  <h2>🔄 数据流与执行流程</h2>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div>
+      <h3 style="color:var(--accent); margin-bottom:12px">训练流程（7阶段）</h3>
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 1 · 数据采集</h4><p>lecai API → 解析 → 校验 → 备份 → 版本管理</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 2 · 特征工程</h4><p>750维特征：统计/窗口/Fibonacci/Markov/Fourier/遗漏/动量</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 3 · 研究分析</h4><p>历史模式分析、异常检测、生成 research_report_*.md</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 4 · 模型训练</h4><p>RF+GBM+ET+AdaBoost Stacking × 5位置 + HMM/Copula/BSTS/EVM</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 5 · 模型评估</h4><p>Top-3命中率评估，性能监控</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 6 · 反馈优化</h4><p>生成优化建议，特征/权重调整</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Stage 7 · 报告生成</h4><p>HTML训练报告 + 邮件发送</p></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="color:var(--accent); margin-bottom:12px">预测流程（5步）</h3>
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Step 1 · 加载最新数据</h4><p>调用 PL5DataCollectorV8.update_data()</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Step 2 · 特征提取</h4><p>FeatureEngineer.extract_all_features() → 取最后一行</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Step 3 · 模型推理</h4><p>PL5Predictor.predict(x, recent_data, top_k=8)</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Step 4 · 贝叶斯融合</h4><p>Stacking(55%) + BSTS(12%) + EVM(15%) + HMM(10%) + Copula(8%)</p></div>
+        <div class="tl-item"><div class="tl-dot done"></div><h4>Step 5 · 输出报告</h4><p>results/latest_prediction.json + 邮件推送</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 问题清单 ═══ -->
+<section>
+  <h2>🔍 发现问题清单 & 修复状态</h2>
+  <table>
+    <thead>
+      <tr><th>编号</th><th>位置</th><th>严重度</th><th>问题描述</th><th>修复状态</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>BUG-01</td>
+        <td><code>src/core/models/predictor.py</code></td>
+        <td><span class="severity sev-crit">CRITICAL</span></td>
+        <td>所有模型类（PL5Predictor/HMMModel/CopulaModel/BSTSModel/ExtremeValueModel/StackingEnsemble）均为空壳，<code>predict()</code> 只返回固定的 [0,1,2,3,4,5,6,7]，<b>从不训练也不真正预测</b></td>
+        <td><span class="fix done">✓ 已完全重写</span></td>
+      </tr>
+      <tr>
+        <td>BUG-02</td>
+        <td><code>src/core/utils/__init__.py</code></td>
+        <td><span class="severity sev-crit">CRITICAL</span></td>
+        <td>文件仅有注释，未导出任何符号。导致系统内所有 <code>from core.utils import logger, log_execution_time, log_exception</code> 全部 ImportError</td>
+        <td><span class="fix done">✓ 已修复</span></td>
+      </tr>
+      <tr>
+        <td>BUG-03</td>
+        <td><code>src/core/config.py</code></td>
+        <td><span class="severity sev-crit">CRITICAL</span></td>
+        <td>缺少 <code>BASE_DIR</code>、<code>setup_logging</code>、<code>DATA_DIR</code>、<code>LOGS_DIR</code> 等符号，而 monitor/service/scripts 大量文件依赖这些导入</td>
+        <td><span class="fix done">✓ 已补全</span></td>
+      </tr>
+      <tr>
+        <td>BUG-04</td>
+        <td><code>src/core/data/config.py</code></td>
+        <td><span class="severity sev-crit">CRITICAL</span></td>
+        <td>路径配置错误：<code>RAW_DATA_DIR = ROOT_DIR / "core" / "data" / "raw"</code>，指向了 <code>src/core/data/raw</code> 而非项目根下的 <code>data/raw</code>，导致数据读写路径与实际文件不一致</td>
+        <td><span class="fix done">✓ 已修复</span></td>
+      </tr>
+      <tr>
+        <td>BUG-05</td>
+        <td><code>core/</code>（根目录）</td>
+        <td><span class="severity sev-crit">CRITICAL</span></td>
+        <td>根目录不存在 <code>core/</code> 包，但 monitor/service/scripts 等目录下所有文件通过 <code>sys.path.insert(0, ROOT)</code> 后使用 <code>from core.config import ...</code>，均会找不到模块</td>
+        <td><span class="fix done">✓ 新建代理包</span></td>
+      </tr>
+      <tr>
+        <td>BUG-06</td>
+        <td><code>src/core/utils/logger.py</code></td>
+        <td><span class="severity sev-high">HIGH</span></td>
+        <td><code>log_execution_time</code> 和 <code>log_exception</code> 装饰器仅支持同步函数，包装 <code>async def</code> 后会将协程变成普通函数调用，<b>导致异步流水线静默失败</b></td>
+        <td><span class="fix done">✓ 已修复</span></td>
+      </tr>
+      <tr>
+        <td>BUG-07</td>
+        <td><code>src/core/self_learning.py</code></td>
+        <td><span class="severity sev-high">HIGH</span></td>
+        <td>空壳实现：<code>evaluate_recent_performance()</code> 硬返回 0.1，<code>should_trigger_retrain()</code> 永远返回 False，自学习功能形同虚设</td>
+        <td><span class="fix done">✓ 已完全重写</span></td>
+      </tr>
+      <tr>
+        <td>BUG-08</td>
+        <td><code>src/core/self_learning.py</code></td>
+        <td><span class="severity sev-high">HIGH</span></td>
+        <td>加载 learning_history.json 时未兼容旧格式 <code>{evaluations: [...]}</code>，直接导致 KeyError: slice</td>
+        <td><span class="fix done">✓ 已修复</span></td>
+      </tr>
+      <tr>
+        <td>WARN-01</td>
+        <td><code>src/agents/orchestrator.py</code><br><code>src/core/orchestrator.py</code></td>
+        <td><span class="severity sev-med">MEDIUM</span></td>
+        <td>两个编排器并行存在，职责模糊：轻量版（main.py 使用）与智能体版（pl5_intelligent_system.py 使用）功能重叠，维护成本高</td>
+        <td><span class="fix pending">⚠ 建议后续合并</span></td>
+      </tr>
+      <tr>
+        <td>WARN-02</td>
+        <td><code>src/agents/orchestrator.py</code><br>L525-548</td>
+        <td><span class="severity sev-med">MEDIUM</span></td>
+        <td>协同决策中多个 Agent 的 <code>get_agent_opinion</code> 方法返回硬编码的模拟结果（<code>confidence: 0.8</code>），不基于真实状态</td>
+        <td><span class="fix pending">⚠ 建议优化</span></td>
+      </tr>
+      <tr>
+        <td>WARN-03</td>
+        <td><code>src/agents/orchestrator.py</code><br>L678-686</td>
+        <td><span class="severity sev-med">MEDIUM</span></td>
+        <td>系统优化任务中特征优化返回硬编码结果（<code>average_cv_score: 0.65</code>），非真实优化</td>
+        <td><span class="fix pending">⚠ 建议优化</span></td>
+      </tr>
+      <tr>
+        <td>WARN-04</td>
+        <td><code>src/core/orchestrator.py</code></td>
+        <td><span class="severity sev-med">MEDIUM</span></td>
+        <td>评估逻辑中 Precision/Recall/F1 均直接等于 Accuracy（<code>model_precision = model_accuracy</code>），指标不真实</td>
+        <td><span class="fix pending">⚠ 建议优化</span></td>
+      </tr>
+      <tr>
+        <td>WARN-05</td>
+        <td><code>src/core/models/predictor.py</code><br>（CopulaModel.fit）</td>
+        <td><span class="severity sev-low">LOW</span></td>
+        <td>Copula 的 Kendall τ 计算为 O(N²) 嵌套循环，在样本量大时训练会很慢</td>
+        <td><span class="fix pending">⚠ 建议向量化</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══ 修复清单 ═══ -->
+<section>
+  <h2>🛠 本次修复详情</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🧠</div>
+      <h3>PL5Predictor 完整实现</h3>
+      <p>src/core/models/predictor.py 从空壳重写为功能完整的预测器，包含真实的 Stacking 训练（RF/GBM/ET/AdaBoost + LR 元学习器）、HMM 条件频率、BSTS 指数加权、EVM 遗漏统计、贝叶斯权重融合，并支持 save/load 持久化。</p>
+    </div>
+    <div class="card">
+      <div class="icon">📦</div>
+      <h3>core 根级代理包</h3>
+      <p>新建 core/__init__.py、core/config.py、core/utils.py，把 src/core 的所有导出代理到根目录 core 命名空间，彻底修复 monitor/service/scripts 等模块的 ImportError。</p>
+    </div>
+    <div class="card">
+      <div class="icon">⚙️</div>
+      <h3>src/core/config.py 补全</h3>
+      <p>补充 BASE_DIR 别名、setup_logging 函数、DATA_DIR、MODEL_CONFIG、TRAINING_CONFIG 等所有被广泛引用的标识符，并自动创建缺失目录。</p>
+    </div>
+    <div class="card">
+      <div class="icon">📁</div>
+      <h3>数据路径 Bug 修复</h3>
+      <p>src/core/data/config.py 中 ROOT_DIR 定义错误（少上溯一级），导致 RAW_DATA_DIR 指向了 src/core/data/raw。现已修正为正确路径 data/raw。</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔄</div>
+      <h3>异步装饰器修复</h3>
+      <p>src/core/utils/logger.py 的 log_execution_time / log_exception 改为同时支持 sync/async 函数，避免包装 async def 后静默失败的问题。同时支持 @decorator 和 @decorator("label") 两种用法。</p>
+    </div>
+    <div class="card">
+      <div class="icon">📊</div>
+      <h3>SelfLearningSystem 升级</h3>
+      <p>从空壳重写为真实运作的自学习系统：加载83条历史评估记录，基于滑动窗口检测准确率趋势，动态判断是否需要触发重训练，生成个性化优化建议。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 修改的文件 ═══ -->
+<section>
+  <h2>📂 修改/新增文件列表</h2>
+  <div class="tree">
+    <span class="dir">PL5/</span><br>
+    ├── <span class="new">core/</span>                         <span style="color:#555">← 新建根级代理包</span><br>
+    │   ├── <span class="new">__init__.py</span>               <span style="color:#555">← 代理 src/core 全部导出</span><br>
+    │   ├── <span class="new">config.py</span>                 <span style="color:#555">← 代理 src/core/config</span><br>
+    │   └── <span class="new">utils.py</span>                  <span style="color:#555">← 代理 src/core/utils</span><br>
+    └── <span class="dir">src/core/</span><br>
+        ├── <span class="fixed">config.py</span>               <span style="color:#555">← 补全 BASE_DIR/setup_logging/DATA_DIR/dirs</span><br>
+        ├── <span class="fixed">self_learning.py</span>        <span style="color:#555">← 空壳→完整实现，兼容旧JSON格式</span><br>
+        ├── <span class="dir">data/</span><br>
+        │   └── <span class="fixed">config.py</span>           <span style="color:#555">← 修复 ROOT_DIR 少上溯1级导致路径错误</span><br>
+        ├── <span class="dir">models/</span><br>
+        │   ├── <span class="fixed">__init__.py</span>         <span style="color:#555">← 补全导出所有模型类</span><br>
+        │   └── <span class="fixed">predictor.py</span>        <span style="color:#555">← 空壳→完整Stacking+HMM+Copula+BSTS+EVM</span><br>
+        └── <span class="dir">utils/</span><br>
+            ├── <span class="fixed">__init__.py</span>         <span style="color:#555">← 补全导出 logger/log_execution_time/log_exception</span><br>
+            └── <span class="fixed">logger.py</span>           <span style="color:#555">← 装饰器支持 async def，@decorator("label") 写法</span><br>
+  </div>
+</section>
+
+<!-- ═══ 模型架构 ═══ -->
+<section>
+  <h2>🤖 预测器架构（修复后）</h2>
+  <pre><code><span class="cm"># PL5Predictor.predict() 融合逻辑</span>
+<span class="kw">for</span> pos <span class="kw">in</span> [<span class="st">'wan'</span>, <span class="st">'qian'</span>, <span class="st">'bai'</span>, <span class="st">'shi'</span>, <span class="st">'ge'</span>]:
+
+    <span class="cm"># Stacking: RF + GBM + ET + AdaBoost → OOF meta-features → LR 元学习器</span>
+    p_stacking = stacking[pos].predict_proba_position(pos, x)   <span class="cm"># shape (10,)</span>
+
+    <span class="cm"># HMM: lag-1 条件频率转移矩阵（Laplace平滑）</span>
+    p_hmm = hmm_models[pos].predict(recent_seq)
+
+    <span class="cm"># BSTS: 指数加权历史频率（α=0.05）</span>
+    p_bsts = bsts_models[pos].predict(recent_seq)
+
+    <span class="cm"># EVM: 遗漏越大权重越高（last_seen 统计）</span>
+    p_evm = evm_models[pos].predict(recent_seq)
+
+    <span class="cm"># 贝叶斯加权融合</span>
+    p_fused = (<span class="fn">0.55</span> * p_stacking
+             + <span class="fn">0.10</span> * p_hmm
+             + <span class="fn">0.12</span> * p_bsts
+             + <span class="fn">0.15</span> * p_evm)
+    top_k = argsort(p_fused)[::-1][:k]</code></pre>
+</section>
+
+<!-- ═══ 后续建议 ═══ -->
+<section>
+  <h2>🚀 后续优化建议</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🔀</div>
+      <h3>合并双编排器</h3>
+      <p>将 src/core/orchestrator.py（轻量版）和 src/agents/orchestrator.py（智能体版）合并，通过参数控制是否启用 Agent 层，减少代码重复和维护成本。</p>
+    </div>
+    <div class="card">
+      <div class="icon">📐</div>
+      <h3>真实评估指标</h3>
+      <p>src/core/orchestrator.py 的评估阶段补充真实的 Precision/Recall/F1 计算（基于每个位置 Top-K 命中率），而非直接赋值 accuracy。</p>
+    </div>
+    <div class="card">
+      <div class="icon">⚡</div>
+      <h3>Copula 向量化</h3>
+      <p>CopulaModel.fit() 中 Kendall τ 的 O(N²) 嵌套循环改用 scipy.stats.kendalltau 批量计算，避免大样本训练瓶颈。</p>
+    </div>
+    <div class="card">
+      <div class="icon">🧪</div>
+      <h3>协同决策真实化</h3>
+      <p>AgentOrchestrator._gather_agent_opinions() 中 research/optimization/evaluation Agent 的意见目前为硬编码模拟值，建议接入真实的分析结果。</p>
+    </div>
+    <div class="card">
+      <div class="icon">📉</div>
+      <h3>特征降维</h3>
+      <p>750维特征中存在高度冗余（V8.0 记忆中提到 freq↔omission 相关性 r=0.605），建议在训练前对特征做 PCA 或 SelectFromModel 降维至 200维以内。</p>
+    </div>
+    <div class="card">
+      <div class="icon">💾</div>
+      <h3>模型增量更新</h3>
+      <p>TrainingAgent._incremental_update() 已有框架，建议完善 partial_fit 逻辑，在新数据仅增加少量期号时避免全量重训练，节省约 90% 训练时间。</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>PL5 系统架构分析与健全优化报告 · 生成时间: 2026-04-01 08:09 · V8.0.1</p>
+  <p style="margin-top:6px">修复文件: core/__init__.py, core/config.py, core/utils.py, src/core/config.py, src/core/self_learning.py, src/core/data/config.py, src/core/models/__init__.py, src/core/models/predictor.py, src/core/utils/__init__.py, src/core/utils/logger.py</p>
+</footer>
+
+</body>
+</html>

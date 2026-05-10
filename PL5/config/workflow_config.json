@@ -1,0 +1,93 @@
+{
+  "enabled": true,
+  "time_window": {
+    "start": "00:00",
+    "end": "17:30"
+  },
+  "retry": {
+    "max_retries": 3,
+    "base_delay": 1,
+    "max_delay": 60,
+    "backoff_factor": 2
+  },
+  "intelligent_scheduling": {
+    "enabled": true,
+    "check_interval": 60,
+    "early_execution_enabled": true,
+    "missed_task_catchup_enabled": true
+  },
+  "state": {
+    "persistence_enabled": true,
+    "state_file_path": "logs/workflow_state.pkl"
+  },
+  "tasks": {
+    "data_fetch": {
+      "enabled": true,
+      "priority": 1
+    },
+    "evaluation": {
+      "enabled": true,
+      "priority": 2
+    },
+    "optimization": {
+      "enabled": true,
+      "priority": 3
+    },
+    "training": {
+      "enabled": true,
+      "priority": 4
+    },
+    "send_report": {
+      "enabled": true,
+      "priority": 5
+    },
+    "incremental_training": {
+      "enabled": true,
+      "priority": 6
+    },
+    "first_prediction_verification": {
+      "enabled": true,
+      "priority": 7
+    },
+    "second_prediction_verification": {
+      "enabled": true,
+      "priority": 8
+    },
+    "third_prediction_verification": {
+      "enabled": true,
+      "priority": 9
+    },
+    "deep_strategy_optimization": {
+      "enabled": true,
+      "priority": 10
+    },
+    "prediction_preview": {
+      "enabled": true,
+      "priority": 11
+    },
+    "final_prediction": {
+      "enabled": true,
+      "priority": 12
+    },
+    "final_prediction_verification": {
+      "enabled": true,
+      "priority": 13
+    },
+    "pre_sale_prediction": {
+      "enabled": true,
+      "priority": 14
+    },
+    "extra_training": {
+      "enabled": true,
+      "priority": 15
+    },
+    "hyperparameter_tune": {
+      "enabled": true,
+      "priority": 16
+    },
+    "ensemble_refine": {
+      "enabled": true,
+      "priority": 17
+    }
+  }
+}

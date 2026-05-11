@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class VotingStrategy(Enum):
     """投票策略"""
+
     MAJORITY = auto()
     WEIGHTED = auto()
     CONSENSUS = auto()
@@ -24,6 +25,7 @@ class VotingStrategy(Enum):
 
 class VoteStatus(Enum):
     """投票状态"""
+
     PENDING = auto()
     OPEN = auto()
     CLOSED = auto()
@@ -33,6 +35,7 @@ class VoteStatus(Enum):
 @dataclass
 class Vote:
     """单个投票"""
+
     vote_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     voter_id: str
     choice: Any
@@ -45,6 +48,7 @@ class Vote:
 @dataclass
 class VotingSession:
     """投票会话"""
+
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     topic: str
     description: str
@@ -90,30 +94,33 @@ class VotingSession:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
-            'session_id': self.session_id,
-            'topic': self.topic,
-            'description': self.description,
-            'options': self.options,
-            'strategy': self.strategy.name,
-            'status': self.status.name,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat(),
-            'deadline': self.deadline.isoformat() if self.deadline else None,
-            'votes': {k: {
-                'vote_id': v.vote_id,
-                'voter_id': v.voter_id,
-                'choice': v.choice,
-                'weight': v.weight,
-                'timestamp': v.timestamp.isoformat(),
-                'confidence': v.confidence,
-                'reasoning': v.reasoning
-            } for k, v in self.votes.items()},
-            'voter_weights': self.voter_weights,
-            'required_consensus': self.required_consensus,
-            'quorum': self.quorum,
-            'result': self.result,
-            'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None,
-            'metadata': self.metadata
+            "session_id": self.session_id,
+            "topic": self.topic,
+            "description": self.description,
+            "options": self.options,
+            "strategy": self.strategy.name,
+            "status": self.status.name,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "deadline": self.deadline.isoformat() if self.deadline else None,
+            "votes": {
+                k: {
+                    "vote_id": v.vote_id,
+                    "voter_id": v.voter_id,
+                    "choice": v.choice,
+                    "weight": v.weight,
+                    "timestamp": v.timestamp.isoformat(),
+                    "confidence": v.confidence,
+                    "reasoning": v.reasoning,
+                }
+                for k, v in self.votes.items()
+            },
+            "voter_weights": self.voter_weights,
+            "required_consensus": self.required_consensus,
+            "quorum": self.quorum,
+            "result": self.result,
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "metadata": self.metadata,
         }
 
 
@@ -124,13 +131,17 @@ class VotingEngine:
         self.sessions: Dict[str, VotingSession] = {}
         self._lock = asyncio.Lock()
 
-    async def create_session(self, topic: str, description: str,
-                             options: List[Any],
-                             strategy: VotingStrategy = VotingStrategy.MAJORITY,
-                             deadline: Optional[datetime] = None,
-                             voter_weights: Optional[Dict[str, float]] = None,
-                             required_consensus: float = 0.9,
-                             quorum: Optional[float] = None) -> str:
+    async def create_session(
+        self,
+        topic: str,
+        description: str,
+        options: List[Any],
+        strategy: VotingStrategy = VotingStrategy.MAJORITY,
+        deadline: Optional[datetime] = None,
+        voter_weights: Optional[Dict[str, float]] = None,
+        required_consensus: float = 0.9,
+        quorum: Optional[float] = None,
+    ) -> str:
         """创建投票会话"""
         async with self._lock:
             session = VotingSession(
@@ -142,7 +153,7 @@ class VotingEngine:
                 voter_weights=voter_weights or {},
                 required_consensus=required_consensus,
                 quorum=quorum,
-                status=VoteStatus.OPEN
+                status=VoteStatus.OPEN,
             )
             self.sessions[session.session_id] = session
             logger.info(f"投票会话已创建: {session.session_id} - {topic}")
@@ -153,9 +164,15 @@ class VotingEngine:
         async with self._lock:
             return self.sessions.get(session_id)
 
-    async def cast_vote(self, session_id: str, voter_id: str, choice: Any,
-                        weight: float = 1.0, confidence: float = 1.0,
-                        reasoning: Optional[str] = None) -> bool:
+    async def cast_vote(
+        self,
+        session_id: str,
+        voter_id: str,
+        choice: Any,
+        weight: float = 1.0,
+        confidence: float = 1.0,
+        reasoning: Optional[str] = None,
+    ) -> bool:
         """提交投票"""
         async with self._lock:
             session = self.sessions.get(session_id)
@@ -169,7 +186,7 @@ class VotingEngine:
                 choice=choice,
                 weight=session.voter_weights.get(voter_id, weight),
                 confidence=confidence,
-                reasoning=reasoning
+                reasoning=reasoning,
             )
             success = session.add_vote(vote)
             if success:
@@ -246,10 +263,10 @@ class DecisionAggregator:
     def resolve(self, session: VotingSession, total_voters: Optional[int] = None) -> Dict[str, Any]:
         """集成决策"""
         if session.status not in (VoteStatus.CLOSED, VoteStatus.OPEN):
-            return {'success': False, 'error': '投票会话未开放或已关闭'}
+            return {"success": False, "error": "投票会话未开放或已关闭"}
 
         if total_voters and not session.is_quorum_met(total_voters):
-            return {'success': False, 'error': '未达到法定人数'}
+            return {"success": False, "error": "未达到法定人数"}
 
         result = None
         strategy = session.strategy
@@ -264,12 +281,12 @@ class DecisionAggregator:
             result = self.resolve_ranked_choice(session)
 
         return {
-            'success': result is not None,
-            'result': result,
-            'strategy': strategy.name,
-            'vote_count': len(session.votes),
-            'votes': self.count_votes(session),
-            'weighted_votes': self.count_weighted_votes(session)
+            "success": result is not None,
+            "result": result,
+            "strategy": strategy.name,
+            "vote_count": len(session.votes),
+            "votes": self.count_votes(session),
+            "weighted_votes": self.count_weighted_votes(session),
         }
 
 
@@ -279,8 +296,7 @@ class ConflictResolver:
     def __init__(self):
         self.resolution_history: List[Dict[str, Any]] = []
 
-    def mediate(self, session: VotingSession, 
-                conflicting_options: List[Any]) -> Dict[str, Any]:
+    def mediate(self, session: VotingSession, conflicting_options: List[Any]) -> Dict[str, Any]:
         """调解冲突"""
         logger.info(f"正在调解冲突: {conflicting_options}")
 
@@ -289,12 +305,12 @@ class ConflictResolver:
             vote_counts[vote.choice] += 1
 
         resolution = {
-            'session_id': session.session_id,
-            'timestamp': datetime.now().isoformat(),
-            'conflicting_options': conflicting_options,
-            'vote_counts': dict(vote_counts),
-            'mediation_strategy': 'select_most_popular',
-            'recommended_option': max(vote_counts, key=vote_counts.get) if vote_counts else None
+            "session_id": session.session_id,
+            "timestamp": datetime.now().isoformat(),
+            "conflicting_options": conflicting_options,
+            "vote_counts": dict(vote_counts),
+            "mediation_strategy": "select_most_popular",
+            "recommended_option": max(vote_counts, key=vote_counts.get) if vote_counts else None,
         }
 
         self.resolution_history.append(resolution)

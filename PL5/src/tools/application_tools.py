@@ -34,10 +34,10 @@ from .base import (
     get_registry,
 )
 
-
 # ================================================================
 # 统计辅助函数
 # ================================================================
+
 
 def _approx_normal_cdf(x: float) -> float:
     """标准正态分布CDF近似计算（模块级函数）"""
@@ -130,8 +130,7 @@ class DailyReportTool(BaseTool):
             dl_tool_cls = registry.get("data_loader")
             if dl_tool_cls is None:
                 return ToolResult.error_result(
-                    "未找到 data_loader 工具，请确认 infrastructure 层已注册",
-                    code="TOOL_NOT_FOUND_DATA_LOADER"
+                    "未找到 data_loader 工具，请确认 infrastructure 层已注册", code="TOOL_NOT_FOUND_DATA_LOADER"
                 )
             dl_tool = dl_tool_cls()
 
@@ -147,25 +146,19 @@ class DailyReportTool(BaseTool):
                         break
 
             if data_source is None:
-                return ToolResult.error_result(
-                    "未指定 data_source 且未找到默认数据文件",
-                    code="DATA_SOURCE_MISSING"
-                )
+                return ToolResult.error_result("未指定 data_source 且未找到默认数据文件", code="DATA_SOURCE_MISSING")
 
             dl_result = dl_tool.execute(ctx, path_or_data=data_source)
             if not dl_result.success:
                 pipeline_errors.append(f"数据加载失败: {dl_result.errors}")
                 return ToolResult.error_result(
                     f"数据加载阶段失败: {dl_result.errors[0].message if dl_result.errors else 'unknown'}",
-                    code="PIPELINE_DATA_LOAD_FAILED"
+                    code="PIPELINE_DATA_LOAD_FAILED",
                 )
 
             raw_data = dl_result.data.get("data")
             if not isinstance(raw_data, pd.DataFrame) or raw_data.empty:
-                return ToolResult.error_result(
-                    "加载的数据为空或格式不正确",
-                    code="EMPTY_RAW_DATA"
-                )
+                return ToolResult.error_result("加载的数据为空或格式不正确", code="EMPTY_RAW_DATA")
 
             report_sections["data_loading"] = {
                 "status": "success",
@@ -177,18 +170,12 @@ class DailyReportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[daily_report] 数据加载阶段异常")
-            return ToolResult.error_result(
-                f"数据加载阶段异常: {str(e)}",
-                code="DATA_LOADING_EXCEPTION"
-            )
+            return ToolResult.error_result(f"数据加载阶段异常: {str(e)}", code="DATA_LOADING_EXCEPTION")
 
         try:
             fe_tool_cls = registry.get("feature_engineer")
             if fe_tool_cls is None:
-                return ToolResult.error_result(
-                    "未找到 feature_engineer 工具",
-                    code="TOOL_NOT_FOUND_FEATURE_ENGINEER"
-                )
+                return ToolResult.error_result("未找到 feature_engineer 工具", code="TOOL_NOT_FOUND_FEATURE_ENGINEER")
             fe_tool = fe_tool_cls()
 
             fe_result = fe_tool.execute(ctx, raw_data=raw_data)
@@ -207,12 +194,13 @@ class DailyReportTool(BaseTool):
             }
 
             if not X_list or len(X_list) == 0:
-                return ToolResult.error_result(
-                    "特征矩阵为空，无法继续预测流程",
-                    code="EMPTY_FEATURE_MATRIX"
-                )
+                return ToolResult.error_result("特征矩阵为空，无法继续预测流程", code="EMPTY_FEATURE_MATRIX")
 
-            latest_features = np.array(X_list[-1], dtype=np.float64) if isinstance(X_list, list) else np.array(X_list[-1:], dtype=np.float64).flatten()
+            latest_features = (
+                np.array(X_list[-1], dtype=np.float64)
+                if isinstance(X_list, list)
+                else np.array(X_list[-1:], dtype=np.float64).flatten()
+            )
             if latest_features.ndim == 2 and latest_features.shape[0] == 1:
                 latest_features = latest_features.flatten()
 
@@ -221,18 +209,12 @@ class DailyReportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[daily_report] 特征工程阶段异常")
-            return ToolResult.error_result(
-                f"特征工程阶段异常: {str(e)}",
-                code="FEATURE_ENGINEERING_EXCEPTION"
-            )
+            return ToolResult.error_result(f"特征工程阶段异常: {str(e)}", code="FEATURE_ENGINEERING_EXCEPTION")
 
         try:
             pred_tool_cls = registry.get("predictor")
             if pred_tool_cls is None:
-                return ToolResult.error_result(
-                    "未找到 predictor 工具",
-                    code="TOOL_NOT_FOUND_PREDICTOR"
-                )
+                return ToolResult.error_result("未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR")
             pred_tool = pred_tool_cls()
 
             pred_result = pred_tool.execute(
@@ -328,7 +310,7 @@ class DailyReportTool(BaseTool):
 
     @staticmethod
     def _extract_recent_original(raw_data: pd.DataFrame) -> Dict[str, Any]:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         recent_original = {}
         window = min(30, len(raw_data))
         tail_df = raw_data.tail(window)
@@ -364,7 +346,11 @@ class DailyReportTool(BaseTool):
 
         overall_confidence = level
         if model_status in ("failed", "error"):
-            overall_confidence = min(level, "low", key=lambda x: ["high", "medium", "low", "very_low"].index(x)) if level != "very_low" else "very_low"
+            overall_confidence = (
+                min(level, "low", key=lambda x: ["high", "medium", "low", "very_low"].index(x))
+                if level != "very_low"
+                else "very_low"
+            )
         if has_urgent_suggestions and level == "high":
             overall_confidence = "medium"
 
@@ -382,56 +368,70 @@ class DailyReportTool(BaseTool):
         alerts = []
         pred_section = sections.get("prediction", {})
         if pred_section.get("status") != "success":
-            alerts.append({
-                "level": "urgent",
-                "category": "prediction_failure",
-                "message": "预测环节未成功完成，报告中可能缺少关键推荐数据",
-            })
+            alerts.append(
+                {
+                    "level": "urgent",
+                    "category": "prediction_failure",
+                    "message": "预测环节未成功完成，报告中可能缺少关键推荐数据",
+                }
+            )
 
         summary = pred_section.get("summary") if isinstance(pred_section.get("summary"), dict) else {}
         avg_unc = summary.get("avg_uncertainty", 0)
         if avg_unc > 0.6:
-            alerts.append({
-                "level": "warning",
-                "category": "high_uncertainty",
-                "message": f"平均不确定性过高({avg_unc:.4f})，预测可靠性存疑",
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "category": "high_uncertainty",
+                    "message": f"平均不确定性过高({avg_unc:.4f})，预测可靠性存疑",
+                }
+            )
 
         ma_section = sections.get("model_analysis", {})
         health = ma_section.get("health_report") if isinstance(ma_section.get("health_report"), dict) else {}
         integrity = health.get("integrity_check", {})
         if isinstance(integrity, dict) and not integrity.get("valid", True):
-            alerts.append({
-                "level": "urgent",
-                "category": "model_integrity",
-                "message": "模型完整性校验未通过，建议重新训练或检查模型文件",
-            })
+            alerts.append(
+                {
+                    "level": "urgent",
+                    "category": "model_integrity",
+                    "message": "模型完整性校验未通过，建议重新训练或检查模型文件",
+                }
+            )
 
         components = health.get("components", {})
         if isinstance(components, dict):
-            unloaded = [name for name, info in components.items() if isinstance(info, dict) and not info.get("loaded", True)]
+            unloaded = [
+                name for name, info in components.items() if isinstance(info, dict) and not info.get("loaded", True)
+            ]
             if unloaded:
-                alerts.append({
-                    "level": "warning",
-                    "category": "component_missing",
-                    "message": f"以下模型组件未正常加载: {', '.join(unloaded)}",
-                })
+                alerts.append(
+                    {
+                        "level": "warning",
+                        "category": "component_missing",
+                        "message": f"以下模型组件未正常加载: {', '.join(unloaded)}",
+                    }
+                )
 
         opt_section = sections.get("optimization", {})
         suggestions = opt_section.get("suggestions") if isinstance(opt_section.get("suggestions"), dict) else {}
         if isinstance(suggestions.get("summary", dict), dict) and suggestions["summary"].get("has_urgent"):
-            alerts.append({
-                "level": "important",
-                "category": "optimization_needed",
-                "message": "系统生成了紧急级优化建议，请查看优化建议部分",
-            })
+            alerts.append(
+                {
+                    "level": "important",
+                    "category": "optimization_needed",
+                    "message": "系统生成了紧急级优化建议，请查看优化建议部分",
+                }
+            )
 
         if not alerts:
-            alerts.append({
-                "level": "info",
-                "category": "all_clear",
-                "message": "所有检测项通过，未发现显著风险",
-            })
+            alerts.append(
+                {
+                    "level": "info",
+                    "category": "all_clear",
+                    "message": "所有检测项通过，未发现显著风险",
+                }
+            )
 
         return alerts
 
@@ -535,27 +535,23 @@ class QuickPredictTool(BaseTool):
         auto_load = kwargs.get("auto_load", True)
 
         if not period and not recent_numbers:
-            return ToolResult.error_result(
-                "必须提供 period 或 recent_numbers 中的至少一个参数",
-                code="MISSING_INPUT"
-            )
+            return ToolResult.error_result("必须提供 period 或 recent_numbers 中的至少一个参数", code="MISSING_INPUT")
 
         if recent_numbers is not None:
             if not isinstance(recent_numbers, (list, tuple)):
                 return ToolResult.error_result(
                     f"recent_numbers 必须是列表类型，实际: {type(recent_numbers).__name__}",
-                    code="INVALID_RECENT_NUMBERS_TYPE"
+                    code="INVALID_RECENT_NUMBERS_TYPE",
                 )
             if len(recent_numbers) != 5:
                 return ToolResult.error_result(
                     f"recent_numbers 需要恰好 5 个元素 [万,千,百,十,个]，实际 {len(recent_numbers)} 个",
-                    code="INVALID_RECENT_NUMBERS_LENGTH"
+                    code="INVALID_RECENT_NUMBERS_LENGTH",
                 )
             for i, num in enumerate(recent_numbers):
                 if not isinstance(num, int) or num < 0 or num > 9:
                     return ToolResult.error_result(
-                        f"recent_numbers[{i}]={num} 无效，每个元素必须是 0-9 的整数",
-                        code="INVALID_NUMBER_VALUE"
+                        f"recent_numbers[{i}]={num} 无效，每个元素必须是 0-9 的整数", code="INVALID_NUMBER_VALUE"
                     )
 
         registry = get_registry()
@@ -563,17 +559,11 @@ class QuickPredictTool(BaseTool):
         try:
             features = self._resolve_features(ctx, registry, period, recent_numbers, auto_load)
             if features is None:
-                return ToolResult.error_result(
-                    "特征构建失败，无法进行预测",
-                    code="FEATURE_RESOLUTION_FAILED"
-                )
+                return ToolResult.error_result("特征构建失败，无法进行预测", code="FEATURE_RESOLUTION_FAILED")
 
             pred_tool_cls = registry.get("predictor")
             if pred_tool_cls is None:
-                return ToolResult.error_result(
-                    "未找到 predictor 工具",
-                    code="TOOL_NOT_FOUND_PREDICTOR"
-                )
+                return ToolResult.error_result("未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR")
             pred_tool = pred_tool_cls()
 
             recent_original = self._build_recent_from_numbers(recent_numbers) if recent_numbers else None
@@ -587,7 +577,7 @@ class QuickPredictTool(BaseTool):
             if not pred_result.success:
                 return ToolResult.error_result(
                     f"预测执行失败: {pred_result.errors[0].message if pred_result.errors else 'unknown'}",
-                    code="PREDICTION_FAILED"
+                    code="PREDICTION_FAILED",
                 )
 
             predictions = pred_result.data.get("predictions", {})
@@ -596,11 +586,14 @@ class QuickPredictTool(BaseTool):
             recommendations, best_pick, confidence = self._format_quick_output(predictions, summary, top_k)
             quick_summary = self._generate_quick_summary(best_pick, confidence)
 
-            ctx.set("last_quick_prediction", {
-                "recommendations": recommendations,
-                "best_pick": best_pick,
-                "confidence": confidence,
-            })
+            ctx.set(
+                "last_quick_prediction",
+                {
+                    "recommendations": recommendations,
+                    "best_pick": best_pick,
+                    "confidence": confidence,
+                },
+            )
             ctx.record_metric("quick_predict.top_k", top_k)
             ctx.record_metric("quick_predict.confidence_level", confidence.get("level", "unknown"))
 
@@ -618,13 +611,11 @@ class QuickPredictTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[quick_predict] 执行异常")
-            return ToolResult.error_result(
-                f"快速预测执行异常: {str(e)}",
-                code="QUICK_PREDICT_EXCEPTION"
-            )
+            return ToolResult.error_result(f"快速预测执行异常: {str(e)}", code="QUICK_PREDICT_EXCEPTION")
 
-    def _resolve_features(self, ctx: ToolContext, registry, period: Optional[str],
-                          recent_numbers: Optional[List[int]], auto_load: bool) -> Optional[np.ndarray]:
+    def _resolve_features(
+        self, ctx: ToolContext, registry, period: Optional[str], recent_numbers: Optional[List[int]], auto_load: bool
+    ) -> Optional[np.ndarray]:
         if recent_numbers is not None:
             return self._features_from_numbers(ctx, registry, recent_numbers)
         if period and auto_load:
@@ -632,8 +623,8 @@ class QuickPredictTool(BaseTool):
         return None
 
     def _features_from_numbers(self, ctx: ToolContext, registry, numbers: List[int]) -> Optional[np.ndarray]:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
-        row = {'period': 'manual_input'}
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
+        row = {"period": "manual_input"}
         for i, pos in enumerate(POSITIONS):
             row[pos] = numbers[i]
 
@@ -654,7 +645,11 @@ class QuickPredictTool(BaseTool):
         if isinstance(X_list, list) and len(X_list) > 0:
             arr = np.array(X_list[-1], dtype=np.float64)
             return arr.flatten() if arr.ndim >= 1 else arr
-        return np.array(X_list, dtype=np.float64).flatten() if hasattr(X_list, '__len__') else np.zeros(100, dtype=np.float64)
+        return (
+            np.array(X_list, dtype=np.float64).flatten()
+            if hasattr(X_list, "__len__")
+            else np.zeros(100, dtype=np.float64)
+        )
 
     def _features_from_period(self, ctx: ToolContext, registry, period: str) -> Optional[np.ndarray]:
         dl_tool_cls = registry.get("data_loader")
@@ -700,7 +695,7 @@ class QuickPredictTool(BaseTool):
 
     @staticmethod
     def _build_recent_from_numbers(numbers: List[int]) -> Dict[str, Any]:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         result = {}
         for i, pos in enumerate(POSITIONS):
             result[pos] = np.array([float(numbers[i])])
@@ -708,7 +703,7 @@ class QuickPredictTool(BaseTool):
 
     @staticmethod
     def _format_quick_output(predictions: Dict, summary: Dict, top_k: int) -> Tuple[Dict, Dict, Dict]:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         recommendations = {}
         best_pick = {}
 
@@ -761,8 +756,8 @@ class QuickPredictTool(BaseTool):
 
     @staticmethod
     def _generate_quick_summary(best_pick: Dict, confidence: Dict) -> str:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
-        POS_NAMES = ['万位', '千位', '百位', '十位', '个位']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
+        POS_NAMES = ["万位", "千位", "百位", "十位", "个位"]
         parts = [f"【PL5快速预测】"]
         number_str = ""
         valid_count = 0
@@ -855,10 +850,7 @@ class BacktestTool(BaseTool):
         data_source = kwargs.get("data_source")
 
         if not start_period or not end_period:
-            return ToolResult.error_result(
-                "start_period 和 end_period 为必填参数",
-                code="MISSING_PERIOD_RANGE"
-            )
+            return ToolResult.error_result("start_period 和 end_period 为必填参数", code="MISSING_PERIOD_RANGE")
 
         top_k = strategy_config.get("top_k", 8)
         window_size = strategy_config.get("window_size", 50)
@@ -870,10 +862,7 @@ class BacktestTool(BaseTool):
         try:
             dl_tool_cls = registry.get("data_loader")
             if dl_tool_cls is None:
-                return ToolResult.error_result(
-                    "未找到 data_loader 工具",
-                    code="TOOL_NOT_FOUND_DATA_LOADER"
-                )
+                return ToolResult.error_result("未找到 data_loader 工具", code="TOOL_NOT_FOUND_DATA_LOADER")
             dl_tool = dl_tool_cls()
 
             if data_source is None:
@@ -882,48 +871,35 @@ class BacktestTool(BaseTool):
                         data_source = p
                         break
             if data_source is None:
-                return ToolResult.error_result(
-                    "未找到数据源文件",
-                    code="DATA_SOURCE_NOT_FOUND"
-                )
+                return ToolResult.error_result("未找到数据源文件", code="DATA_SOURCE_NOT_FOUND")
 
             dl_result = dl_tool.execute(ctx, path_or_data=data_source)
             if not dl_result.success:
                 return ToolResult.error_result(
                     f"数据加载失败: {dl_result.errors[0].message if dl_result.errors else 'unknown'}",
-                    code="DATA_LOAD_FAILED"
+                    code="DATA_LOAD_FAILED",
                 )
 
             full_data = dl_result.data.get("data")
             if not isinstance(full_data, pd.DataFrame) or full_data.empty:
-                return ToolResult.error_result(
-                    "数据为空或格式错误",
-                    code="EMPTY_DATA"
-                )
+                return ToolResult.error_result("数据为空或格式错误", code="EMPTY_DATA")
 
         except Exception as e:
             ctx.log.exception("[backtest] 数据加载异常")
-            return ToolResult.error_result(
-                f"数据加载异常: {str(e)}",
-                code="DATA_LOAD_EXCEPTION"
-            )
+            return ToolResult.error_result(f"数据加载异常: {str(e)}", code="DATA_LOAD_EXCEPTION")
 
         try:
             filtered_data = self._filter_by_period_range(full_data, start_period, end_period)
             if filtered_data.empty:
                 return ToolResult.error_result(
-                    f"在 [{start_period}, {end_period}] 范围内未找到有效数据",
-                    code="NO_DATA_IN_RANGE"
+                    f"在 [{start_period}, {end_period}] 范围内未找到有效数据", code="NO_DATA_IN_RANGE"
                 )
 
             total_periods = len(filtered_data)
             ctx.log.info(f"[backtest] 回测范围: {total_periods} 期 ({start_period} ~ {end_period})")
 
         except Exception as e:
-            return ToolResult.error_result(
-                f"期间筛选失败: {str(e)}",
-                code="PERIOD_FILTER_FAILED"
-            )
+            return ToolResult.error_result(f"期间筛选失败: {str(e)}", code="PERIOD_FILTER_FAILED")
 
         backtest_results = []
         prediction_records = []
@@ -933,19 +909,16 @@ class BacktestTool(BaseTool):
             pred_tool_cls = registry.get("predictor")
             fe_tool_cls = registry.get("feature_engineer")
             if pred_tool_cls is None or fe_tool_cls is None:
-                return ToolResult.error_result(
-                    "predictor 或 feature_engineer 工具未注册",
-                    code="CORE_TOOLS_NOT_FOUND"
-                )
+                return ToolResult.error_result("predictor 或 feature_engineer 工具未注册", code="CORE_TOOLS_NOT_FOUND")
             pred_tool = pred_tool_cls()
             fe_tool = fe_tool_cls()
 
-            periods_list = filtered_data['period'].tolist()
+            periods_list = filtered_data["period"].tolist()
             predict_indices = list(range(window_size, total_periods, step))
 
             for idx in predict_indices:
                 current_period = periods_list[idx]
-                train_slice = filtered_data.iloc[max(0, idx - window_size):idx]
+                train_slice = filtered_data.iloc[max(0, idx - window_size) : idx]
 
                 if train_slice.empty:
                     continue
@@ -976,11 +949,11 @@ class BacktestTool(BaseTool):
                         pred_data = pred_result.data.get("predictions", {})
                         actual_row = filtered_data.iloc[idx]
                         actual_dict = {
-                            'wan': int(actual_row.get('wan', -1)),
-                            'qian': int(actual_row.get('qian', -1)),
-                            'bai': int(actual_row.get('bai', -1)),
-                            'shi': int(actual_row.get('shi', -1)),
-                            'ge': int(actual_row.get('ge', -1)),
+                            "wan": int(actual_row.get("wan", -1)),
+                            "qian": int(actual_row.get("qian", -1)),
+                            "bai": int(actual_row.get("bai", -1)),
+                            "shi": int(actual_row.get("shi", -1)),
+                            "ge": int(actual_row.get("ge", -1)),
                         }
 
                         period_metrics = self._compute_period_metrics(pred_data, actual_dict, top_k)
@@ -995,10 +968,7 @@ class BacktestTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[backtest] 回测循环异常")
-            return ToolResult.error_result(
-                f"回测过程异常: {str(e)}",
-                code="BACKTEST_LOOP_EXCEPTION"
-            )
+            return ToolResult.error_result(f"回测过程异常: {str(e)}", code="BACKTEST_LOOP_EXCEPTION")
 
         if not backtest_results:
             return ToolResult.success_result(
@@ -1015,8 +985,14 @@ class BacktestTool(BaseTool):
             )
 
         report = self._build_backtest_report(
-            backtest_results, prediction_records, actual_records,
-            start_period, end_period, strategy_config, total_periods, time.time() - start_time
+            backtest_results,
+            prediction_records,
+            actual_records,
+            start_period,
+            end_period,
+            strategy_config,
+            total_periods,
+            time.time() - start_time,
         )
 
         ctx.set("last_backtest_report", report)
@@ -1034,15 +1010,15 @@ class BacktestTool(BaseTool):
 
     @staticmethod
     def _filter_by_period_range(df: pd.DataFrame, start_p: str, end_p: str) -> pd.DataFrame:
-        if 'period' not in df.columns:
+        if "period" not in df.columns:
             return df.head(0)
-        period_col = df['period'].astype(str)
+        period_col = df["period"].astype(str)
         mask = (period_col >= str(start_p)) & (period_col <= str(end_p))
         return df.loc[mask].reset_index(drop=True)
 
     @staticmethod
     def _extract_backtest_recent(train_slice: pd.DataFrame) -> Dict[str, Any]:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         recent = {}
         for pos in POSITIONS:
             if pos in train_slice.columns:
@@ -1051,7 +1027,7 @@ class BacktestTool(BaseTool):
 
     @staticmethod
     def _compute_period_metrics(prediction: Dict, actual: Dict, top_k: int) -> Dict:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         position_hits = {}
         position_top3_hits = {}
         position_top5_hits = {}
@@ -1097,15 +1073,23 @@ class BacktestTool(BaseTool):
         }
 
     @classmethod
-    def _build_backtest_report(cls, results: List[Dict], preds: List[Dict], actuals: List[Dict],
-                                start_p: str, end_p: str, strategy: Dict,
-                                total_periods: int, elapsed: float) -> Dict:
+    def _build_backtest_report(
+        cls,
+        results: List[Dict],
+        preds: List[Dict],
+        actuals: List[Dict],
+        start_p: str,
+        end_p: str,
+        strategy: Dict,
+        total_periods: int,
+        elapsed: float,
+    ) -> Dict:
         n = len(results)
         hit_rates = [r["hit_rate"] for r in results]
         top3_rates = [r["top3_rate"] for r in results]
         top5_rates = [r["top5_rate"] for r in results]
 
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         position_stats = {}
         for pos in POSITIONS:
             pos_hits = [r["position_hits"].get(pos, 0) for r in results]
@@ -1169,8 +1153,12 @@ class BacktestTool(BaseTool):
             "overall_hit_rate": report["metrics"]["overall_hit_rate"],
             "overall_top3_rate": report["metrics"]["overall_top3_rate"],
             "overall_top5_rate": report["metrics"]["overall_top5_rate"],
-            "best_position": max(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A",
-            "worst_position": min(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A",
+            "best_position": (
+                max(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A"
+            ),
+            "worst_position": (
+                min(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A"
+            ),
             "recommended_top_k": optimal_params.get("recommended_top_k", strategy.get("top_k", 8)),
         }
 
@@ -1294,8 +1282,7 @@ class ComparisonTool(BaseTool):
 
         if not predictions_a or not predictions_b or not actuals:
             return ToolResult.error_result(
-                "predictions_a, predictions_b 和 actuals 均为必填且不能为空",
-                code="MISSING_COMPARISON_DATA"
+                "predictions_a, predictions_b 和 actuals 均为必填且不能为空", code="MISSING_COMPARISON_DATA"
             )
 
         n_a = len(predictions_a)
@@ -1304,8 +1291,7 @@ class ComparisonTool(BaseTool):
 
         if n_a != n_b or n_a != n_actual:
             return ToolResult.error_result(
-                f"数据长度不一致: A={n_a}, B={n_b}, actual={n_actual}，三者必须相等",
-                code="LENGTH_MISMATCH"
+                f"数据长度不一致: A={n_a}, B={n_b}, actual={n_actual}，三者必须相等", code="LENGTH_MISMATCH"
             )
 
         label_a = labels.get("label_a", "Model_A")
@@ -1320,13 +1306,13 @@ class ComparisonTool(BaseTool):
 
             position_comparison = self._compare_positions(predictions_a, predictions_b, actuals, top_n)
 
-            significance = self._significance_test(metrics_a["per_period_accuracies"], metrics_b["per_period_accuracies"])
+            significance = self._significance_test(
+                metrics_a["per_period_accuracies"], metrics_b["per_period_accuracies"]
+            )
 
             win_loss = self._compute_win_loss(predictions_a, predictions_b, actuals, top_n)
 
-            conclusion_text = self._generate_conclusion(
-                label_a, label_b, metrics_a, metrics_b, win_loss, significance
-            )
+            conclusion_text = self._generate_conclusion(label_a, label_b, metrics_a, metrics_b, win_loss, significance)
 
             elapsed = time.time() - start_time
 
@@ -1378,14 +1364,11 @@ class ComparisonTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[comparison] 对比分析异常")
-            return ToolResult.error_result(
-                f"对比分析异常: {str(e)}",
-                code="COMPARISON_EXCEPTION"
-            )
+            return ToolResult.error_result(f"对比分析异常: {str(e)}", code="COMPARISON_EXCEPTION")
 
     @staticmethod
     def _compute_group_metrics(predictions: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         per_period_acc = []
         per_period_pos_hits = []
 
@@ -1423,7 +1406,7 @@ class ComparisonTool(BaseTool):
 
     @staticmethod
     def _compare_positions(preds_a: List[Dict], preds_b: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         comparison = {}
         for pos in POSITIONS:
             hits_a = 0
@@ -1507,14 +1490,13 @@ class ComparisonTool(BaseTool):
             "significant": significant,
             "effect_strength": strength,
             "interpretation": (
-                f"{'有' if significant else '无'}统计学显著差异 (p={p_value:.4f}, "
-                f"t={t_stat:.2f}, 强度={strength})"
+                f"{'有' if significant else '无'}统计学显著差异 (p={p_value:.4f}, " f"t={t_stat:.2f}, 强度={strength})"
             ),
         }
 
     @staticmethod
     def _compute_win_loss(preds_a: List[Dict], preds_b: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         wins_a = 0
         wins_b = 0
         ties = 0
@@ -1533,8 +1515,8 @@ class ComparisonTool(BaseTool):
 
                 rank_a = topka.index(actual_val) if actual_val in topka else 999
                 rank_b = topkb.index(actual_val) if actual_val in topkb else 999
-                score_a += (top_n - min(rank_a, top_n))
-                score_b += (top_n - min(rank_b, top_n))
+                score_a += top_n - min(rank_a, top_n)
+                score_b += top_n - min(rank_b, top_n)
 
             if score_a > score_b:
                 wins_a += 1
@@ -1563,13 +1545,19 @@ class ComparisonTool(BaseTool):
         acc_diff = m_a["overall_accuracy"] - m_b["overall_accuracy"]
 
         parts.append(f"[{label_a} vs {label_b}] 对比分析:")
-        parts.append(f"  整体准确率: {label_a}={m_a['overall_accuracy']:.4f}, {label_b}={m_b['overall_accuracy']:.4f} (差值={acc_diff:+.4f})")
+        parts.append(
+            f"  整体准确率: {label_a}={m_a['overall_accuracy']:.4f}, {label_b}={m_b['overall_accuracy']:.4f} (差值={acc_diff:+.4f})"
+        )
 
         winner = wl.get("winner", "tie")
         if winner == "A":
-            parts.append(f"  逐期胜率: {label_a}胜 {wl['wins_a']}期 ({wl['win_rate_a']:.1%}), {label_b}胜 {wl['wins_b']}期 ({wl['win_rate_b']:.1%}), 平局{wl['ties']}期 → {label_a}更优")
+            parts.append(
+                f"  逐期胜率: {label_a}胜 {wl['wins_a']}期 ({wl['win_rate_a']:.1%}), {label_b}胜 {wl['wins_b']}期 ({wl['win_rate_b']:.1%}), 平局{wl['ties']}期 → {label_a}更优"
+            )
         elif winner == "B":
-            parts.append(f"  逐期胜率: {label_a}胜 {wl['wins_a']}期 ({wl['win_rate_a']:.1%}), {label_b}胜 {wl['wins_b']}期 ({wl['win_rate_b']:.1%}), 平局{wl['ties']}期 → {label_b}更优")
+            parts.append(
+                f"  逐期胜率: {label_a}胜 {wl['wins_a']}期 ({wl['win_rate_a']:.1%}), {label_b}胜 {wl['wins_b']}期 ({wl['win_rate_b']:.1%}), 平局{wl['ties']}期 → {label_b}更优"
+            )
         else:
             parts.append(f"  逐期胜率: 双方势均力敌 (平局{wl['ties']}/{wl['total']}期)")
 
@@ -1650,85 +1638,38 @@ class PL5FixTool(BaseTool):
             "error_info": {
                 "type": "object",
                 "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "错误代码"
-                    },
-                    "message": {
-                        "type": "string",
-                        "description": "错误消息"
-                    },
-                    "details": {
-                        "type": "object",
-                        "description": "错误详细信息"
-                    }
+                    "code": {"type": "string", "description": "错误代码"},
+                    "message": {"type": "string", "description": "错误消息"},
+                    "details": {"type": "object", "description": "错误详细信息"},
                 },
-                "required": ["code", "message"]
+                "required": ["code", "message"],
             },
-            "context": {
-                "type": "object",
-                "description": "错误发生的上下文信息"
-            },
-            "include_prevention": {
-                "type": "boolean",
-                "description": "是否包含预防措施建议",
-                "default": True
-            },
-            "include_related_tools": {
-                "type": "boolean",
-                "description": "是否包含相关工具推荐",
-                "default": True
-            }
+            "context": {"type": "object", "description": "错误发生的上下文信息"},
+            "include_prevention": {"type": "boolean", "description": "是否包含预防措施建议", "default": True},
+            "include_related_tools": {"type": "boolean", "description": "是否包含相关工具推荐", "default": True},
         },
-        "required": ["error_info"]
+        "required": ["error_info"],
     }
 
     output_schema = {
         "type": "object",
         "properties": {
-            "analysis": {
-                "type": "object",
-                "description": "错误分析结果"
-            },
+            "analysis": {"type": "object", "description": "错误分析结果"},
             "fix_steps": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "step": {
-                            "type": "integer",
-                            "description": "步骤编号"
-                        },
-                        "description": {
-                            "type": "string",
-                            "description": "步骤描述"
-                        },
-                        "action": {
-                            "type": "string",
-                            "description": "具体操作"
-                        }
-                    }
-                }
+                        "step": {"type": "integer", "description": "步骤编号"},
+                        "description": {"type": "string", "description": "步骤描述"},
+                        "action": {"type": "string", "description": "具体操作"},
+                    },
+                },
             },
-            "prevention": {
-                "type": "array",
-                "items": {
-                    "type": "string",
-                    "description": "预防措施"
-                }
-            },
-            "related_tools": {
-                "type": "array",
-                "items": {
-                    "type": "string",
-                    "description": "相关工具名称"
-                }
-            },
-            "severity": {
-                "type": "string",
-                "description": "错误严重程度"
-            }
-        }
+            "prevention": {"type": "array", "items": {"type": "string", "description": "预防措施"}},
+            "related_tools": {"type": "array", "items": {"type": "string", "description": "相关工具名称"}},
+            "severity": {"type": "string", "description": "错误严重程度"},
+        },
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -1738,10 +1679,7 @@ class PL5FixTool(BaseTool):
         include_related_tools = kwargs.get("include_related_tools", True)
 
         if not error_info:
-            return ToolResult.error_result(
-                "缺少 error_info 参数",
-                code="MISSING_ERROR_INFO"
-            )
+            return ToolResult.error_result("缺少 error_info 参数", code="MISSING_ERROR_INFO")
 
         error_code = error_info.get("code", "UNKNOWN_ERROR")
         error_message = error_info.get("message", "未知错误")
@@ -1758,27 +1696,20 @@ class PL5FixTool(BaseTool):
                 "fix_steps": fix_steps,
                 "prevention": prevention,
                 "related_tools": related_tools,
-                "severity": analysis.get("severity", "medium")
+                "severity": analysis.get("severity", "medium"),
             }
 
             ctx.set("last_error_analysis", analysis)
             ctx.record_metric("pl5_fix_tool.error_code", error_code)
             ctx.record_metric("pl5_fix_tool.severity", analysis.get("severity", "medium"))
 
-            return ToolResult.success_result(
-                data=result_data,
-                tool_name=self.name
-            )
+            return ToolResult.success_result(data=result_data, tool_name=self.name)
 
         except Exception as e:
             ctx.log.exception("[pl5_fix_tool] 执行异常")
-            return ToolResult.error_result(
-                f"错误分析工具执行异常: {str(e)}",
-                code="FIX_TOOL_EXCEPTION"
-            )
+            return ToolResult.error_result(f"错误分析工具执行异常: {str(e)}", code="FIX_TOOL_EXCEPTION")
 
-    def _analyze_error(self, error_code: str, error_message: str, 
-                      error_details: dict, context: dict) -> dict:
+    def _analyze_error(self, error_code: str, error_message: str, error_details: dict, context: dict) -> dict:
         """分析错误类型和原因"""
         analysis = {
             "error_code": error_code,
@@ -1788,7 +1719,7 @@ class PL5FixTool(BaseTool):
             "severity": "medium",
             "category": "general",
             "root_cause": "未知原因",
-            "impact": "中等影响"
+            "impact": "中等影响",
         }
 
         # 错误类型分类和分析
@@ -1860,160 +1791,64 @@ class PL5FixTool(BaseTool):
         if category == "data":
             if "MISSING" in error_code or "EMPTY" in error_code:
                 fix_steps = [
-                    {
-                        "step": 1,
-                        "description": "检查数据源路径",
-                        "action": "确认数据文件是否存在，路径是否正确"
-                    },
+                    {"step": 1, "description": "检查数据源路径", "action": "确认数据文件是否存在，路径是否正确"},
                     {
                         "step": 2,
                         "description": "验证数据文件格式",
-                        "action": "检查CSV/JSON文件格式是否正确，是否包含必要的列"
+                        "action": "检查CSV/JSON文件格式是否正确，是否包含必要的列",
                     },
-                    {
-                        "step": 3,
-                        "description": "查看数据内容",
-                        "action": "打开数据文件，确认数据是否为空或格式错误"
-                    },
+                    {"step": 3, "description": "查看数据内容", "action": "打开数据文件，确认数据是否为空或格式错误"},
                     {
                         "step": 4,
                         "description": "使用默认数据",
-                        "action": "如果自定义数据有问题，尝试使用系统默认数据文件"
-                    }
+                        "action": "如果自定义数据有问题，尝试使用系统默认数据文件",
+                    },
                 ]
             elif "LOAD" in error_code:
                 fix_steps = [
-                    {
-                        "step": 1,
-                        "description": "检查文件权限",
-                        "action": "确认应用程序有读取数据文件的权限"
-                    },
-                    {
-                        "step": 2,
-                        "description": "验证文件格式",
-                        "action": "使用文本编辑器打开文件，确认格式正确"
-                    },
-                    {
-                        "step": 3,
-                        "description": "尝试其他数据源",
-                        "action": "使用不同的数据源或文件格式"
-                    }
+                    {"step": 1, "description": "检查文件权限", "action": "确认应用程序有读取数据文件的权限"},
+                    {"step": 2, "description": "验证文件格式", "action": "使用文本编辑器打开文件，确认格式正确"},
+                    {"step": 3, "description": "尝试其他数据源", "action": "使用不同的数据源或文件格式"},
                 ]
 
         elif category == "prediction":
             fix_steps = [
-                {
-                    "step": 1,
-                    "description": "检查特征向量",
-                    "action": "确认输入特征向量的长度和格式正确"
-                },
-                {
-                    "step": 2,
-                    "description": "验证模型状态",
-                    "action": "使用 model_analyzer 工具检查模型健康状态"
-                },
-                {
-                    "step": 3,
-                    "description": "检查数据质量",
-                    "action": "确保输入数据干净，没有异常值"
-                },
-                {
-                    "step": 4,
-                    "description": "调整参数",
-                    "action": "尝试调整预测参数，如 top_k 值"
-                }
+                {"step": 1, "description": "检查特征向量", "action": "确认输入特征向量的长度和格式正确"},
+                {"step": 2, "description": "验证模型状态", "action": "使用 model_analyzer 工具检查模型健康状态"},
+                {"step": 3, "description": "检查数据质量", "action": "确保输入数据干净，没有异常值"},
+                {"step": 4, "description": "调整参数", "action": "尝试调整预测参数，如 top_k 值"},
             ]
 
         elif category == "model":
             fix_steps = [
-                {
-                    "step": 1,
-                    "description": "检查模型文件",
-                    "action": "确认模型文件是否存在且完整"
-                },
-                {
-                    "step": 2,
-                    "description": "验证模型版本",
-                    "action": "确保使用的是兼容的模型版本"
-                },
-                {
-                    "step": 3,
-                    "description": "重新加载模型",
-                    "action": "使用 model_analyzer 工具重新加载模型"
-                },
-                {
-                    "step": 4,
-                    "description": "检查依赖项",
-                    "action": "确认所有必要的依赖项都已安装"
-                }
+                {"step": 1, "description": "检查模型文件", "action": "确认模型文件是否存在且完整"},
+                {"step": 2, "description": "验证模型版本", "action": "确保使用的是兼容的模型版本"},
+                {"step": 3, "description": "重新加载模型", "action": "使用 model_analyzer 工具重新加载模型"},
+                {"step": 4, "description": "检查依赖项", "action": "确认所有必要的依赖项都已安装"},
             ]
 
         elif category == "validation":
             fix_steps = [
-                {
-                    "step": 1,
-                    "description": "检查输入参数",
-                    "action": "确认所有必填参数都已提供且格式正确"
-                },
-                {
-                    "step": 2,
-                    "description": "验证参数类型",
-                    "action": "确保参数类型符合工具要求"
-                },
-                {
-                    "step": 3,
-                    "description": "查看工具文档",
-                    "action": "参考工具的 input_schema 了解正确的参数格式"
-                }
+                {"step": 1, "description": "检查输入参数", "action": "确认所有必填参数都已提供且格式正确"},
+                {"step": 2, "description": "验证参数类型", "action": "确保参数类型符合工具要求"},
+                {"step": 3, "description": "查看工具文档", "action": "参考工具的 input_schema 了解正确的参数格式"},
             ]
 
         elif category == "tool":
             fix_steps = [
-                {
-                    "step": 1,
-                    "description": "检查工具注册",
-                    "action": "确认所需工具已正确注册到 ToolRegistry"
-                },
-                {
-                    "step": 2,
-                    "description": "验证工具依赖",
-                    "action": "确保工具的所有依赖项都已满足"
-                },
-                {
-                    "step": 3,
-                    "description": "检查工具版本",
-                    "action": "确保使用的是兼容的工具版本"
-                }
+                {"step": 1, "description": "检查工具注册", "action": "确认所需工具已正确注册到 ToolRegistry"},
+                {"step": 2, "description": "验证工具依赖", "action": "确保工具的所有依赖项都已满足"},
+                {"step": 3, "description": "检查工具版本", "action": "确保使用的是兼容的工具版本"},
             ]
 
         else:
             # 通用修复步骤
             fix_steps = [
-                {
-                    "step": 1,
-                    "description": "查看错误详情",
-                    "action": "仔细阅读错误消息和详细信息"
-                },
-                {
-                    "step": 2,
-                    "description": "检查日志",
-                    "action": "查看系统日志以获取更多上下文信息"
-                },
-                {
-                    "step": 3,
-                    "description": "验证输入",
-                    "action": "确认所有输入参数都正确无误"
-                },
-                {
-                    "step": 4,
-                    "description": "重启服务",
-                    "action": "尝试重启应用程序或服务"
-                },
-                {
-                    "step": 5,
-                    "description": "寻求帮助",
-                    "action": "如果问题持续存在，联系技术支持"
-                }
+                {"step": 1, "description": "查看错误详情", "action": "仔细阅读错误消息和详细信息"},
+                {"step": 2, "description": "检查日志", "action": "查看系统日志以获取更多上下文信息"},
+                {"step": 3, "description": "验证输入", "action": "确认所有输入参数都正确无误"},
+                {"step": 4, "description": "重启服务", "action": "尝试重启应用程序或服务"},
+                {"step": 5, "description": "寻求帮助", "action": "如果问题持续存在，联系技术支持"},
             ]
 
         return fix_steps
@@ -2029,7 +1864,7 @@ class PL5FixTool(BaseTool):
                 "建立数据备份机制，确保数据安全",
                 "使用数据验证工具定期检查数据质量",
                 "设置数据监控告警，及时发现数据异常",
-                "保持数据格式的一致性和标准化"
+                "保持数据格式的一致性和标准化",
             ]
 
         elif category == "prediction":
@@ -2038,7 +1873,7 @@ class PL5FixTool(BaseTool):
                 "建立预测结果的监控机制",
                 "使用历史数据进行定期回测，验证预测准确性",
                 "保持特征工程流程的稳定性",
-                "建立模型更新和维护的定期计划"
+                "建立模型更新和维护的定期计划",
             ]
 
         elif category == "model":
@@ -2047,7 +1882,7 @@ class PL5FixTool(BaseTool):
                 "建立模型版本控制机制",
                 "定期运行模型健康检查",
                 "监控模型依赖项的更新情况",
-                "建立模型部署和回滚的标准流程"
+                "建立模型部署和回滚的标准流程",
             ]
 
         elif category == "validation":
@@ -2056,7 +1891,7 @@ class PL5FixTool(BaseTool):
                 "建立参数验证的标准流程",
                 "使用统一的参数格式和命名规范",
                 "为工具调用添加错误处理机制",
-                "定期检查工具的输入输出格式是否有变化"
+                "定期检查工具的输入输出格式是否有变化",
             ]
 
         elif category == "tool":
@@ -2065,7 +1900,7 @@ class PL5FixTool(BaseTool):
                 "定期检查工具注册状态",
                 "确保工具版本的兼容性",
                 "建立工具更新和测试的标准流程",
-                "监控工具的使用情况和性能"
+                "监控工具的使用情况和性能",
             ]
 
         else:
@@ -2074,7 +1909,7 @@ class PL5FixTool(BaseTool):
                 "定期进行系统健康检查",
                 "保持系统组件的更新和维护",
                 "建立标准化的错误处理流程",
-                "定期备份系统配置和数据"
+                "定期备份系统配置和数据",
             ]
 
         return prevention
@@ -2191,10 +2026,7 @@ class AlertTool(BaseTool):
         history_window = kwargs.get("history_window", 20)
 
         if not current_metrics or not isinstance(current_metrics, dict):
-            return ToolResult.error_result(
-                "current_metrics 必须是非空字典",
-                code="INVALID_METRICS"
-            )
+            return ToolResult.error_result("current_metrics 必须是非空字典", code="INVALID_METRICS")
 
         effective_thresholds = {**self._DEFAULT_THRESHOLDS, **thresholds}
 
@@ -2234,12 +2066,14 @@ class AlertTool(BaseTool):
         actions = self._generate_actions(triggered_alerts, status, effective_thresholds)
 
         alert_history = ctx.get("alert_history") or []
-        alert_history.append({
-            "timestamp": datetime.now().isoformat(),
-            "status": status,
-            "score": total_score,
-            "alert_count": len(triggered_alerts),
-        })
+        alert_history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "status": status,
+                "score": total_score,
+                "alert_count": len(triggered_alerts),
+            }
+        )
         if len(alert_history) > history_window:
             alert_history = alert_history[-history_window:]
         ctx.set("alert_history", alert_history)
@@ -2284,36 +2118,42 @@ class AlertTool(BaseTool):
                 hist_mean = float(np.mean(historical_accuracies[-20:]))
                 drop_ratio = (hist_mean - accuracy) / max(hist_mean, 1e-10)
                 if drop_ratio > thresh["accuracy_drop_ratio"]:
-                    alerts.append({
-                        "detector": "accuracy_drop",
-                        "severity": "urgent" if drop_ratio > 0.5 else "warning",
-                        "metric": "accuracy",
-                        "current": round(accuracy, 6),
-                        "historical_mean": round(hist_mean, 6),
-                        "drop_ratio": round(drop_ratio, 4),
-                        "message": f"准确率骤降: 当前 {accuracy:.4f}, 历史均值 {hist_mean:.4f}, 降幅 {drop_ratio:.1%}",
-                    })
+                    alerts.append(
+                        {
+                            "detector": "accuracy_drop",
+                            "severity": "urgent" if drop_ratio > 0.5 else "warning",
+                            "metric": "accuracy",
+                            "current": round(accuracy, 6),
+                            "historical_mean": round(hist_mean, 6),
+                            "drop_ratio": round(drop_ratio, 4),
+                            "message": f"准确率骤降: 当前 {accuracy:.4f}, 历史均值 {hist_mean:.4f}, 降幅 {drop_ratio:.1%}",
+                        }
+                    )
 
             if accuracy < thresh["accuracy_absolute_min"]:
-                alerts.append({
-                    "detector": "accuracy_too_low",
-                    "severity": "urgent",
-                    "metric": "accuracy",
-                    "current": round(accuracy, 6),
-                    "threshold": thresh["accuracy_absolute_min"],
-                    "message": f"准确率过低: {accuracy:.4f} < {thresh['accuracy_absolute_min']}",
-                })
+                alerts.append(
+                    {
+                        "detector": "accuracy_too_low",
+                        "severity": "urgent",
+                        "metric": "accuracy",
+                        "current": round(accuracy, 6),
+                        "threshold": thresh["accuracy_absolute_min"],
+                        "message": f"准确率过低: {accuracy:.4f} < {thresh['accuracy_absolute_min']}",
+                    }
+                )
 
         uncertainty = metrics.get("uncertainty")
         if uncertainty is not None and uncertainty > thresh["uncertainty_max"]:
-            alerts.append({
-                "detector": "high_uncertainty",
-                "severity": "warning" if uncertainty < 0.85 else "urgent",
-                "metric": "uncertainty",
-                "current": round(uncertainty, 4),
-                "threshold": thresh["uncertainty_max"],
-                "message": f"不确定性偏高: {uncertainty:.4f} > {thresh['uncertainty_max']}",
-            })
+            alerts.append(
+                {
+                    "detector": "high_uncertainty",
+                    "severity": "warning" if uncertainty < 0.85 else "urgent",
+                    "metric": "uncertainty",
+                    "current": round(uncertainty, 4),
+                    "threshold": thresh["uncertainty_max"],
+                    "message": f"不确定性偏高: {uncertainty:.4f} > {thresh['uncertainty_max']}",
+                }
+            )
 
         return alerts
 
@@ -2327,32 +2167,38 @@ class AlertTool(BaseTool):
             warn_statuses = ["degraded", "partial", "stale", "warning"]
 
             if any(s in str(model_status).lower() for s in error_statuses):
-                alerts.append({
-                    "detector": "model_error",
-                    "severity": "urgent",
-                    "metric": "model_status",
-                    "value": str(model_status),
-                    "message": f"模型状态异常: {model_status}",
-                })
+                alerts.append(
+                    {
+                        "detector": "model_error",
+                        "severity": "urgent",
+                        "metric": "model_status",
+                        "value": str(model_status),
+                        "message": f"模型状态异常: {model_status}",
+                    }
+                )
             elif any(s in str(model_status).lower() for s in warn_statuses):
-                alerts.append({
-                    "detector": "model_warning",
-                    "severity": "warning",
-                    "metric": "model_status",
-                    "value": str(model_status),
-                    "message": f"模型状态需关注: {model_status}",
-                })
+                alerts.append(
+                    {
+                        "detector": "model_warning",
+                        "severity": "warning",
+                        "metric": "model_status",
+                        "value": str(model_status),
+                        "message": f"模型状态需关注: {model_status}",
+                    }
+                )
 
         consecutive_failures = metrics.get("consecutive_failures", 0)
         if consecutive_failures > thresh["consecutive_failures_max"]:
-            alerts.append({
-                "detector": "consecutive_failures",
-                "severity": "urgent" if consecutive_failures > 5 else "warning",
-                "metric": "consecutive_failures",
-                "value": consecutive_failures,
-                "threshold": thresh["consecutive_failures_max"],
-                "message": f"连续失败次数过多: {consecutive_failures} 次 (阈值: {thresh['consecutive_failures_max']})",
-            })
+            alerts.append(
+                {
+                    "detector": "consecutive_failures",
+                    "severity": "urgent" if consecutive_failures > 5 else "warning",
+                    "metric": "consecutive_failures",
+                    "value": consecutive_failures,
+                    "threshold": thresh["consecutive_failures_max"],
+                    "message": f"连续失败次数过多: {consecutive_failures} 次 (阈值: {thresh['consecutive_failures_max']})",
+                }
+            )
 
         return alerts
 
@@ -2363,28 +2209,32 @@ class AlertTool(BaseTool):
         hit_rate = metrics.get("hit_rate")
 
         if drift_score is not None and drift_score > thresh["drift_threshold"]:
-            alerts.append({
-                "detector": "feature_drift",
-                "severity": "warning" if drift_score < 0.75 else "urgent",
-                "metric": "feature_drift_score",
-                "current": round(drift_score, 4),
-                "threshold": thresh["drift_threshold"],
-                "message": f"特征分布漂移检测到: drift_score={drift_score:.4f} (阈值: {thresh['drift_threshold']})",
-            })
+            alerts.append(
+                {
+                    "detector": "feature_drift",
+                    "severity": "warning" if drift_score < 0.75 else "urgent",
+                    "metric": "feature_drift_score",
+                    "current": round(drift_score, 4),
+                    "threshold": thresh["drift_threshold"],
+                    "message": f"特征分布漂移检测到: drift_score={drift_score:.4f} (阈值: {thresh['drift_threshold']})",
+                }
+            )
 
         if hit_rate is not None:
             hist_hits = metrics.get("historical_hit_rates") or []
             if len(hist_hits) >= 5:
                 hist_mean_hit = float(np.mean(hist_hits[-20:]))
                 if hist_mean_hit > 0.1 and hit_rate < hist_mean_hit * 0.5:
-                    alerts.append({
-                        "detector": "hit_rate_anomaly",
-                        "severity": "warning",
-                        "metric": "hit_rate",
-                        "current": round(hit_rate, 4),
-                        "historical_mean": round(hist_mean_hit, 4),
-                        "message": f"命中率异常下降: 当前 {hit_rate:.4f}, 历史 {hist_mean_hit:.4f}",
-                    })
+                    alerts.append(
+                        {
+                            "detector": "hit_rate_anomaly",
+                            "severity": "warning",
+                            "metric": "hit_rate",
+                            "current": round(hit_rate, 4),
+                            "historical_mean": round(hist_mean_hit, 4),
+                            "message": f"命中率异常下降: 当前 {hit_rate:.4f}, 历史 {hist_mean_hit:.4f}",
+                        }
+                    )
 
         return alerts
 
@@ -2400,14 +2250,16 @@ class AlertTool(BaseTool):
                 custom_thresh_key = f"custom_{key}_max"
                 custom_thresh = thresh.get(custom_thresh_key)
                 if custom_thresh is not None and value > custom_thresh:
-                    alerts.append({
-                        "detector": "custom_threshold",
-                        "severity": "warning",
-                        "metric": f"custom.{key}",
-                        "current": value,
-                        "threshold": custom_thresh,
-                        "message": f"自定义指标 '{key}' 超阈: {value} > {custom_thresh}",
-                    })
+                    alerts.append(
+                        {
+                            "detector": "custom_threshold",
+                            "severity": "warning",
+                            "metric": f"custom.{key}",
+                            "current": value,
+                            "threshold": custom_thresh,
+                            "message": f"自定义指标 '{key}' 超阈: {value} > {custom_thresh}",
+                        }
+                    )
 
         return alerts
 
@@ -2469,11 +2321,13 @@ class AlertTool(BaseTool):
                 actions.append(action_map[det])
 
         if status == "normal":
-            actions.append({
-                "priority": "info",
-                "action": "系统运行正常，无需额外操作。继续保持常规监控。",
-                "related_detector": "system_healthy",
-            })
+            actions.append(
+                {
+                    "priority": "info",
+                    "action": "系统运行正常，无需额外操作。继续保持常规监控。",
+                    "related_detector": "system_healthy",
+                }
+            )
 
         return actions
 
@@ -2593,15 +2447,11 @@ class ExportTool(BaseTool):
         options = kwargs.get("options") or {}
 
         if data is None:
-            return ToolResult.error_result(
-                "data 参数不能为 None",
-                code="EXPORT_NO_DATA"
-            )
+            return ToolResult.error_result("data 参数不能为 None", code="EXPORT_NO_DATA")
 
         if fmt not in self._SUPPORTED_FORMATS:
             return ToolResult.error_result(
-                f"不支持的导出格式: '{fmt}'，支持: {self._SUPPORTED_FORMATS}",
-                code="UNSUPPORTED_FORMAT"
+                f"不支持的导出格式: '{fmt}'，支持: {self._SUPPORTED_FORMATS}", code="UNSUPPORTED_FORMAT"
             )
 
         try:
@@ -2636,7 +2486,9 @@ class ExportTool(BaseTool):
                     "mode": "file",
                 }
             else:
-                size = len(content.encode(options.get("encoding", "utf-8"))) if isinstance(content, str) else len(content)
+                size = (
+                    len(content.encode(options.get("encoding", "utf-8"))) if isinstance(content, str) else len(content)
+                )
                 result_data = {
                     "output": content,
                     "format": fmt,
@@ -2656,10 +2508,7 @@ class ExportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception(f"[export] 导出异常 (format={fmt})")
-            return ToolResult.error_result(
-                f"导出失败(format={fmt}): {str(e)}",
-                code="EXPORT_ERROR"
-            )
+            return ToolResult.error_result(f"导出失败(format={fmt}): {str(e)}", code="EXPORT_ERROR")
 
     def _serialize(self, data: Any, fmt: str, options: Dict) -> Any:
         serializers = {
@@ -2686,7 +2535,7 @@ class ExportTool(BaseTool):
         flatten = options.get("flatten", True)
         df = ExportTool._convert_to_dataframe(data, flatten)
         output = io.StringIO()
-        df.to_csv(output, index=False, encoding='utf-8')
+        df.to_csv(output, index=False, encoding="utf-8")
         return output.getvalue()
 
     @staticmethod
@@ -2702,7 +2551,7 @@ class ExportTool(BaseTool):
             raise ImportError("Excel 导出需要 openpyxl 库，请执行: pip install openpyxl")
 
         sheet_name = options.get("sheet_name", "Sheet1")
-        df.to_excel(path, index=False, sheet_name=sheet_name, engine='openpyxl')
+        df.to_excel(path, index=False, sheet_name=sheet_name, engine="openpyxl")
 
     @staticmethod
     def _to_markdown(data: Any, options: Dict) -> str:

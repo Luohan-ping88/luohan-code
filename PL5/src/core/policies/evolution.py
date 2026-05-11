@@ -2,6 +2,7 @@
 策略演化机制模块
 策略变异、交叉和选择机制
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SelectionMethod(Enum):
     """选择方法枚举"""
+
     TOURNAMENT = "tournament"
     ROULETTE_WHEEL = "roulette_wheel"
     RANK_BASED = "rank_based"
@@ -25,6 +27,7 @@ class SelectionMethod(Enum):
 
 class MutationMethod(Enum):
     """变异方法枚举"""
+
     GAUSSIAN = "gaussian"
     UNIFORM = "uniform"
     BIT_FLIP = "bit_flip"
@@ -33,6 +36,7 @@ class MutationMethod(Enum):
 
 class CrossoverMethod(Enum):
     """交叉方法枚举"""
+
     ONE_POINT = "one_point"
     TWO_POINT = "two_point"
     UNIFORM = "uniform"
@@ -42,6 +46,7 @@ class CrossoverMethod(Enum):
 @dataclass
 class Individual:
     """个体（策略配置）"""
+
     id: str
     genotype: Dict[str, Any]
     fitness: float = 0.0
@@ -52,6 +57,7 @@ class Individual:
 @dataclass
 class EvolutionResult:
     """演化结果"""
+
     best_individual: Individual
     population: List[Individual]
     generation: int
@@ -62,16 +68,18 @@ class EvolutionResult:
 class GeneticAlgorithm:
     """遗传算法策略演化器"""
 
-    def __init__(self,
-                 population_size: int = 50,
-                 max_generations: int = 100,
-                 mutation_rate: float = 0.1,
-                 crossover_rate: float = 0.8,
-                 elitism_rate: float = 0.1,
-                 selection_method: SelectionMethod = SelectionMethod.TOURNAMENT,
-                 mutation_method: MutationMethod = MutationMethod.GAUSSIAN,
-                 crossover_method: CrossoverMethod = CrossoverMethod.ONE_POINT,
-                 random_seed: Optional[int] = None):
+    def __init__(
+        self,
+        population_size: int = 50,
+        max_generations: int = 100,
+        mutation_rate: float = 0.1,
+        crossover_rate: float = 0.8,
+        elitism_rate: float = 0.1,
+        selection_method: SelectionMethod = SelectionMethod.TOURNAMENT,
+        mutation_method: MutationMethod = MutationMethod.GAUSSIAN,
+        crossover_method: CrossoverMethod = CrossoverMethod.ONE_POINT,
+        random_seed: Optional[int] = None,
+    ):
         self.population_size = population_size
         self.max_generations = max_generations
         self.mutation_rate = mutation_rate
@@ -93,8 +101,7 @@ class GeneticAlgorithm:
         """设置适应度函数"""
         self._fitness_function = fitness_function
 
-    def initialize_population(self,
-                              genotype_template: Dict[str, Dict[str, Any]]) -> List[Individual]:
+    def initialize_population(self, genotype_template: Dict[str, Dict[str, Any]]) -> List[Individual]:
         """
         初始化种群
 
@@ -107,10 +114,7 @@ class GeneticAlgorithm:
         self.population = []
         for i in range(self.population_size):
             genotype = self._generate_genotype(genotype_template)
-            individual = Individual(
-                id=f"ind_{i}_{np.random.randint(10000)}",
-                genotype=genotype
-            )
+            individual = Individual(id=f"ind_{i}_{np.random.randint(10000)}", genotype=genotype)
             self.population.append(individual)
 
         logger.info(f"初始化种群完成，大小: {len(self.population)}")
@@ -120,26 +124,26 @@ class GeneticAlgorithm:
         """生成随机基因型"""
         genotype = {}
         for param_name, param_spec in genotype_template.items():
-            param_type = param_spec.get('type', 'float')
+            param_type = param_spec.get("type", "float")
 
-            if param_type == 'int':
-                min_val = param_spec.get('min', 0)
-                max_val = param_spec.get('max', 100)
+            if param_type == "int":
+                min_val = param_spec.get("min", 0)
+                max_val = param_spec.get("max", 100)
                 genotype[param_name] = random.randint(min_val, max_val)
-            elif param_type == 'float':
-                min_val = param_spec.get('min', 0.0)
-                max_val = param_spec.get('max', 1.0)
+            elif param_type == "float":
+                min_val = param_spec.get("min", 0.0)
+                max_val = param_spec.get("max", 1.0)
                 genotype[param_name] = random.uniform(min_val, max_val)
-            elif param_type == 'bool':
+            elif param_type == "bool":
                 genotype[param_name] = random.choice([True, False])
-            elif param_type == 'categorical':
-                options = param_spec.get('options', [])
+            elif param_type == "categorical":
+                options = param_spec.get("options", [])
                 if options:
                     genotype[param_name] = random.choice(options)
-            elif param_type == 'list':
-                options = param_spec.get('options', [])
-                min_len = param_spec.get('min_len', 1)
-                max_len = param_spec.get('max_len', 5)
+            elif param_type == "list":
+                options = param_spec.get("options", [])
+                min_len = param_spec.get("min_len", 1)
+                max_len = param_spec.get("max_len", 5)
                 length = random.randint(min_len, max_len)
                 genotype[param_name] = random.sample(options, min(length, len(options))) if options else []
 
@@ -258,14 +262,8 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child1_genotype
-        )
-        child2 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child2_genotype
-        )
+        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
+        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
 
         return child1, child2
 
@@ -289,14 +287,8 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child1_genotype
-        )
-        child2 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child2_genotype
-        )
+        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
+        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
 
         return child1, child2
 
@@ -313,18 +305,14 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child1_genotype
-        )
-        child2 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child2_genotype
-        )
+        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
+        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
 
         return child1, child2
 
-    def _blend_crossover(self, parent1: Individual, parent2: Individual, alpha: float = 0.5) -> Tuple[Individual, Individual]:
+    def _blend_crossover(
+        self, parent1: Individual, parent2: Individual, alpha: float = 0.5
+    ) -> Tuple[Individual, Individual]:
         """混合交叉（用于数值参数）"""
         child1_genotype = {}
         child2_genotype = {}
@@ -348,14 +336,8 @@ class GeneticAlgorithm:
                     child1_genotype[key] = val2
                     child2_genotype[key] = val1
 
-        child1 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child1_genotype
-        )
-        child2 = Individual(
-            id=f"child_{np.random.randint(10000)}",
-            genotype=child2_genotype
-        )
+        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
+        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
 
         return child1, child2
 
@@ -374,7 +356,7 @@ class GeneticAlgorithm:
 
         for param_name, param_spec in genotype_template.items():
             if random.random() < self.mutation_rate:
-                param_type = param_spec.get('type', 'float')
+                param_type = param_spec.get("type", "float")
 
                 if self.mutation_method == MutationMethod.GAUSSIAN:
                     mutated_genotype = self._gaussian_mutate(mutated_genotype, param_name, param_spec)
@@ -385,51 +367,47 @@ class GeneticAlgorithm:
                 elif self.mutation_method == MutationMethod.POLYNOMIAL:
                     mutated_genotype = self._polynomial_mutate(mutated_genotype, param_name, param_spec)
 
-        return Individual(
-            id=individual.id,
-            genotype=mutated_genotype,
-            metadata=individual.metadata
-        )
+        return Individual(id=individual.id, genotype=mutated_genotype, metadata=individual.metadata)
 
     def _gaussian_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
         """高斯变异"""
-        param_type = param_spec.get('type', 'float')
+        param_type = param_spec.get("type", "float")
 
-        if param_type == 'float':
+        if param_type == "float":
             current = genotype[param_name]
-            min_val = param_spec.get('min', 0.0)
-            max_val = param_spec.get('max', 1.0)
+            min_val = param_spec.get("min", 0.0)
+            max_val = param_spec.get("max", 1.0)
             sigma = (max_val - min_val) * 0.1
             new_val = current + np.random.normal(0, sigma)
             genotype[param_name] = max(min_val, min(max_val, new_val))
-        elif param_type == 'int':
+        elif param_type == "int":
             current = genotype[param_name]
-            min_val = param_spec.get('min', 0)
-            max_val = param_spec.get('max', 100)
+            min_val = param_spec.get("min", 0)
+            max_val = param_spec.get("max", 100)
             sigma = (max_val - min_val) * 0.1
             new_val = int(round(current + np.random.normal(0, sigma)))
             genotype[param_name] = max(min_val, min(max_val, new_val))
-        elif param_type == 'bool':
+        elif param_type == "bool":
             genotype[param_name] = not genotype[param_name]
 
         return genotype
 
     def _uniform_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
         """均匀变异"""
-        param_type = param_spec.get('type', 'float')
+        param_type = param_spec.get("type", "float")
 
-        if param_type == 'float':
-            min_val = param_spec.get('min', 0.0)
-            max_val = param_spec.get('max', 1.0)
+        if param_type == "float":
+            min_val = param_spec.get("min", 0.0)
+            max_val = param_spec.get("max", 1.0)
             genotype[param_name] = random.uniform(min_val, max_val)
-        elif param_type == 'int':
-            min_val = param_spec.get('min', 0)
-            max_val = param_spec.get('max', 100)
+        elif param_type == "int":
+            min_val = param_spec.get("min", 0)
+            max_val = param_spec.get("max", 100)
             genotype[param_name] = random.randint(min_val, max_val)
-        elif param_type == 'bool':
+        elif param_type == "bool":
             genotype[param_name] = random.choice([True, False])
-        elif param_type == 'categorical':
-            options = param_spec.get('options', [])
+        elif param_type == "categorical":
+            options = param_spec.get("options", [])
             if options:
                 genotype[param_name] = random.choice(options)
 
@@ -437,23 +415,25 @@ class GeneticAlgorithm:
 
     def _bit_flip_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
         """位翻转变异"""
-        param_type = param_spec.get('type', 'float')
+        param_type = param_spec.get("type", "float")
 
-        if param_type == 'bool':
+        if param_type == "bool":
             genotype[param_name] = not genotype[param_name]
-        elif param_type == 'int':
+        elif param_type == "int":
             genotype[param_name] = 1 - genotype[param_name] if genotype[param_name] in [0, 1] else genotype[param_name]
 
         return genotype
 
-    def _polynomial_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any], eta: float = 20.0) -> Dict[str, Any]:
+    def _polynomial_mutate(
+        self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any], eta: float = 20.0
+    ) -> Dict[str, Any]:
         """多项式变异"""
-        param_type = param_spec.get('type', 'float')
+        param_type = param_spec.get("type", "float")
 
-        if param_type in ['float', 'int']:
+        if param_type in ["float", "int"]:
             current = genotype[param_name]
-            min_val = param_spec.get('min', 0.0 if param_type == 'float' else 0)
-            max_val = param_spec.get('max', 1.0 if param_type == 'float' else 100)
+            min_val = param_spec.get("min", 0.0 if param_type == "float" else 0)
+            max_val = param_spec.get("max", 1.0 if param_type == "float" else 100)
 
             delta1 = (current - min_val) / (max_val - min_val)
             delta2 = (max_val - current) / (max_val - min_val)
@@ -464,16 +444,16 @@ class GeneticAlgorithm:
             if rand <= 0.5:
                 xy = 1.0 - delta1
                 val = 2.0 * rand + (1.0 - 2.0 * rand) * (xy ** (eta + 1.0))
-                deltaq = (val ** mut_pow) - 1.0
+                deltaq = (val**mut_pow) - 1.0
             else:
                 xy = 1.0 - delta2
                 val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta + 1.0))
-                deltaq = 1.0 - (val ** mut_pow)
+                deltaq = 1.0 - (val**mut_pow)
 
             new_val = current + deltaq * (max_val - min_val)
             new_val = max(min_val, min(max_val, new_val))
 
-            if param_type == 'int':
+            if param_type == "int":
                 new_val = int(round(new_val))
 
             genotype[param_name] = new_val
@@ -524,7 +504,7 @@ class GeneticAlgorithm:
                 if len(new_population) < self.population_size:
                     new_population.append(child2)
 
-            self.population = new_population[:self.population_size]
+            self.population = new_population[: self.population_size]
 
         self.evaluate_population()
         best_individual = max(self.population, key=lambda x: x.fitness)
@@ -533,7 +513,7 @@ class GeneticAlgorithm:
             best_individual=best_individual,
             population=self.population,
             generation=self.max_generations,
-            fitness_history=self.fitness_history
+            fitness_history=self.fitness_history,
         )
 
     def get_best_individual(self) -> Optional[Individual]:

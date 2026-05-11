@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class EventType(Enum):
     """事件类型枚举"""
+
     WORKFLOW_STARTED = "workflow.started"
     WORKFLOW_COMPLETED = "workflow.completed"
     WORKFLOW_FAILED = "workflow.failed"
@@ -41,6 +42,7 @@ class EventType(Enum):
 @dataclass
 class Event:
     """事件数据类"""
+
     event_type: str
     data: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
@@ -54,7 +56,7 @@ class Event:
             "data": self.data,
             "timestamp": self.timestamp.isoformat(),
             "source": self.source,
-            "correlation_id": self.correlation_id
+            "correlation_id": self.correlation_id,
         }
 
 
@@ -78,7 +80,7 @@ class EventHandler:
 class EventBus:
     """事件总线 - 单例模式"""
 
-    _instance: Optional['EventBus'] = None
+    _instance: Optional["EventBus"] = None
     _lock = Lock()
 
     def __new__(cls):
@@ -198,12 +200,15 @@ class EventBus:
         """添加事件到历史记录"""
         self._event_history.append(event)
         if len(self._event_history) > self._max_history_size:
-            self._event_history = self._event_history[-self._max_history_size:]
+            self._event_history = self._event_history[-self._max_history_size :]
 
-    def get_history(self, event_type: Optional[str] = None,
-                   start_time: Optional[datetime] = None,
-                   end_time: Optional[datetime] = None,
-                   limit: int = 100) -> List[Event]:
+    def get_history(
+        self,
+        event_type: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Event]:
         """获取事件历史
 
         Args:
@@ -244,7 +249,7 @@ class EventBus:
             "event_counts": event_counts,
             "subscribed_sync_handlers": sum(len(h) for h in self._handlers.values()),
             "subscribed_async_handlers": sum(len(h) for h in self._async_handlers.values()),
-            "registered_event_types": len(self._event_classes)
+            "registered_event_types": len(self._event_classes),
         }
 
     def reset(self) -> None:
@@ -267,9 +272,9 @@ def get_event_bus() -> EventBus:
     return _event_bus
 
 
-def publish_event(event_type: str, data: Dict[str, Any] = None,
-                 source: str = "unknown",
-                 correlation_id: Optional[str] = None) -> None:
+def publish_event(
+    event_type: str, data: Dict[str, Any] = None, source: str = "unknown", correlation_id: Optional[str] = None
+) -> None:
     """发布事件的快捷函数
 
     Args:
@@ -278,18 +283,13 @@ def publish_event(event_type: str, data: Dict[str, Any] = None,
         source: 事件来源
         correlation_id: 关联ID
     """
-    event = Event(
-        event_type=event_type,
-        data=data or {},
-        source=source,
-        correlation_id=correlation_id
-    )
+    event = Event(event_type=event_type, data=data or {}, source=source, correlation_id=correlation_id)
     get_event_bus().publish(event)
 
 
-async def publish_event_async(event_type: str, data: Dict[str, Any] = None,
-                              source: str = "unknown",
-                              correlation_id: Optional[str] = None) -> None:
+async def publish_event_async(
+    event_type: str, data: Dict[str, Any] = None, source: str = "unknown", correlation_id: Optional[str] = None
+) -> None:
     """异步发布事件的快捷函数
 
     Args:
@@ -298,10 +298,5 @@ async def publish_event_async(event_type: str, data: Dict[str, Any] = None,
         source: 事件来源
         correlation_id: 关联ID
     """
-    event = Event(
-        event_type=event_type,
-        data=data or {},
-        source=source,
-        correlation_id=correlation_id
-    )
+    event = Event(event_type=event_type, data=data or {}, source=source, correlation_id=correlation_id)
     await get_event_bus().publish_async(event)

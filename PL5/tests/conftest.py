@@ -33,75 +33,68 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # 测试数据生成器
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestDataGenerator:
     """测试数据生成器 - 提供各种测试数据集"""
-    
-    POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
-    
+
+    POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
+
     @staticmethod
     def generate_pl5_sequence(
-        n_records: int = 100, 
-        start_period: int = 2026001,
-        add_noise: bool = False,
-        seed: int = 42
+        n_records: int = 100, start_period: int = 2026001, add_noise: bool = False, seed: int = 42
     ) -> pd.DataFrame:
         """生成PL5序列数据"""
         np.random.seed(seed)
         periods = [str(start_period + i) for i in range(n_records)]
-        
+
         data = {
-            'period': periods,
-            'wan': np.random.randint(0, 10, n_records),
-            'qian': np.random.randint(0, 10, n_records),
-            'bai': np.random.randint(0, 10, n_records),
-            'shi': np.random.randint(0, 10, n_records),
-            'ge': np.random.randint(0, 10, n_records)
+            "period": periods,
+            "wan": np.random.randint(0, 10, n_records),
+            "qian": np.random.randint(0, 10, n_records),
+            "bai": np.random.randint(0, 10, n_records),
+            "shi": np.random.randint(0, 10, n_records),
+            "ge": np.random.randint(0, 10, n_records),
         }
-        
+
         df = pd.DataFrame(data)
-        df['full_number'] = (
-            df['wan'].astype(str) + 
-            df['qian'].astype(str) + 
-            df['bai'].astype(str) + 
-            df['shi'].astype(str) + 
-            df['ge'].astype(str)
+        df["full_number"] = (
+            df["wan"].astype(str)
+            + df["qian"].astype(str)
+            + df["bai"].astype(str)
+            + df["shi"].astype(str)
+            + df["ge"].astype(str)
         )
-        
+
         if add_noise:
             # 添加一些模式
             for i in range(1, n_records):
                 if np.random.random() < 0.3:  # 30%概率延续趋势
                     for pos in TestDataGenerator.POSITIONS:
-                        df.loc[i, pos] = (df.loc[i-1, pos] + np.random.randint(-1, 2)) % 10
-        
+                        df.loc[i, pos] = (df.loc[i - 1, pos] + np.random.randint(-1, 2)) % 10
+
         return df
-    
+
     @staticmethod
-    def generate_features(
-        n_samples: int = 100, 
-        n_features: int = 50,
-        seed: int = 42
-    ) -> pd.DataFrame:
+    def generate_features(n_samples: int = 100, n_features: int = 50, seed: int = 42) -> pd.DataFrame:
         """生成特征数据"""
         np.random.seed(seed)
-        
+
         features = pd.DataFrame(
-            np.random.randn(n_samples, n_features),
-            columns=[f'feature_{i}' for i in range(n_features)]
+            np.random.randn(n_samples, n_features), columns=[f"feature_{i}" for i in range(n_features)]
         )
-        
+
         # 添加目标变量
         for pos in TestDataGenerator.POSITIONS:
             features[pos] = np.random.randint(0, 10, n_samples)
-        
+
         return features
-    
+
     @staticmethod
     def generate_raw_text_data(n_records: int = 50) -> str:
         """生成原始文本格式的PL5数据"""
         lines = []
         start_period = 2026001
-        
+
         for i in range(n_records):
             period = start_period + i
             date = f"2026-{((i % 12) + 1):02d}-{(i % 28) + 1:02d}"
@@ -110,54 +103,53 @@ class TestDataGenerator:
             bai = np.random.randint(0, 10)
             shi = np.random.randint(0, 10)
             ge = np.random.randint(0, 10)
-            
+
             line = f"{period} {date} {wan} {qian} {bai} {shi} {ge} {wan}{qian}{bai}{shi}{ge}"
             lines.append(line)
-        
-        return '\n'.join(lines)
-    
+
+        return "\n".join(lines)
+
     @staticmethod
-    def generate_invalid_data(
-        invalid_type: str = 'mixed'
-    ) -> pd.DataFrame:
+    def generate_invalid_data(invalid_type: str = "mixed") -> pd.DataFrame:
         """生成包含各种问题的无效数据"""
         np.random.seed(42)
         n = 20
-        
+
         data = {
-            'period': [f'2026{i:03d}' for i in range(n)],
-            'wan': np.random.randint(0, 10, n),
-            'qian': np.random.randint(0, 10, n),
-            'bai': np.random.randint(0, 10, n),
-            'shi': np.random.randint(0, 10, n),
-            'ge': np.random.randint(0, 10, n)
+            "period": [f"2026{i:03d}" for i in range(n)],
+            "wan": np.random.randint(0, 10, n),
+            "qian": np.random.randint(0, 10, n),
+            "bai": np.random.randint(0, 10, n),
+            "shi": np.random.randint(0, 10, n),
+            "ge": np.random.randint(0, 10, n),
         }
-        
-        if invalid_type in ('missing', 'mixed'):
+
+        if invalid_type in ("missing", "mixed"):
             # 添加缺失值
-            data['wan'][5] = None
-            data['qian'][10] = np.nan
-        
-        if invalid_type in ('out_of_range', 'mixed'):
+            data["wan"][5] = None
+            data["qian"][10] = np.nan
+
+        if invalid_type in ("out_of_range", "mixed"):
             # 添加超出范围的值
-            data['bai'][3] = 15
-            data['shi'][7] = -1
-        
-        if invalid_type in ('invalid_period', 'mixed'):
+            data["bai"][3] = 15
+            data["shi"][7] = -1
+
+        if invalid_type in ("invalid_period", "mixed"):
             # 添加无效期号
-            data['period'][2] = 'invalid'
-            data['period'][8] = ''
-        
-        if invalid_type in ('duplicates', 'mixed'):
+            data["period"][2] = "invalid"
+            data["period"][8] = ""
+
+        if invalid_type in ("duplicates", "mixed"):
             # 添加重复期号
-            data['period'][15] = data['period'][14]
-        
+            data["period"][15] = data["period"][14]
+
         return pd.DataFrame(data)
 
 
 # ═══════════════════════════════════════════════════════════════
 # Pytest Fixtures
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def sample_pl5_data():
@@ -174,7 +166,7 @@ def sample_large_dataset():
 @pytest.fixture
 def sample_invalid_data():
     """创建包含问题的样本数据"""
-    return TestDataGenerator.generate_invalid_data(invalid_type='mixed')
+    return TestDataGenerator.generate_invalid_data(invalid_type="mixed")
 
 
 @pytest.fixture
@@ -202,15 +194,11 @@ def sample_raw_text():
 def test_config():
     """测试配置"""
     return {
-        'test_mode': True,
-        'use_mock_data': True,
-        'max_test_records': 100,
-        'validation_level': 'standard',
-        'model_params': {
-            'n_estimators': 10,
-            'max_depth': 3,
-            'random_state': 42
-        }
+        "test_mode": True,
+        "use_mock_data": True,
+        "max_test_records": 100,
+        "validation_level": "standard",
+        "model_params": {"n_estimators": 10, "max_depth": 3, "random_state": 42},
     }
 
 
@@ -218,13 +206,12 @@ def test_config():
 def test_logger():
     """测试日志器"""
     import logging
+
     logger = logging.getLogger("test")
     logger.setLevel(logging.INFO)
     if not logger.handlers:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        ))
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
         logger.addHandler(handler)
     return logger
 
@@ -260,11 +247,11 @@ def mock_predictor():
     """创建Mock预测器"""
     predictor = Mock()
     predictor.predict.return_value = {
-        'wan': {'top_k': [1, 2, 3, 4, 5], 'probabilities': [0.2, 0.15, 0.12, 0.1, 0.08]},
-        'qian': {'top_k': [2, 3, 4, 5, 6], 'probabilities': [0.18, 0.16, 0.14, 0.12, 0.1]},
-        'bai': {'top_k': [3, 4, 5, 6, 7], 'probabilities': [0.22, 0.18, 0.15, 0.12, 0.1]},
-        'shi': {'top_k': [4, 5, 6, 7, 8], 'probabilities': [0.2, 0.17, 0.15, 0.13, 0.11]},
-        'ge': {'top_k': [5, 6, 7, 8, 9], 'probabilities': [0.19, 0.17, 0.16, 0.14, 0.12]}
+        "wan": {"top_k": [1, 2, 3, 4, 5], "probabilities": [0.2, 0.15, 0.12, 0.1, 0.08]},
+        "qian": {"top_k": [2, 3, 4, 5, 6], "probabilities": [0.18, 0.16, 0.14, 0.12, 0.1]},
+        "bai": {"top_k": [3, 4, 5, 6, 7], "probabilities": [0.22, 0.18, 0.15, 0.12, 0.1]},
+        "shi": {"top_k": [4, 5, 6, 7, 8], "probabilities": [0.2, 0.17, 0.15, 0.13, 0.11]},
+        "ge": {"top_k": [5, 6, 7, 8, 9], "probabilities": [0.19, 0.17, 0.16, 0.14, 0.12]},
     }
     return predictor
 
@@ -272,6 +259,7 @@ def mock_predictor():
 # ═══════════════════════════════════════════════════════════════
 # 测试标记
 # ═══════════════════════════════════════════════════════════════
+
 
 def pytest_configure(config):
     """配置pytest标记"""
@@ -289,6 +277,7 @@ def pytest_configure(config):
 # 测试辅助函数
 # ═══════════════════════════════════════════════════════════════
 
+
 def assert_dataframe_structure(df: pd.DataFrame, required_columns: List[str]):
     """断言DataFrame包含必需的列"""
     missing = [col for col in required_columns if col not in df.columns]
@@ -297,17 +286,17 @@ def assert_dataframe_structure(df: pd.DataFrame, required_columns: List[str]):
 
 def assert_pl5_data_validity(df: pd.DataFrame):
     """断言PL5数据的有效性"""
-    positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-    
+    positions = ["wan", "qian", "bai", "shi", "ge"]
+
     # 检查必需列
-    assert_dataframe_structure(df, ['period'] + positions)
-    
+    assert_dataframe_structure(df, ["period"] + positions)
+
     # 检查数值范围
     for pos in positions:
         assert df[pos].between(0, 9).all(), f"{pos} 包含超出0-9范围的值"
-    
+
     # 检查期号格式
-    assert df['period'].astype(str).str.match(r'^\d{5,7}$').all(), "期号格式无效"
+    assert df["period"].astype(str).str.match(r"^\d{5,7}$").all(), "期号格式无效"
 
 
 def create_mock_response(status_code: int = 200, content: str = "", json_data: dict = None):
@@ -316,5 +305,5 @@ def create_mock_response(status_code: int = 200, content: str = "", json_data: d
     mock_response.status_code = status_code
     mock_response.text = content
     mock_response.json.return_value = json_data or {}
-    mock_response.headers = {'Content-Type': 'text/plain'}
+    mock_response.headers = {"Content-Type": "text/plain"}
     return mock_response

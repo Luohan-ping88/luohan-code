@@ -47,7 +47,7 @@ class GeneticFeatureGenerator:
         crossover_rate: float = 0.8,
         elitism_rate: float = 0.1,
         max_generations: int = 100,
-        random_state: int = 42
+        random_state: int = 42,
     ):
         self.population_size = population_size
         self.mutation_rate = mutation_rate
@@ -79,12 +79,7 @@ class GeneticFeatureGenerator:
         return population
 
     def _fitness_function(
-        self,
-        chromosome: Chromosome,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None,
-        cv: int = 3
+        self, chromosome: Chromosome, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None, cv: int = 3
     ) -> float:
         """适应度函数 - 基于交叉验证评分"""
         selected_features = chromosome.selected_features
@@ -97,19 +92,9 @@ class GeneticFeatureGenerator:
         if model is None:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
-                model = RandomForestClassifier(
-                    n_estimators=50,
-                    max_depth=5,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestClassifier(n_estimators=50, max_depth=5, random_state=self.random_state, n_jobs=-1)
             else:
-                model = RandomForestRegressor(
-                    n_estimators=50,
-                    max_depth=5,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestRegressor(n_estimators=50, max_depth=5, random_state=self.random_state, n_jobs=-1)
 
         try:
             scores = cross_val_score(model, X_subset, y, cv=cv, n_jobs=-1)
@@ -121,11 +106,7 @@ class GeneticFeatureGenerator:
             return 0.0
 
     def _evaluate_population(
-        self,
-        population: List[Chromosome],
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None
+        self, population: List[Chromosome], X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None
     ):
         """评估种群中所有染色体的适应度"""
         for chromosome in population:
@@ -170,11 +151,7 @@ class GeneticFeatureGenerator:
             chromosome.genes[random.randint(0, len(chromosome.genes) - 1)] = 1
 
     def _create_next_generation(
-        self,
-        population: List[Chromosome],
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None
+        self, population: List[Chromosome], X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None
     ) -> List[Chromosome]:
         """创建下一代种群"""
         next_generation = []
@@ -206,7 +183,7 @@ class GeneticFeatureGenerator:
         feature_cols: Optional[List[str]] = None,
         model: Optional[BaseEstimator] = None,
         early_stopping_patience: int = 10,
-        verbose: bool = True
+        verbose: bool = True,
     ) -> List[str]:
         """
         运行遗传算法生成特征组合
@@ -231,7 +208,7 @@ class GeneticFeatureGenerator:
 
         self.fitness_history = []
         patience_counter = 0
-        best_fitness = -float('inf')
+        best_fitness = -float("inf")
 
         for generation in range(self.max_generations):
             current_best = max(self.population, key=lambda c: c.fitness)
@@ -246,9 +223,11 @@ class GeneticFeatureGenerator:
                 patience_counter += 1
 
             if verbose:
-                logger.info(f"Generation {generation + 1}/{self.max_generations} - "
-                           f"Best Fitness: {best_fitness:.4f} - "
-                           f"Features: {len(self.best_chromosome.selected_features)}")
+                logger.info(
+                    f"Generation {generation + 1}/{self.max_generations} - "
+                    f"Best Fitness: {best_fitness:.4f} - "
+                    f"Features: {len(self.best_chromosome.selected_features)}"
+                )
 
             if patience_counter >= early_stopping_patience:
                 if verbose:
@@ -265,53 +244,52 @@ class GeneticFeatureGenerator:
     def get_feature_evolution_stats(self) -> Dict[str, Any]:
         """获取特征进化统计信息"""
         return {
-            'best_fitness': self.best_chromosome.fitness if self.best_chromosome else 0.0,
-            'best_features': self.best_chromosome.selected_features if self.best_chromosome else [],
-            'num_features': len(self.best_chromosome.selected_features) if self.best_chromosome else 0,
-            'fitness_history': self.fitness_history,
-            'num_generations': len(self.fitness_history)
+            "best_fitness": self.best_chromosome.fitness if self.best_chromosome else 0.0,
+            "best_features": self.best_chromosome.selected_features if self.best_chromosome else [],
+            "num_features": len(self.best_chromosome.selected_features) if self.best_chromosome else 0,
+            "fitness_history": self.fitness_history,
+            "num_generations": len(self.fitness_history),
         }
 
     def save(self, filepath: Path):
         """保存生成器状态"""
         data = {
-            'population_size': self.population_size,
-            'mutation_rate': self.mutation_rate,
-            'crossover_rate': self.crossover_rate,
-            'elitism_rate': self.elitism_rate,
-            'max_generations': self.max_generations,
-            'random_state': self.random_state,
-            'best_chromosome': {
-                'genes': self.best_chromosome.genes.tolist() if self.best_chromosome else None,
-                'feature_names': self.best_chromosome.feature_names if self.best_chromosome else None,
-                'fitness': self.best_chromosome.fitness if self.best_chromosome else 0.0
+            "population_size": self.population_size,
+            "mutation_rate": self.mutation_rate,
+            "crossover_rate": self.crossover_rate,
+            "elitism_rate": self.elitism_rate,
+            "max_generations": self.max_generations,
+            "random_state": self.random_state,
+            "best_chromosome": {
+                "genes": self.best_chromosome.genes.tolist() if self.best_chromosome else None,
+                "feature_names": self.best_chromosome.feature_names if self.best_chromosome else None,
+                "fitness": self.best_chromosome.fitness if self.best_chromosome else 0.0,
             },
-            'fitness_history': self.fitness_history,
-            'feature_names': self.feature_names
+            "fitness_history": self.fitness_history,
+            "feature_names": self.feature_names,
         }
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(data, f)
         logger.info(f"遗传算法生成器已保存: {filepath}")
 
     def load(self, filepath: Path):
         """加载生成器状态"""
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             data = pickle.load(f)
 
-        self.population_size = data['population_size']
-        self.mutation_rate = data['mutation_rate']
-        self.crossover_rate = data['crossover_rate']
-        self.elitism_rate = data['elitism_rate']
-        self.max_generations = data['max_generations']
-        self.random_state = data['random_state']
-        self.fitness_history = data['fitness_history']
-        self.feature_names = data['feature_names']
+        self.population_size = data["population_size"]
+        self.mutation_rate = data["mutation_rate"]
+        self.crossover_rate = data["crossover_rate"]
+        self.elitism_rate = data["elitism_rate"]
+        self.max_generations = data["max_generations"]
+        self.random_state = data["random_state"]
+        self.fitness_history = data["fitness_history"]
+        self.feature_names = data["feature_names"]
 
-        if data['best_chromosome']['genes'] is not None:
+        if data["best_chromosome"]["genes"] is not None:
             self.best_chromosome = Chromosome(
-                np.array(data['best_chromosome']['genes']),
-                data['best_chromosome']['feature_names']
+                np.array(data["best_chromosome"]["genes"]), data["best_chromosome"]["feature_names"]
             )
-            self.best_chromosome.fitness = data['best_chromosome']['fitness']
+            self.best_chromosome.fitness = data["best_chromosome"]["fitness"]
 
         logger.info(f"遗传算法生成器已加载: {filepath}")

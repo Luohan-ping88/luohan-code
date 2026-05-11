@@ -2,6 +2,7 @@
 动态模块加载器
 从文件系统动态加载Python模块，处理导入、初始化和资源清理
 """
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Type, Callable, Set
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LoadedModule:
     """已加载的模块信息"""
+
     module_name: str
     module_path: str
     module: Any
@@ -69,8 +71,7 @@ class ModuleLoader:
                 sys.path.remove(str(path))
             logger.info(f"移除模块搜索路径: {path}")
 
-    def load_module_from_file(self, file_path: Path,
-                              module_name: Optional[str] = None) -> Optional[LoadedModule]:
+    def load_module_from_file(self, file_path: Path, module_name: Optional[str] = None) -> Optional[LoadedModule]:
         """
         从文件加载模块
 
@@ -85,7 +86,7 @@ class ModuleLoader:
             logger.error(f"文件不存在: {file_path}")
             return None
 
-        if file_path.suffix != '.py':
+        if file_path.suffix != ".py":
             logger.error(f"不是Python文件: {file_path}")
             return None
 
@@ -114,7 +115,7 @@ class ModuleLoader:
                 module_path=str(file_path),
                 module=module,
                 metadata=metadata,
-                loaded_at=datetime.now()
+                loaded_at=datetime.now(),
             )
             self._loaded_modules[module_name] = loaded_module
 
@@ -127,8 +128,7 @@ class ModuleLoader:
                 del sys.modules[module_name]
             return None
 
-    def load_module_from_directory(self, directory: Path,
-                                   recursive: bool = False) -> List[LoadedModule]:
+    def load_module_from_directory(self, directory: Path, recursive: bool = False) -> List[LoadedModule]:
         """
         从目录加载所有Python模块
 
@@ -147,7 +147,7 @@ class ModuleLoader:
         pattern = "**/*.py" if recursive else "*.py"
 
         for file_path in directory.glob(pattern):
-            if file_path.name.startswith('_'):
+            if file_path.name.startswith("_"):
                 continue
             loaded = self.load_module_from_file(file_path)
             if loaded:
@@ -155,8 +155,7 @@ class ModuleLoader:
 
         return loaded_modules
 
-    def initialize_module(self, module_name: str,
-                          config: Optional[Dict[str, Any]] = None) -> bool:
+    def initialize_module(self, module_name: str, config: Optional[Dict[str, Any]] = None) -> bool:
         """
         初始化已加载的模块
 
@@ -174,7 +173,7 @@ class ModuleLoader:
         loaded_module = self._loaded_modules[module_name]
 
         try:
-            if hasattr(loaded_module.module, 'initialize'):
+            if hasattr(loaded_module.module, "initialize"):
                 init_func = loaded_module.module.initialize
                 if config:
                     init_func(**config)
@@ -210,7 +209,7 @@ class ModuleLoader:
         loaded_module = self._loaded_modules[module_name]
 
         try:
-            if hasattr(loaded_module.module, 'shutdown'):
+            if hasattr(loaded_module.module, "shutdown"):
                 loaded_module.module.shutdown()
 
             if module_name in sys.modules:
@@ -273,8 +272,7 @@ class ModuleLoader:
         """
         return list(self._loaded_modules.values())
 
-    def _extract_metadata(self, module: Any, module_name: str,
-                          module_path: str) -> ModuleMetadata:
+    def _extract_metadata(self, module: Any, module_name: str, module_path: str) -> ModuleMetadata:
         """
         从模块中提取元数据
 
@@ -288,16 +286,16 @@ class ModuleLoader:
         """
         metadata = ModuleMetadata(
             name=module_name,
-            version=getattr(module, '__version__', '1.0.0'),
-            description=getattr(module, '__doc__', f'Module {module_name}'),
-            author=getattr(module, '__author__', 'Unknown'),
-            dependencies=getattr(module, '__dependencies__', []),
-            tags=set(getattr(module, '__tags__', [])),
-            config=getattr(module, '__config__', {})
+            version=getattr(module, "__version__", "1.0.0"),
+            description=getattr(module, "__doc__", f"Module {module_name}"),
+            author=getattr(module, "__author__", "Unknown"),
+            dependencies=getattr(module, "__dependencies__", []),
+            tags=set(getattr(module, "__tags__", [])),
+            config=getattr(module, "__config__", {}),
         )
 
-        if hasattr(module, 'ModuleClass'):
-            metadata.module_class = getattr(module, 'ModuleClass')
+        if hasattr(module, "ModuleClass"):
+            metadata.module_class = getattr(module, "ModuleClass")
 
         return metadata
 

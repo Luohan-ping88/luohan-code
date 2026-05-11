@@ -19,23 +19,22 @@ MODELS_DIR = ROOT_DIR / "models"
 PROCESSED_DATA_DIR.mkdir(exist_ok=True, parents=True)
 MODELS_DIR.mkdir(exist_ok=True, parents=True)
 
+
 def setup_logging(name: str) -> logging.Logger:
     """设置日志"""
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    
+
     # 如果已有处理器，不再添加
     if not logger.handlers:
         # 控制台处理器
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
-        
+
         # 格式化器
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         console_handler.setFormatter(formatter)
-        
+
         logger.addHandler(console_handler)
-    
+
     return logger

@@ -2,6 +2,7 @@
 策略库管理模块
 策略存储、检索、版本管理和元数据管理
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Set
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class PolicyStatus(Enum):
     """策略状态枚举"""
+
     DRAFT = "draft"
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -26,6 +28,7 @@ class PolicyStatus(Enum):
 @dataclass
 class PolicyMetadata:
     """策略元数据"""
+
     name: str
     version: str
     description: str
@@ -150,9 +153,9 @@ class PolicyLibrary:
 
         return self._policies[name]
 
-    def list_policies(self, tag: Optional[str] = None,
-                      policy_type: Optional[str] = None,
-                      status: Optional[PolicyStatus] = None) -> List[PolicyMetadata]:
+    def list_policies(
+        self, tag: Optional[str] = None, policy_type: Optional[str] = None, status: Optional[PolicyStatus] = None
+    ) -> List[PolicyMetadata]:
         """
         列出所有策略
 
@@ -258,13 +261,16 @@ class PolicyLibrary:
             file_path: 保存路径（可选）
         """
         save_path = file_path or self._storage_path / "policy_library.pkl"
-        with open(save_path, 'wb') as f:
-            pickle.dump({
-                'policies': self._policies,
-                'version_index': self._version_index,
-                'tag_index': self._tag_index,
-                'type_index': self._type_index
-            }, f)
+        with open(save_path, "wb") as f:
+            pickle.dump(
+                {
+                    "policies": self._policies,
+                    "version_index": self._version_index,
+                    "tag_index": self._tag_index,
+                    "type_index": self._type_index,
+                },
+                f,
+            )
         logger.info(f"策略库已保存到 {save_path}")
 
     def load_from_disk(self, file_path: Optional[Path] = None) -> bool:
@@ -283,12 +289,12 @@ class PolicyLibrary:
             return False
 
         try:
-            with open(load_path, 'rb') as f:
+            with open(load_path, "rb") as f:
                 data = pickle.load(f)
-                self._policies = data['policies']
-                self._version_index = data['version_index']
-                self._tag_index = data['tag_index']
-                self._type_index = data['type_index']
+                self._policies = data["policies"]
+                self._version_index = data["version_index"]
+                self._tag_index = data["tag_index"]
+                self._type_index = data["type_index"]
             logger.info(f"策略库已从 {load_path} 加载")
             return True
         except Exception as e:

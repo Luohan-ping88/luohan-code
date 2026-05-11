@@ -2,6 +2,7 @@
 模块组合生成器
 处理模块依赖关系解析、模块组合生成和组合验证
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Set, Tuple
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class DependencyType(Enum):
     """依赖类型"""
+
     REQUIRED = "required"
     OPTIONAL = "optional"
     RUNTIME = "runtime"
@@ -24,6 +26,7 @@ class DependencyType(Enum):
 @dataclass
 class Dependency:
     """模块依赖"""
+
     module_name: str
     version_requirement: Optional[str] = None
     dependency_type: DependencyType = DependencyType.REQUIRED
@@ -32,12 +35,13 @@ class Dependency:
 @dataclass
 class ModuleCombination:
     """模块组合"""
+
     name: str
     modules: List[ModuleMetadata]
     dependencies: Dict[str, List[Dependency]] = field(default_factory=dict)
     validation_errors: List[str] = field(default_factory=list)
     is_valid: bool = False
-    created_at: float = field(default_factory=lambda: __import__('time').time())
+    created_at: float = field(default_factory=lambda: __import__("time").time())
 
 
 class ModuleComposer:
@@ -47,9 +51,9 @@ class ModuleComposer:
         self._registry = get_global_registry()
         self._combinations: Dict[str, ModuleCombination] = {}
 
-    def create_combination(self, name: str,
-                           module_names: List[str],
-                           validate: bool = True) -> Optional[ModuleCombination]:
+    def create_combination(
+        self, name: str, module_names: List[str], validate: bool = True
+    ) -> Optional[ModuleCombination]:
         """
         创建模块组合
 
@@ -69,10 +73,7 @@ class ModuleComposer:
                 return None
             modules.append(metadata)
 
-        combination = ModuleCombination(
-            name=name,
-            modules=modules
-        )
+        combination = ModuleCombination(name=name, modules=modules)
 
         if validate:
             self.validate_combination(combination)

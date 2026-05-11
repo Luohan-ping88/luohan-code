@@ -46,6 +46,7 @@ DIGITS = list(range(10))
 # 工具函数
 # ═══════════════════════════════════════════════════════════════
 
+
 def _safe_proba(proba: np.ndarray, n_classes: int = 10) -> np.ndarray:
     """确保 proba 形状为 (n_classes,)，不足则补零。"""
     out = np.zeros(n_classes)
@@ -63,6 +64,7 @@ def _top_k_from_proba(proba: np.ndarray, k: int = 8) -> List[int]:
 # ═══════════════════════════════════════════════════════════════
 # HMM 模型（条件频率 + 平滑）
 # ═══════════════════════════════════════════════════════════════
+
 
 class HMMModel:
     """隐马尔可夫近似：把历史序列的 lag-1 条件频率当转移矩阵使用。"""
@@ -100,6 +102,7 @@ class HMMModel:
 # Copula 模型（位置相关性校正）
 # ═══════════════════════════════════════════════════════════════
 
+
 class CopulaModel:
     """Copula 近似：计算各位置间的 Kendall τ 相关矩阵。"""
 
@@ -118,8 +121,8 @@ class CopulaModel:
                 discordant = 0
                 N = len(xi)
                 for k in range(N - 1):
-                    di = xi[k + 1:] - xi[k]
-                    dj = xj[k + 1:] - xj[k]
+                    di = xi[k + 1 :] - xi[k]
+                    dj = xj[k + 1 :] - xj[k]
                     concordant += int(np.sum(di * dj > 0))
                     discordant += int(np.sum(di * dj < 0))
                 n_pairs = N * (N - 1) // 2
@@ -137,6 +140,7 @@ class CopulaModel:
 # ═══════════════════════════════════════════════════════════════
 # BSTS 模型（局部线性趋势近似）
 # ═══════════════════════════════════════════════════════════════
+
 
 class BSTSModel:
     """贝叶斯结构时序近似：用指数加权频率代替完整贝叶斯推断。"""
@@ -165,6 +169,7 @@ class BSTSModel:
 # ═══════════════════════════════════════════════════════════════
 # 极值模型（遗漏统计）
 # ═══════════════════════════════════════════════════════════════
+
 
 class ExtremeValueModel:
     """遗漏统计极值模型：遗漏越大，概率越高（归一化）。"""
@@ -199,6 +204,7 @@ class ExtremeValueModel:
 # Stacking 集成模型（每位置独立）- 并行优化版
 # ═══════════════════════════════════════════════════════════════
 
+
 class StackingEnsemble:
     """
     Stacking 集成：RF + GBM + ET + AdaBoost 作为 base learners，
@@ -207,15 +213,9 @@ class StackingEnsemble:
     """
 
     BASE_MODELS = {
-        "rf": RandomForestClassifier(
-            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
-        ),
-        "gbm": GradientBoostingClassifier(
-            n_estimators=50, max_depth=4, random_state=42
-        ),
-        "et": ExtraTreesClassifier(
-            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
-        ),
+        "rf": RandomForestClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
+        "gbm": GradientBoostingClassifier(n_estimators=50, max_depth=4, random_state=42),
+        "et": ExtraTreesClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
     }
 
     def __init__(self, n_jobs: int = -1):
@@ -225,20 +225,18 @@ class StackingEnsemble:
         self.n_jobs = get_optimal_n_jobs(n_jobs)
         self._parallel_executor = ParallelExecutor(n_jobs=self.n_jobs)
 
-    def fit_position_models(
-        self, data: pd.DataFrame, feature_cols: List[str]
-    ) -> "StackingEnsemble":
+    def fit_position_models(self, data: pd.DataFrame, feature_cols: List[str]) -> "StackingEnsemble":
         X = data[feature_cols].fillna(0).values
         tscv = TimeSeriesSplit(n_splits=3)
 
         logger.info(f"使用并行训练模式 (n_jobs={self.n_jobs})")
-        
+
         def fit_single_position(pos):
             y = data[pos].values.astype(int)
             return self._fit_single_position(X, y, tscv, pos)
 
         results = self._parallel_executor.map(fit_single_position, POSITIONS)
-        
+
         for pos, (base_fitted, meta_clf) in zip(POSITIONS, results):
             self.position_models[pos] = base_fitted
             self.meta_models[pos] = meta_clf
@@ -256,6 +254,7 @@ class StackingEnsemble:
         base_fitted: Dict[str, Any] = {}
         for b_idx, (name, base_clf) in enumerate(self.BASE_MODELS.items()):
             import copy
+
             clf = copy.deepcopy(base_clf)
             oof_proba = np.zeros((len(X), 10))
 
@@ -271,7 +270,7 @@ class StackingEnsemble:
                             p[c] = raw[i, ci]
                     oof_proba[val_idx] = _safe_proba(p)
 
-            meta_X[:, b_idx * 10:(b_idx + 1) * 10] = oof_proba
+            meta_X[:, b_idx * 10 : (b_idx + 1) * 10] = oof_proba
             clf.fit(X, y)
             base_fitted[name] = clf
 
@@ -295,7 +294,7 @@ class StackingEnsemble:
             for ci, c in enumerate(classes):
                 if 0 <= c <= 9:
                     p[c] = raw[ci]
-            meta_x[0, b_idx * 10:(b_idx + 1) * 10] = _safe_proba(p)
+            meta_x[0, b_idx * 10 : (b_idx + 1) * 10] = _safe_proba(p)
 
         meta_clf = self.meta_models[pos]
         raw_meta = meta_clf.predict_proba(meta_x)[0]
@@ -356,39 +355,38 @@ class PL5PredictorV9:
         def train_stacking():
             stacking = StackingEnsemble(n_jobs=self.n_jobs)
             stacking.fit_position_models(df, feature_cols)
-            return ('stacking', stacking)
+            return ("stacking", stacking)
 
         def train_copula():
             position_matrix = df[POSITIONS].values.astype(float)
-            return ('copula', CopulaModel().fit(position_matrix))
+            return ("copula", CopulaModel().fit(position_matrix))
 
         def train_position_models(pos):
             seq = df[pos].values
-            return (pos, {
-                'hmm': HMMModel().fit(seq),
-                'bsts': BSTSModel().fit(seq),
-                'evm': ExtremeValueModel().fit(seq)
-            })
+            return (
+                pos,
+                {"hmm": HMMModel().fit(seq), "bsts": BSTSModel().fit(seq), "evm": ExtremeValueModel().fit(seq)},
+            )
 
         # 并行执行所有训练任务
         results = self._parallel_executor.map(
             lambda fn: fn(),
-            [train_stacking, train_copula] + [lambda p=pos: train_position_models(p) for pos in POSITIONS]
+            [train_stacking, train_copula] + [lambda p=pos: train_position_models(p) for pos in POSITIONS],
         )
 
         # 处理结果
         for result in results:
-            if result[0] == 'stacking':
+            if result[0] == "stacking":
                 for pos in POSITIONS:
                     self.stacking[pos] = result[1]
-            elif result[0] == 'copula':
+            elif result[0] == "copula":
                 self.copula = result[1]
             else:
                 pos = result[0]
                 models = result[1]
-                self.hmm_models[pos] = models['hmm']
-                self.bsts_models[pos] = models['bsts']
-                self.evm_models[pos] = models['evm']
+                self.hmm_models[pos] = models["hmm"]
+                self.bsts_models[pos] = models["bsts"]
+                self.evm_models[pos] = models["evm"]
 
         self.is_trained = True
         logger.info("[PL5PredictorV9] 所有子模型训练完成")
@@ -412,10 +410,7 @@ class PL5PredictorV9:
         """
         if not self.is_trained:
             logger.warning("[PL5PredictorV9] 模型未训练，返回均匀分布")
-            return {
-                pos: {"top_k": list(range(10))[:top_k], "probabilities": [0.1] * top_k}
-                for pos in POSITIONS
-            }
+            return {pos: {"top_k": list(range(10))[:top_k], "probabilities": [0.1] * top_k} for pos in POSITIONS}
 
         # 检查缓存
         cache_key = f"pred_{hash(features.tobytes())}_{top_k}"
@@ -427,19 +422,16 @@ class PL5PredictorV9:
         result: Dict[str, Dict[str, Any]] = {}
 
         for pos in POSITIONS:
-            p_stacking = self.stacking[pos].predict_proba_position(pos, features) if pos in self.stacking else np.ones(10) / 10
+            p_stacking = (
+                self.stacking[pos].predict_proba_position(pos, features) if pos in self.stacking else np.ones(10) / 10
+            )
             seq = (recent_original_data or {}).get(pos, np.array([0]))
             p_hmm = self.hmm_models.get(pos, HMMModel()).predict(seq)
             p_bsts = self.bsts_models.get(pos, BSTSModel()).predict(seq)
             p_evm = self.evm_models.get(pos, ExtremeValueModel()).predict(seq)
 
             w = self.weights
-            p_fused = (
-                w["stacking"] * p_stacking
-                + w["hmm"] * p_hmm
-                + w["bsts"] * p_bsts
-                + w["evm"] * p_evm
-            )
+            p_fused = w["stacking"] * p_stacking + w["hmm"] * p_hmm + w["bsts"] * p_bsts + w["evm"] * p_evm
             p_fused = p_fused / (p_fused.sum() + 1e-12)
 
             top_indices = _top_k_from_proba(p_fused, top_k)
@@ -460,6 +452,7 @@ class PL5PredictorV9:
 
         try:
             import joblib
+
             joblib.dump(
                 {
                     "stacking": self.stacking,
@@ -470,10 +463,10 @@ class PL5PredictorV9:
                     "feature_cols": self.feature_cols,
                     "weights": self.weights,
                     "is_trained": self.is_trained,
-                    "version": "v9.0"
+                    "version": "v9.0",
                 },
                 save_path,
-                compress=3
+                compress=3,
             )
             logger.info(f"[PL5PredictorV9] 模型已保存: {save_path}")
         except ImportError:
@@ -489,7 +482,7 @@ class PL5PredictorV9:
                         "feature_cols": self.feature_cols,
                         "weights": self.weights,
                         "is_trained": self.is_trained,
-                        "version": "v9.0"
+                        "version": "v9.0",
                     },
                     f,
                 )
@@ -501,6 +494,7 @@ class PL5PredictorV9:
         if load_path.exists():
             try:
                 import joblib
+
                 state = joblib.load(load_path)
                 self._load_state(state)
                 logger.info(f"[PL5PredictorV9] 模型已加载: {load_path}")

@@ -18,5 +18,5 @@ __all__ = [
     "SearchTool",
     "CodeTool",
     "CalculatorTool",
-    "PL5Tool"
+    "PL5Tool",
 ]

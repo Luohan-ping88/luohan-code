@@ -12,18 +12,25 @@ import logging
 import time
 from datetime import datetime
 from sklearn.base import clone
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    GradientBoostingClassifier,
+    ExtraTreesClassifier,
+    AdaBoostClassifier,
+)
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 try:
     from lightgbm import LGBMClassifier
+
     _HAS_LIGHTGBM = True
 except ImportError:
     _HAS_LIGHTGBM = False
 
 try:
     from xgboost import XGBClassifier
+
     _HAS_XGBOOST = True
 except ImportError:
     _HAS_XGBOOST = False
@@ -36,6 +43,7 @@ ModelWeightRLOptimizer = None
 ThompsonSamplingOptimizer = None
 BayesianEnsemble = None
 
+
 def _load_rl_modules():
     global _HAS_RL, ModelWeightRLOptimizer, ThompsonSamplingOptimizer, BayesianEnsemble
     if _HAS_RL:
@@ -43,22 +51,33 @@ def _load_rl_modules():
     try:
         from src.core.rl import ModelWeightRLOptimizer, ThompsonSamplingOptimizer
         from src.core.rl.bayesian_inference import BayesianEnsemble
+
         _HAS_RL = True
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"RL模块加载失败，将使用备用方案: {e}")
         _HAS_RL = False
+
+
 from src.core.utils.errors import (
-    ModelError, ModelLoadError, ModelSaveError, ModelPredictionError,
-    ModelTrainingError, ConfigError, ConfigSafeLoader,
-    StructuredLogger, structured_logger, prediction_cache,
-    handle_model_prediction_failure, retry_with_exponential_backoff,
-    PL5BaseError, ErrorSeverity
+    ModelError,
+    ModelLoadError,
+    ModelSaveError,
+    ModelPredictionError,
+    ModelTrainingError,
+    ConfigError,
+    ConfigSafeLoader,
+    StructuredLogger,
+    structured_logger,
+    prediction_cache,
+    handle_model_prediction_failure,
+    retry_with_exponential_backoff,
+    PL5BaseError,
+    ErrorSeverity,
 )
-from src.core.models.model_version_manager import (
-    ModelVersionManager, CURRENT_VERSION, MODEL_FILENAME, VersionChangeLog
-)
+from src.core.models.model_version_manager import ModelVersionManager, CURRENT_VERSION, MODEL_FILENAME, VersionChangeLog
 
 logger = logging.getLogger(__name__)
 
@@ -77,24 +96,24 @@ class StackingEnsemble:
 
     DEFAULT_BASE_CONFIG = {
         "n_estimators": 100,
-        "max_depth": 10,         # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
+        "max_depth": 10,  # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.1→0.06 降低学习率增强泛化，预估+1.8%
+        "learning_rate": 0.06,  # [OPT] 0.1→0.06 降低学习率增强泛化，预估+1.8%
         # [OPT] 正则化增强 应对 std=0.2089 波动过高
-        "reg_alpha": 0.1,        # L1正则化
-        "reg_lambda": 1.0,       # L2正则化
-        "min_child_weight": 5,   # 最小子权重增强稳定性
-        "subsample": 0.8,        # 行采样比例
-        "colsample_bytree": 0.8, # 列采样比例
+        "reg_alpha": 0.1,  # L1正则化
+        "reg_lambda": 1.0,  # L2正则化
+        "min_child_weight": 5,  # 最小子权重增强稳定性
+        "subsample": 0.8,  # 行采样比例
+        "colsample_bytree": 0.8,  # 列采样比例
     }
 
     RECOMMENDED_BASE_CONFIG = {
         "n_estimators": 200,
-        "max_depth": 10,         # [OPT] 12→9.6 与默认值保持一致
+        "max_depth": 10,  # [OPT] 12→9.6 与默认值保持一致
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.05→0.06 适度提高学习率配合更大深度
+        "learning_rate": 0.06,  # [OPT] 0.05→0.06 适度提高学习率配合更大深度
         "reg_alpha": 0.1,
         "reg_lambda": 1.0,
         "min_child_weight": 5,
@@ -126,10 +145,7 @@ class StackingEnsemble:
         model_configs = {
             "rf": {
                 "class": RandomForestClassifier,
-                "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
-                    "random_state": rs, "n_jobs": n_jobs
-                }
+                "params": {"n_estimators": n_est // 2, "max_depth": max_d // 2, "random_state": rs, "n_jobs": n_jobs},
             },
         }
 
@@ -138,40 +154,49 @@ class StackingEnsemble:
             model_configs["lgbm"] = {
                 "class": LGBMClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
-                    "random_state": rs, "n_jobs": n_jobs,
-                    "learning_rate": lr, "verbose": -1,
+                    "n_estimators": n_est // 2,
+                    "max_depth": max_d // 2,
+                    "random_state": rs,
+                    "n_jobs": n_jobs,
+                    "learning_rate": lr,
+                    "verbose": -1,
                     # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
                     "subsample": config.get("subsample", 0.8),
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
-                }
+                },
             }
         elif _HAS_XGBOOST:
             model_configs["xgb"] = {
                 "class": XGBClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
-                    "random_state": rs, "n_jobs": n_jobs,
-                    "learning_rate": lr, "use_label_encoder": False,
-                    "eval_metric": "mlogloss", "verbosity": 0,
+                    "n_estimators": n_est // 2,
+                    "max_depth": max_d // 2,
+                    "random_state": rs,
+                    "n_jobs": n_jobs,
+                    "learning_rate": lr,
+                    "use_label_encoder": False,
+                    "eval_metric": "mlogloss",
+                    "verbosity": 0,
                     # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
                     "subsample": config.get("subsample", 0.8),
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
-                }
+                },
             }
         else:
             model_configs["gbm"] = {
                 "class": GradientBoostingClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
-                    "random_state": rs, "learning_rate": lr
-                }
+                    "n_estimators": n_est // 2,
+                    "max_depth": max_d // 2,
+                    "random_state": rs,
+                    "learning_rate": lr,
+                },
             }
 
         return model_configs
@@ -258,9 +283,12 @@ class StackingEnsemble:
         enhanced = np.hstack([oof_probas] + extra_features)
         return enhanced
 
-    def __init__(self, base_config: Optional[Dict[str, Any]] = None,
-                 meta_config: Optional[Dict[str, Any]] = None,
-                 model_config: Optional[ModelConfig] = None):
+    def __init__(
+        self,
+        base_config: Optional[Dict[str, Any]] = None,
+        meta_config: Optional[Dict[str, Any]] = None,
+        model_config: Optional[ModelConfig] = None,
+    ):
         _mc = model_config or get_model_config()
         resolved_base = base_config or _mc.stacking_base_config()
         resolved_meta = meta_config or _mc.stacking_meta_config()
@@ -318,7 +346,7 @@ class StackingEnsemble:
                                 p[c] = raw[i, ci]
                         oof_proba[val_idx] = self._safe_proba(p)
 
-                raw_meta_X[:, b_idx * 10:(b_idx + 1) * 10] = oof_proba
+                raw_meta_X[:, b_idx * 10 : (b_idx + 1) * 10] = oof_proba
 
                 clf.fit(X, y)
                 base_fitted[name] = clf
@@ -363,9 +391,12 @@ class StackingEnsemble:
         lr_standard = LogisticRegression(
             C=self.meta_config.get("C", 1.0),
             max_iter=self.meta_config.get("max_iter", 500),
-            solver="lbfgs", random_state=42,
+            solver="lbfgs",
+            random_state=42,
         )
-        scores_lr = cross_val_score(lr_standard, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5)))
+        scores_lr = cross_val_score(
+            lr_standard, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5))
+        )
         candidates["logistic"] = (lr_standard, float(np.mean(scores_lr)))
 
         sgd_elastic = SGDClassifier(
@@ -374,24 +405,31 @@ class StackingEnsemble:
             alpha=self.meta_config.get("alpha", 0.0001),
             l1_ratio=self.meta_config.get("l1_ratio", 0.5),
             max_iter=self.meta_config.get("max_iter", 1000),
-            random_state=42, warm_start=True,
+            random_state=42,
+            warm_start=True,
         )
-        scores_sgd = cross_val_score(sgd_elastic, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5)))
+        scores_sgd = cross_val_score(
+            sgd_elastic, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5))
+        )
         candidates["elasticnet"] = (sgd_elastic, float(np.mean(scores_sgd)))
 
         lr_strong = LogisticRegression(
             C=self.meta_config.get("C", 1.0) * 0.1,
             max_iter=self.meta_config.get("max_iter", 500) * 2,
-            solver="lbfgs", random_state=42,
+            solver="lbfgs",
+            random_state=42,
         )
-        scores_strong = cross_val_score(lr_strong, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5)))
+        scores_strong = cross_val_score(
+            lr_strong, meta_X, y, cv=TimeSeriesSplit(n_splits=self.meta_config.get("cv_folds", 5))
+        )
         candidates["logistic_strong_reg"] = (lr_strong, float(np.mean(scores_strong)))
 
         best_type = max(candidates.keys(), key=lambda k: candidates[k][1])
         best_model, best_score = candidates[best_type]
 
-        logger.debug(f"[Stacking V2 MetaSelect] 位置{pos} 候选分数: "
-                      f"{ {k: f'{v[1]:.4f}' for k, v in candidates.items()} }")
+        logger.debug(
+            f"[Stacking V2 MetaSelect] 位置{pos} 候选分数: " f"{ {k: f'{v[1]:.4f}' for k, v in candidates.items()} }"
+        )
 
         return clone(best_model), best_score, best_type
 
@@ -417,7 +455,7 @@ class StackingEnsemble:
             for ci, c in enumerate(classes):
                 if 0 <= c <= 9:
                     p[c] = raw[ci]
-            raw_meta_x[0, b_idx * 10:(b_idx + 1) * 10] = self._safe_proba(p)
+            raw_meta_x[0, b_idx * 10 : (b_idx + 1) * 10] = self._safe_proba(p)
 
         enable_extra = self.meta_config.get("enable_meta_features", True)
         if enable_extra:
@@ -438,15 +476,15 @@ class StackingEnsemble:
         """自定义序列化方法，避免保存lambda函数"""
         state = self.__dict__.copy()
         # 删除不可序列化的BASE_MODELS（训练时使用，预测时不需要）
-        if 'BASE_MODELS' in state:
-            del state['BASE_MODELS']
+        if "BASE_MODELS" in state:
+            del state["BASE_MODELS"]
         return state
 
     def __setstate__(self, state):
         """自定义反序列化方法，重新构建BASE_MODELS"""
         self.__dict__.update(state)
         # 重新构建BASE_MODELS（如果需要的话）
-        if 'base_config' in state and 'BASE_MODELS' not in state:
+        if "base_config" in state and "BASE_MODELS" not in state:
             self.BASE_MODELS = self._build_base_models(self.base_config)
 
 
@@ -469,7 +507,7 @@ class EnhancedPL5Predictor:
         "copula": 0.15,
         "bayesian": 0.10,
         "mamba": 0.20,
-        "itransformer": 0.20
+        "itransformer": 0.20,
     }
 
     def __init__(self, model_config: Optional[ModelConfig] = None):
@@ -504,24 +542,29 @@ class EnhancedPL5Predictor:
         self._rewards_history: List[float] = []
 
         self._model_performance_history: Dict[str, List[float]] = {
-            "stacking": [], "hmm": [], "copula": [], "bayesian": [],
-            "mamba": [], "itransformer": []
+            "stacking": [],
+            "hmm": [],
+            "copula": [],
+            "bayesian": [],
+            "mamba": [],
+            "itransformer": [],
         }
-        self._performance_window = self._mc.get_int('rl_optimizer.performance_window', 30)
+        self._performance_window = self._mc.get_int("rl_optimizer.performance_window", 30)
         self._prediction_results_cache: List[Dict] = []
 
-        rl_ts_cfg = self._mc.get_dict('rl_optimizer.thompson_sampling', {})
+        rl_ts_cfg = self._mc.get_dict("rl_optimizer.thompson_sampling", {})
         self._thompson_weight_params: Dict[str, Dict[str, float]] = {
-            "stacking": {"alpha": rl_ts_cfg.get('initial_alpha', 2.0), "beta": rl_ts_cfg.get('initial_beta', 3.0)},
+            "stacking": {"alpha": rl_ts_cfg.get("initial_alpha", 2.0), "beta": rl_ts_cfg.get("initial_beta", 3.0)},
             "hmm": {"alpha": 1.5, "beta": 4.0},
-            "copula": {"alpha": rl_ts_cfg.get('initial_alpha', 2.0), "beta": rl_ts_cfg.get('initial_beta', 3.0)},
-            "bayesian": {"alpha": 1.5, "beta": 4.0}
+            "copula": {"alpha": rl_ts_cfg.get("initial_alpha", 2.0), "beta": rl_ts_cfg.get("initial_beta", 3.0)},
+            "bayesian": {"alpha": 1.5, "beta": 4.0},
         }
 
-    def fit(self, df: pd.DataFrame, feature_cols: List[str],
-            parallel: bool = True, incremental: bool = False) -> "EnhancedPL5Predictor":
+    def fit(
+        self, df: pd.DataFrame, feature_cols: List[str], parallel: bool = True, incremental: bool = False
+    ) -> "EnhancedPL5Predictor":
         """训练增强模型
-        
+
         Args:
             df: 训练数据
             feature_cols: 特征列
@@ -529,8 +572,13 @@ class EnhancedPL5Predictor:
             incremental: 是否增量训练
         """
         # 导入资源管理模块
-        from src.core.utils.resource_manager import get_optimal_workers, check_system_resources, get_resource_summary, suggest_batch_size
-        
+        from src.core.utils.resource_manager import (
+            get_optimal_workers,
+            check_system_resources,
+            get_resource_summary,
+            suggest_batch_size,
+        )
+
         # 检查系统资源
         if not check_system_resources():
             logger.warning(f"系统资源使用较高: {get_resource_summary()}")
@@ -542,26 +590,31 @@ class EnhancedPL5Predictor:
         self.feature_cols = feature_cols
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_FEATURE_ENGINEERING,
-            {"data_rows": len(df), "feature_count": len(feature_cols), "parallel": parallel, "incremental": incremental}
+            {
+                "data_rows": len(df),
+                "feature_count": len(feature_cols),
+                "parallel": parallel,
+                "incremental": incremental,
+            },
         )
         start_time = time.time()
 
         try:
             logger.debug(f"[训练步骤] 开始训练 - {datetime.now().strftime('%H:%M:%S')}")
-            
+
             # 检查是否为增量学习
             if incremental:
                 logger.debug(f"[训练步骤] 执行增量学习 - {datetime.now().strftime('%H:%M:%S')}")
                 logger.info("[EnhancedPredictor] 执行增量学习")
-                
+
                 # 尝试加载现有模型
-                if hasattr(self, 'is_trained') and self.is_trained:
+                if hasattr(self, "is_trained") and self.is_trained:
                     logger.info("[EnhancedPredictor] 加载现有模型进行增量学习")
                 else:
                     # 如果模型未训练，则执行完整训练
                     logger.debug("[训练步骤] 模型未训练，执行完整训练")
                     incremental = False
-            
+
             X = df[feature_cols].fillna(0).values
             actual_dim = X.shape[1]
 
@@ -582,25 +635,28 @@ class EnhancedPL5Predictor:
                 optimal_workers = get_optimal_workers()
                 max_workers = min(optimal_workers, len(POSITIONS))
                 logger.info(f"使用最优工作线程数: {max_workers}")
-                
+
                 # 根据资源使用情况调整训练强度
                 base_batch_size = 32
                 adjusted_batch_size = suggest_batch_size(base_batch_size)
                 if adjusted_batch_size != base_batch_size:
                     logger.info(f"根据资源使用情况调整批处理大小: {base_batch_size} -> {adjusted_batch_size}")
-                
+
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = {}
 
                     # 获取资源使用情况
                     from src.core.utils.resource_manager import get_resource_manager
+
                     resource_usage = get_resource_manager().get_resource_usage()
-                    
+
                     for pos in POSITIONS:
                         if incremental and pos in self.stacking:
                             # 增量学习：只更新现有模型
                             logger.debug(f"[训练步骤] 提交位置 {pos} 增量学习任务")
-                            future = executor.submit(self._incremental_update_position_models, df, feature_cols, pos, resource_usage)
+                            future = executor.submit(
+                                self._incremental_update_position_models, df, feature_cols, pos, resource_usage
+                            )
                         else:
                             # 完整训练
                             future = executor.submit(self._fit_position_models, df, feature_cols, pos, resource_usage)
@@ -611,28 +667,26 @@ class EnhancedPL5Predictor:
                         pos = futures[future]
                         try:
                             result = future.result()
-                            self.stacking[pos] = result['stacking']
-                            self.hmm_models[pos] = result['hmm']
-                            self.bsts_models[pos] = result['bsts']
+                            self.stacking[pos] = result["stacking"]
+                            self.hmm_models[pos] = result["hmm"]
+                            self.bsts_models[pos] = result["bsts"]
                             logger.debug(f"[训练步骤] 位置 {pos} 训练完成 - {datetime.now().strftime('%H:%M:%S')}")
                             logger.info(f"[EnhancedPredictor] 位置 {pos} 训练完成")
                         except Exception as e:
-                            logger.error(
-                                f"[EnhancedPredictor] 位置 {pos} 训练失败: {e}",
-                                exc_info=True
-                            )
+                            logger.error(f"[EnhancedPredictor] 位置 {pos} 训练失败: {e}", exc_info=True)
                             raise ModelTrainingError(
                                 f"Position {pos} training failed: {e}",
                                 model_name=f"position_{pos}",
                                 operation="fit",
                                 original_error=e,
-                                severity=ErrorSeverity.ERROR_SEVERITY_HIGH
+                                severity=ErrorSeverity.ERROR_SEVERITY_HIGH,
                             )
             else:
                 # 获取资源使用情况
                 from src.core.utils.resource_manager import get_resource_manager
+
                 resource_usage = get_resource_manager().get_resource_usage()
-                
+
                 for pos in POSITIONS:
                     try:
                         logger.debug(f"[训练步骤] 开始训练位置 {pos} - {datetime.now().strftime('%H:%M:%S')}")
@@ -643,9 +697,9 @@ class EnhancedPL5Predictor:
                         else:
                             # 完整训练
                             result = self._fit_position_models(df, feature_cols, pos, resource_usage)
-                        self.stacking[pos] = result['stacking']
-                        self.hmm_models[pos] = result['hmm']
-                        self.bsts_models[pos] = result['bsts']
+                        self.stacking[pos] = result["stacking"]
+                        self.hmm_models[pos] = result["hmm"]
+                        self.bsts_models[pos] = result["bsts"]
                         logger.debug(f"[训练步骤] 位置 {pos} 训练完成 - {datetime.now().strftime('%H:%M:%S')}")
                     except Exception as e:
                         raise ModelTrainingError(
@@ -653,16 +707,17 @@ class EnhancedPL5Predictor:
                             model_name=f"position_{pos}",
                             operation="fit",
                             original_error=e,
-                            severity=ErrorSeverity.ERROR_SEVERITY_HIGH
+                            severity=ErrorSeverity.ERROR_SEVERITY_HIGH,
                         )
 
             logger.debug(f"[训练步骤] 开始训练Copula模型 - {datetime.now().strftime('%H:%M:%S')}")
             position_matrix = df[POSITIONS].values.astype(float)
             copula_cfg = self._mc.copula_config()
             self.copula_model = MultivariateCopula(
-                copula_type=copula_cfg.get('type', 'gaussian'),
-                regularization=copula_cfg.get('regularization', 1e-6),
-                auto_select=copula_cfg.get('auto_select', False))
+                copula_type=copula_cfg.get("type", "gaussian"),
+                regularization=copula_cfg.get("regularization", 1e-6),
+                auto_select=copula_cfg.get("auto_select", False),
+            )
             self.copula_model.fit(position_matrix)
             logger.debug(f"[训练步骤] Copula模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
             logger.info("[EnhancedPredictor] Copula模型训练完成")
@@ -671,11 +726,12 @@ class EnhancedPL5Predictor:
             logger.debug(f"[训练步骤] 开始训练Mamba模型 - {datetime.now().strftime('%H:%M:%S')}")
             try:
                 from src.core.models.mamba_predictor import MultiPositionMambaPredictor
+
                 self.mamba_predictor = MultiPositionMambaPredictor(
                     n_layers=2,  # 减少层数
                     d_model=32,  # 减少维度
-                    d_state=8,   # 减少状态维度
-                    seq_length=20  # 减少序列长度
+                    d_state=8,  # 减少状态维度
+                    seq_length=20,  # 减少序列长度
                 )
                 # 准备Mamba训练数据
                 mamba_data = {pos: df[pos].values for pos in POSITIONS}
@@ -691,12 +747,13 @@ class EnhancedPL5Predictor:
             logger.debug(f"[训练步骤] 开始训练iTransformer模型 - {datetime.now().strftime('%H:%M:%S')}")
             try:
                 from src.core.models.itransformer_predictor import iTransformerPredictor
+
                 self.itransformer_predictor = iTransformerPredictor(
                     n_layers=2,  # 减少层数
                     d_model=32,  # 减少维度
-                    n_heads=2,   # 减少头数
-                    d_ff=64,     # 减少前馈网络维度
-                    seq_length=20  # 减少序列长度
+                    n_heads=2,  # 减少头数
+                    d_ff=64,  # 减少前馈网络维度
+                    seq_length=20,  # 减少序列长度
                 )
                 # 准备iTransformer训练数据
                 itrans_data = {pos: df[pos].values for pos in POSITIONS}
@@ -711,6 +768,7 @@ class EnhancedPL5Predictor:
             logger.debug(f"[训练步骤] 初始化贝叶斯量化器 - {datetime.now().strftime('%H:%M:%S')}")
             try:
                 from src.core.models.bayesian_uncertainty import EnhancedBayesianQuantifier
+
                 self.bayesian_quantifier = EnhancedBayesianQuantifier(calibration_alpha=0.1)
                 logger.debug(f"[训练步骤] 贝叶斯量化器初始化完成 - {datetime.now().strftime('%H:%M:%S')}")
                 logger.info("[EnhancedPredictor] 贝叶斯不确定性量化器初始化完成")
@@ -721,9 +779,9 @@ class EnhancedPL5Predictor:
 
             # 检查V10模块训练状态
             v10_modules_fitted = (
-                self.mamba_predictor is not None and
-                self.itransformer_predictor is not None and
-                self.bayesian_quantifier is not None
+                self.mamba_predictor is not None
+                and self.itransformer_predictor is not None
+                and self.bayesian_quantifier is not None
             )
             if not v10_modules_fitted:
                 logger.warning(
@@ -736,28 +794,28 @@ class EnhancedPL5Predictor:
             logger.debug(f"[训练步骤] 加载RL模块 - {datetime.now().strftime('%H:%M:%S')}")
             _load_rl_modules()
             if _HAS_RL and ThompsonSamplingOptimizer is not None:
-                rl_ts_cfg = self._mc.get_dict('rl_optimizer.thompson_sampling', {})
-                self.thompson_sampler = ThompsonSamplingOptimizer(n_arms=rl_ts_cfg.get('n_arms', len(POSITIONS)))
+                rl_ts_cfg = self._mc.get_dict("rl_optimizer.thompson_sampling", {})
+                self.thompson_sampler = ThompsonSamplingOptimizer(n_arms=rl_ts_cfg.get("n_arms", len(POSITIONS)))
             else:
                 self.thompson_sampler = None
-            
+
             if _HAS_RL and ModelWeightRLOptimizer is not None:
                 rl_cfg = self._mc.rl_config()
                 self.rl_optimizer = ModelWeightRLOptimizer(
-                    n_models=rl_cfg.get('n_models', 4),
-                    state_dim=rl_cfg.get('state_dim', 64))  # 减少状态维度
+                    n_models=rl_cfg.get("n_models", 4), state_dim=rl_cfg.get("state_dim", 64)
+                )  # 减少状态维度
             else:
                 self.rl_optimizer = None
 
             # 当基础模块训练成功时，就标记为已训练（V10模块为可选）
             basic_modules_fitted = (
-                bool(self.stacking) and
-                bool(self.hmm_models) and
-                self.copula_model is not None and
-                bool(self.bsts_models)
+                bool(self.stacking)
+                and bool(self.hmm_models)
+                and self.copula_model is not None
+                and bool(self.bsts_models)
             )
             self.is_trained = basic_modules_fitted
-            
+
             if not self.is_trained:
                 logger.warning("[EnhancedPredictor V10] 模型训练不完整，部分模块缺失")
                 logger.warning(f"  基础模块: {'完整' if basic_modules_fitted else '缺失'}")
@@ -770,11 +828,17 @@ class EnhancedPL5Predictor:
                     logger.info("[EnhancedPredictor V10] V10模块训练跳过")
 
             duration_ms = (time.time() - start_time) * 1000
-            logger.debug(f"[训练步骤] 训练完成，耗时: {duration_ms/1000:.2f} 秒 - {datetime.now().strftime('%H:%M:%S')}")
+            logger.debug(
+                f"[训练步骤] 训练完成，耗时: {duration_ms/1000:.2f} 秒 - {datetime.now().strftime('%H:%M:%S')}"
+            )
             structured_logger.log_operation_success(
                 StructuredLogger.OPERATION_FEATURE_ENGINEERING,
                 duration_ms,
-                {"positions_trained": len(POSITIONS), "models": ["stacking", "hmm", "copula", "bsts", "mamba", "itransformer"], "incremental": incremental}
+                {
+                    "positions_trained": len(POSITIONS),
+                    "models": ["stacking", "hmm", "copula", "bsts", "mamba", "itransformer"],
+                    "incremental": incremental,
+                },
             )
             return self
 
@@ -786,14 +850,13 @@ class EnhancedPL5Predictor:
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_FEATURE_ENGINEERING,
                 ModelTrainingError(str(e), operation="fit", original_error=e),
-                duration_ms
+                duration_ms,
             )
-            raise ModelTrainingError(
-                f"Model training failed: {e}", operation="fit", original_error=e
-            )
+            raise ModelTrainingError(f"Model training failed: {e}", operation="fit", original_error=e)
 
-    def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
-                            pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _fit_position_models(
+        self, df: pd.DataFrame, feature_cols: List[str], pos: str, resource_usage: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
         X = df[feature_cols].fillna(0).values
         y = df[pos].values.astype(int)
@@ -801,30 +864,27 @@ class EnhancedPL5Predictor:
 
         # 导入资源管理模块
         from src.core.utils.resource_manager import get_resource_summary
-        
+
         # 根据资源使用情况调整模型复杂度
         high_resource_usage = False
         if resource_usage:
-            high_resource_usage = (
-                resource_usage['cpu']['over_threshold'] or
-                resource_usage['memory']['over_threshold']
-            )
-        
+            high_resource_usage = resource_usage["cpu"]["over_threshold"] or resource_usage["memory"]["over_threshold"]
+
         if high_resource_usage:
             logger.info(f"资源使用较高 {get_resource_summary()}，将降低模型复杂度")
 
         # 创建StackingEnsemble并只训练当前位置
         stacking = StackingEnsemble(model_config=self._mc)
-        
+
         # 手动训练单个位置，避免训练所有位置
         cv_folds = stacking.meta_config.get("cv_folds", 5)
         # 根据资源使用情况调整交叉验证折数
         if high_resource_usage:
             cv_folds = max(3, cv_folds - 2)
             logger.info(f"调整交叉验证折数: {cv_folds}")
-        
+
         tscv = TimeSeriesSplit(n_splits=cv_folds)
-        
+
         n_base = len(stacking.BASE_MODELS)
         # 根据资源使用情况调整基础模型数量
         if high_resource_usage and n_base > 3:
@@ -834,27 +894,24 @@ class EnhancedPL5Predictor:
             logger.info(f"调整基础模型数量: {n_base}")
         else:
             base_models = list(stacking.BASE_MODELS.items())
-        
+
         raw_meta_X = np.zeros((len(X), n_base * 10))
-        
+
         base_fitted: Dict[str, Any] = {}
         for b_idx, (name, base_fn) in enumerate(base_models):
             clf = base_fn()
             oof_proba = np.zeros((len(X), 10))
-            
+
             # 添加早停机制和学习率调度
-            if hasattr(clf, 'set_params'):
+            if hasattr(clf, "set_params"):
                 # 为支持早停的模型设置参数
-                if 'n_estimators' in clf.get_params():
-                    params = {
-                        'n_estimators': 200,
-                        'verbose': 0
-                    }
+                if "n_estimators" in clf.get_params():
+                    params = {"n_estimators": 200, "verbose": 0}
                     # 只有支持早停的模型才添加early_stopping_rounds参数
-                    if 'early_stopping_rounds' in clf.get_params():
-                        params['early_stopping_rounds'] = 10
+                    if "early_stopping_rounds" in clf.get_params():
+                        params["early_stopping_rounds"] = 10
                     clf.set_params(**params)
-            
+
             for fold_tr, fold_val in tscv.split(X):
                 clf_fold = clone(clf)
                 clf_fold.fit(X[fold_tr], y[fold_tr])
@@ -866,38 +923,38 @@ class EnhancedPL5Predictor:
                         if 0 <= c <= 9:
                             p[c] = raw[i, ci]
                     oof_proba[val_idx] = stacking._safe_proba(p)
-            
-            raw_meta_X[:, b_idx * 10:(b_idx + 1) * 10] = oof_proba
-            
+
+            raw_meta_X[:, b_idx * 10 : (b_idx + 1) * 10] = oof_proba
+
             clf.fit(X, y)
             base_fitted[name] = clf
-        
+
         stacking.position_models[pos] = base_fitted
-        
+
         enable_extra = stacking.meta_config.get("enable_meta_features", True)
         # 根据资源使用情况调整是否启用额外特征
         if high_resource_usage:
             enable_extra = False
             logger.info("禁用额外特征以降低计算复杂度")
-        
+
         if enable_extra:
             meta_X = stacking._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
         else:
             meta_X = raw_meta_X
-        
+
         auto_select = stacking.meta_config.get("auto_select", True)
         # 根据资源使用情况调整是否自动选择元学习器
         if high_resource_usage:
             auto_select = False
             logger.info("禁用自动选择元学习器以降低计算复杂度")
-        
+
         if auto_select:
             best_clf, best_score, selected_type = stacking._select_best_meta_learner(meta_X, y, pos)
         else:
             best_clf = stacking._build_meta_learner(stacking.meta_config)
             best_score = float(np.mean(cross_val_score(best_clf, meta_X, y, cv=tscv)))
             selected_type = stacking.meta_config.get("type", "logistic")
-        
+
         best_clf.fit(meta_X, y)
         stacking.meta_models[pos] = best_clf
         stacking.meta_scores[pos] = best_score
@@ -907,32 +964,29 @@ class EnhancedPL5Predictor:
         hmm_cfg = self._mc.hmm_config()
         # 根据资源使用情况调整HMM参数
         if high_resource_usage:
-            hmm_n_states = max(2, hmm_cfg.get('n_states', 4) - 2)
-            hmm_n_mixtures = max(1, hmm_cfg.get('n_mixtures', 2) - 1)
+            hmm_n_states = max(2, hmm_cfg.get("n_states", 4) - 2)
+            hmm_n_mixtures = max(1, hmm_cfg.get("n_mixtures", 2) - 1)
             logger.info(f"调整HMM参数: 状态数={hmm_n_states}, 混合数={hmm_n_mixtures}")
         else:
-            hmm_n_states = hmm_cfg.get('n_states', 4)
-            hmm_n_mixtures = hmm_cfg.get('n_mixtures', 2)
-        
+            hmm_n_states = hmm_cfg.get("n_states", 4)
+            hmm_n_mixtures = hmm_cfg.get("n_mixtures", 2)
+
         # 自动选择最佳HMM参数
         best_hmm = None
-        best_hmm_score = -float('inf')
-        
+        best_hmm_score = -float("inf")
+
         # 尝试不同的HMM参数组合
         if not high_resource_usage:
             state_options = [hmm_n_states - 1, hmm_n_states, hmm_n_states + 1]
             state_options = [s for s in state_options if s >= 2 and s <= 8]
             mixture_options = [hmm_n_mixtures, hmm_n_mixtures + 1]
             mixture_options = [m for m in mixture_options if m >= 1 and m <= 3]
-            
+
             for n_states in state_options:
                 for n_mixtures in mixture_options:
                     try:
                         hmm_candidate = HiddenMarkovModel(
-                            n_states=n_states,
-                            n_mixtures=n_mixtures,
-                            auto_select=False,
-                            criterion='bic'
+                            n_states=n_states, n_mixtures=n_mixtures, auto_select=False, criterion="bic"
                         )
                         hmm_candidate.fit(seq)
                         score = -hmm_candidate.score(seq)
@@ -941,14 +995,14 @@ class EnhancedPL5Predictor:
                             best_hmm = hmm_candidate
                     except Exception as e:
                         logger.warning(f"HMM参数组合 ({n_states}, {n_mixtures}) 训练失败: {e}")
-        
+
         if best_hmm is None:
             # 如果自动选择失败，使用默认参数
             best_hmm = HiddenMarkovModel(
                 n_states=hmm_n_states,
                 n_mixtures=hmm_n_mixtures,
-                auto_select=hmm_cfg.get('auto_select', False),
-                criterion=hmm_cfg.get('criterion', 'bic')
+                auto_select=hmm_cfg.get("auto_select", False),
+                criterion=hmm_cfg.get("criterion", "bic"),
             )
             best_hmm.fit(seq)
 
@@ -956,53 +1010,51 @@ class EnhancedPL5Predictor:
         bsts_cfg = self._mc.bsts_config()
         # 根据资源使用情况调整BSTS参数
         if high_resource_usage:
-            n_posterior_samples = max(500, bsts_cfg.get('n_posterior_samples', 1000) // 2)
-            trend_window = max(10, bsts_cfg.get('trend_window', 20) // 2)
+            n_posterior_samples = max(500, bsts_cfg.get("n_posterior_samples", 1000) // 2)
+            trend_window = max(10, bsts_cfg.get("trend_window", 20) // 2)
             logger.info(f"调整BSTS参数: 后验样本数={n_posterior_samples}, 趋势窗口={trend_window}")
         else:
-            n_posterior_samples = bsts_cfg.get('n_posterior_samples', 1000)
-            trend_window = bsts_cfg.get('trend_window', 20)
-        
+            n_posterior_samples = bsts_cfg.get("n_posterior_samples", 1000)
+            trend_window = bsts_cfg.get("trend_window", 20)
+
         bsts = BayesianStructuralTimeSeries(
             trend_window=trend_window,
-            seasonality_period=bsts_cfg.get('seasonality_period'),
-            outlier_threshold=bsts_cfg.get('outlier_threshold', 2.5),
+            seasonality_period=bsts_cfg.get("seasonality_period"),
+            outlier_threshold=bsts_cfg.get("outlier_threshold", 2.5),
             n_posterior_samples=n_posterior_samples,
-            confidence_level=bsts_cfg.get('confidence_level', 0.95))
+            confidence_level=bsts_cfg.get("confidence_level", 0.95),
+        )
         bsts.fit(seq)
 
-        return {
-            'stacking': stacking,
-            'hmm': best_hmm,
-            'bsts': bsts
-        }
-        
-    def _incremental_update_position_models(self, df: pd.DataFrame, feature_cols: List[str],
-                                          pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return {"stacking": stacking, "hmm": best_hmm, "bsts": bsts}
+
+    def _incremental_update_position_models(
+        self, df: pd.DataFrame, feature_cols: List[str], pos: str, resource_usage: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """增量更新单个位置的所有模型 - 增强版"""
         X = df[feature_cols].fillna(0).values
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 
         logger.info(f"[EnhancedPredictor] 执行位置 {pos} 的增量学习")
-        
+
         # 获取现有模型
         stacking = self.stacking[pos]
         hmm = self.hmm_models[pos]
         bsts = self.bsts_models[pos]
-        
+
         # 增量更新Stacking模型
         logger.info(f"[EnhancedPredictor] 增量更新Stacking模型")
-        
+
         # 对每个基础模型进行增量更新
         for name, model in stacking.position_models[pos].items():
-            if hasattr(model, 'warm_start'):
+            if hasattr(model, "warm_start"):
                 model.warm_start = True
-                if hasattr(model, 'n_estimators'):
+                if hasattr(model, "n_estimators"):
                     # 增加树的数量
                     model.n_estimators += 10
                     # 添加自适应学习率
-                    if hasattr(model, 'learning_rate'):
+                    if hasattr(model, "learning_rate"):
                         # 随着训练轮数增加，逐渐降低学习率
                         current_lr = model.learning_rate
                         new_lr = max(0.001, current_lr * 0.95)
@@ -1010,18 +1062,18 @@ class EnhancedPL5Predictor:
                         logger.info(f"[EnhancedPredictor] 调整 {name} 模型学习率: {current_lr} -> {new_lr}")
                     logger.info(f"[EnhancedPredictor] 增量更新 {name} 模型，增加至 {model.n_estimators} 棵树")
                     model.fit(X, y)
-            elif hasattr(model, 'partial_fit'):
+            elif hasattr(model, "partial_fit"):
                 # 对于支持partial_fit的模型
                 model.partial_fit(X, y)
                 logger.info(f"[EnhancedPredictor] 增量更新 {name} 模型")
-        
+
         # 增量更新元学习器
         if pos in stacking.meta_models:
             meta_model = stacking.meta_models[pos]
             # 重新计算元特征
             n_base = len(stacking.position_models[pos])
             raw_meta_X = np.zeros((len(X), n_base * 10))
-            
+
             for b_idx, (name, model) in enumerate(stacking.position_models[pos].items()):
                 raw = model.predict_proba(X)
                 classes = model.classes_
@@ -1030,32 +1082,32 @@ class EnhancedPL5Predictor:
                     for ci, c in enumerate(classes):
                         if 0 <= c <= 9:
                             p[c] = raw[i, ci]
-                    raw_meta_X[i, b_idx * 10:(b_idx + 1) * 10] = p
-            
+                    raw_meta_X[i, b_idx * 10 : (b_idx + 1) * 10] = p
+
             # 计算增强元特征
             enable_extra = stacking.meta_config.get("enable_meta_features", True)
             if enable_extra:
                 meta_X = stacking._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
             else:
                 meta_X = raw_meta_X
-            
+
             # 增量更新元学习器
-            if hasattr(meta_model, 'partial_fit'):
+            if hasattr(meta_model, "partial_fit"):
                 meta_model.partial_fit(meta_X, y)
             else:
                 meta_model.fit(meta_X, y)
             logger.info(f"[EnhancedPredictor] 增量更新元学习器")
-        
+
         # 增量更新HMM模型
         logger.info(f"[EnhancedPredictor] 增量更新HMM模型")
-        if hasattr(hmm, 'partial_fit'):
+        if hasattr(hmm, "partial_fit"):
             hmm.partial_fit(seq)
         else:
             # 对于不支持partial_fit的HMM模型，使用自动参数选择重新训练
             logger.info(f"[EnhancedPredictor] HMM模型不支持增量学习，使用自动参数选择重新训练")
             best_hmm = None
-            best_score = -float('inf')
-            
+            best_score = -float("inf")
+
             for n_states in [hmm.n_states - 1, hmm.n_states, hmm.n_states + 1]:
                 if n_states < 2 or n_states > 8:
                     continue
@@ -1064,10 +1116,7 @@ class EnhancedPL5Predictor:
                         continue
                     try:
                         new_hmm = HiddenMarkovModel(
-                            n_states=n_states,
-                            n_mixtures=n_mixtures,
-                            auto_select=False,
-                            criterion='bic'
+                            n_states=n_states, n_mixtures=n_mixtures, auto_select=False, criterion="bic"
                         )
                         new_hmm.fit(seq)
                         score = -new_hmm.score(seq)
@@ -1076,38 +1125,36 @@ class EnhancedPL5Predictor:
                             best_hmm = new_hmm
                     except Exception as e:
                         logger.warning(f"HMM参数组合 ({n_states}, {n_mixtures}) 训练失败: {e}")
-            
+
             if best_hmm is not None:
                 hmm = best_hmm
                 logger.info(f"[EnhancedPredictor] 选择最佳HMM参数: 状态数={hmm.n_states}, 混合数={hmm.n_mixtures}")
             else:
                 # 如果自动选择失败，使用默认参数重新训练
                 hmm.fit(seq)
-        
+
         # 增量更新BSTS模型
         logger.info(f"[EnhancedPredictor] 增量更新BSTS模型")
-        if hasattr(bsts, 'partial_fit'):
+        if hasattr(bsts, "partial_fit"):
             bsts.partial_fit(seq)
         else:
             # 对于不支持partial_fit的BSTS模型，使用新数据重新训练
             bsts.fit(seq)
-        
-        return {
-            'stacking': stacking,
-            'hmm': hmm,
-            'bsts': bsts
-        }
 
-    def predict(self,
-              features: np.ndarray,
-              recent_original_data: Optional[Dict[str, np.ndarray]] = None,
-              top_k: int = 8,
-              use_rl: bool = True,
-              use_uncertainty: bool = True) -> Dict[str, Dict[str, Any]]:
+        return {"stacking": stacking, "hmm": hmm, "bsts": bsts}
+
+    def predict(
+        self,
+        features: np.ndarray,
+        recent_original_data: Optional[Dict[str, np.ndarray]] = None,
+        top_k: int = 8,
+        use_rl: bool = True,
+        use_uncertainty: bool = True,
+    ) -> Dict[str, Dict[str, Any]]:
         """增强预测 - 带不确定性量化和RL自适应权重，含错误恢复"""
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_PREDICTION,
-            {"feature_dim": len(features) if features is not None else 0, "top_k": top_k}
+            {"feature_dim": len(features) if features is not None else 0, "top_k": top_k},
         )
         start_time = time.time()
         logger.info(f"开始推理: {time.strftime('%H:%M:%S')}")
@@ -1117,19 +1164,24 @@ class EnhancedPL5Predictor:
                 structured_logger.log_fallback_used(
                     StructuredLogger.OPERATION_PREDICTION,
                     "model_not_trained",
-                    "Model not trained, returning uniform distribution"
+                    "Model not trained, returning uniform distribution",
                 )
                 logger.warning("[EnhancedPredictor] 模型未训练，返回均匀分布预测")
-                return {pos: {"top_k": list(range(10))[:top_k],
-                            "probabilities": [0.1] * top_k,
-                            "uncertainty": 0.5,
-                            "fallback": True} for pos in POSITIONS}
+                return {
+                    pos: {
+                        "top_k": list(range(10))[:top_k],
+                        "probabilities": [0.1] * top_k,
+                        "uncertainty": 0.5,
+                        "fallback": True,
+                    }
+                    for pos in POSITIONS
+                }
 
             # 检查V10模块完整性
             v10_modules_present = (
-                self.mamba_predictor is not None and
-                self.itransformer_predictor is not None and
-                self.bayesian_quantifier is not None
+                self.mamba_predictor is not None
+                and self.itransformer_predictor is not None
+                and self.bayesian_quantifier is not None
             )
             if not v10_modules_present:
                 logger.warning(
@@ -1152,7 +1204,7 @@ class EnhancedPL5Predictor:
                     if features is not None and input_dim > 0:
                         if input_dim > self.trained_feature_dim:
                             logger.info(f"  → 截断特征: {input_dim} -> {self.trained_feature_dim}")
-                            features = features[:self.trained_feature_dim]
+                            features = features[: self.trained_feature_dim]
                         elif input_dim < self.trained_feature_dim:
                             pad_size = self.trained_feature_dim - input_dim
                             logger.info(f"  → 零填充特征: {input_dim} -> {self.trained_feature_dim} (填充{pad_size}维)")
@@ -1163,20 +1215,28 @@ class EnhancedPL5Predictor:
                         structured_logger.log_fallback_used(
                             StructuredLogger.OPERATION_PREDICTION,
                             "invalid_features",
-                            f"Invalid feature dimensions: input={input_dim}, expected={self.trained_feature_dim}"
+                            f"Invalid feature dimensions: input={input_dim}, expected={self.trained_feature_dim}",
                         )
-                        return {pos: {"top_k": list(range(10))[:top_k],
-                                    "probabilities": [0.1] * top_k,
-                                    "uncertainty": 0.5,
-                                    "fallback": True} for pos in POSITIONS}
+                        return {
+                            pos: {
+                                "top_k": list(range(10))[:top_k],
+                                "probabilities": [0.1] * top_k,
+                                "uncertainty": 0.5,
+                                "fallback": True,
+                            }
+                            for pos in POSITIONS
+                        }
 
             # 并行预测所有位置
             from concurrent.futures import ThreadPoolExecutor, as_completed
-            
+
             def predict_position(pos):
                 try:
-                    p_stacking = self.stacking.get(pos, StackingEnsemble()).predict_proba_position(
-                        pos, features) if pos in self.stacking else np.ones(10) / 10
+                    p_stacking = (
+                        self.stacking.get(pos, StackingEnsemble()).predict_proba_position(pos, features)
+                        if pos in self.stacking
+                        else np.ones(10) / 10
+                    )
 
                     seq = (recent_original_data or {}).get(pos, np.array([0]))
                     if isinstance(seq, (pd.Series, list)):
@@ -1184,8 +1244,13 @@ class EnhancedPL5Predictor:
                     if len(seq) == 0:
                         seq = np.array([0])
 
-                    p_hmm = self.hmm_models.get(pos, HiddenMarkovModel()).predict_proba(
-                        seq[-10:] if len(seq) >= 10 else seq) if pos in self.hmm_models else np.ones(10) / 10
+                    p_hmm = (
+                        self.hmm_models.get(pos, HiddenMarkovModel()).predict_proba(
+                            seq[-10:] if len(seq) >= 10 else seq
+                        )
+                        if pos in self.hmm_models
+                        else np.ones(10) / 10
+                    )
 
                     bsts_model = self.bsts_models.get(pos, BayesianStructuralTimeSeries())
                     if pos in self.bsts_models:
@@ -1205,7 +1270,7 @@ class EnhancedPL5Predictor:
                                 if p in recent_original_data:
                                     data_series = recent_original_data[p]
                                     # 修复：检查data_series类型，使用不同的方法获取最后一个值
-                                    if hasattr(data_series, 'iloc'):
+                                    if hasattr(data_series, "iloc"):
                                         test_values[i] = data_series.iloc[-1] if len(data_series) > 0 else 0
                                     else:
                                         test_values[i] = data_series[-1] if len(data_series) > 0 else 0
@@ -1226,7 +1291,11 @@ class EnhancedPL5Predictor:
                             p_mamba = np.ones(10) / 10
 
                     p_itransformer = np.ones(10) / 10
-                    if self.itransformer_predictor is not None and hasattr(self.itransformer_predictor, 'fitted') and self.itransformer_predictor.fitted:
+                    if (
+                        self.itransformer_predictor is not None
+                        and hasattr(self.itransformer_predictor, "fitted")
+                        and self.itransformer_predictor.fitted
+                    ):
                         try:
                             itrans_probs = self.itransformer_predictor.predict_proba(recent_original_data or {})
                             if pos in itrans_probs:
@@ -1235,22 +1304,29 @@ class EnhancedPL5Predictor:
                             logger.warning(f"[EnhancedPredictor] iTransformer预测失败: {e}")
                             p_itransformer = np.ones(10) / 10
 
-                    if use_rl and self.rl_optimizer is not None and hasattr(self.rl_optimizer, 'is_trained') and self.rl_optimizer.is_trained:
+                    if (
+                        use_rl
+                        and self.rl_optimizer is not None
+                        and hasattr(self.rl_optimizer, "is_trained")
+                        and self.rl_optimizer.is_trained
+                    ):
                         state = self._build_rl_state(features, p_stacking, p_hmm, p_copula)
                         weights = self.rl_optimizer.get_optimal_weights(state)
                     else:
                         # 改进的权重分配策略
                         # 基于模型性能动态调整权重
-                        weights = self._get_dynamic_weights(p_stacking, p_hmm, p_copula, p_bsts, p_mamba, p_itransformer)
+                        weights = self._get_dynamic_weights(
+                            p_stacking, p_hmm, p_copula, p_bsts, p_mamba, p_itransformer
+                        )
                         weights = weights / weights.sum()
 
                     p_fused = (
-                        weights[0] * p_stacking +
-                        weights[1] * p_hmm +
-                        weights[2] * p_copula +
-                        weights[3] * p_bsts +
-                        weights[4] * p_mamba +
-                        weights[5] * p_itransformer
+                        weights[0] * p_stacking
+                        + weights[1] * p_hmm
+                        + weights[2] * p_copula
+                        + weights[3] * p_bsts
+                        + weights[4] * p_mamba
+                        + weights[5] * p_itransformer
                     )
                     p_fused = p_fused / (p_fused.sum() + 1e-12)
 
@@ -1268,8 +1344,8 @@ class EnhancedPL5Predictor:
                             "copula": float(weights[2]),
                             "bsts": float(weights[3]),
                             "mamba": float(weights[4]),
-                            "itransformer": float(weights[5])
-                        }
+                            "itransformer": float(weights[5]),
+                        },
                     }
 
                     if self.thompson_sampler is not None:
@@ -1285,18 +1361,18 @@ class EnhancedPL5Predictor:
                         "uncertainty": 1.0,
                         "weights_used": {},
                         "error": str(pos_error),
-                        "fallback": True
+                        "fallback": True,
                     }
-            
+
             # 并行执行预测
             with ThreadPoolExecutor(max_workers=min(5, len(POSITIONS))) as executor:
                 futures = {executor.submit(predict_position, pos): pos for pos in POSITIONS}
-                
+
                 for future in as_completed(futures):
                     pos, pos_result = future.result()
                     result[pos] = pos_result
                     logger.debug(f"[预测步骤] 位置 {pos} 预测完成")
-            
+
             # 应用贝叶斯不确定性量化（如果可用）
             if use_uncertainty and self.bayesian_quantifier is not None:
                 try:
@@ -1306,23 +1382,23 @@ class EnhancedPL5Predictor:
                     for pos, data in result.items():
                         # 创建一个概率数组，对应0-9的数字
                         probs = np.zeros(10)
-                        for num, prob in zip(data['top_k'], data['probabilities']):
+                        for num, prob in zip(data["top_k"], data["probabilities"]):
                             if 0 <= num < 10:
                                 probs[num] = prob
                         # 归一化概率
                         probs = probs / (probs.sum() + 1e-12)
                         bayesian_input[pos] = probs
-                    
+
                     # 使用 quantify 方法而不是 calibrate_predictions
                     uncertainty_report = self.bayesian_quantifier.quantify(bayesian_input)
-                    
+
                     # 更新预测结果
                     for pos, data in result.items():
-                        if pos in uncertainty_report.get('calibrated_probabilities', {}):
-                            calibrated_probs = np.array(uncertainty_report['calibrated_probabilities'][pos])
+                        if pos in uncertainty_report.get("calibrated_probabilities", {}):
+                            calibrated_probs = np.array(uncertainty_report["calibrated_probabilities"][pos])
                             top_indices = np.argsort(calibrated_probs)[::-1][:top_k]
-                            result[pos]['top_k'] = [int(i) for i in top_indices]
-                            result[pos]['probabilities'] = [float(calibrated_probs[i]) for i in top_indices]
+                            result[pos]["top_k"] = [int(i) for i in top_indices]
+                            result[pos]["probabilities"] = [float(calibrated_probs[i]) for i in top_indices]
                     logger.debug("[预测步骤] 贝叶斯不确定性量化完成")
                 except Exception as e:
                     logger.warning(f"[EnhancedPredictor] 贝叶斯不确定性量化失败: {e}")
@@ -1331,17 +1407,17 @@ class EnhancedPL5Predictor:
             duration_sec = duration_ms / 1000
             logger.debug(f"[预测步骤] 预测完成，耗时: {duration_sec:.2f} 秒")
             logger.info(f"推理完成: {time.strftime('%H:%M:%S')}, 耗时: {duration_sec:.2f} 秒")
-            
+
             # 检查推理延迟是否符合要求
             if duration_sec <= 5:
                 logger.info("✓ 推理延迟符合要求 (≤5秒)")
             else:
                 logger.warning(f"⚠ 推理延迟超过要求: {duration_sec:.2f} 秒 > 5秒")
-            
+
             structured_logger.log_operation_success(
                 StructuredLogger.OPERATION_PREDICTION,
                 duration_ms,
-                {"positions": len(result), "top_k": top_k, "inference_time": duration_sec}
+                {"positions": len(result), "top_k": top_k, "inference_time": duration_sec},
             )
 
             prediction_cache.store(f"pred_{time.time()}", result)
@@ -1352,7 +1428,7 @@ class EnhancedPL5Predictor:
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_PREDICTION,
                 ModelPredictionError(f"Prediction failed: {e}", operation="predict", original_error=e),
-                duration_ms
+                duration_ms,
             )
 
             cached = prediction_cache.get_latest()
@@ -1361,19 +1437,25 @@ class EnhancedPL5Predictor:
                 structured_logger.log_fallback_used(
                     StructuredLogger.OPERATION_PREDICTION,
                     "fallback_to_cache",
-                    f"Prediction failed ({e}), using cached result from {cache_key}"
+                    f"Prediction failed ({e}), using cached result from {cache_key}",
                 )
                 logger.warning(f"[ModelFallback] Using cached prediction due to: {e}")
                 return cached_result
 
             logger.error(f"[EnhancedPredictor] 预测完全失败，使用均匀分布回退: {e}")
-            return {pos: {"top_k": list(range(10))[:top_k],
-                        "probabilities": [0.125] * top_k,
-                        "uncertainty": 1.0,
-                        "fallback": True} for pos in POSITIONS}
+            return {
+                pos: {
+                    "top_k": list(range(10))[:top_k],
+                    "probabilities": [0.125] * top_k,
+                    "uncertainty": 1.0,
+                    "fallback": True,
+                }
+                for pos in POSITIONS
+            }
 
-    def _build_rl_state(self, features: np.ndarray, p_stacking: np.ndarray,
-                       p_hmm: np.ndarray, p_copula: np.ndarray) -> np.ndarray:
+    def _build_rl_state(
+        self, features: np.ndarray, p_stacking: np.ndarray, p_hmm: np.ndarray, p_copula: np.ndarray
+    ) -> np.ndarray:
         """构建增强RL状态向量 V3 - 高信息密度状态表示（128维）
 
         状态向量组成:
@@ -1409,18 +1491,18 @@ class EnhancedPL5Predictor:
 
         model_probas = np.concatenate([p_stacking[:10], p_hmm[:10], p_copula[:10]])
 
-        confidence_features = np.array([
-            np.max(p_stacking), np.max(p_hmm), np.max(p_copula),
-            np.max((p_stacking + p_hmm + p_copula) / 3)
-        ])
+        confidence_features = np.array(
+            [np.max(p_stacking), np.max(p_hmm), np.max(p_copula), np.max((p_stacking + p_hmm + p_copula) / 3)]
+        )
 
-        entropy_features = np.array([
-            -np.sum(p_stacking * np.log(p_stacking + 1e-12)),
-            -np.sum(p_hmm * np.log(p_hmm + 1e-12)),
-            -np.sum(p_copula * np.log(p_copula + 1e-12)),
-            -np.sum(((p_stacking + p_hmm + p_copula) / 3) *
-                    np.log((p_stacking + p_hmm + p_copula) / 3 + 1e-12))
-        ]) / np.log(10)
+        entropy_features = np.array(
+            [
+                -np.sum(p_stacking * np.log(p_stacking + 1e-12)),
+                -np.sum(p_hmm * np.log(p_hmm + 1e-12)),
+                -np.sum(p_copula * np.log(p_copula + 1e-12)),
+                -np.sum(((p_stacking + p_hmm + p_copula) / 3) * np.log((p_stacking + p_hmm + p_copula) / 3 + 1e-12)),
+            ]
+        ) / np.log(10)
 
         all_preds = [np.argmax(p_stacking), np.argmax(p_hmm), np.argmax(p_copula)]
         agreement_features = np.zeros(8)
@@ -1446,8 +1528,7 @@ class EnhancedPL5Predictor:
             recent_perf[2] = len(hits) / max(len(recent_rewards), 1)
 
             if self._model_performance_history:
-                avg_perfs = {m: (np.mean(h) if h else 0.0)
-                            for m, h in self._model_performance_history.items()}
+                avg_perfs = {m: (np.mean(h) if h else 0.0) for m, h in self._model_performance_history.items()}
                 best_model = max(avg_perfs, key=avg_perfs.get)
                 model_idx_map = {"stacking": 0, "hmm": 1, "copula": 2, "bayesian": 3}
                 if best_model in model_idx_map:
@@ -1473,40 +1554,44 @@ class EnhancedPL5Predictor:
         if weight_std > 1e-8:
             weight_skewness = np.mean(((np.array(current_weights) - weight_mean) / weight_std) ** 3)
 
-        prev_weights = getattr(self, '_prev_weights', current_weights)
+        prev_weights = getattr(self, "_prev_weights", current_weights)
         weight_momentum = np.array(current_weights) - np.array(prev_weights)
         weight_change_rate = np.linalg.norm(weight_momentum) / (np.linalg.norm(prev_weights) + 1e-8)
         self._prev_weights = current_weights.copy()
 
-        weight_dist_features = np.array([
-            weight_entropy / np.log(4),
-            weight_mean,
-            weight_std,
-            weight_skewness,
-            np.max(current_weights),
-            np.min(current_weights),
-            float(np.sign(weight_momentum[np.argmax(np.abs(weight_momentum))])),
-            float(weight_change_rate)
-        ])
+        weight_dist_features = np.array(
+            [
+                weight_entropy / np.log(4),
+                weight_mean,
+                weight_std,
+                weight_skewness,
+                np.max(current_weights),
+                np.min(current_weights),
+                float(np.sign(weight_momentum[np.argmax(np.abs(weight_momentum))])),
+                float(weight_change_rate),
+            ]
+        )
 
         position_perf = np.zeros(10)
         if self._prediction_results_cache:
             recent_cache = self._prediction_results_cache[-20:]
             for pi, pos in enumerate(POSITIONS):
                 pos_hits = sum(
-                    1 for entry in recent_cache
-                    if pos in entry.get('actual', {}) and
-                       pos in entry.get('prediction', {}) and
-                       entry['actual'][pos] in entry['prediction'][pos][:3]
+                    1
+                    for entry in recent_cache
+                    if pos in entry.get("actual", {})
+                    and pos in entry.get("prediction", {})
+                    and entry["actual"][pos] in entry["prediction"][pos][:3]
                 )
                 position_perf[pi] = pos_hits / max(len(recent_cache), 1)
 
             for pi, pos in enumerate(POSITIONS):
                 stacking_prefers = sum(
-                    1 for entry in recent_cache[-10:]
-                    if pos in entry.get('prediction', {}) and
-                       len(entry['prediction'][pos]) > 0 and
-                       entry['prediction'][pos][0] == entry.get('actual', {}).get(pos, -1)
+                    1
+                    for entry in recent_cache[-10:]
+                    if pos in entry.get("prediction", {})
+                    and len(entry["prediction"][pos]) > 0
+                    and entry["prediction"][pos][0] == entry.get("actual", {}).get(pos, -1)
                 ) / max(min(len(recent_cache), 10), 1)
                 position_perf[5 + pi] = stacking_prefers
 
@@ -1539,17 +1624,21 @@ class EnhancedPL5Predictor:
             time_decay_perf[5] = min(miss_streak, 10) / 10.0
 
             if n >= 10:
-                time_decay_perf[6] = float(np.percentile(rewards_arr[-50:], 75)) if n >= 50 else float(np.percentile(rewards_arr, 75))
-                time_decay_perf[7] = float(np.percentile(rewards_arr[-50:], 25)) if n >= 50 else float(np.percentile(rewards_arr, 25))
+                time_decay_perf[6] = (
+                    float(np.percentile(rewards_arr[-50:], 75)) if n >= 50 else float(np.percentile(rewards_arr, 75))
+                )
+                time_decay_perf[7] = (
+                    float(np.percentile(rewards_arr[-50:], 25)) if n >= 50 else float(np.percentile(rewards_arr, 25))
+                )
 
             if n >= 5:
                 rolling_std_5 = np.std(rewards_arr[-5:])
-                rolling_std_20 = np.std(rewards_arr[-min(20, n):])
+                rolling_std_20 = np.std(rewards_arr[-min(20, n) :])
                 time_decay_perf[8] = rolling_std_5
                 time_decay_perf[9] = rolling_std_20
 
         model_confidence_variance = np.zeros(8)
-        all_model_probas = {'stacking': p_stacking, 'hmm': p_hmm, 'copula': p_copula}
+        all_model_probas = {"stacking": p_stacking, "hmm": p_hmm, "copula": p_copula}
         for mi, (mname, proba) in enumerate(all_model_probas.items()):
             confidences_per_pos = []
             for _pos in POSITIONS:
@@ -1580,29 +1669,38 @@ class EnhancedPL5Predictor:
         pred_proba_values = [p_stacking[np.argmax(p_stacking)], p_hmm[np.argmax(p_hmm)], p_copula[np.argmax(p_copula)]]
         cross_disagreement[3] = np.sum(pred_proba_values) / (len(pred_proba_values) * max(pred_proba_values) + 1e-12)
 
-        state = np.concatenate([
-            feature_part,
-            model_probas,
-            confidence_features,
-            entropy_features,
-            agreement_features,
-            recent_perf,
-            weight_dist_features,
-            position_perf,
-            time_decay_perf,
-            model_confidence_variance,
-            cross_disagreement
-        ])
+        state = np.concatenate(
+            [
+                feature_part,
+                model_probas,
+                confidence_features,
+                entropy_features,
+                agreement_features,
+                recent_perf,
+                weight_dist_features,
+                position_perf,
+                time_decay_perf,
+                model_confidence_variance,
+                cross_disagreement,
+            ]
+        )
 
         target_dim = 128
         if len(state) < target_dim:
             state = np.pad(state, (0, target_dim - len(state)))
         return state[:target_dim]
-        
-    def _get_dynamic_weights(self, p_stacking: np.ndarray, p_hmm: np.ndarray, p_copula: np.ndarray, 
-                            p_bsts: np.ndarray, p_mamba: np.ndarray, p_itransformer: np.ndarray) -> np.ndarray:
+
+    def _get_dynamic_weights(
+        self,
+        p_stacking: np.ndarray,
+        p_hmm: np.ndarray,
+        p_copula: np.ndarray,
+        p_bsts: np.ndarray,
+        p_mamba: np.ndarray,
+        p_itransformer: np.ndarray,
+    ) -> np.ndarray:
         """基于模型性能动态调整权重 - 强化随机性类型整合
-        
+
         Args:
             p_stacking: Stacking模型的预测概率
             p_hmm: HMM模型的预测概率
@@ -1610,10 +1708,11 @@ class EnhancedPL5Predictor:
             p_bsts: BSTS模型的预测概率
             p_mamba: Mamba模型的预测概率
             p_itransformer: iTransformer模型的预测概率
-            
+
         Returns:
             np.ndarray: 动态调整后的权重
         """
+
         # 计算每个模型的预测质量指标
         def calculate_model_quality(probs):
             """计算模型预测质量"""
@@ -1624,7 +1723,7 @@ class EnhancedPL5Predictor:
             # 3. 综合质量分数
             quality = peakiness * (1 - entropy / np.log(10))
             return quality
-        
+
         # 计算每个模型的质量分数
         quality_stacking = calculate_model_quality(p_stacking)
         quality_hmm = calculate_model_quality(p_hmm)
@@ -1632,7 +1731,7 @@ class EnhancedPL5Predictor:
         quality_bsts = calculate_model_quality(p_bsts)
         quality_mamba = calculate_model_quality(p_mamba)
         quality_itransformer = calculate_model_quality(p_itransformer)
-        
+
         # 基础权重 - 考虑不同模型对不同类型随机性的捕捉能力
         # Stacking: 认知随机 + 确定性规则的伪随机
         # HMM: 混沌复杂系统的随机 + 初始条件敏感性
@@ -1641,26 +1740,21 @@ class EnhancedPL5Predictor:
         # Mamba: 计算不可约 + 混沌复杂系统的随机
         # iTransformer: 初始条件敏感性 + 趋势方向
         base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15])
-        
+
         # 质量分数
-        quality_scores = np.array([
-            quality_stacking,
-            quality_hmm,
-            quality_copula,
-            quality_bsts,
-            quality_mamba,
-            quality_itransformer
-        ])
-        
+        quality_scores = np.array(
+            [quality_stacking, quality_hmm, quality_copula, quality_bsts, quality_mamba, quality_itransformer]
+        )
+
         # 归一化质量分数
         quality_scores = quality_scores / (np.sum(quality_scores) + 1e-12)
-        
+
         # 动态权重 = 基础权重 * 质量分数
         dynamic_weights = base_weights * quality_scores
-        
+
         # 确保权重不为负
         dynamic_weights = np.maximum(dynamic_weights, 0.01)
-        
+
         return dynamic_weights
 
     def _compute_enhanced_reward(self, prediction: Dict, actual: Dict) -> Tuple[float, Dict[str, float]]:
@@ -1693,8 +1787,8 @@ class EnhancedPL5Predictor:
                 continue
 
             pred_info = prediction[pos]
-            top_k_preds = pred_info.get('top_k', [])[:top_k]
-            probabilities = pred_info.get('probabilities', [])
+            top_k_preds = pred_info.get("top_k", [])[:top_k]
+            probabilities = pred_info.get("probabilities", [])
             actual_val = actual[pos]
 
             pos_importance = POSITION_IMPORTANCE.get(pos, 1.0)
@@ -1721,7 +1815,7 @@ class EnhancedPL5Predictor:
                 top_k_coverage.append(0.0)
                 calibration_error = 0.5
 
-            weights_used = pred_info.get('weights_used', {})
+            weights_used = pred_info.get("weights_used", {})
             model_names = ["stacking", "hmm", "copula", "bsts"]
             for mname in ["stacking", "hmm", "copula", "bayesian"]:
                 wkey = "bsts" if mname == "bayesian" else mname
@@ -1768,17 +1862,27 @@ class EnhancedPL5Predictor:
         normalized_coverage = avg_topk_coverage / max(total_importance / n_positions, 0.9)
         topk_bonus = normalized_coverage * 0.35
 
-        avg_calibration = 1.0 - np.mean([
-            abs(p.get('probabilities', [0.1])[0] - 0.1)
-            for p in prediction.values() if isinstance(p, dict) and p.get('probabilities')
-        ]) if prediction and all(isinstance(p, dict) and p.get('probabilities') for p in prediction.values()) else 0.0
+        avg_calibration = (
+            1.0
+            - np.mean(
+                [
+                    abs(p.get("probabilities", [0.1])[0] - 0.1)
+                    for p in prediction.values()
+                    if isinstance(p, dict) and p.get("probabilities")
+                ]
+            )
+            if prediction and all(isinstance(p, dict) and p.get("probabilities") for p in prediction.values())
+            else 0.0
+        )
         calibration_reward = (avg_calibration - 0.5) * 0.2
 
         weights_entropy = 0.0
-        if any('weights_used' in v for v in prediction.values() if isinstance(v, dict)):
-            sample_weights = list(next(v['weights_used'].values())
-                                  for v in prediction.values()
-                                  if isinstance(v, dict) and 'weights_used' in v)
+        if any("weights_used" in v for v in prediction.values() if isinstance(v, dict)):
+            sample_weights = list(
+                next(v["weights_used"].values())
+                for v in prediction.values()
+                if isinstance(v, dict) and "weights_used" in v
+            )
             if sample_weights:
                 warr = np.array(sample_weights).mean(axis=0)
                 weights_entropy = -np.sum(warr * np.log(warr + 1e-12)) / np.log(len(warr))
@@ -1788,12 +1892,12 @@ class EnhancedPL5Predictor:
         chain_bonus = min(key_position_bonus, 0.30)
 
         total_reward = (
-            joint_hit_rate * 1.0 +
-            multi_position_bonus +
-            topk_bonus +
-            max(calibration_reward, 0) +
-            entropy_regularization +
-            chain_bonus
+            joint_hit_rate * 1.0
+            + multi_position_bonus
+            + topk_bonus
+            + max(calibration_reward, 0)
+            + entropy_regularization
+            + chain_bonus
         )
         total_reward = float(np.clip(total_reward, 0.0, 2.5))
 
@@ -1813,13 +1917,15 @@ class EnhancedPL5Predictor:
             if len(hist) > window:
                 hist.pop(0)
 
-        self._prediction_results_cache.append({
-            "prediction": {p: prediction[p].get("top_k", [])[:5] for p in POSITIONS if p in prediction},
-            "actual": {p: actual[p] for p in POSITIONS if p in actual},
-            "reward": total_reward,
-            "per_model_scores": per_model_scores.copy(),
-            "timestamp": time.time()
-        })
+        self._prediction_results_cache.append(
+            {
+                "prediction": {p: prediction[p].get("top_k", [])[:5] for p in POSITIONS if p in prediction},
+                "actual": {p: actual[p] for p in POSITIONS if p in actual},
+                "reward": total_reward,
+                "per_model_scores": per_model_scores.copy(),
+                "timestamp": time.time(),
+            }
+        )
         if len(self._prediction_results_cache) > 200:
             self._prediction_results_cache.pop(0)
 
@@ -1838,17 +1944,17 @@ class EnhancedPL5Predictor:
             np.random.randn(min(len(self.feature_cols), 30)),
             np.random.dirichlet(np.ones(10)),
             np.random.dirichlet(np.ones(10)),
-            np.random.dirichlet(np.ones(10))
+            np.random.dirichlet(np.ones(10)),
         )
 
-        action = np.array([
-            prediction[pos].get('weights_used', {}).get('stacking', 0.4)
-            for pos in POSITIONS[:4]
-        ]) if isinstance(prediction, dict) and 'wan' in prediction else np.ones(4) / 4
+        action = (
+            np.array([prediction[pos].get("weights_used", {}).get("stacking", 0.4) for pos in POSITIONS[:4]])
+            if isinstance(prediction, dict) and "wan" in prediction
+            else np.ones(4) / 4
+        )
 
         if self.rl_optimizer is not None:
-            self.rl_optimizer.memory.push(state, action, total_reward,
-                                          np.zeros(128), True)
+            self.rl_optimizer.memory.push(state, action, total_reward, np.zeros(128), True)
             self._rewards_history.append(total_reward)
             self._states_history.append(state)
 
@@ -1887,12 +1993,12 @@ class EnhancedPL5Predictor:
         for mname in model_names:
             hist = self._model_performance_history.get(mname, [])
             if len(hist) >= 5:
-                recent = hist[-min(len(hist), self._performance_window):]
+                recent = hist[-min(len(hist), self._performance_window) :]
                 avg_score = np.mean(recent)
 
                 if len(recent) >= 10:
-                    first_half = np.mean(recent[:len(recent)//2])
-                    second_half = np.mean(recent[len(recent)//2:])
+                    first_half = np.mean(recent[: len(recent) // 2])
+                    second_half = np.mean(recent[len(recent) // 2 :])
                     trend = (second_half - first_half) / (abs(first_half) + 1e-8)
                     trend_bonus = max(0, min(trend * 0.5, 0.3))
                 else:
@@ -1916,14 +2022,15 @@ class EnhancedPL5Predictor:
         weights = np.clip(weights, min_weight, None)
         weights = weights / (weights.sum() + 1e-12)
 
-        logger.debug(f"[DynamicWeights] 原始得分: {dict(zip(model_names, [f'{s:.3f}' for s in raw_scores]))}, "
-                     f"权重: {dict(zip(model_names, [f'{w:.3f}' for w in weights]))}")
+        logger.debug(
+            f"[DynamicWeights] 原始得分: {dict(zip(model_names, [f'{s:.3f}' for s in raw_scores]))}, "
+            f"权重: {dict(zip(model_names, [f'{w:.3f}' for w in weights]))}"
+        )
         return weights
 
-    def adjust_weights_by_history(self, history: List[Dict[str, Any]],
-                                   ema_alpha: float = 0.3,
-                                   min_weight: float = 0.05,
-                                   max_weight: float = 0.50) -> Dict[str, Any]:
+    def adjust_weights_by_history(
+        self, history: List[Dict[str, Any]], ema_alpha: float = 0.3, min_weight: float = 0.05, max_weight: float = 0.50
+    ) -> Dict[str, Any]:
         """基于历史表现的指数移动平均(EMA)动态权重调整
 
         核心算法:
@@ -1957,7 +2064,7 @@ class EnhancedPL5Predictor:
                 "ema_scores": {m: 0.25 for m in model_names},
                 "raw_hit_rates": {m: 0.0 for m in model_names},
                 "uncertainty": {"std": 0.0, "confidence": "none"},
-                "adjustment_magnitude": 0.0
+                "adjustment_magnitude": 0.0,
             }
 
         model_raw_scores: Dict[str, List[float]] = {m: [] for m in model_names}
@@ -1995,11 +2102,11 @@ class EnhancedPL5Predictor:
 
             if len(scores) >= 10:
                 first_half_ema = scores[0]
-                for s in scores[:len(scores)//2]:
+                for s in scores[: len(scores) // 2]:
                     first_half_ema = ema_alpha * s + (1 - ema_alpha) * first_half_ema
 
-                second_half_ema = scores[len(scores)//2]
-                for s in scores[len(scores)//2:]:
+                second_half_ema = scores[len(scores) // 2]
+                for s in scores[len(scores) // 2 :]:
                     second_half_ema = ema_alpha * s + (1 - ema_alpha) * second_half_ema
 
                 trend = (second_half_ema - first_half_ema) / (abs(first_half_ema) + 1e-8)
@@ -2058,13 +2165,14 @@ class EnhancedPL5Predictor:
                 "cv": cv,
                 "score_range": [float(min(score_values)), float(max(score_values))],
                 "confidence": confidence_level,
-                "n_samples": len(history)
+                "n_samples": len(history),
             },
-            "adjustment_magnitude": adj_magnitude
+            "adjustment_magnitude": adj_magnitude,
         }
 
-    def _get_bayesian_weights_with_uncertainty(self, n_samples: int = 1000
-                                              ) -> Tuple[np.ndarray, Dict[str, Dict[str, float]]]:
+    def _get_bayesian_weights_with_uncertainty(
+        self, n_samples: int = 1000
+    ) -> Tuple[np.ndarray, Dict[str, Dict[str, float]]]:
         """基于Thompson Sampling的贝叶斯权重不确定量化 V2
 
         使用Beta分布作为各模型权重的先验/后验分布：
@@ -2135,7 +2243,7 @@ class EnhancedPL5Predictor:
         entropy_std = float(np.std(sample_entropies))
 
         total_weight_variance = float(np.trace(np.cov(normalized_samples.T)))
-        uncertainty_ratio = float(total_weight_variance / (np.mean(mean_weights ** 2) + 1e-8))
+        uncertainty_ratio = float(total_weight_variance / (np.mean(mean_weights**2) + 1e-8))
 
         most_certain_model_idx = int(np.argmin(std_weights))
         least_certain_model_idx = int(np.argmax(std_weights))
@@ -2154,13 +2262,12 @@ class EnhancedPL5Predictor:
                 "cv": float(std_weights[i] / (abs(mean_weights[i]) + 1e-8)),
                 "alpha_beta": (
                     float(self._thompson_weight_params[mname]["alpha"]),
-                    float(self._thompson_weight_params[mname]["beta"])
+                    float(self._thompson_weight_params[mname]["beta"]),
                 ),
                 "skewness": float(
-                    ((mean_weights[i] - median_weights[i]) / (std_weights[i] + 1e-8))
-                    if std_weights[i] > 1e-8 else 0.0
+                    ((mean_weights[i] - median_weights[i]) / (std_weights[i] + 1e-8)) if std_weights[i] > 1e-8 else 0.0
                 ),
-                "rank_probability": rank_probabilities.get(mname, {})
+                "rank_probability": rank_probabilities.get(mname, {}),
             }
 
         uncertainty_info["_global"] = {
@@ -2172,12 +2279,13 @@ class EnhancedPL5Predictor:
             "uncertainty_ratio": uncertainty_ratio,
             "most_certain_model": model_names[most_certain_model_idx],
             "least_certain_model": model_names[least_certain_model_idx],
-            "n_samples": n_samples
+            "n_samples": n_samples,
         }
 
         uncertainty_info["_correlation_matrix"] = {
             f"{model_names[i]}_{model_names[j]}": float(weight_correlation[i, j])
-            for i in range(len(model_names)) for j in range(len(model_names))
+            for i in range(len(model_names))
+            for j in range(len(model_names))
         }
 
         overall_confidence = "high"
@@ -2195,9 +2303,9 @@ class EnhancedPL5Predictor:
 
         return mean_weights, uncertainty_info
 
-    def get_adaptive_weights(self, use_rl: bool = True,
-                            include_uncertainty: bool = True
-                            ) -> Tuple[np.ndarray, Optional[Dict]]:
+    def get_adaptive_weights(
+        self, use_rl: bool = True, include_uncertainty: bool = True
+    ) -> Tuple[np.ndarray, Optional[Dict]]:
         """获取自适应融合权重 - 统一入口
 
         权重选择优先级:
@@ -2212,9 +2320,7 @@ class EnhancedPL5Predictor:
         Returns:
             (weights, uncertainty_info): 归一化权重向量和可选的不确定性字典
         """
-        has_enough_history = any(
-            len(h) >= 5 for h in self._model_performance_history.values()
-        )
+        has_enough_history = any(len(h) >= 5 for h in self._model_performance_history.values())
 
         if use_rl and self.rl_optimizer is not None and self.rl_optimizer.is_trained:
             dummy_state = np.zeros(128)
@@ -2235,9 +2341,7 @@ class EnhancedPL5Predictor:
             if include_uncertainty:
                 _, uncertainty = self._get_bayesian_weights_with_uncertainty()
                 uncertainty["source"] = "history_based"
-                uncertainty["history_samples"] = {
-                    m: len(h) for m, h in self._model_performance_history.items()
-                }
+                uncertainty["history_samples"] = {m: len(h) for m, h in self._model_performance_history.items()}
 
             return weights, uncertainty
 
@@ -2255,8 +2359,12 @@ class EnhancedPL5Predictor:
 
             return weights, uncertainty
 
-    def save_models(self, performance_metrics: Optional[Dict[str, float]] = None,
-                    training_samples: int = 0, auto_backup: bool = True) -> None:
+    def save_models(
+        self,
+        performance_metrics: Optional[Dict[str, float]] = None,
+        training_samples: int = 0,
+        auto_backup: bool = True,
+    ) -> None:
         """保存所有模型 - V10.0 完整格式 (含元数据/校验和/备份)
 
         Args:
@@ -2267,7 +2375,7 @@ class EnhancedPL5Predictor:
         save_path = self.models_dir / MODEL_FILENAME
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_MODEL_SAVE,
-            {"path": str(save_path), "positions": list(self.stacking.keys()), "version": CURRENT_VERSION}
+            {"path": str(save_path), "positions": list(self.stacking.keys()), "version": CURRENT_VERSION},
         )
         start_time = time.time()
 
@@ -2296,12 +2404,10 @@ class EnhancedPL5Predictor:
             }
 
             v10_data = self.version_manager.wrap_v10_format(
-                save_data,
-                performance_metrics=performance_metrics,
-                training_samples=training_samples
+                save_data, performance_metrics=performance_metrics, training_samples=training_samples
             )
 
-            with open(save_path, 'wb') as f:
+            with open(save_path, "wb") as f:
                 pickle.dump(v10_data, f)
 
             meta = v10_data.get("metadata", {})
@@ -2309,13 +2415,13 @@ class EnhancedPL5Predictor:
 
             self.version_manager._log_change(
                 VersionChangeLog(
-                    timestamp=__import__('datetime').datetime.now().isoformat(),
+                    timestamp=__import__("datetime").datetime.now().isoformat(),
                     operation="save",
                     from_version=meta.get("source_version", ""),
                     to_version=CURRENT_VERSION,
                     operator="system",
                     description=f"Save model V10.0 | features={len(self.feature_cols)} | "
-                                f"checksum={checksum[:16] if checksum else 'N/A'}",
+                    f"checksum={checksum[:16] if checksum else 'N/A'}",
                     checksum_after=checksum,
                 )
             )
@@ -2324,10 +2430,12 @@ class EnhancedPL5Predictor:
             structured_logger.log_operation_success(
                 StructuredLogger.OPERATION_MODEL_SAVE,
                 duration_ms,
-                {"file_size_kb": save_path.stat().st_size / 1024 if save_path.exists() else 0,
-                 "feature_count": len(self.feature_cols),
-                 "version": CURRENT_VERSION,
-                 "checksum": (checksum or "")[:16]}
+                {
+                    "file_size_kb": save_path.stat().st_size / 1024 if save_path.exists() else 0,
+                    "feature_count": len(self.feature_cols),
+                    "version": CURRENT_VERSION,
+                    "checksum": (checksum or "")[:16],
+                },
             )
             logger.info(
                 f"[EnhancedPredictor V10] 模型已保存: {save_path} | "
@@ -2339,41 +2447,29 @@ class EnhancedPL5Predictor:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_SAVE,
-                ModelSaveError(f"Permission denied saving model: {e}",
-                              operation="save", original_error=e),
-                duration_ms
+                ModelSaveError(f"Permission denied saving model: {e}", operation="save", original_error=e),
+                duration_ms,
             )
-            raise ModelSaveError(
-                f"Cannot save model (permission denied): {e}",
-                operation="save", original_error=e
-            )
+            raise ModelSaveError(f"Cannot save model (permission denied): {e}", operation="save", original_error=e)
         except OSError as e:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_SAVE,
-                ModelSaveError(f"IO error saving model: {e}",
-                              operation="save", original_error=e),
-                duration_ms
+                ModelSaveError(f"IO error saving model: {e}", operation="save", original_error=e),
+                duration_ms,
             )
-            raise ModelSaveError(
-                f"Cannot save model (IO error): {e}",
-                operation="save", original_error=e
-            )
+            raise ModelSaveError(f"Cannot save model (IO error): {e}", operation="save", original_error=e)
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_SAVE,
-                ModelSaveError(f"Unexpected error saving model: {e}",
-                              operation="save", original_error=e),
-                duration_ms
+                ModelSaveError(f"Unexpected error saving model: {e}", operation="save", original_error=e),
+                duration_ms,
             )
             logger.error(f"[EnhancedPredictor] 保存模型异常: {e}", exc_info=True)
-            raise ModelSaveError(
-                f"Failed to save model: {e}", operation="save", original_error=e
-            )
+            raise ModelSaveError(f"Failed to save model: {e}", operation="save", original_error=e)
 
-    def load_models(self, validate_integrity: bool = True,
-                    auto_migrate: bool = True) -> bool:
+    def load_models(self, validate_integrity: bool = True, auto_migrate: bool = True) -> bool:
         """加载模型 - V10.0 (含版本检测/自动迁移/完整性校验)
 
         Args:
@@ -2384,24 +2480,20 @@ class EnhancedPL5Predictor:
             是否加载成功
         """
         load_path = self.models_dir / MODEL_FILENAME
-        structured_logger.log_operation_start(
-            StructuredLogger.OPERATION_MODEL_LOAD,
-            {"path": str(load_path)}
-        )
+        structured_logger.log_operation_start(StructuredLogger.OPERATION_MODEL_LOAD, {"path": str(load_path)})
         start_time = time.time()
 
         if not load_path.exists():
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_LOAD,
-                ModelLoadError(f"Model file not found: {load_path}",
-                              operation="load"),
-                0
+                ModelLoadError(f"Model file not found: {load_path}", operation="load"),
+                0,
             )
             logger.warning(f"[EnhancedPredictor V10] 模型文件不存在: {load_path}")
             return False
 
         try:
-            with open(load_path, 'rb') as f:
+            with open(load_path, "rb") as f:
                 state = pickle.load(f)
 
             detected_version = self.version_manager.detect_version(state)
@@ -2410,13 +2502,9 @@ class EnhancedPL5Predictor:
             if validate_integrity:
                 integrity_result = self.version_manager.validate_model_integrity(load_path)
                 if not integrity_result["valid"]:
-                    logger.error(
-                        f"[EnhancedPredictor V10] 完整性校验失败: {integrity_result['errors']}"
-                    )
+                    logger.error(f"[EnhancedPredictor V10] 完整性校验失败: {integrity_result['errors']}")
                 elif not integrity_result.get("checksum_match", True):
-                    logger.warning(
-                        f"[EnhancedPredictor V10] 校验和不匹配! 数据可能已损坏或被篡改"
-                    )
+                    logger.warning(f"[EnhancedPredictor V10] 校验和不匹配! 数据可能已损坏或被篡改")
                 for w in integrity_result.get("warnings", []):
                     logger.warning(f"[EnhancedPredictor V10] 校验警告: {w}")
 
@@ -2427,7 +2515,7 @@ class EnhancedPL5Predictor:
 
                     should_resave = True
                     try:
-                        with open(load_path, 'wb') as f:
+                        with open(load_path, "wb") as f:
                             pickle.dump(state, f)
                         logger.info("[EnhancedPredictor V10] 迁移后已保存为新格式")
                     except Exception as save_err:
@@ -2436,7 +2524,7 @@ class EnhancedPL5Predictor:
 
                     self.version_manager._log_change(
                         VersionChangeLog(
-                            timestamp=__import__('datetime').datetime.now().isoformat(),
+                            timestamp=__import__("datetime").datetime.now().isoformat(),
                             operation="load_migrate",
                             from_version=detected_version,
                             to_version=CURRENT_VERSION,
@@ -2456,9 +2544,9 @@ class EnhancedPL5Predictor:
             self.bayesian_quantifier = state.get("bayesian_quantifier")
 
             v10_modules_present = (
-                self.mamba_predictor is not None and
-                self.itransformer_predictor is not None and
-                self.bayesian_quantifier is not None
+                self.mamba_predictor is not None
+                and self.itransformer_predictor is not None
+                and self.bayesian_quantifier is not None
             )
             if self.is_trained and not v10_modules_present:
                 logger.warning(
@@ -2484,7 +2572,9 @@ class EnhancedPL5Predictor:
             model_version = state.get("model_version", detected_version)
 
             if self.trained_feature_dim == 0 and len(self.feature_cols) > 0:
-                logger.info(f"[EnhancedPredictor V10] 加载模型({model_version}), 特征维度未记录, 使用特征列数: {len(self.feature_cols)}")
+                logger.info(
+                    f"[EnhancedPredictor V10] 加载模型({model_version}), 特征维度未记录, 使用特征列数: {len(self.feature_cols)}"
+                )
                 self.trained_feature_dim = len(self.feature_cols)
 
             restored_thompson = state.get("_thompson_weight_params")
@@ -2497,7 +2587,7 @@ class EnhancedPL5Predictor:
             if isinstance(restored_perf_history, dict) and restored_perf_history:
                 for key in self._model_performance_history:
                     if key in restored_perf_history and isinstance(restored_perf_history[key], list):
-                        self._model_performance_history[key] = restored_perf_history[key][-self._performance_window:]
+                        self._model_performance_history[key] = restored_perf_history[key][-self._performance_window :]
 
             meta = state.get("metadata", {})
             if meta and isinstance(meta, dict):
@@ -2515,12 +2605,12 @@ class EnhancedPL5Predictor:
                 self.thompson_sampler = ThompsonSamplingOptimizer(n_arms=len(POSITIONS))
             else:
                 self.thompson_sampler = None
-            
+
             if _HAS_RL and ModelWeightRLOptimizer is not None:
                 rl_cfg = self._mc.rl_config()
                 self.rl_optimizer = ModelWeightRLOptimizer(
-                    n_models=rl_cfg.get('n_models', 4),
-                    state_dim=rl_cfg.get('state_dim', 128))
+                    n_models=rl_cfg.get("n_models", 4), state_dim=rl_cfg.get("state_dim", 128)
+                )
             else:
                 self.rl_optimizer = None
 
@@ -2533,8 +2623,8 @@ class EnhancedPL5Predictor:
                     "feature_count": len(self.feature_cols),
                     "is_trained": self.is_trained,
                     "version": model_version,
-                    "migrated": detected_version != CURRENT_VERSION
-                }
+                    "migrated": detected_version != CURRENT_VERSION,
+                },
             )
             logger.info(f"[EnhancedPredictor V10] 模型已加载: {load_path} (version={model_version})")
             return True
@@ -2543,9 +2633,8 @@ class EnhancedPL5Predictor:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_LOAD,
-                ModelLoadError(f"Corrupted model file: {e}",
-                              operation="load", original_error=e),
-                duration_ms
+                ModelLoadError(f"Corrupted model file: {e}", operation="load", original_error=e),
+                duration_ms,
             )
             logger.error(f"[EnhancedPredictor] 模型文件损坏: {e}")
             return False
@@ -2553,9 +2642,8 @@ class EnhancedPL5Predictor:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_LOAD,
-                ModelLoadError(f"Incomplete/truncated model file: {e}",
-                              operation="load", original_error=e),
-                duration_ms
+                ModelLoadError(f"Incomplete/truncated model file: {e}", operation="load", original_error=e),
+                duration_ms,
             )
             logger.error(f"[EnhancedPredictor] 模型文件不完整: {e}")
             return False
@@ -2563,9 +2651,8 @@ class EnhancedPL5Predictor:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_MODEL_LOAD,
-                ModelLoadError(f"Unexpected error loading model: {e}",
-                              operation="load", original_error=e),
-                duration_ms
+                ModelLoadError(f"Unexpected error loading model: {e}", operation="load", original_error=e),
+                duration_ms,
             )
             logger.error(f"[EnhancedPredictor] 加载失败: {e}", exc_info=True)
             return False
@@ -2643,15 +2730,19 @@ class EnhancedPL5Predictor:
             "positions_loaded": list(self.stacking.keys()),
             "integrity_valid": integrity.get("valid", False),
             "checksum_match": integrity.get("checksum_match", True),
-            "metadata": {
-                "created_at": meta.get("created_at"),
-                "feature_count": meta.get("feature_count"),
-                "training_samples": meta.get("training_samples"),
-                "model_params_hash": (meta.get("model_params_hash") or "")[:16],
-                "performance_metrics": meta.get("performance_metrics"),
-                "source_version": meta.get("source_version"),
-                "migration_notes": meta.get("migration_notes"),
-            } if meta else None,
+            "metadata": (
+                {
+                    "created_at": meta.get("created_at"),
+                    "feature_count": meta.get("feature_count"),
+                    "training_samples": meta.get("training_samples"),
+                    "model_params_hash": (meta.get("model_params_hash") or "")[:16],
+                    "performance_metrics": meta.get("performance_metrics"),
+                    "source_version": meta.get("source_version"),
+                    "migration_notes": meta.get("migration_notes"),
+                }
+                if meta
+                else None
+            ),
             "backups_available": len(backups),
             "latest_backup": backups[-1] if backups else None,
             "recent_changes": history,
@@ -2675,7 +2766,9 @@ class EnhancedPL5Predictor:
         predictor_instance = cls(**predictor_kwargs)
         tool = PredictorTool()
         tool._predictor = predictor_instance
-        logger.info(f"[EnhancedPredictor V10] as_tool(): 已创建 PredictorTool 实例 (trained={predictor_instance.is_trained})")
+        logger.info(
+            f"[EnhancedPredictor V10] as_tool(): 已创建 PredictorTool 实例 (trained={predictor_instance.is_trained})"
+        )
         return tool
 
     @classmethod
@@ -2722,8 +2815,14 @@ class EnhancedPL5Predictor:
             "models": {
                 "stacking": {
                     "type": "StackingEnsemble V2",
-                    "base_learners": ["RandomForest", "GradientBoosting", "ExtraTrees", "AdaBoost",
-                                     "LightGBM (optional)", "XGBoost (optional)"],
+                    "base_learners": [
+                        "RandomForest",
+                        "GradientBoosting",
+                        "ExtraTrees",
+                        "AdaBoost",
+                        "LightGBM (optional)",
+                        "XGBoost (optional)",
+                    ],
                     "meta_learner": "LogisticRegression / SGD ElasticNet (auto-select)",
                     "cv_folds": 5,
                     "enhanced_meta_features": True,
@@ -2756,10 +2855,22 @@ class EnhancedPL5Predictor:
             "features": {
                 "engineer_version": "FeatureEngineerV10",
                 "feature_groups": [
-                    "fibonacci", "markov", "fourier", "extreme", "pattern",
-                    "momentum", "entropy", "chaos", "cross_correlation",
-                    "garch", "granger", "time_series", "statistical",
-                    "nonlinear", "pattern_recognition", "deep_learning",
+                    "fibonacci",
+                    "markov",
+                    "fourier",
+                    "extreme",
+                    "pattern",
+                    "momentum",
+                    "entropy",
+                    "chaos",
+                    "cross_correlation",
+                    "garch",
+                    "granger",
+                    "time_series",
+                    "statistical",
+                    "nonlinear",
+                    "pattern_recognition",
+                    "deep_learning",
                 ],
                 "selection_methods": ["random_forest", "mutual_info", "rfe", "chi2"],
                 "scaling_methods": ["standard", "minmax", "robust", "none"],
@@ -2769,8 +2880,7 @@ class EnhancedPL5Predictor:
             "learning": {
                 "self_learning_version": "V10.0",
                 "retrain_trigger": ["mann_kendall_trend", "dynamic_threshold", "urgent_alert"],
-                "suggestion_types": ["parameter_adjustment", "model_retraining",
-                                     "data_quality", "strategy_change"],
+                "suggestion_types": ["parameter_adjustment", "model_retraining", "data_quality", "strategy_change"],
                 "priority_levels": ["urgent", "important", "regular"],
                 "effect_estimation": "confidence_interval_with_historical_feedback",
                 "feedback_loop": "record_suggestion_outcome -> update_effect_model",

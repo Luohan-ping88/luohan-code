@@ -26,10 +26,21 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.utils.error_handler import (
-    ErrorLogger, RecoveryManager, error_logger, recovery_manager,
-    retry_with_exponential_backoff, safe_execute, handle_errors, circuit_breaker,
-    DataLoadError, ModelLoadError, NetworkError, ServiceUnavailableError,
-    get_error_stats, get_recovery_stats, clear_error_history
+    ErrorLogger,
+    RecoveryManager,
+    error_logger,
+    recovery_manager,
+    retry_with_exponential_backoff,
+    safe_execute,
+    handle_errors,
+    circuit_breaker,
+    DataLoadError,
+    ModelLoadError,
+    NetworkError,
+    ServiceUnavailableError,
+    get_error_stats,
+    get_recovery_stats,
+    clear_error_history,
 )
 from scripts.utility.auto_backup import BackupManager, BackupConfig
 from scripts.utility.restore_backup import BackupRestorer
@@ -88,10 +99,7 @@ class TestErrorHandling(unittest.TestCase):
 
         self.assertEqual(stats["total_errors"], 8)
         # 检查错误类型统计（可能是 data:DataLoadError 或 DataLoadError）
-        self.assertTrue(
-            "data:DataLoadError" in stats["errors_by_type"] or
-            "DataLoadError" in stats["errors_by_type"]
-        )
+        self.assertTrue("data:DataLoadError" in stats["errors_by_type"] or "DataLoadError" in stats["errors_by_type"])
 
     def test_retry_decorator(self):
         """测试重试装饰器"""
@@ -126,6 +134,7 @@ class TestErrorHandling(unittest.TestCase):
 
     def test_safe_execute(self):
         """测试安全执行"""
+
         def failing_function():
             raise Exception("函数失败")
 
@@ -134,6 +143,7 @@ class TestErrorHandling(unittest.TestCase):
 
     def test_handle_errors_decorator(self):
         """测试错误处理装饰器"""
+
         @handle_errors(fallback_value="默认值")
         def failing_function():
             raise Exception("函数失败")
@@ -195,7 +205,7 @@ class TestBackupSystem(unittest.TestCase):
             backup_dir=str(self.test_path / "backups"),
             daily_backup_dir=str(self.test_path / "backups" / "daily"),
             manual_backup_dir=str(self.test_path / "backups" / "manual"),
-            compression_enabled=False  # 测试中禁用压缩以便检查
+            compression_enabled=False,  # 测试中禁用压缩以便检查
         )
         self.backup_manager = BackupManager(config)
 
@@ -247,7 +257,7 @@ class TestBackupSystem(unittest.TestCase):
             daily_backup_dir=str(self.test_path / "backups" / "daily"),
             manual_backup_dir=str(self.test_path / "backups" / "manual"),
             max_daily_backups=3,
-            compression_enabled=False
+            compression_enabled=False,
         )
         manager = BackupManager(config)
 
@@ -302,7 +312,7 @@ class TestBackupRestorer(unittest.TestCase):
             "backup_type": "daily",
             "timestamp": datetime.now().isoformat(),
             "items": {"data": {"status": "success"}},
-            "status": "success"
+            "status": "success",
         }
         (backup_dir / "backup_info.json").write_text(json.dumps(info))
 
@@ -331,9 +341,7 @@ class TestBackupRestorer(unittest.TestCase):
         (self.test_path / "target").mkdir()
 
         result = self.restorer.restore(
-            backup_id="test_backup",
-            target_dir=str(self.test_path / "target"),
-            create_pre_backup=False
+            backup_id="test_backup", target_dir=str(self.test_path / "target"), create_pre_backup=False
         )
 
         self.assertEqual(result["status"], "success")
@@ -361,6 +369,7 @@ class TestFaultScenarios(unittest.TestCase):
 
     def test_data_corruption_recovery(self):
         """测试数据损坏恢复"""
+
         # 模拟数据损坏检测
         def check_data_integrity(data_path: Path) -> bool:
             """检查数据完整性"""
@@ -461,6 +470,7 @@ class TestSystemStability(unittest.TestCase):
         """测试恢复成功率"""
         # 创建新的恢复管理器实例以避免受其他测试影响
         from src.core.utils.error_handler import RecoveryManager
+
         test_recovery_manager = RecoveryManager()
 
         # 记录一些成功的恢复
@@ -535,7 +545,7 @@ class TestIntegration(unittest.TestCase):
             backup_dir=str(self.test_path / "backups"),
             daily_backup_dir=str(self.test_path / "backups" / "daily"),
             manual_backup_dir=str(self.test_path / "backups" / "manual"),
-            compression_enabled=False
+            compression_enabled=False,
         )
         manager = BackupManager(config)
 
@@ -566,7 +576,7 @@ class TestIntegration(unittest.TestCase):
             backup_dir=str(self.test_path / "backups"),
             daily_backup_dir=str(self.test_path / "backups" / "daily"),
             manual_backup_dir=str(self.test_path / "backups" / "manual"),
-            compression_enabled=False
+            compression_enabled=False,
         )
         manager = BackupManager(config)
 
@@ -610,13 +620,13 @@ def run_tests():
         "failures": len(result.failures),
         "errors": len(result.errors),
         "skipped": len(result.skipped),
-        "success": result.wasSuccessful()
+        "success": result.wasSuccessful(),
     }
 
     # 保存测试报告
     report_path = Path("logs/fault_recovery_test_report.json")
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(report_path, 'w', encoding='utf-8') as f:
+    with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     print(f"\n测试报告已保存到: {report_path}")

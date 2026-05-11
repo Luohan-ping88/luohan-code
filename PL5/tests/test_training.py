@@ -3,17 +3,18 @@
 """
 
 import asyncio
-from core.orchestrator import PL5Orchestrator
+from src.core.orchestrator import PL5Orchestrator
+
 
 async def main():
     # 初始化编排器
     orchestrator = PL5Orchestrator()
-    
+
     # 执行训练流程
     print("开始训练流程...")
     try:
         result = await orchestrator.execute_training_pipeline()
-        if result['success']:
+        if result["success"]:
             print("训练流程执行成功！")
             print(f"总耗时: {result['execution_time']:.2f}秒")
             print(f"数据处理: {result['results']['data_processing']['success']}")
@@ -26,7 +27,9 @@ async def main():
     except Exception as e:
         print(f"训练流程执行异常: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

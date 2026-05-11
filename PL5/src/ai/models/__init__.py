@@ -14,5 +14,5 @@ __all__ = [
     "HuggingFaceLLM",
     "ModelManager",
     "get_model_manager",
-    "reset_model_manager"
+    "reset_model_manager",
 ]

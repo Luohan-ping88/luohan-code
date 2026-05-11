@@ -2,6 +2,7 @@
 策略融合算法模块
 加权融合、投票融合和堆叠融合
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class FusionStrategy(Enum):
     """融合策略枚举"""
+
     WEIGHTED_AVERAGE = "weighted_average"
     MAJORITY_VOTE = "majority_vote"
     SOFT_VOTE = "soft_vote"
@@ -25,6 +27,7 @@ class FusionStrategy(Enum):
 @dataclass
 class FusionResult:
     """融合结果"""
+
     predictions: np.ndarray
     strategy: FusionStrategy
     policy_weights: Optional[Dict[str, float]] = None
@@ -35,11 +38,13 @@ class FusionResult:
 class PolicyFuser(BaseEstimator):
     """策略融合器"""
 
-    def __init__(self,
-                 strategy: FusionStrategy = FusionStrategy.WEIGHTED_AVERAGE,
-                 weights: Optional[List[float]] = None,
-                 meta_learner: Optional[BaseEstimator] = None,
-                 is_classification: bool = True):
+    def __init__(
+        self,
+        strategy: FusionStrategy = FusionStrategy.WEIGHTED_AVERAGE,
+        weights: Optional[List[float]] = None,
+        meta_learner: Optional[BaseEstimator] = None,
+        is_classification: bool = True,
+    ):
         self.strategy = strategy
         self.weights = weights
         self.meta_learner = meta_learner
@@ -47,11 +52,13 @@ class PolicyFuser(BaseEstimator):
         self._policy_names: List[str] = []
         self._is_fitted = False
 
-    def fit(self,
-            X: np.ndarray,
-            y: np.ndarray,
-            policy_predictions: Optional[Dict[str, np.ndarray]] = None,
-            sample_weight: Optional[np.ndarray] = None) -> 'PolicyFuser':
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        policy_predictions: Optional[Dict[str, np.ndarray]] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> "PolicyFuser":
         """
         拟合融合器
 
@@ -69,9 +76,7 @@ class PolicyFuser(BaseEstimator):
                 raise ValueError("堆叠融合需要提供policy_predictions")
 
             self._policy_names = list(policy_predictions.keys())
-            meta_features = np.column_stack([
-                policy_predictions[name] for name in self._policy_names
-            ])
+            meta_features = np.column_stack([policy_predictions[name] for name in self._policy_names])
 
             if self.meta_learner is None:
                 if self.is_classification:
@@ -87,9 +92,7 @@ class PolicyFuser(BaseEstimator):
         self._is_fitted = True
         return self
 
-    def predict(self,
-                policy_predictions: Dict[str, np.ndarray],
-                X: Optional[np.ndarray] = None) -> FusionResult:
+    def predict(self, policy_predictions: Dict[str, np.ndarray], X: Optional[np.ndarray] = None) -> FusionResult:
         """
         预测
 
@@ -117,9 +120,7 @@ class PolicyFuser(BaseEstimator):
         else:
             raise ValueError(f"未知的融合策略: {self.strategy}")
 
-    def _weighted_average(self,
-                          predictions_list: List[np.ndarray],
-                          policy_names: List[str]) -> FusionResult:
+    def _weighted_average(self, predictions_list: List[np.ndarray], policy_names: List[str]) -> FusionResult:
         """加权平均融合"""
         weights = self.weights or [1.0 / len(predictions_list)] * len(predictions_list)
 
@@ -131,12 +132,10 @@ class PolicyFuser(BaseEstimator):
         return FusionResult(
             predictions=weighted_preds,
             strategy=FusionStrategy.WEIGHTED_AVERAGE,
-            policy_weights=dict(zip(policy_names, weights))
+            policy_weights=dict(zip(policy_names, weights)),
         )
 
-    def _majority_vote(self,
-                        predictions_list: List[np.ndarray],
-                        policy_names: List[str]) -> FusionResult:
+    def _majority_vote(self, predictions_list: List[np.ndarray], policy_names: List[str]) -> FusionResult:
         """多数投票融合"""
         predictions_array = np.array(predictions_list)
 
@@ -148,14 +147,9 @@ class PolicyFuser(BaseEstimator):
             unique, counts = np.unique(predictions_array[i], return_counts=True)
             voted_preds.append(unique[np.argmax(counts)])
 
-        return FusionResult(
-            predictions=np.array(voted_preds),
-            strategy=FusionStrategy.MAJORITY_VOTE
-        )
+        return FusionResult(predictions=np.array(voted_preds), strategy=FusionStrategy.MAJORITY_VOTE)
 
-    def _soft_vote(self,
-                   predictions_list: List[np.ndarray],
-                   policy_names: List[str]) -> FusionResult:
+    def _soft_vote(self, predictions_list: List[np.ndarray], policy_names: List[str]) -> FusionResult:
         """软投票融合"""
         weights = self.weights or [1.0 / len(predictions_list)] * len(predictions_list)
 
@@ -173,12 +167,10 @@ class PolicyFuser(BaseEstimator):
             predictions=final_preds,
             strategy=FusionStrategy.SOFT_VOTE,
             policy_weights=dict(zip(policy_names, weights)),
-            confidence_scores=weighted_probs
+            confidence_scores=weighted_probs,
         )
 
-    def _stacking(self,
-                  predictions_list: List[np.ndarray],
-                  policy_names: List[str]) -> FusionResult:
+    def _stacking(self, predictions_list: List[np.ndarray], policy_names: List[str]) -> FusionResult:
         """堆叠融合"""
         if self.meta_learner is None:
             raise ValueError("堆叠融合需要meta_learner")
@@ -187,16 +179,14 @@ class PolicyFuser(BaseEstimator):
         final_preds = self.meta_learner.predict(meta_features)
 
         confidence_scores = None
-        if hasattr(self.meta_learner, 'predict_proba'):
+        if hasattr(self.meta_learner, "predict_proba"):
             try:
                 confidence_scores = self.meta_learner.predict_proba(meta_features)
             except:
                 pass
 
         return FusionResult(
-            predictions=final_preds,
-            strategy=FusionStrategy.STACKING,
-            confidence_scores=confidence_scores
+            predictions=final_preds, strategy=FusionStrategy.STACKING, confidence_scores=confidence_scores
         )
 
     def set_weights(self, weights: List[float]) -> None:

@@ -2,6 +2,7 @@
 模块注册中心
 管理模块元数据、注册、注销、查询和版本管理
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Set
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class ModuleStatus(Enum):
     """模块状态枚举"""
+
     REGISTERED = "registered"
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -24,6 +26,7 @@ class ModuleStatus(Enum):
 @dataclass
 class ModuleMetadata:
     """模块元数据"""
+
     name: str
     version: str
     description: str
@@ -132,8 +135,7 @@ class ModuleRegistry:
 
         return self._modules[name]
 
-    def list_modules(self, tag: Optional[str] = None,
-                     status: Optional[ModuleStatus] = None) -> List[ModuleMetadata]:
+    def list_modules(self, tag: Optional[str] = None, status: Optional[ModuleStatus] = None) -> List[ModuleMetadata]:
         """
         列出所有模块
 

@@ -13,5 +13,5 @@ __all__ = [
     "ConversationMemory",
     "ExecutionMemory",
     "LongTermMemory",
-    "VectorMemory"
+    "VectorMemory",
 ]

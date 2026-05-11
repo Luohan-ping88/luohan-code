@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class FeatureImportanceEvaluator:
     """特征重要性评估器 - 支持多种评估方法"""
 
-    SUPPORTED_METHODS = ['shap', 'lime', 'permutation', 'model_based']
+    SUPPORTED_METHODS = ["shap", "lime", "permutation", "model_based"]
 
     def __init__(self, random_state: int = 42):
         self.random_state = random_state
@@ -34,6 +34,7 @@ class FeatureImportanceEvaluator:
 
         try:
             import shap
+
             self._shap_available = True
         except ImportError:
             logger.warning("SHAP库未安装，SHAP特征重要性不可用")
@@ -41,6 +42,7 @@ class FeatureImportanceEvaluator:
         try:
             import lime
             import lime.lime_tabular
+
             self._lime_available = True
         except ImportError:
             logger.warning("LIME库未安装，LIME特征重要性不可用")
@@ -49,10 +51,10 @@ class FeatureImportanceEvaluator:
         self,
         X: pd.DataFrame,
         y: pd.Series,
-        method: str = 'model_based',
+        method: str = "model_based",
         model: Optional[BaseEstimator] = None,
         feature_cols: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, float]:
         """
         评估特征重要性
@@ -76,13 +78,13 @@ class FeatureImportanceEvaluator:
 
         X_features = X[feature_cols].fillna(0)
 
-        if method == 'shap':
+        if method == "shap":
             importance = self._shap_importance(X_features, y, model, **kwargs)
-        elif method == 'lime':
+        elif method == "lime":
             importance = self._lime_importance(X_features, y, model, **kwargs)
-        elif method == 'permutation':
+        elif method == "permutation":
             importance = self._permutation_importance(X_features, y, model, **kwargs)
-        elif method == 'model_based':
+        elif method == "model_based":
             importance = self._model_based_importance(X_features, y, model, **kwargs)
         else:
             raise ValueError(f"未知方法: {method}")
@@ -91,33 +93,21 @@ class FeatureImportanceEvaluator:
         return importance
 
     def _model_based_importance(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None,
-        **kwargs
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None, **kwargs
     ) -> Dict[str, float]:
         """基于模型的特征重要性（使用RandomForest）"""
         if model is None:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
                 model = RandomForestClassifier(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
+                    n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1
                 )
             else:
-                model = RandomForestRegressor(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1)
 
         model.fit(X, y)
 
-        if hasattr(model, 'feature_importances_'):
+        if hasattr(model, "feature_importances_"):
             importance = dict(zip(X.columns, model.feature_importances_))
         else:
             raise ValueError("模型不支持feature_importances_属性")
@@ -125,49 +115,27 @@ class FeatureImportanceEvaluator:
         return dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
 
     def _permutation_importance(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None,
-        n_repeats: int = 10,
-        **kwargs
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None, n_repeats: int = 10, **kwargs
     ) -> Dict[str, float]:
         """Permutation Importance"""
         if model is None:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
                 model = RandomForestClassifier(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
+                    n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1
                 )
             else:
-                model = RandomForestRegressor(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1)
 
         model.fit(X, y)
 
-        result = permutation_importance(
-            model, X, y,
-            n_repeats=n_repeats,
-            random_state=self.random_state,
-            n_jobs=-1
-        )
+        result = permutation_importance(model, X, y, n_repeats=n_repeats, random_state=self.random_state, n_jobs=-1)
 
         importance = dict(zip(X.columns, result.importances_mean))
         return dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
 
     def _shap_importance(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None,
-        **kwargs
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None, **kwargs
     ) -> Dict[str, float]:
         """SHAP特征重要性"""
         if not self._shap_available:
@@ -179,18 +147,10 @@ class FeatureImportanceEvaluator:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
                 model = RandomForestClassifier(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
+                    n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1
                 )
             else:
-                model = RandomForestRegressor(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1)
 
         model.fit(X, y)
 
@@ -206,12 +166,7 @@ class FeatureImportanceEvaluator:
         return dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
 
     def _lime_importance(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[BaseEstimator] = None,
-        sample_size: int = 100,
-        **kwargs
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None, sample_size: int = 100, **kwargs
     ) -> Dict[str, float]:
         """LIME特征重要性"""
         if not self._lime_available:
@@ -223,29 +178,21 @@ class FeatureImportanceEvaluator:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
                 model = RandomForestClassifier(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
+                    n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1
                 )
             else:
-                model = RandomForestRegressor(
-                    n_estimators=100,
-                    max_depth=10,
-                    random_state=self.random_state,
-                    n_jobs=-1
-                )
+                model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1)
 
         model.fit(X, y)
 
-        is_classification = hasattr(model, 'predict_proba')
+        is_classification = hasattr(model, "predict_proba")
         predict_fn = model.predict_proba if is_classification else model.predict
 
         explainer = lime.lime_tabular.LimeTabularExplainer(
             X.values,
             feature_names=list(X.columns),
-            mode='classification' if is_classification else 'regression',
-            random_state=self.random_state
+            mode="classification" if is_classification else "regression",
+            random_state=self.random_state,
         )
 
         importance_scores = np.zeros(len(X.columns))
@@ -266,7 +213,7 @@ class FeatureImportanceEvaluator:
         y: pd.Series,
         methods: Optional[List[str]] = None,
         weights: Optional[List[float]] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, float]:
         """
         集成多种方法的特征重要性
@@ -319,29 +266,26 @@ class FeatureImportanceEvaluator:
 
     def _is_method_available(self, method: str) -> bool:
         """检查方法是否可用"""
-        if method == 'shap':
+        if method == "shap":
             return self._shap_available
-        elif method == 'lime':
+        elif method == "lime":
             return self._lime_available
         return True
 
     def save_results(self, filepath: Path):
         """保存评估结果"""
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(self.importance_results, f)
         logger.info(f"特征重要性结果已保存: {filepath}")
 
     def load_results(self, filepath: Path):
         """加载评估结果"""
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             self.importance_results = pickle.load(f)
         logger.info(f"特征重要性结果已加载: {filepath}")
 
     def get_top_features(
-        self,
-        importance: Dict[str, float],
-        n: int = 20,
-        threshold: Optional[float] = None
+        self, importance: Dict[str, float], n: int = 20, threshold: Optional[float] = None
     ) -> List[str]:
         """
         获取Top N特征

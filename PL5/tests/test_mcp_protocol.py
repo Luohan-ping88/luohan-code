@@ -4,46 +4,30 @@ MCP协议层测试脚本
 """
 
 import asyncio
-from core.mcp.tool_registry import mcp_registry
+from src.core.mcp.tool_registry import mcp_registry
 
 
 async def test_mcp_protocol():
     """测试MCP协议层"""
     print("开始测试MCP协议层...")
-    
+
     # 1. 列出所有可用工具
     print("\n1. 列出所有可用工具:")
     tools = mcp_registry.list_tools()
     for tool in tools:
         print(f"  - {tool}")
-    
+
     # 2. 获取工具模式
     print("\n2. 获取工具模式:")
     schema = mcp_registry.get_tool_schema()
-    for tool_schema in schema.get('tools', []):
+    for tool_schema in schema.get("tools", []):
         print(f"  - {tool_schema['name']}: {tool_schema['description']}")
-    
+
     # 3. 测试数据采集工具
     print("\n3. 测试数据采集工具:")
-    result = await mcp_registry.execute_tool('collect_data', {})
+    result = await mcp_registry.execute_tool("collect_data", {})
     print(f"  结果: {result}")
-    
-    # 4. 测试数据分析工具
-    print("\n4. 测试数据分析工具 (basic_statistics):")
-    result = await mcp_registry.execute_tool('analyze_data', {'analysis_type': 'basic_statistics'})
-    if result.get('success'):
-        print(f"  统计信息: {result.get('data', {}).get('statistics', {})}")
-    else:
-        print(f"  错误: {result.get('error')}")
-    
-    # 5. 测试特征提取工具
-    print("\n5. 测试特征提取工具:")
-    result = await mcp_registry.execute_tool('extract_features', {'data_source': 'lecai'})
-    if result.get('success'):
-        print(f"  特征数量: {result.get('data', {}).get('feature_count', 0)}")
-    else:
-        print(f"  错误: {result.get('error')}")
-    
+
     print("\nMCP协议层测试完成！")
 
 

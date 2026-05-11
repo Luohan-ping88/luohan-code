@@ -19,16 +19,21 @@ class HiddenMarkovModel:
     支持自适应状态数选择 (BIC/AIC准则) 和模型诊断
     """
 
-    def __init__(self, n_states: int = 4, n_mixtures: int = 2,
-                 auto_select: bool = False, criterion: str = 'bic',
-                 model_config: Optional[ModelConfig] = None):
+    def __init__(
+        self,
+        n_states: int = 4,
+        n_mixtures: int = 2,
+        auto_select: bool = False,
+        criterion: str = "bic",
+        model_config: Optional[ModelConfig] = None,
+    ):
         _mc = model_config or get_model_config()
         hmm_cfg = _mc.hmm_config()
 
-        self._n_states_input = n_states if n_states != 4 else hmm_cfg.get('n_states', 4)
-        self._n_mixtures_input = n_mixtures if n_mixtures != 2 else hmm_cfg.get('n_mixtures', 2)
-        self._auto_select = auto_select if auto_select is not False else hmm_cfg.get('auto_select', False)
-        self._criterion = (criterion.lower() if criterion != 'bic' else hmm_cfg.get('criterion', 'bic')).lower()
+        self._n_states_input = n_states if n_states != 4 else hmm_cfg.get("n_states", 4)
+        self._n_mixtures_input = n_mixtures if n_mixtures != 2 else hmm_cfg.get("n_mixtures", 2)
+        self._auto_select = auto_select if auto_select is not False else hmm_cfg.get("auto_select", False)
+        self._criterion = (criterion.lower() if criterion != "bic" else hmm_cfg.get("criterion", "bic")).lower()
 
         self.n_states = n_states if isinstance(n_states, int) else 4
         self.n_mixtures = n_mixtures if isinstance(n_mixtures, int) else 2
@@ -37,9 +42,9 @@ class HiddenMarkovModel:
         self.initial_probs: Optional[np.ndarray] = None
         self.fitted = False
 
-        self.log_likelihood: float = float('-inf')
-        self.bic_value: float = float('inf')
-        self.aic_value: float = float('inf')
+        self.log_likelihood: float = float("-inf")
+        self.bic_value: float = float("inf")
+        self.aic_value: float = float("inf")
         self.converged: bool = False
         self.n_iterations: int = 0
         self._selection_history: List[Dict] = []
@@ -51,7 +56,7 @@ class HiddenMarkovModel:
         pi_params = self.n_states - 1
         emission_params = 0
         for s in range(self.n_states):
-            if s < len(self.emission_models) and hasattr(self.emission_models[s], 'n_components'):
+            if s < len(self.emission_models) and hasattr(self.emission_models[s], "n_components"):
                 nc = self.emission_models[s].n_components
                 emission_params += nc - 1
                 emission_params += nc * n_feat
@@ -67,9 +72,7 @@ class HiddenMarkovModel:
         aic = -2 * ll + 2 * n_params
         return bic, aic
 
-    def select_optimal_states(self, data: np.ndarray,
-                               max_states: int = 8,
-                               min_states: int = 2) -> Dict:
+    def select_optimal_states(self, data: np.ndarray, max_states: int = 8, min_states: int = 2) -> Dict:
         """
         使用BIC/AIC准则自动选择最优隐状态数
 
@@ -88,48 +91,49 @@ class HiddenMarkovModel:
         for n_s in range(min_states, max_states + 1):
             try:
                 candidate = HiddenMarkovModel(
-                    n_states=n_s,
-                    n_mixtures=self.n_mixtures if isinstance(self._n_mixtures_input, int) else 'auto'
+                    n_states=n_s, n_mixtures=self.n_mixtures if isinstance(self._n_mixtures_input, int) else "auto"
                 )
                 candidate.fit(data)
 
                 if candidate.fitted and not np.isinf(candidate.log_likelihood):
                     bic_val, aic_val = candidate._compute_bic_aic(data)
-                    score = bic_val if self._criterion == 'bic' else aic_val
-                    results.append({
-                        'n_states': n_s,
-                        'log_likelihood': candidate.log_likelihood,
-                        'bic': bic_val,
-                        'aic': aic_val,
-                        'score': score,
-                        'converged': candidate.converged,
-                        'n_iterations': candidate.n_iterations
-                    })
+                    score = bic_val if self._criterion == "bic" else aic_val
+                    results.append(
+                        {
+                            "n_states": n_s,
+                            "log_likelihood": candidate.log_likelihood,
+                            "bic": bic_val,
+                            "aic": aic_val,
+                            "score": score,
+                            "converged": candidate.converged,
+                            "n_iterations": candidate.n_iterations,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"[HMM] n_states={n_s} 训练失败: {e}")
                 continue
 
         if not results:
             logger.warning("[HMM] 所有候选状态数均训练失败，使用默认值")
-            return {'best_n_states': 4, 'criteria_scores': [], 'criterion': self._criterion}
+            return {"best_n_states": 4, "criteria_scores": [], "criterion": self._criterion}
 
-        results.sort(key=lambda x: x['score'])
+        results.sort(key=lambda x: x["score"])
         best = results[0]
         self._selection_history = results
 
-        logger.info(f"[HMM] 最优状态数选择完成: n_states={best['n_states']}, "
-                   f"{self._criterion.upper()}={best['score']:.2f}, "
-                   f"LL={best['log_likelihood']:.2f}")
+        logger.info(
+            f"[HMM] 最优状态数选择完成: n_states={best['n_states']}, "
+            f"{self._criterion.upper()}={best['score']:.2f}, "
+            f"LL={best['log_likelihood']:.2f}"
+        )
         return {
-            'best_n_states': best['n_states'],
-            'criteria_scores': results,
-            'criterion': self._criterion,
-            'all_results': results
+            "best_n_states": best["n_states"],
+            "criteria_scores": results,
+            "criterion": self._criterion,
+            "all_results": results,
         }
 
-    def select_optimal_mixtures(self, data: np.ndarray,
-                                 max_mixtures: int = 5,
-                                 min_mixtures: int = 1) -> int:
+    def select_optimal_mixtures(self, data: np.ndarray, max_mixtures: int = 5, min_mixtures: int = 1) -> int:
         """
         为每个隐状态选择最优GMM混合成分数
 
@@ -143,15 +147,11 @@ class HiddenMarkovModel:
         """
         data = np.asarray(data).reshape(-1, 1)
         best_n_mix = 2
-        best_score = float('inf')
+        best_score = float("inf")
 
         for n_m in range(min_mixtures, max_mixtures + 1):
             try:
-                gm = GaussianMixture(n_components=n_m,
-                                    covariance_type='diag',
-                                    random_state=42,
-                                    n_init=1,
-                                    max_iter=20)
+                gm = GaussianMixture(n_components=n_m, covariance_type="diag", random_state=42, n_init=1, max_iter=20)
                 gm.fit(data)
                 n_params = 2 * n_m + (n_m - 1)
                 bic = -2 * gm.score(data) * len(data) + n_params * np.log(len(data))
@@ -168,15 +168,15 @@ class HiddenMarkovModel:
         observations = np.asarray(observations).reshape(-1, 1)
         n_obs = len(observations)
 
-        auto_mode = (self._n_states_input in ('auto', None) or self._auto_select)
+        auto_mode = self._n_states_input in ("auto", None) or self._auto_select
 
         if auto_mode and n_obs >= 20:
             selection_result = self.select_optimal_states(observations)
-            optimal_n = selection_result.get('best_n_states', 4)
+            optimal_n = selection_result.get("best_n_states", 4)
             self.n_states = optimal_n
             logger.info(f"[HMM] 自适应模式: 选择 n_states={optimal_n}")
 
-        auto_mix = (self._n_mixtures_input in ('auto', None))
+        auto_mix = self._n_mixtures_input in ("auto", None)
         if auto_mix and n_obs >= 20:
             opt_mix = self.select_optimal_mixtures(observations)
             self.n_mixtures = opt_mix
@@ -189,8 +189,8 @@ class HiddenMarkovModel:
             self.fitted = True
             self.converged = True
             self.n_iterations = 0
-            self.log_likelihood = float('-inf')
-            self.bic_value, self.aic_value = float('inf'), float('inf')
+            self.log_likelihood = float("-inf")
+            self.bic_value, self.aic_value = float("inf"), float("inf")
             return self
 
         self.transition_matrix = np.random.rand(self.n_states, self.n_states)
@@ -199,16 +199,12 @@ class HiddenMarkovModel:
         self.emission_models = []
         for _ in range(self.n_states):
             gm = GaussianMixture(
-                n_components=min(self.n_mixtures, 5),
-                covariance_type='diag',
-                random_state=42,
-                n_init=1,
-                max_iter=20
+                n_components=min(self.n_mixtures, 5), covariance_type="diag", random_state=42, n_init=1, max_iter=20
             )
             self.emission_models.append(gm)
 
         self.initial_probs = np.ones(self.n_states) / self.n_states
-        self._last_ll = float('-inf')
+        self._last_ll = float("-inf")
         self.converged = False
         self.n_iterations = 0
 
@@ -229,9 +225,11 @@ class HiddenMarkovModel:
         self.fitted = True
         self.bic_value, self.aic_value = self._compute_bic_aic(observations)
 
-        logger.info(f"[HMM] 模型拟合完成: {n_obs}观测, {self.n_states}状态, "
-                   f"{self.n_iterations}轮, 收敛={self.converged}, "
-                   f"LL={self.log_likelihood:.2f}, BIC={self.bic_value:.2f}, AIC={self.aic_value:.2f}")
+        logger.info(
+            f"[HMM] 模型拟合完成: {n_obs}观测, {self.n_states}状态, "
+            f"{self.n_iterations}轮, 收敛={self.converged}, "
+            f"LL={self.log_likelihood:.2f}, BIC={self.bic_value:.2f}, AIC={self.aic_value:.2f}"
+        )
         return self
 
     def _e_step(self, observations: np.ndarray) -> np.ndarray:
@@ -241,9 +239,11 @@ class HiddenMarkovModel:
         for i in range(n_obs):
             for s in range(self.n_states):
                 try:
-                    emission_prob = np.exp(
-                        self.emission_models[s].score_samples(observations[i:i+1])[0]
-                    ) if self.emission_models else 0.1
+                    emission_prob = (
+                        np.exp(self.emission_models[s].score_samples(observations[i : i + 1])[0])
+                        if self.emission_models
+                        else 0.1
+                    )
                 except:
                     emission_prob = 0.1
 
@@ -294,14 +294,15 @@ class HiddenMarkovModel:
             new_alpha = np.zeros(self.n_states)
             for s in range(self.n_states):
                 try:
-                    emission = np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0]) \
-                              if self.emission_models else 0.1
+                    emission = (
+                        np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                        if self.emission_models
+                        else 0.1
+                    )
                 except:
                     emission = 0.1
 
-                new_alpha[s] = emission * np.sum(
-                    alpha.reshape(-1, 1) * self.transition_matrix[:, s]
-                )
+                new_alpha[s] = emission * np.sum(alpha.reshape(-1, 1) * self.transition_matrix[:, s])
 
             alpha = new_alpha / (new_alpha.sum() + 1e-10)
 
@@ -309,9 +310,11 @@ class HiddenMarkovModel:
         for s in range(self.n_states):
             for d in range(10):
                 try:
-                    emission = np.exp(
-                        self.emission_models[s].score_samples(np.array([[d]]))[0]
-                    ) if self.emission_models else 0.1
+                    emission = (
+                        np.exp(self.emission_models[s].score_samples(np.array([[d]]))[0])
+                        if self.emission_models
+                        else 0.1
+                    )
                 except:
                     emission = 0.1
                 emission_probs[d] += alpha[s] * emission
@@ -329,9 +332,11 @@ class HiddenMarkovModel:
             state_probs = np.zeros(self.n_states)
             for s in range(self.n_states):
                 try:
-                    state_probs[s] = np.exp(
-                        self.emission_models[s].score_samples(obs.reshape(1, -1))[0]
-                    ) if self.emission_models else 0.1
+                    state_probs[s] = (
+                        np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                        if self.emission_models
+                        else 0.1
+                    )
                 except:
                     state_probs[s] = 0.1
 
@@ -345,38 +350,38 @@ class HiddenMarkovModel:
 
     def score(self, observations: np.ndarray) -> float:
         """计算模型对观测数据的对数似然值
-        
+
         Args:
             observations: 观测数据
-            
+
         Returns:
             对数似然值
         """
         observations = np.asarray(observations).reshape(-1, 1)
         if not self.fitted:
-            return float('-inf')
-        
+            return float("-inf")
+
         try:
             # 使用前向算法计算对数似然
             gamma = self._e_step(observations)
             return self._compute_log_likelihood(observations, gamma)
         except:
-            return float('-inf')
+            return float("-inf")
 
     def diagnostics(self) -> Dict:
         """返回模型诊断指标摘要"""
         return {
-            'n_states': self.n_states,
-            'n_mixtures': self.n_mixtures,
-            'fitted': self.fitted,
-            'log_likelihood': self.log_likelihood,
-            'bic': self.bic_value,
-            'aic': self.aic_value,
-            'converged': self.converged,
-            'n_iterations': self.n_iterations,
-            'auto_selected': self._n_states_input in ('auto', None),
-            'criterion_used': self._criterion,
-            'selection_history': self._selection_history
+            "n_states": self.n_states,
+            "n_mixtures": self.n_mixtures,
+            "fitted": self.fitted,
+            "log_likelihood": self.log_likelihood,
+            "bic": self.bic_value,
+            "aic": self.aic_value,
+            "converged": self.converged,
+            "n_iterations": self.n_iterations,
+            "auto_selected": self._n_states_input in ("auto", None),
+            "criterion_used": self._criterion,
+            "selection_history": self._selection_history,
         }
 
 
@@ -396,25 +401,29 @@ class MultivariateCopula:
     - 尾部依赖系数计算和评估
     """
 
-    VALID_COPULA_TYPES = ['gaussian', 't', 'clayton', 'gumbel']
+    VALID_COPULA_TYPES = ["gaussian", "t", "clayton", "gumbel"]
 
-    def __init__(self, copula_type: str = 'gaussian',
-                 regularization: float = 1e-6,
-                 auto_select: bool = False,
-                 model_config: Optional[ModelConfig] = None):
+    def __init__(
+        self,
+        copula_type: str = "gaussian",
+        regularization: float = 1e-6,
+        auto_select: bool = False,
+        model_config: Optional[ModelConfig] = None,
+    ):
         _mc = model_config or get_model_config()
         copula_cfg = _mc.copula_config()
 
-        self.copula_type = (copula_type.lower() if copula_type != 'gaussian'
-                            else copula_cfg.get('type', 'gaussian')).lower()
+        self.copula_type = (
+            copula_type.lower() if copula_type != "gaussian" else copula_cfg.get("type", "gaussian")
+        ).lower()
         if self.copula_type not in self.VALID_COPULA_TYPES:
-            self.copula_type = 'gaussian'
-        reg_value = copula_cfg.get('regularization', 1e-6)
+            self.copula_type = "gaussian"
+        reg_value = copula_cfg.get("regularization", 1e-6)
         try:
             self.regularization = float(regularization if regularization != 1e-6 else reg_value)
         except (TypeError, ValueError):
             self.regularization = 1e-6
-        self.auto_select = auto_select if auto_select is not False else copula_cfg.get('auto_select', False)
+        self.auto_select = auto_select if auto_select is not False else copula_cfg.get("auto_select", False)
 
         self.correlation_matrix: Optional[np.ndarray] = None
         self.marginals: Dict[int, Dict] = {}
@@ -468,7 +477,7 @@ class MultivariateCopula:
         """拟合Gaussian Copula"""
         rho = np.sin(np.pi / 2 * kendall_tau)
         self.correlation_matrix = self._regularize_matrix(rho)
-        self._copula_params['rho'] = self.correlation_matrix.copy()
+        self._copula_params["rho"] = self.correlation_matrix.copy()
 
     def _fit_t_copula(self, data: np.ndarray, kendall_tau: np.ndarray):
         """拟合Student-t Copula (厚尾分布)"""
@@ -485,7 +494,7 @@ class MultivariateCopula:
                 for i in range(data.shape[1]):
                     u[:, i] = stats.rankdata(data[:, i]) / (len(data) + 1)
 
-                z = stats.norm.ppf(np.clip(u, 1e-6, 1-1e-6))
+                z = stats.norm.ppf(np.clip(u, 1e-6, 1 - 1e-6))
                 n, p = z.shape
 
                 log_det = np.log(np.linalg.det(self.correlation_matrix) + 1e-10)
@@ -493,18 +502,22 @@ class MultivariateCopula:
 
                 mahal = np.sum(z @ inv_corr * z, axis=1)
 
-                ll = (np.math.lgamma((df + p) / 2) - np.math.lgamma(df / 2)
-                      - (p / 2) * np.log(df * np.pi) - 0.5 * log_det
-                      - ((df + p) / 2) * np.log(1 + mahal / df))
+                ll = (
+                    np.math.lgamma((df + p) / 2)
+                    - np.math.lgamma(df / 2)
+                    - (p / 2) * np.log(df * np.pi)
+                    - 0.5 * log_det
+                    - ((df + p) / 2) * np.log(1 + mahal / df)
+                )
 
                 return -np.sum(ll)
             except:
                 return 1e10
 
-        result = minimize_scalar(neg_log_likelihood, bounds=(2.1, 50), method='bounded')
+        result = minimize_scalar(neg_log_likelihood, bounds=(2.1, 50), method="bounded")
         self._df = max(2.1, result.x)
-        self._copula_params['df'] = self._df
-        self._copula_params['rho'] = self.correlation_matrix.copy()
+        self._copula_params["df"] = self._df
+        self._copula_params["rho"] = self.correlation_matrix.copy()
 
     def _fit_clayton_copula(self, data: np.ndarray, kendall_tau: np.ndarray):
         """拟合Clayton Copula (强下尾依赖)"""
@@ -520,14 +533,16 @@ class MultivariateCopula:
                 for i in range(data.shape[1]):
                     u[:, i] = stats.rankdata(data[:, i]) / (len(data) + 1)
 
-                u = np.clip(u, 1e-10, 1-1e-10)
+                u = np.clip(u, 1e-10, 1 - 1e-10)
                 ll = 0.0
 
                 for idx in range(len(u)):
                     u_sum = np.sum(u[idx] ** (-theta))
-                    log_c = (-(theta + 1) * np.sum(np.log(u[idx]))
-                             - (theta + 1) * np.log(u_sum)
-                             - (len(u[idx]) - 1) * np.log(theta))
+                    log_c = (
+                        -(theta + 1) * np.sum(np.log(u[idx]))
+                        - (theta + 1) * np.log(u_sum)
+                        - (len(u[idx]) - 1) * np.log(theta)
+                    )
                     ll += log_c
 
                 return -ll
@@ -535,12 +550,10 @@ class MultivariateCopula:
                 return 1e10
 
         init_theta = max(0.1, 2 * mean_tau / (1 - mean_tau)) if abs(mean_tau) < 1 else 1.0
-        result = minimize_scalar(neg_log_likelihood,
-                                bounds=(0.01, 20),
-                                method='bounded')
+        result = minimize_scalar(neg_log_likelihood, bounds=(0.01, 20), method="bounded")
 
         self._theta = max(0.01, result.x)
-        self._copula_params['theta'] = self._theta
+        self._copula_params["theta"] = self._theta
 
         pseudo_rho = np.zeros_like(kendall_tau)
         for i in range(len(kendall_tau)):
@@ -566,17 +579,20 @@ class MultivariateCopula:
                 for i in range(data.shape[1]):
                     u[:, i] = stats.rankdata(data[:, i]) / (len(data) + 1)
 
-                u = np.clip(u, 1e-10, 1-1e-10)
+                u = np.clip(u, 1e-10, 1 - 1e-10)
                 ll = 0.0
 
                 for idx in range(len(u)):
                     log_u = np.log(u[idx])
                     sum_log_u_neg = np.sum((-log_u) ** theta)
-                    c_val = sum_log_u_neg ** (1/theta)
+                    c_val = sum_log_u_neg ** (1 / theta)
 
-                    log_c = (-c_val + (1/theta - 1) * np.log(sum_log_u_neg)
-                             - (len(u[idx]) - 1) * np.log(theta)
-                             - np.sum(log_u))
+                    log_c = (
+                        -c_val
+                        + (1 / theta - 1) * np.log(sum_log_u_neg)
+                        - (len(u[idx]) - 1) * np.log(theta)
+                        - np.sum(log_u)
+                    )
                     ll += log_c
 
                 return -ll
@@ -584,12 +600,10 @@ class MultivariateCopula:
                 return 1e10
 
         init_theta = max(1.01, 1 / (1 - abs(mean_tau))) if abs(mean_tau) < 0.99 else 2.0
-        result = minimize_scalar(neg_log_likelihood,
-                                bounds=(1.01, 15),
-                                method='bounded')
+        result = minimize_scalar(neg_log_likelihood, bounds=(1.01, 15), method="bounded")
 
         self._theta = max(1.01, result.x)
-        self._copula_params['theta'] = self._theta
+        self._copula_params["theta"] = self._theta
 
         pseudo_rho = np.zeros_like(kendall_tau)
         for i in range(len(kendall_tau)):
@@ -618,24 +632,24 @@ class MultivariateCopula:
             margin_data = data[:, i]
             std_val = float(np.std(margin_data))
             self.marginals[i] = {
-                'mean': float(np.mean(margin_data)),
-                'std': max(std_val, 1e-8),
-                'skewness': float(stats.skew(margin_data)),
-                'kurtosis': float(stats.kurtosis(margin_data)),
-                'min': float(np.min(margin_data)),
-                'max': float(np.max(margin_data))
+                "mean": float(np.mean(margin_data)),
+                "std": max(std_val, 1e-8),
+                "skewness": float(stats.skew(margin_data)),
+                "kurtosis": float(stats.kurtosis(margin_data)),
+                "min": float(np.min(margin_data)),
+                "max": float(np.max(margin_data)),
             }
 
         kendall_tau = self._compute_kendall_tau(data)
 
-        if self.copula_type == 'auto' or self.auto_select:
+        if self.copula_type == "auto" or self.auto_select:
             return self.select_best_copula(data)
 
         fit_methods = {
-            'gaussian': self._fit_gaussian_copula,
-            't': self._fit_t_copula,
-            'clayton': self._fit_clayton_copula,
-            'gumbel': self._fit_gumbel_copula
+            "gaussian": self._fit_gaussian_copula,
+            "t": self._fit_t_copula,
+            "clayton": self._fit_clayton_copula,
+            "gumbel": self._fit_gumbel_copula,
         }
 
         if self.copula_type in fit_methods:
@@ -644,8 +658,7 @@ class MultivariateCopula:
         self.fitted = True
         self._compute_tail_dependence()
 
-        logger.info(f"[Copula] {self.copula_type} copula拟合完成, "
-                   f"{self.n_positions}维, {n_samples}样本")
+        logger.info(f"[Copula] {self.copula_type} copula拟合完成, " f"{self.n_positions}维, {n_samples}样本")
         return self
 
     def select_best_copula(self, data: np.ndarray) -> "MultivariateCopula":
@@ -665,21 +678,20 @@ class MultivariateCopula:
 
         for copula_type in self.VALID_COPULA_TYPES:
             try:
-                temp_copula = MultivariateCopula(
-                    copula_type=copula_type,
-                    regularization=self.regularization
-                )
+                temp_copula = MultivariateCopula(copula_type=copula_type, regularization=self.regularization)
                 temp_copula.fit(data)
 
                 if temp_copula.fitted:
                     aic, bic = self._compute_criteria(temp_copula, data)
-                    results.append({
-                        'type': copula_type,
-                        'aic': aic,
-                        'bic': bic,
-                        'fitted': True,
-                        'params': temp_copula._copula_params.copy()
-                    })
+                    results.append(
+                        {
+                            "type": copula_type,
+                            "aic": aic,
+                            "bic": bic,
+                            "fitted": True,
+                            "params": temp_copula._copula_params.copy(),
+                        }
+                    )
                     logger.info(f"[Copula选择] {copula_type}: AIC={aic:.2f}, BIC={bic:.2f}")
             except Exception as e:
                 logger.warning(f"[Copula选择] {copula_type} 拟合失败: {e}")
@@ -689,28 +701,28 @@ class MultivariateCopula:
             logger.warning("[Copula选择] 所有Copula类型均失败，使用Gaussian作为默认")
             self._fit_gaussian_copula(data, self._compute_kendall_tau(data))
             self.fitted = True
-            self.selection_info = {'selected_type': 'gaussian', 'reason': 'fallback'}
+            self.selection_info = {"selected_type": "gaussian", "reason": "fallback"}
             return self
 
-        results.sort(key=lambda x: x['bic'])
+        results.sort(key=lambda x: x["bic"])
         best = results[0]
 
-        self.copula_type = best['type']
+        self.copula_type = best["type"]
         fit_method = {
-            'gaussian': self._fit_gaussian_copula,
-            't': self._fit_t_copula,
-            'clayton': self._fit_clayton_copula,
-            'gumbel': self._fit_gumbel_copula
-        }[best['type']]
+            "gaussian": self._fit_gaussian_copula,
+            "t": self._fit_t_copula,
+            "clayton": self._fit_clayton_copula,
+            "gumbel": self._fit_gumbel_copula,
+        }[best["type"]]
         fit_method(data, self._compute_kendall_tau(data))
         self.fitted = True
 
         self.selection_info = {
-            'selected_type': best['type'],
-            'selection_reason': f"最低BIC={best['bic']:.2f}",
-            'all_candidates': results,
-            'aic_ranking': sorted(results, key=lambda x: x['aic']),
-            'bic_ranking': results
+            "selected_type": best["type"],
+            "selection_reason": f"最低BIC={best['bic']:.2f}",
+            "all_candidates": results,
+            "aic_ranking": sorted(results, key=lambda x: x["aic"]),
+            "bic_ranking": results,
         }
 
         self._compute_tail_dependence()
@@ -718,23 +730,22 @@ class MultivariateCopula:
         logger.info(f"[Copula选择] 最优类型: {best['type']} (BIC={best['bic']:.2f})")
         return self
 
-    def _compute_criteria(self, copula: "MultivariateCopula",
-                          data: np.ndarray) -> Tuple[float, float]:
+    def _compute_criteria(self, copula: "MultivariateCopula", data: np.ndarray) -> Tuple[float, float]:
         """计算AIC和BIC准则值"""
         try:
             u = np.zeros_like(data)
             for i in range(data.shape[1]):
                 u[:, i] = stats.rankdata(data[:, i]) / (len(data) + 1)
-            u = np.clip(u, 1e-10, 1-1e-10)
+            u = np.clip(u, 1e-10, 1 - 1e-10)
 
             log_likelihood = self._compute_log_likelihood(copula, u)
             n_samples = len(data)
 
-            if copula.copula_type == 'gaussian':
+            if copula.copula_type == "gaussian":
                 n_params = self.n_positions * (self.n_positions - 1) / 2
-            elif copula.copula_type == 't':
+            elif copula.copula_type == "t":
                 n_params = self.n_positions * (self.n_positions - 1) / 2 + 1
-            elif copula.copula_type in ['clayton', 'gumbel']:
+            elif copula.copula_type in ["clayton", "gumbel"]:
                 n_params = 1
             else:
                 n_params = self.n_positions
@@ -744,58 +755,62 @@ class MultivariateCopula:
 
             return aic, bic
         except:
-            return float('inf'), float('inf')
+            return float("inf"), float("inf")
 
-    def _compute_log_likelihood(self, copula: "MultivariateCopula",
-                                 u: np.ndarray) -> float:
+    def _compute_log_likelihood(self, copula: "MultivariateCopula", u: np.ndarray) -> float:
         """计算给定均匀数据下的对数似然"""
         try:
-            if copula.copula_type == 'gaussian':
+            if copula.copula_type == "gaussian":
                 z = stats.norm.ppf(u)
                 n, p = z.shape
                 log_det = np.log(abs(np.linalg.det(copula.correlation_matrix)) + 1e-10)
-                inv_corr = np.linalg.inv(copula.correlation_matrix +
-                                        self.regularization * np.eye(p))
+                inv_corr = np.linalg.inv(copula.correlation_matrix + self.regularization * np.eye(p))
                 mahal = np.sum(z @ inv_corr * z, axis=1)
                 ll = -0.5 * (n * p * np.log(2 * np.pi) + n * log_det + np.sum(mahal))
                 return ll
 
-            elif copula.copula_type == 't':
+            elif copula.copula_type == "t":
                 z = stats.norm.ppf(u)
                 df = copula._df if copula._df else 5
                 n, p = z.shape
                 log_det = np.log(abs(np.linalg.det(copula.correlation_matrix)) + 1e-10)
-                inv_corr = np.linalg.inv(copula.correlation_matrix +
-                                        self.regularization * np.eye(p))
+                inv_corr = np.linalg.inv(copula.correlation_matrix + self.regularization * np.eye(p))
                 mahal = np.sum(z @ inv_corr * z, axis=1)
                 ll = np.sum(
-                    np.math.lgamma((df + p) / 2) - np.math.lgamma(df / 2)
-                    - (p / 2) * np.log(df * np.pi) - 0.5 * log_det
+                    np.math.lgamma((df + p) / 2)
+                    - np.math.lgamma(df / 2)
+                    - (p / 2) * np.log(df * np.pi)
+                    - 0.5 * log_det
                     - ((df + p) / 2) * np.log(1 + mahal / df)
                 )
                 return ll
 
-            elif copula.copula_type == 'clayton':
+            elif copula.copula_type == "clayton":
                 theta = copula._theta if copula._theta else 1.0
                 ll = 0.0
                 for idx in range(len(u)):
                     u_sum = np.sum(u[idx] ** (-theta))
-                    log_c = (-(theta + 1) * np.sum(np.log(u[idx]))
-                             - (theta + 1) * np.log(u_sum)
-                             - (len(u[idx]) - 1) * np.log(theta))
+                    log_c = (
+                        -(theta + 1) * np.sum(np.log(u[idx]))
+                        - (theta + 1) * np.log(u_sum)
+                        - (len(u[idx]) - 1) * np.log(theta)
+                    )
                     ll += log_c
                 return ll
 
-            elif copula.copula_type == 'gumbel':
+            elif copula.copula_type == "gumbel":
                 theta = copula._theta if copula._theta else 2.0
                 ll = 0.0
                 for idx in range(len(u)):
                     log_u = np.log(u[idx])
                     sum_log_u_neg = np.sum((-log_u) ** theta)
-                    c_val = sum_log_u_neg ** (1/theta)
-                    log_c = (-c_val + (1/theta - 1) * np.log(sum_log_u_neg)
-                             - (len(u[idx]) - 1) * np.log(theta)
-                             - np.sum(log_u))
+                    c_val = sum_log_u_neg ** (1 / theta)
+                    log_c = (
+                        -c_val
+                        + (1 / theta - 1) * np.log(sum_log_u_neg)
+                        - (len(u[idx]) - 1) * np.log(theta)
+                        - np.sum(log_u)
+                    )
                     ll += log_c
                 return ll
 
@@ -814,47 +829,43 @@ class MultivariateCopula:
         if not self.fitted:
             return
 
-        if self.copula_type == 'gaussian':
-            self.tail_dependence = {
-                'lower': 0.0,
-                'upper': 0.0,
-                'description': 'Gaussian Copula无尾部依赖'
-            }
-        elif self.copula_type == 't':
+        if self.copula_type == "gaussian":
+            self.tail_dependence = {"lower": 0.0, "upper": 0.0, "description": "Gaussian Copula无尾部依赖"}
+        elif self.copula_type == "t":
             df = self._df if self._df else 5
-            lambda_l = lambda_u = 2 * stats.t.sf(df * np.sqrt((df + 1) /
-                                                (df + self.correlation_matrix[0, 1]**2 *
-                                                 (df + 1) - self.correlation_matrix[0, 1]**2)), df=df)
+            lambda_l = lambda_u = 2 * stats.t.sf(
+                df
+                * np.sqrt(
+                    (df + 1) / (df + self.correlation_matrix[0, 1] ** 2 * (df + 1) - self.correlation_matrix[0, 1] ** 2)
+                ),
+                df=df,
+            )
             self.tail_dependence = {
-                'lower': round(float(lambda_l), 4),
-                'upper': round(float(lambda_u), 4),
-                'degrees_of_freedom': round(float(df), 2),
-                'description': f't-Copula具有对称尾部依赖 (λ={lambda_l:.4f})'
+                "lower": round(float(lambda_l), 4),
+                "upper": round(float(lambda_u), 4),
+                "degrees_of_freedom": round(float(df), 2),
+                "description": f"t-Copula具有对称尾部依赖 (λ={lambda_l:.4f})",
             }
-        elif self.copula_type == 'clayton':
+        elif self.copula_type == "clayton":
             theta = self._theta if self._theta else 1.0
-            lambda_l = 2 ** (-1/theta)
+            lambda_l = 2 ** (-1 / theta)
             self.tail_dependence = {
-                'lower': round(float(lambda_l), 4),
-                'upper': 0.0,
-                'theta': round(float(theta), 4),
-                'description': f'Clayton Copula具有强下尾依赖 (λ_L={lambda_l:.4f})'
+                "lower": round(float(lambda_l), 4),
+                "upper": 0.0,
+                "theta": round(float(theta), 4),
+                "description": f"Clayton Copula具有强下尾依赖 (λ_L={lambda_l:.4f})",
             }
-        elif self.copula_type == 'gumbel':
+        elif self.copula_type == "gumbel":
             theta = self._theta if self._theta else 2.0
-            lambda_u = 2 - 2 ** (1/theta)
+            lambda_u = 2 - 2 ** (1 / theta)
             self.tail_dependence = {
-                'lower': 0.0,
-                'upper': round(float(lambda_u), 4),
-                'theta': round(float(theta), 4),
-                'description': f'Gumbel Copula具有强上尾依赖 (λ_U={lambda_u:.4f})'
+                "lower": 0.0,
+                "upper": round(float(lambda_u), 4),
+                "theta": round(float(theta), 4),
+                "description": f"Gumbel Copula具有强上尾依赖 (λ_U={lambda_u:.4f})",
             }
         else:
-            self.tail_dependence = {
-                'lower': 0.0,
-                'upper': 0.0,
-                'description': '未知Copula类型'
-            }
+            self.tail_dependence = {"lower": 0.0, "upper": 0.0, "description": "未知Copula类型"}
 
     def get_tail_dependence_strength(self) -> str:
         """
@@ -866,8 +877,8 @@ class MultivariateCopula:
         if not self.tail_dependence:
             return "未计算"
 
-        lower = self.tail_dependence.get('lower', 0)
-        upper = self.tail_dependence.get('upper', 0)
+        lower = self.tail_dependence.get("lower", 0)
+        upper = self.tail_dependence.get("upper", 0)
         max_dep = max(lower, upper)
 
         if max_dep >= 0.7:
@@ -895,23 +906,23 @@ class MultivariateCopula:
             raise ValueError("Copula未拟合")
 
         try:
-            if self.copula_type == 'gaussian':
+            if self.copula_type == "gaussian":
                 uniform_samples = self._simulate_gaussian(n_samples)
-            elif self.copula_type == 't':
+            elif self.copula_type == "t":
                 uniform_samples = self._simulate_t(n_samples)
-            elif self.copula_type == 'clayton':
+            elif self.copula_type == "clayton":
                 uniform_samples = self._simulate_clayton(n_samples)
-            elif self.copula_type == 'gumbel':
+            elif self.copula_type == "gumbel":
                 uniform_samples = self._simulate_gumbel(n_samples)
             else:
                 uniform_samples = np.random.rand(n_samples, self.n_positions)
 
-            uniform_samples = np.clip(uniform_samples, 1e-6, 1-1e-6)
+            uniform_samples = np.clip(uniform_samples, 1e-6, 1 - 1e-6)
 
             result = np.zeros((n_samples, self.n_positions))
             for i in range(self.n_positions):
-                std = self.marginals[i].get('std', 1.0)
-                mean = self.marginals[i].get('mean', 0.0)
+                std = self.marginals[i].get("std", 1.0)
+                mean = self.marginals[i].get("mean", 0.0)
                 result[:, i] = stats.norm.ppf(uniform_samples[:, i]) * std + mean
 
             return result
@@ -922,21 +933,13 @@ class MultivariateCopula:
 
     def _simulate_gaussian(self, n_samples: int) -> np.ndarray:
         """Gaussian Copula模拟"""
-        z = np.random.multivariate_normal(
-            mean=np.zeros(self.n_positions),
-            cov=self.correlation_matrix,
-            size=n_samples
-        )
+        z = np.random.multivariate_normal(mean=np.zeros(self.n_positions), cov=self.correlation_matrix, size=n_samples)
         return stats.norm.cdf(z)
 
     def _simulate_t(self, n_samples: int) -> np.ndarray:
         """Student-t Copula模拟"""
         df = self._df if self._df else 5
-        z = np.random.multivariate_normal(
-            mean=np.zeros(self.n_positions),
-            cov=self.correlation_matrix,
-            size=n_samples
-        )
+        z = np.random.multivariate_normal(mean=np.zeros(self.n_positions), cov=self.correlation_matrix, size=n_samples)
         chi2 = np.random.chisquare(df, size=n_samples)
         t_samples = z * np.sqrt(df / chi2).reshape(-1, 1)
         return stats.t.cdf(t_samples, df=df)
@@ -945,17 +948,17 @@ class MultivariateCopula:
         """Clayton Copula模拟"""
         theta = self._theta if self._theta else 1.0
         u = np.random.rand(n_samples, self.n_positions)
-        v = np.random.gamma(shape=1/theta, scale=1, size=(n_samples, 1))
-        clayton_sim = (u ** (-theta/v) - 1 + 1) ** (-1/theta)
-        return np.clip(clayton_sim, 1e-6, 1-1e-6)
+        v = np.random.gamma(shape=1 / theta, scale=1, size=(n_samples, 1))
+        clayton_sim = (u ** (-theta / v) - 1 + 1) ** (-1 / theta)
+        return np.clip(clayton_sim, 1e-6, 1 - 1e-6)
 
     def _simulate_gumbel(self, n_samples: int) -> np.ndarray:
         """Gumbel Copula模拟"""
         theta = self._theta if self._theta else 2.0
         u = np.random.rand(n_samples, self.n_positions)
-        v = np.random.gamma(shape=1, scale=1/theta, size=(n_samples, 1))
-        gumbel_sim = np.exp(-(-np.log(u) / v.reshape(-1, 1)) ** (1/theta))
-        return np.clip(gumbel_sim, 1e-6, 1-1e-6)
+        v = np.random.gamma(shape=1, scale=1 / theta, size=(n_samples, 1))
+        gumbel_sim = np.exp(-((-np.log(u) / v.reshape(-1, 1)) ** (1 / theta)))
+        return np.clip(gumbel_sim, 1e-6, 1 - 1e-6)
 
     def get_joint_probability(self, values: np.ndarray) -> float:
         """计算联合概率密度"""
@@ -967,11 +970,10 @@ class MultivariateCopula:
         try:
             u = np.zeros(self.n_positions)
             for i in range(self.n_positions):
-                normalized = (values[0, i] - self.marginals[i]['mean']) / \
-                            (self.marginals[i]['std'] + 1e-10)
+                normalized = (values[0, i] - self.marginals[i]["mean"]) / (self.marginals[i]["std"] + 1e-10)
                 u[i] = stats.norm.cdf(normalized)
 
-            u = np.clip(u, 1e-6, 1-1e-6)
+            u = np.clip(u, 1e-6, 1 - 1e-6)
             density = self._compute_copula_density(u)
 
             if np.isnan(density) or density <= 0:
@@ -984,17 +986,16 @@ class MultivariateCopula:
     def _compute_copula_density(self, u: np.ndarray) -> float:
         """计算Copula密度函数值"""
         try:
-            if self.copula_type == 'gaussian':
+            if self.copula_type == "gaussian":
                 z = stats.norm.ppf(u)
                 cov = self.correlation_matrix + self.regularization * np.eye(self.n_positions)
                 det = np.linalg.det(cov)
                 inv_cov = np.linalg.inv(cov)
                 mahal = z @ inv_cov @ z
-                density = (1 / np.sqrt((2 * np.pi) ** self.n_positions * abs(det) + 1e-10)) * \
-                         np.exp(-0.5 * mahal)
+                density = (1 / np.sqrt((2 * np.pi) ** self.n_positions * abs(det) + 1e-10)) * np.exp(-0.5 * mahal)
                 return density
 
-            elif self.copula_type == 't':
+            elif self.copula_type == "t":
                 z = stats.norm.ppf(u)
                 df = self._df if self._df else 5
                 cov = self.correlation_matrix + self.regularization * np.eye(self.n_positions)
@@ -1002,28 +1003,30 @@ class MultivariateCopula:
                 inv_cov = np.linalg.inv(cov)
                 mahal = z @ inv_cov @ z
                 p = self.n_positions
-                density = (np.math.gamma((df + p) / 2) / (np.math.gamma(df / 2) *
-                           (df * np.pi) ** (p/2) * np.sqrt(abs(det) + 1e-10))) * \
-                         (1 + mahal / df) ** (-(df + p) / 2)
+                density = (
+                    np.math.gamma((df + p) / 2)
+                    / (np.math.gamma(df / 2) * (df * np.pi) ** (p / 2) * np.sqrt(abs(det) + 1e-10))
+                ) * (1 + mahal / df) ** (-(df + p) / 2)
                 return density
 
-            elif self.copula_type == 'clayton':
+            elif self.copula_type == "clayton":
                 theta = self._theta if self._theta else 1.0
                 u_prod = np.prod(u)
                 u_theta_sum = np.sum(u ** (-theta))
-                density = (theta + 1) * (u_prod ** -(theta + 1)) * \
-                         (u_theta_sum - 1) ** (-(2*theta + 1)/theta)
+                density = (theta + 1) * (u_prod ** -(theta + 1)) * (u_theta_sum - 1) ** (-(2 * theta + 1) / theta)
                 return density
 
-            elif self.copula_type == 'gumbel':
+            elif self.copula_type == "gumbel":
                 theta = self._theta if self._theta else 2.0
                 log_u = np.log(u)
                 sum_log_u_neg = np.sum((-log_u) ** theta)
-                c = sum_log_u_neg ** (1/theta)
-                density = (c ** (theta - self.n_positions + 1) *
-                         np.prod(u ** (-1)) *
-                         np.prod((-log_u) ** (theta - 1)) /
-                         (sum_log_u_neg ** ((self.n_positions - 1) / theta)))
+                c = sum_log_u_neg ** (1 / theta)
+                density = (
+                    c ** (theta - self.n_positions + 1)
+                    * np.prod(u ** (-1))
+                    * np.prod((-log_u) ** (theta - 1))
+                    / (sum_log_u_neg ** ((self.n_positions - 1) / theta))
+                )
                 return density
 
             else:
@@ -1031,9 +1034,9 @@ class MultivariateCopula:
         except:
             return 0.1
 
-    def get_conditional_probability(self, target_position: int,
-                                   target_value: int,
-                                   conditioning_values: Dict[int, int]) -> float:
+    def get_conditional_probability(
+        self, target_position: int, target_value: int, conditioning_values: Dict[int, int]
+    ) -> float:
         """计算条件概率"""
         if not self.fitted:
             return 0.1
@@ -1054,15 +1057,15 @@ class MultivariateCopula:
     def diagnostics(self) -> Dict:
         """返回模型诊断信息"""
         return {
-            'copula_type': self.copula_type,
-            'n_dimensions': self.n_positions,
-            'fitted': self.fitted,
-            'parameters': self._copula_params,
-            'tail_dependence': self.tail_dependence,
-            'tail_strength': self.get_tail_dependence_strength(),
-            'selection_info': self.selection_info,
-            'correlation_matrix_shape': self.correlation_matrix.shape if self.correlation_matrix is not None else None,
-            'regularization_used': self.regularization
+            "copula_type": self.copula_type,
+            "n_dimensions": self.n_positions,
+            "fitted": self.fitted,
+            "parameters": self._copula_params,
+            "tail_dependence": self.tail_dependence,
+            "tail_strength": self.get_tail_dependence_strength(),
+            "selection_info": self.selection_info,
+            "correlation_matrix_shape": self.correlation_matrix.shape if self.correlation_matrix is not None else None,
+            "regularization_used": self.regularization,
         }
 
 
@@ -1080,20 +1083,27 @@ class BayesianStructuralTimeSeries:
 
     CANDIDATE_WINDOWS = [10, 15, 20, 30, 50]
 
-    def __init__(self, trend_window: int = 20,
-                 seasonality_period: Optional[int] = None,
-                 outlier_threshold: float = 2.5,
-                 n_posterior_samples: int = 1000,
-                 confidence_level: float = 0.95,
-                 model_config: Optional[ModelConfig] = None):
+    def __init__(
+        self,
+        trend_window: int = 20,
+        seasonality_period: Optional[int] = None,
+        outlier_threshold: float = 2.5,
+        n_posterior_samples: int = 1000,
+        confidence_level: float = 0.95,
+        model_config: Optional[ModelConfig] = None,
+    ):
         _mc = model_config or get_model_config()
         bsts_cfg = _mc.bsts_config()
 
-        self.trend_window = trend_window if trend_window != 20 else bsts_cfg.get('trend_window', 20)
+        self.trend_window = trend_window if trend_window != 20 else bsts_cfg.get("trend_window", 20)
         self.seasonality_period_input = seasonality_period
-        self.outlier_threshold = outlier_threshold if outlier_threshold != 2.5 else bsts_cfg.get('outlier_threshold', 2.5)
-        self.n_posterior_samples = n_posterior_samples if n_posterior_samples != 1000 else bsts_cfg.get('n_posterior_samples', 1000)
-        self.confidence_level = confidence_level if confidence_level != 0.95 else bsts_cfg.get('confidence_level', 0.95)
+        self.outlier_threshold = (
+            outlier_threshold if outlier_threshold != 2.5 else bsts_cfg.get("outlier_threshold", 2.5)
+        )
+        self.n_posterior_samples = (
+            n_posterior_samples if n_posterior_samples != 1000 else bsts_cfg.get("n_posterior_samples", 1000)
+        )
+        self.confidence_level = confidence_level if confidence_level != 0.95 else bsts_cfg.get("confidence_level", 0.95)
 
         self.trend_coef: Optional[np.ndarray] = None
         self.trend_coef_cov: Optional[np.ndarray] = None
@@ -1142,7 +1152,7 @@ class BayesianStructuralTimeSeries:
             optimal = min(10, max(5, n // 2))
             logger.info(f"[BSTS] 数据量少(n={n}), 选择窗口={optimal}")
             self._optimal_window = optimal
-            return {'optimal_window': optimal, 'scores': [], 'reason': 'insufficient_data'}
+            return {"optimal_window": optimal, "scores": [], "reason": "insufficient_data"}
 
         scores = []
         data_std = np.std(data)
@@ -1172,7 +1182,7 @@ class BayesianStructuralTimeSeries:
                 fitted_train = np.polyval(coeffs, recent_train_x)
                 residuals = recent_train - fitted_train
                 residual_var = np.var(residuals)
-                ss_res = np.sum(residuals ** 2)
+                ss_res = np.sum(residuals**2)
                 ll = -use_w / 2 * np.log(2 * np.pi * residual_var) - use_w / 2
                 bic_score = -2 * ll + n_params * np.log(use_w)
                 aic_score = -2 * ll + 2 * n_params
@@ -1187,20 +1197,21 @@ class BayesianStructuralTimeSeries:
                 improvement_ratio = full_mse / (cv_mse + 1e-10)
 
                 volatility_weight = min(1.0, data_cv * 2)
-                combined_score = (volatility_weight * cv_mse +
-                                  (1 - volatility_weight) * bic_score / n)
+                combined_score = volatility_weight * cv_mse + (1 - volatility_weight) * bic_score / n
 
-                scores.append({
-                    'window': window,
-                    'bic': float(bic_score),
-                    'aic': float(aic_score),
-                    'cv_mse': float(cv_mse),
-                    'cv_mae': float(cv_mae),
-                    'combined_score': float(combined_score),
-                    'improvement_ratio': float(improvement_ratio),
-                    'residual_variance': float(residual_var),
-                    'log_likelihood': float(ll)
-                })
+                scores.append(
+                    {
+                        "window": window,
+                        "bic": float(bic_score),
+                        "aic": float(aic_score),
+                        "cv_mse": float(cv_mse),
+                        "cv_mae": float(cv_mae),
+                        "combined_score": float(combined_score),
+                        "improvement_ratio": float(improvement_ratio),
+                        "residual_variance": float(residual_var),
+                        "log_likelihood": float(ll),
+                    }
+                )
 
             except Exception as e:
                 logger.warning(f"[BSTS] 窗口={window} 评估失败: {e}")
@@ -1209,36 +1220,37 @@ class BayesianStructuralTimeSeries:
         if not scores:
             optimal = 20
             self._optimal_window = optimal
-            return {'optimal_window': optimal, 'scores': [], 'reason': 'all_failed'}
+            return {"optimal_window": optimal, "scores": [], "reason": "all_failed"}
 
-        scores.sort(key=lambda s: s['combined_score'])
+        scores.sort(key=lambda s: s["combined_score"])
         best = scores[0]
-        optimal = best['window']
+        optimal = best["window"]
 
         self._optimal_window = optimal
         self._window_selection_scores = scores
 
-        logger.info(f"[BSTS] 最优窗口选择: {optimal} (候选数={len(scores)}, "
-                   f"综合得分={best['combined_score']:.4f}, BIC={best['bic']:.2f}, "
-                   f"CV-MSE={best['cv_mse']:.4f}, CV={data_cv:.4f})")
+        logger.info(
+            f"[BSTS] 最优窗口选择: {optimal} (候选数={len(scores)}, "
+            f"综合得分={best['combined_score']:.4f}, BIC={best['bic']:.2f}, "
+            f"CV-MSE={best['cv_mse']:.4f}, CV={data_cv:.4f})"
+        )
 
         return {
-            'optimal_window': optimal,
-            'best_score': best['combined_score'],
-            'bic': best['bic'],
-            'aic': best.get('aic', 0),
-            'cv_mse': best['cv_mse'],
-            'cv_mae': best.get('cv_mae', 0),
-            'improvement_ratio': best['improvement_ratio'],
-            'all_scores': scores,
-            'data_cv': float(data_cv),
-            'n_candidates_tested': len(scores),
-            'n_cv_folds': n_folds,
-            'reason': 'bic_cv_combined'
+            "optimal_window": optimal,
+            "best_score": best["combined_score"],
+            "bic": best["bic"],
+            "aic": best.get("aic", 0),
+            "cv_mse": best["cv_mse"],
+            "cv_mae": best.get("cv_mae", 0),
+            "improvement_ratio": best["improvement_ratio"],
+            "all_scores": scores,
+            "data_cv": float(data_cv),
+            "n_candidates_tested": len(scores),
+            "n_cv_folds": n_folds,
+            "reason": "bic_cv_combined",
         }
 
-    def _detect_seasonality_fft(self, data: np.ndarray,
-                                 max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality_fft(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
         """
         使用FFT频谱分析检测数据中的季节性模式
 
@@ -1287,7 +1299,7 @@ class BayesianStructuralTimeSeries:
         for i in range(1, len(snr) - 1):
             if not valid_mask[i]:
                 continue
-            if snr[i] > snr[i-1] and snr[i] > snr[i+1] and snr[i] > 3.0:
+            if snr[i] > snr[i - 1] and snr[i] > snr[i + 1] and snr[i] > 3.0:
                 period_candidate = round(1 / freqs[i]) if freqs[i] > 0 else n
                 if valid_period_range[0] <= period_candidate <= valid_period_range[1]:
                     peak_indices.append((period_candidate, snr[i], i))
@@ -1304,13 +1316,14 @@ class BayesianStructuralTimeSeries:
 
         detected = best_snr > 5.0 and strength > 0.05
 
-        logger.info(f"[BSTS-FFT] 季节性检测结果: {'检测到' if detected else '未检测到'}, "
-                   f"周期={best_period}, SNR={best_snr:.2f}, 强度={strength:.4f}")
+        logger.info(
+            f"[BSTS-FFT] 季节性检测结果: {'检测到' if detected else '未检测到'}, "
+            f"周期={best_period}, SNR={best_snr:.2f}, 强度={strength:.4f}"
+        )
 
         return detected, best_period if detected else (self.seasonality_period_input or 10), strength
 
-    def _detect_seasonality(self, data: np.ndarray,
-                            max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
         """
         联合ACF和FFT的季节性检测（融合两种方法的结果）
 
@@ -1335,32 +1348,33 @@ class BayesianStructuralTimeSeries:
             if fft_detected and acf_detected:
                 if fft_strength >= acf_strength:
                     best_period, best_strength = fft_period, fft_strength
-                    method = 'fft_dominant'
+                    method = "fft_dominant"
                 else:
                     best_period, best_strength = acf_period, acf_strength
-                    method = 'acf_dominant'
+                    method = "acf_dominant"
             elif fft_detected:
                 best_period, best_strength = fft_period, fft_strength
-                method = 'fft_only'
+                method = "fft_only"
             else:
                 best_period, best_strength = acf_period, acf_strength
-                method = 'acf_only'
+                method = "acf_only"
         else:
             best_period = self.seasonality_period_input or 10
             best_strength = 0.0
-            method = 'none'
+            method = "none"
 
         self._seasonality_detected = combined_detected
         self._seasonality_strength = best_strength
         self.detected_seasonality_period = best_period if combined_detected else None
 
-        logger.info(f"[BSTS] 融合季节性检测: {'检测到' if combined_detected else '未检测到'}, "
-                   f"周期={best_period}, 强度={best_strength:.4f}, 方法={method}")
+        logger.info(
+            f"[BSTS] 融合季节性检测: {'检测到' if combined_detected else '未检测到'}, "
+            f"周期={best_period}, 强度={best_strength:.4f}, 方法={method}"
+        )
 
         return combined_detected, best_period, best_strength
 
-    def _detect_seasonality_acf(self, data: np.ndarray,
-                                max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality_acf(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
         """
         使用自相关分析检测数据中的季节性模式
 
@@ -1394,7 +1408,7 @@ class BayesianStructuralTimeSeries:
         for lag in range(1, max_period + 1):
             if lag >= n:
                 break
-            acf[lag - 1] = np.sum(data_centered[:n - lag] * data_centered[lag:]) / ((n - lag) * variance)
+            acf[lag - 1] = np.sum(data_centered[: n - lag] * data_centered[lag:]) / ((n - lag) * variance)
 
         significant_peaks = []
         for period in range(2, max_period):
@@ -1428,8 +1442,7 @@ class BayesianStructuralTimeSeries:
             for lag in range(best_period - 1, min(best_period + 2, max_period)):
                 if lag >= n - 1:
                     continue
-                val = abs(np.sum(shuffled[:n - lag - 1] * shuffled[lag + 1:]) /
-                         ((n - lag - 1) * shuf_var))
+                val = abs(np.sum(shuffled[: n - lag - 1] * shuffled[lag + 1 :]) / ((n - lag - 1) * shuf_var))
                 shuf_acf_max = max(shuf_acf_max, val)
             if shuf_acf_max >= best_acf:
                 count_extreme += 1
@@ -1440,8 +1453,10 @@ class BayesianStructuralTimeSeries:
 
         seasonality_period = best_period if detected else (self.seasonality_period_input or 10)
 
-        logger.info(f"[BSTS-ACF] 季节性检测结果: {'检测到' if detected else '未检测到'}, "
-                   f"周期={best_period}, ACF={best_acf:.4f}, p值={p_value:.4f}, 强度={strength:.4f}")
+        logger.info(
+            f"[BSTS-ACF] 季节性检测结果: {'检测到' if detected else '未检测到'}, "
+            f"周期={best_period}, ACF={best_acf:.4f}, p值={p_value:.4f}, 强度={strength:.4f}"
+        )
 
         return detected, seasonality_period, strength
 
@@ -1517,26 +1532,27 @@ class BayesianStructuralTimeSeries:
             if outlier_mask[i]:
                 combined_z = max(mad_z[i], local_scores[i])
                 if combined_z <= adaptive_threshold * 1.5:
-                    weight = np.exp(-0.5 * (combined_z ** 2) / (adaptive_threshold ** 2))
+                    weight = np.exp(-0.5 * (combined_z**2) / (adaptive_threshold**2))
                 elif combined_z <= adaptive_threshold * 2.5:
-                    weight = np.exp(-0.5 * (combined_z ** 2) / ((adaptive_threshold * 1.5) ** 2))
+                    weight = np.exp(-0.5 * (combined_z**2) / ((adaptive_threshold * 1.5) ** 2))
                 else:
-                    weight = np.exp(-0.5 * (combined_z ** 2) / ((adaptive_threshold * 2.0) ** 2))
+                    weight = np.exp(-0.5 * (combined_z**2) / ((adaptive_threshold * 2.0) ** 2))
                 weights[i] = max(weight, 0.02)
 
         self._outlier_mask = outlier_mask
         self._outlier_weights = weights
         self._n_outliers = int(np.sum(outlier_mask))
 
-        logger.info(f"[BSTS] 异常值检测: {self._n_outliers}/{n} 个异常值 "
-                   f"({100*self._n_outliers/n:.1f}%), MAD缩放={mad_scaled:.4f}, "
-                   f"自适应阈值={adaptive_threshold:.2f}, "
-                   f"偏度={data_skewness:.2f}, 峰度={data_kurtosis:.2f}")
+        logger.info(
+            f"[BSTS] 异常值检测: {self._n_outliers}/{n} 个异常值 "
+            f"({100*self._n_outliers/n:.1f}%), MAD缩放={mad_scaled:.4f}, "
+            f"自适应阈值={adaptive_threshold:.2f}, "
+            f"偏度={data_skewness:.2f}, 峰度={data_kurtosis:.2f}"
+        )
 
         return outlier_mask, weights
 
-    def _compute_bayesian_posterior(self, data: np.ndarray, x: np.ndarray,
-                                     weights: Optional[np.ndarray] = None):
+    def _compute_bayesian_posterior(self, data: np.ndarray, x: np.ndarray, weights: Optional[np.ndarray] = None):
         """
         计算贝叶斯后验分布用于预测区间估计
 
@@ -1560,7 +1576,7 @@ class BayesianStructuralTimeSeries:
         posterior_mean = posterior_cov @ XtWy
 
         residuals = data - X_design @ posterior_mean
-        weighted_ss = np.sum(w * residuals ** 2)
+        weighted_ss = np.sum(w * residuals**2)
         effective_n = np.sum(w)
 
         prior_df = 2.0
@@ -1630,7 +1646,7 @@ class BayesianStructuralTimeSeries:
         else:
             fit_x = x.copy()
 
-        self._compute_bayesian_posterior(fit_data, fit_x, self._outlier_weights[-len(fit_data):])
+        self._compute_bayesian_posterior(fit_data, fit_x, self._outlier_weights[-len(fit_data) :])
 
         detrended = observations - np.polyval(self.trend_coef, x)
 
@@ -1655,10 +1671,12 @@ class BayesianStructuralTimeSeries:
         self._last_fit_n = n
         self._fit_count += 1
 
-        logger.info(f"[BSTS] 模型拟合完成: n={n}, 窗口={effective_window}, "
-                   f"季节周期={seasonality_period if use_seasonal else '无'}, "
-                   f"异常值={self._n_outliers}, 残差σ={self.residual_std:.4f}, "
-                   f"fit_count={self._fit_count}")
+        logger.info(
+            f"[BSTS] 模型拟合完成: n={n}, 窗口={effective_window}, "
+            f"季节周期={seasonality_period if use_seasonal else '无'}, "
+            f"异常值={self._n_outliers}, 残差σ={self.residual_std:.4f}, "
+            f"fit_count={self._fit_count}"
+        )
         return self
 
     def _construct_model(self, x: np.ndarray) -> np.ndarray:
@@ -1675,7 +1693,7 @@ class BayesianStructuralTimeSeries:
         if not self.fitted:
             return np.ones(10) / 10, np.ones(10) / 10
 
-        last_x = self._last_fit_n if hasattr(self, '_last_fit_n') else 0
+        last_x = self._last_fit_n if hasattr(self, "_last_fit_n") else 0
         future_x = np.arange(last_x, last_x + n_ahead)
 
         predictions = np.zeros(10)
@@ -1716,16 +1734,16 @@ class BayesianStructuralTimeSeries:
         """
         if not self.fitted or self._posterior_trend_samples is None:
             return {
-                'mean': np.zeros(n_ahead),
-                'std': np.ones(n_ahead),
-                'lower_bound': np.zeros(n_ahead),
-                'upper_bound': np.zeros(n_ahead),
-                'prediction_probs': np.ones(10) / 10,
-                'samples': None,
-                'confidence_level': self.confidence_level
+                "mean": np.zeros(n_ahead),
+                "std": np.ones(n_ahead),
+                "lower_bound": np.zeros(n_ahead),
+                "upper_bound": np.zeros(n_ahead),
+                "prediction_probs": np.ones(10) / 10,
+                "samples": None,
+                "confidence_level": self.confidence_level,
             }
 
-        last_n = self._last_fit_n if hasattr(self, '_last_fit_n') else 100
+        last_n = self._last_fit_n if hasattr(self, "_last_fit_n") else 100
         future_x = np.arange(last_n, last_n + n_ahead)
 
         alpha = 1 - self.confidence_level
@@ -1772,44 +1790,44 @@ class BayesianStructuralTimeSeries:
         prediction_probs /= prediction_probs.sum()
 
         result = {
-            'mean': mean_pred,
-            'std': std_pred,
-            'lower_bound': lower_bound_95,
-            'upper_bound': upper_bound_95,
-            'intervals': {
-                '95%': (lower_bound_95, upper_bound_95),
-                '90%': (lower_bound_90, upper_bound_90),
-                '68%': (lower_bound_68, upper_bound_68),
+            "mean": mean_pred,
+            "std": std_pred,
+            "lower_bound": lower_bound_95,
+            "upper_bound": upper_bound_95,
+            "intervals": {
+                "95%": (lower_bound_95, upper_bound_95),
+                "90%": (lower_bound_90, upper_bound_90),
+                "68%": (lower_bound_68, upper_bound_68),
             },
-            'prediction_probs': prediction_probs,
-            'posterior_samples': all_predictions,
-            'confidence_level': self.confidence_level,
-            'has_seasonality': self.seasonal_coef is not None
+            "prediction_probs": prediction_probs,
+            "posterior_samples": all_predictions,
+            "confidence_level": self.confidence_level,
+            "has_seasonality": self.seasonal_coef is not None,
         }
 
-        logger.info(f"[BSTS] 区间预测: 步数={n_ahead}, 均值={mean_pred[-1]:.4f}, "
-                   f"σ={std_pred[-1]:.4f}, 95%CI=[{lower_bound_95[-1]:.4f}, {upper_bound_95[-1]:.4f}], "
-                   f"季节性={'是' if self.seasonal_coef is not None else '否'}")
+        logger.info(
+            f"[BSTS] 区间预测: 步数={n_ahead}, 均值={mean_pred[-1]:.4f}, "
+            f"σ={std_pred[-1]:.4f}, 95%CI=[{lower_bound_95[-1]:.4f}, {upper_bound_95[-1]:.4f}], "
+            f"季节性={'是' if self.seasonal_coef is not None else '否'}"
+        )
 
         return result
 
-    def forecast_with_trend(self, observations: np.ndarray,
-                           n_ahead: int = 1) -> Tuple[np.ndarray, np.ndarray]:
+    def forecast_with_trend(self, observations: np.ndarray, n_ahead: int = 1) -> Tuple[np.ndarray, np.ndarray]:
         """带趋势的预测接口（向后兼容）"""
         self.fit(observations)
         self._last_fit_n = len(observations)
         return self.predict(n_ahead)
 
-    def forecast_with_intervals(self, observations: np.ndarray,
-                                n_ahead: int = 1) -> Dict:
+    def forecast_with_intervals(self, observations: np.ndarray, n_ahead: int = 1) -> Dict:
         """带预测区间的完整预测接口"""
         self.fit(observations)
         self._last_fit_n = len(observations)
         return self.predict_with_intervals(n_ahead)
 
-    def partial_fit(self, new_data: np.ndarray,
-                    retrain_threshold: float = 0.3,
-                    window_reselect: bool = False) -> "BayesianStructuralTimeSeries":
+    def partial_fit(
+        self, new_data: np.ndarray, retrain_threshold: float = 0.3, window_reselect: bool = False
+    ) -> "BayesianStructuralTimeSeries":
         """
         增量更新模型（无需完全重新训练）
 
@@ -1859,30 +1877,25 @@ class BayesianStructuralTimeSeries:
 
         predictions_new = self._construct_model(new_x)
         residuals_new = new_data - predictions_new
-        weighted_residual_std = np.sqrt(
-            np.sum(new_weights * residuals_new ** 2) / (np.sum(new_weights) + 1e-10)
-        )
+        weighted_residual_std = np.sqrt(np.sum(new_weights * residuals_new**2) / (np.sum(new_weights) + 1e-10))
         relative_deviation = abs(weighted_residual_std) / (self.residual_std + 1e-10)
 
-        needs_full_retrain = (
-            relative_deviation > retrain_threshold or
-            n_new > old_n * 0.5 or
-            self._fit_count == 0
-        )
+        needs_full_retrain = relative_deviation > retrain_threshold or n_new > old_n * 0.5 or self._fit_count == 0
 
         fit_record = {
-            'timestamp': self._fit_count,
-            'n_new_points': n_new,
-            'n_total': n_combined,
-            'relative_deviation': float(relative_deviation),
-            'full_retrain': needs_full_retrain,
-            'prev_residual_std': float(self.residual_std),
-            'new_residual_std': float(weighted_residual_std) if n_new > 0 else 0.0
+            "timestamp": self._fit_count,
+            "n_new_points": n_new,
+            "n_total": n_combined,
+            "relative_deviation": float(relative_deviation),
+            "full_retrain": needs_full_retrain,
+            "prev_residual_std": float(self.residual_std),
+            "new_residual_std": float(weighted_residual_std) if n_new > 0 else 0.0,
         }
 
         if needs_full_retrain:
-            logger.info(f"[BSTS-partial] 检测到显著偏移(dev={relative_deviation:.3f}), "
-                       f"触发完全重训练, 新数据点={n_new}")
+            logger.info(
+                f"[BSTS-partial] 检测到显著偏移(dev={relative_deviation:.3f}), " f"触发完全重训练, 新数据点={n_new}"
+            )
             return self.fit(combined)
 
         lr = self._learning_rate
@@ -1899,10 +1912,7 @@ class BayesianStructuralTimeSeries:
             delta_cov = np.linalg.inv(XtWX_new + reg)
             delta_mean = delta_cov @ XtWy_new
         except Exception:
-            delta_mean = np.array([
-                np.mean(np.diff(new_data)) if n_new > 1 else 0.0,
-                np.mean(new_data)
-            ])
+            delta_mean = np.array([np.mean(np.diff(new_data)) if n_new > 1 else 0.0, np.mean(new_data)])
             delta_cov = np.eye(2) * self.residual_std
 
         old_trend = self.trend_coef.copy() if self.trend_coef is not None else np.zeros(2)
@@ -1916,9 +1926,8 @@ class BayesianStructuralTimeSeries:
 
         new_ss_res = np.sum(new_weights * (new_data - X_new_design @ updated_trend) ** 2)
         effective_n_new = np.sum(new_weights)
-        old_ss_proxy = self.residual_std ** 2 * max(old_n, 1)
-        updated_var = ((1 - effective_lr) * old_ss_proxy +
-                       effective_lr * new_ss_res) / max(old_n + effective_n_new, 1)
+        old_ss_proxy = self.residual_std**2 * max(old_n, 1)
+        updated_var = ((1 - effective_lr) * old_ss_proxy + effective_lr * new_ss_res) / max(old_n + effective_n_new, 1)
         self.residual_std = float(np.sqrt(max(updated_var, 1e-6)))
 
         if self.seasonal_coef is not None and n_new >= len(self.seasonal_coef):
@@ -1930,10 +1939,9 @@ class BayesianStructuralTimeSeries:
                 if len(indices) > 0:
                     w = new_weights[indices]
                     incremental_seasonal = np.sum(w * detrended_new[indices]) / (np.sum(w) + 1e-10)
-                    self.seasonal_coef[i] = (
-                        (1 - effective_lr * 0.7) * self.seasonal_coef[i] +
-                        effective_lr * 0.7 * incremental_seasonal
-                    )
+                    self.seasonal_coef[i] = (1 - effective_lr * 0.7) * self.seasonal_coef[
+                        i
+                    ] + effective_lr * 0.7 * incremental_seasonal
 
         rng = np.random.default_rng(42)
         n_samples = self.n_posterior_samples
@@ -1941,13 +1949,8 @@ class BayesianStructuralTimeSeries:
         residual_samples = np.zeros(n_samples)
 
         for i in range(n_samples):
-            sampled_var = inv_gamma_sample(rng,
-                                           2.0 + effective_n_new / 2.0,
-                                           self.residual_std ** 2 / 2)
-            trend_samples[i] = rng.multivariate_normal(
-                updated_trend,
-                sampled_var * updated_cov
-            )
+            sampled_var = inv_gamma_sample(rng, 2.0 + effective_n_new / 2.0, self.residual_std**2 / 2)
+            trend_samples[i] = rng.multivariate_normal(updated_trend, sampled_var * updated_cov)
             residual_samples[i] = rng.normal(0, np.sqrt(max(sampled_var, 1e-10)))
 
         self._posterior_trend_samples = trend_samples
@@ -1964,39 +1967,41 @@ class BayesianStructuralTimeSeries:
         if window_reselect and self.trend_window == 0:
             self.select_optimal_window(combined)
 
-        logger.info(f"[BSTS-partial] 增量更新完成: 新数据={n_new}, 总数据={n_combined}, "
-                   f"偏移度={relative_deviation:.4f}, 学习率={effective_lr:.4f}, "
-                   f"残差σ={self.residual_std:.4f}, 更新次数={self._fit_count}")
+        logger.info(
+            f"[BSTS-partial] 增量更新完成: 新数据={n_new}, 总数据={n_combined}, "
+            f"偏移度={relative_deviation:.4f}, 学习率={effective_lr:.4f}, "
+            f"残差σ={self.residual_std:.4f}, 更新次数={self._fit_count}"
+        )
 
         return self
 
     def diagnostics(self) -> Dict:
         """返回完整的模型诊断信息（含增量学习状态）"""
         return {
-            'model_type': 'BayesianStructuralTimeSeries',
-            'fitted': self.fitted,
-            'trend_window_used': self._optimal_window or self.trend_window,
-            'window_selection_scores': self._window_selection_scores,
-            'trend_coefficients': self.trend_coef.tolist() if self.trend_coef is not None else None,
-            'detected_seasonality': self._seasonality_detected,
-            'seasonality_period': self.detected_seasonality_period,
-            'seasonality_strength': self._seasonality_strength,
-            'seasonal_coefficients': self.seasonal_coef.tolist() if self.seasonal_coef is not None else None,
-            'residual_std': self.residual_std,
-            'n_outliers_detected': self._n_outliers,
-            'outlier_threshold': self.outlier_threshold,
-            'n_posterior_samples': self.n_posterior_samples,
-            'confidence_level': self.confidence_level,
-            'has_posterior_samples': self._posterior_trend_samples is not None,
-            'incremental_learning': {
-                'fit_count': self._fit_count,
-                'last_fit_n': self._last_fit_n,
-                'total_training_points': len(self._training_data) if self._training_data is not None else 0,
-                'learning_rate': self._learning_rate,
-                'max_history_length': self._max_history_length,
-                'n_partial_fit_calls': len(self._partial_fit_history),
-                'partial_fit_history': self._partial_fit_history[-5:] if self._partial_fit_history else []
-            }
+            "model_type": "BayesianStructuralTimeSeries",
+            "fitted": self.fitted,
+            "trend_window_used": self._optimal_window or self.trend_window,
+            "window_selection_scores": self._window_selection_scores,
+            "trend_coefficients": self.trend_coef.tolist() if self.trend_coef is not None else None,
+            "detected_seasonality": self._seasonality_detected,
+            "seasonality_period": self.detected_seasonality_period,
+            "seasonality_strength": self._seasonality_strength,
+            "seasonal_coefficients": self.seasonal_coef.tolist() if self.seasonal_coef is not None else None,
+            "residual_std": self.residual_std,
+            "n_outliers_detected": self._n_outliers,
+            "outlier_threshold": self.outlier_threshold,
+            "n_posterior_samples": self.n_posterior_samples,
+            "confidence_level": self.confidence_level,
+            "has_posterior_samples": self._posterior_trend_samples is not None,
+            "incremental_learning": {
+                "fit_count": self._fit_count,
+                "last_fit_n": self._last_fit_n,
+                "total_training_points": len(self._training_data) if self._training_data is not None else 0,
+                "learning_rate": self._learning_rate,
+                "max_history_length": self._max_history_length,
+                "n_partial_fit_calls": len(self._partial_fit_history),
+                "partial_fit_history": self._partial_fit_history[-5:] if self._partial_fit_history else [],
+            },
         }
 
 

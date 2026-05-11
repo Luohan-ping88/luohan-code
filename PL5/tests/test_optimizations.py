@@ -17,15 +17,12 @@ import json
 
 def test_event_bus():
     """测试事件总线模块"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 1: 事件总线模块")
-    print("="*60)
+    print("=" * 60)
 
     try:
-        from src.core.events import (
-            EventBus, Event, EventType,
-            get_event_bus, publish_event
-        )
+        from src.core.events import EventBus, Event, EventType, get_event_bus, publish_event
 
         # 测试获取单例
         bus1 = get_event_bus()
@@ -35,6 +32,7 @@ def test_event_bus():
 
         # 测试发布/订阅
         received_events = []
+
         def handler(event):
             received_events.append(event)
 
@@ -61,22 +59,19 @@ def test_event_bus():
     except Exception as e:
         print(f"\n❌ 事件总线模块验证失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def test_feature_config_manager():
     """测试特征配置管理器"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 2: 特征配置管理器")
-    print("="*60)
+    print("=" * 60)
 
     try:
-        from src.core.features import (
-            FeatureConfig,
-            FeatureConfigManager,
-            get_feature_config_manager
-        )
+        from src.core.features import FeatureConfig, FeatureConfigManager, get_feature_config_manager
 
         # 测试获取单例
         manager1 = get_feature_config_manager()
@@ -99,23 +94,19 @@ def test_feature_config_manager():
     except Exception as e:
         print(f"\n❌ 特征配置管理器验证失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def test_task_dependency_manager():
     """测试任务依赖管理器"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 3: 任务依赖管理器")
-    print("="*60)
+    print("=" * 60)
 
     try:
-        from src.core.workflow import (
-            Task,
-            TaskStatus,
-            TaskDependencyManager,
-            create_task_manager_from_config
-        )
+        from src.core.workflow import Task, TaskStatus, TaskDependencyManager, create_task_manager_from_config
 
         # 测试创建任务
         manager = TaskDependencyManager()
@@ -152,24 +143,22 @@ def test_task_dependency_manager():
     except Exception as e:
         print(f"\n❌ 任务依赖管理器验证失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def test_orchestrator_optimized():
     """测试优化后的编排器"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 4: 优化后的编排器")
-    print("="*60)
+    print("=" * 60)
 
     try:
         from src.core.orchestrator_optimized import PL5OrchestratorOptimized
 
         # 测试创建编排器
-        orchestrator = PL5OrchestratorOptimized(
-            workflow_dir="./test_workflows",
-            default_timeout=3600
-        )
+        orchestrator = PL5OrchestratorOptimized(workflow_dir="./test_workflows", default_timeout=3600)
         print("✓ 编排器实例创建成功")
 
         # 测试上下文管理器
@@ -181,9 +170,9 @@ def test_orchestrator_optimized():
 
         # 测试延迟初始化属性（不触发初始化）
         # 检查缓存属性是否存在
-        assert hasattr(type(orchestrator), 'data_collector')
-        assert hasattr(type(orchestrator), 'feature_engineer')
-        assert hasattr(type(orchestrator), 'predictor')
+        assert hasattr(type(orchestrator), "data_collector")
+        assert hasattr(type(orchestrator), "feature_engineer")
+        assert hasattr(type(orchestrator), "predictor")
         print("✓ 延迟初始化属性定义正常")
 
         # 测试状态获取
@@ -198,6 +187,7 @@ def test_orchestrator_optimized():
 
         # 清理测试目录
         import shutil
+
         if os.path.exists("./test_workflows"):
             shutil.rmtree("./test_workflows")
 
@@ -207,15 +197,16 @@ def test_orchestrator_optimized():
     except Exception as e:
         print(f"\n❌ 优化后的编排器验证失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def test_system_config():
     """测试系统配置"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 5: 系统配置")
-    print("="*60)
+    print("=" * 60)
 
     try:
         config_path = Path("./config/system_config.json")
@@ -224,7 +215,7 @@ def test_system_config():
             # 尝试查找配置文件
             possible_paths = [
                 Path(__file__).parent.parent / "config" / "system_config.json",
-                Path("config/system_config.json")
+                Path("config/system_config.json"),
             ]
             for p in possible_paths:
                 if p.exists():
@@ -232,7 +223,7 @@ def test_system_config():
                     break
 
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             # 验证配置结构
@@ -256,9 +247,9 @@ def test_system_config():
 
 def test_security_modules():
     """测试安全模块"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试 6: 安全模块")
-    print("="*60)
+    print("=" * 60)
 
     try:
         # 测试用户管理器
@@ -276,6 +267,7 @@ def test_security_modules():
 
         # 测试特征配置管理器
         from src.core.features import get_feature_config_manager
+
         config_manager = get_feature_config_manager()
         print("✓ 特征配置管理器加载成功")
 
@@ -285,15 +277,16 @@ def test_security_modules():
     except Exception as e:
         print(f"\n❌ 安全模块验证失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
 
 def main():
     """主函数"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PL5 系统优化验证测试")
-    print("="*60)
+    print("=" * 60)
 
     results = []
 
@@ -306,9 +299,9 @@ def main():
     results.append(("安全模块", test_security_modules()))
 
     # 输出测试结果汇总
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("测试结果汇总")
-    print("="*60)
+    print("=" * 60)
 
     passed = 0
     failed = 0
@@ -321,7 +314,7 @@ def main():
         else:
             failed += 1
 
-    print("-"*60)
+    print("-" * 60)
     print(f"总计: {passed} 通过, {failed} 失败, {len(results)} 总计")
 
     if failed == 0:

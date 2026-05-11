@@ -16,23 +16,26 @@ try:
     from .ppo import PolicyNetwork, ValueNetwork, PPOAgent
 except Exception as e:
     import logging
+
     logger = logging.getLogger(__name__)
     logger.warning(f"PyTorch模块导入失败，将使用NumPy实现的RL优化器: {e}")
+
     # 定义占位符类，避免导入错误
     class QNetwork:
         pass
-    
+
     class DQNAgent:
         pass
-    
+
     class PolicyNetwork:
         pass
-    
+
     class ValueNetwork:
         pass
-    
+
     class PPOAgent:
         pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,16 +57,13 @@ class ExperienceBuffer:
         self.buffer: List[Tuple] = []
         self.capacity = capacity
 
-    def push(self, state: np.ndarray, action: np.ndarray, reward: float,
-             next_state: np.ndarray, done: bool):
+    def push(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray, done: bool):
         self.buffer.append((state, action, reward, next_state, done))
         if len(self.buffer) > self.capacity:
             self.buffer.pop(0)
 
     def sample(self, batch_size: int) -> Tuple:
-        indices = np.random.choice(len(self.buffer),
-                                   min(batch_size, len(self.buffer)),
-                                   replace=False)
+        indices = np.random.choice(len(self.buffer), min(batch_size, len(self.buffer)), replace=False)
         states, actions, rewards, next_states, dones = zip(*[self.buffer[i] for i in indices])
         return np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones)
 
@@ -126,12 +126,11 @@ class ModelWeightRLOptimizer:
             return np.random.dirichlet(np.ones(self.n_models))
         return self.actor.forward(state)
 
-    def compute_reward(self, predictions: Dict[str, List[int]],
-                       actual: Dict[str, int], weights: np.ndarray) -> float:
+    def compute_reward(self, predictions: Dict[str, List[int]], actual: Dict[str, int], weights: np.ndarray) -> float:
         hit_count = 0
         total_count = 0
 
-        for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+        for pos in ["wan", "qian", "bai", "shi", "ge"]:
             if pos in predictions and pos in actual:
                 weighted_proba = 0.0
                 for model_idx, model_pred in enumerate(predictions.values()):
@@ -150,8 +149,7 @@ class ModelWeightRLOptimizer:
 
         return base_reward + consistency_bonus
 
-    def update(self, state: np.ndarray, action: np.ndarray, reward: float,
-               next_state: np.ndarray, done: bool):
+    def update(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray, done: bool):
         self.memory.push(state, action, reward, next_state, done)
 
         if len(self.memory.buffer) < self.config.batch_size:
@@ -159,9 +157,9 @@ class ModelWeightRLOptimizer:
 
         states, actions, rewards, next_states, dones = self.memory.sample(self.config.batch_size)
 
-        td_targets = rewards + self.config.gamma * np.array(
-            [self.critic.forward(ns) for ns in next_states]
-        ) * (1 - dones)
+        td_targets = rewards + self.config.gamma * np.array([self.critic.forward(ns) for ns in next_states]) * (
+            1 - dones
+        )
         td_errors = td_targets - np.array([self.critic.forward(s) for s in states])
 
         self.critic.update(states, td_errors)
@@ -169,21 +167,15 @@ class ModelWeightRLOptimizer:
 
         self.actor.update(states, actions, advantages)
 
-        self.config.epsilon = max(
-            self.config.epsilon_min,
-            self.config.epsilon * self.config.epsilon_decay
-        )
+        self.config.epsilon = max(self.config.epsilon_min, self.config.epsilon * self.config.epsilon_decay)
 
-    def fit(self, states_history: List[np.ndarray], rewards_history: List[float],
-            n_episodes: int = 100):
+    def fit(self, states_history: List[np.ndarray], rewards_history: List[float], n_episodes: int = 100):
         for episode in range(n_episodes):
             if not states_history:
                 break
 
             episode_reward = 0
-            indices = np.random.choice(len(states_history),
-                                       min(32, len(states_history)),
-                                       replace=False)
+            indices = np.random.choice(len(states_history), min(32, len(states_history)), replace=False)
 
             for idx in indices:
                 state = states_history[idx]
@@ -200,9 +192,11 @@ class ModelWeightRLOptimizer:
             self.training_history.append(episode_reward)
 
             if episode % 10 == 0:
-                logger.info(f"[RL] Episode {episode + 1}/{n_episodes}, "
-                           f"Reward: {episode_reward:.4f}, "
-                           f"Epsilon: {self.config.epsilon:.4f}")
+                logger.info(
+                    f"[RL] Episode {episode + 1}/{n_episodes}, "
+                    f"Reward: {episode_reward:.4f}, "
+                    f"Epsilon: {self.config.epsilon:.4f}"
+                )
 
         self.is_trained = True
         logger.info("[RL] Training completed")

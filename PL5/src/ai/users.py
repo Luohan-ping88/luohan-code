@@ -19,7 +19,7 @@ class UserManager:
     def _init_database(self):
         """初始化数据库"""
         os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-        
+
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -43,7 +43,7 @@ class UserManager:
                 )
             """)
             conn.commit()
-            
+
             # 初始化默认用户（仅在表为空时）
             cursor.execute("SELECT COUNT(*) FROM users")
             count = cursor.fetchone()[0]
@@ -54,121 +54,95 @@ class UserManager:
         """创建默认用户"""
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
-            
+
             # 创建admin用户
             admin_hash = bcrypt.hashpw("admin@123".encode(), bcrypt.gensalt())
             cursor.execute(
                 "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                ("admin", admin_hash.decode(), "admin")
+                ("admin", admin_hash.decode(), "admin"),
             )
-            
+
             # 创建user用户
             user_hash = bcrypt.hashpw("user@123".encode(), bcrypt.gensalt())
             cursor.execute(
                 "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                ("user", user_hash.decode(), "user")
+                ("user", user_hash.decode(), "user"),
             )
-            
+
             # 创建guest用户
             guest_hash = bcrypt.hashpw("guest@123".encode(), bcrypt.gensalt())
             cursor.execute(
                 "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                ("guest", guest_hash.decode(), "guest")
+                ("guest", guest_hash.decode(), "guest"),
             )
-            
+
             conn.commit()
 
     def verify_password(self, username: str, password: str) -> Tuple[bool, Optional[Dict]]:
         """验证用户密码
-        
+
         Args:
             username: 用户名
             password: 密码
-            
+
         Returns:
             (是否验证成功, 用户信息)
         """
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, username, password_hash, role FROM users WHERE username = ?",
-                (username,)
-            )
+            cursor.execute("SELECT id, username, password_hash, role FROM users WHERE username = ?", (username,))
             row = cursor.fetchone()
-            
+
             if row is None:
                 return False, None
-            
+
             user_id, username, password_hash, role = row
-            
+
             if bcrypt.checkpw(password.encode(), password_hash.encode()):
                 # 更新最后登录时间
-                cursor.execute(
-                    "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
-                    (user_id,)
-                )
+                cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
                 conn.commit()
-                
-                return True, {
-                    "id": user_id,
-                    "username": username,
-                    "role": role
-                }
-            
+
+                return True, {"id": user_id, "username": username, "role": role}
+
             return False, None
 
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
         """根据ID获取用户信息"""
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, username, role, created_at, last_login FROM users WHERE id = ?",
-                (user_id,)
-            )
+            cursor.execute("SELECT id, username, role, created_at, last_login FROM users WHERE id = ?", (user_id,))
             row = cursor.fetchone()
-            
+
             if row is None:
                 return None
-            
-            return {
-                "id": row[0],
-                "username": row[1],
-                "role": row[2],
-                "created_at": row[3],
-                "last_login": row[4]
-            }
+
+            return {"id": row[0], "username": row[1], "role": row[2], "created_at": row[3], "last_login": row[4]}
 
     def get_user_by_username(self, username: str) -> Optional[Dict]:
         """根据用户名获取用户信息"""
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, username, role, created_at, last_login FROM users WHERE username = ?",
-                (username,)
+                "SELECT id, username, role, created_at, last_login FROM users WHERE username = ?", (username,)
             )
             row = cursor.fetchone()
-            
+
             if row is None:
                 return None
-            
-            return {
-                "id": row[0],
-                "username": row[1],
-                "role": row[2],
-                "created_at": row[3],
-                "last_login": row[4]
-            }
+
+            return {"id": row[0], "username": row[1], "role": row[2], "created_at": row[3], "last_login": row[4]}
 
     def create_user(self, username: str, password: str, role: str = "user") -> bool:
         """创建新用户"""
         try:
             password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-            
+
             with sqlite3.connect(DATABASE_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                    (username, password_hash.decode(), role)
+                    (username, password_hash.decode(), role),
                 )
                 conn.commit()
                 return True
@@ -179,10 +153,7 @@ class UserManager:
         """更新用户角色"""
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE users SET role = ? WHERE username = ?",
-                (role, username)
-            )
+            cursor.execute("UPDATE users SET role = ? WHERE username = ?", (role, username))
             conn.commit()
             return cursor.rowcount > 0
 
@@ -200,15 +171,9 @@ class UserManager:
             cursor = conn.cursor()
             cursor.execute("SELECT id, username, role, created_at, last_login FROM users")
             rows = cursor.fetchall()
-            
+
             return [
-                {
-                    "id": row[0],
-                    "username": row[1],
-                    "role": row[2],
-                    "created_at": row[3],
-                    "last_login": row[4]
-                }
+                {"id": row[0], "username": row[1], "role": row[2], "created_at": row[3], "last_login": row[4]}
                 for row in rows
             ]
 
@@ -219,7 +184,7 @@ class UserManager:
                 cursor = conn.cursor()
                 cursor.execute(
                     "INSERT INTO user_sessions (user_id, token, expires_at) VALUES (?, ?, ?)",
-                    (user_id, token, expires_at)
+                    (user_id, token, expires_at),
                 )
                 conn.commit()
                 return True
@@ -239,8 +204,7 @@ class UserManager:
         with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) FROM user_sessions WHERE token = ? AND expires_at > CURRENT_TIMESTAMP",
-                (token,)
+                "SELECT COUNT(*) FROM user_sessions WHERE token = ? AND expires_at > CURRENT_TIMESTAMP", (token,)
             )
             count = cursor.fetchone()[0]
             return count > 0

@@ -262,12 +262,8 @@ class Workflow:
             )
             if sd.get("is_branch"):
                 step.is_branch = True
-                step.args["__true_steps__"] = [
-                    WorkflowStep(**ts) for ts in sd.get("branch_true_steps", [])
-                ]
-                step.args["__false_steps__"] = [
-                    WorkflowStep(**fs) for fs in sd.get("branch_false_steps", [])
-                ]
+                step.args["__true_steps__"] = [WorkflowStep(**ts) for ts in sd.get("branch_true_steps", [])]
+                step.args["__false_steps__"] = [WorkflowStep(**fs) for fs in sd.get("branch_false_steps", [])]
             wf.add_step(step)
         return wf
 
@@ -275,11 +271,7 @@ class Workflow:
         return len(self.steps)
 
     def __repr__(self) -> str:
-        return (
-            f"Workflow(name={self.name!r}, "
-            f"steps={len(self.steps)}, "
-            f"description={self.description!r})"
-        )
+        return f"Workflow(name={self.name!r}, " f"steps={len(self.steps)}, " f"description={self.description!r})"
 
 
 # ── 执行引擎 ──────────────────────────────────────────────────
@@ -340,9 +332,7 @@ class WorkflowEngine:
         self.default_timeout: float = 300.0
         self.execution_history: List[Dict] = []
 
-    async def execute_async(
-        self, workflow: Workflow, ctx: ToolContext
-    ) -> WorkflowResult:
+    async def execute_async(self, workflow: Workflow, ctx: ToolContext) -> WorkflowResult:
         """异步执行工作流
 
         使用 asyncio 并发执行并行组内的步骤，
@@ -365,47 +355,59 @@ class WorkflowEngine:
         ctx.set("__workflow_name", workflow.name)
         ctx.set("__workflow_start_time", start_time)
 
-        execution_log.append({
-            "event": "workflow_started",
-            "workflow": workflow.name,
-            "timestamp": time.time(),
-            "total_steps": len(workflow.steps),
-        })
+        execution_log.append(
+            {
+                "event": "workflow_started",
+                "workflow": workflow.name,
+                "timestamp": time.time(),
+                "total_steps": len(workflow.steps),
+            }
+        )
 
-        has_parallel_groups = any(
-            s.parallel_group for s in workflow.steps
-        )
-        has_branches = any(
-            getattr(s, "is_branch", False) for s in workflow.steps
-        )
+        has_parallel_groups = any(s.parallel_group for s in workflow.steps)
+        has_branches = any(getattr(s, "is_branch", False) for s in workflow.steps)
 
         try:
             if has_branches:
                 result = await self._async_execute_with_branches(
-                    workflow, ctx, results, execution_log,
-                    errors, named_outputs,
+                    workflow,
+                    ctx,
+                    results,
+                    execution_log,
+                    errors,
+                    named_outputs,
                 )
                 last_output = result
             elif has_parallel_groups:
                 await self._async_execute_mixed(
-                    workflow, ctx, results, execution_log,
-                    errors, named_outputs,
+                    workflow,
+                    ctx,
+                    results,
+                    execution_log,
+                    errors,
+                    named_outputs,
                 )
                 last_output = self._extract_last_output(results)
             else:
                 await self._async_execute_linear(
-                    workflow, ctx, results, execution_log,
-                    errors, named_outputs,
+                    workflow,
+                    ctx,
+                    results,
+                    execution_log,
+                    errors,
+                    named_outputs,
                 )
                 last_output = self._extract_last_output(results)
         except Exception as e:
             logger.exception(f"[WorkflowEngine] 工作流 '{workflow.name}' 异常终止")
-            errors.append(ErrorInfo(
-                code="WORKFLOW_EXCEPTION",
-                message=f"工作流异常终止: {str(e)}",
-                severity="error",
-                details={"exception_type": type(e).__name__},
-            ))
+            errors.append(
+                ErrorInfo(
+                    code="WORKFLOW_EXCEPTION",
+                    message=f"工作流异常终止: {str(e)}",
+                    severity="error",
+                    details={"exception_type": type(e).__name__},
+                )
+            )
 
         total_ms = (time.time() - start_time) * 1000
         all_success = all(r.success for r in results.values()) if results else False
@@ -419,23 +421,27 @@ class WorkflowEngine:
             errors=errors,
         )
 
-        self.execution_history.append({
-            "workflow": workflow.name,
-            "success": wf_result.success,
-            "total_time_ms": wf_result.total_time_ms,
-            "step_count": len(results),
-            "error_count": len(errors),
-            "timestamp": time.time(),
-        })
+        self.execution_history.append(
+            {
+                "workflow": workflow.name,
+                "success": wf_result.success,
+                "total_time_ms": wf_result.total_time_ms,
+                "step_count": len(results),
+                "error_count": len(errors),
+                "timestamp": time.time(),
+            }
+        )
 
-        execution_log.append({
-            "event": "workflow_finished",
-            "success": wf_result.success,
-            "total_time_ms": round(total_ms, 2),
-            "steps_completed": len(results),
-            "errors": len(errors),
-            "timestamp": time.time(),
-        })
+        execution_log.append(
+            {
+                "event": "workflow_finished",
+                "success": wf_result.success,
+                "total_time_ms": round(total_ms, 2),
+                "steps_completed": len(results),
+                "errors": len(errors),
+                "timestamp": time.time(),
+            }
+        )
 
         logger.info(
             f"[WorkflowEngine] 工作流 '{workflow.name}' 完成: "
@@ -461,15 +467,12 @@ class WorkflowEngine:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(
-                        asyncio.run, self.execute_async(workflow, ctx)
-                    )
+                    future = pool.submit(asyncio.run, self.execute_async(workflow, ctx))
                     return future.result()
             else:
-                return loop.run_until_complete(
-                    self.execute_async(workflow, ctx)
-                )
+                return loop.run_until_complete(self.execute_async(workflow, ctx))
         except RuntimeError:
             return asyncio.run(self.execute_async(workflow, ctx))
 
@@ -491,17 +494,20 @@ class WorkflowEngine:
         for idx, step in enumerate(workflow.steps):
             step_key = getattr(step, "_internal_id", f"step_{idx}")
             step_result = self._execute_single_step(
-                step, step_key, ctx, named_outputs, last_output,
-                execution_log, errors,
+                step,
+                step_key,
+                ctx,
+                named_outputs,
+                last_output,
+                execution_log,
+                errors,
             )
             results[step_key] = step_result
             last_output = step_result.data
             named_outputs[step_key] = step_result.data
 
             if not step_result.success and not step.continue_on_error:
-                logger.warning(
-                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 失败且未设置 continue_on_error，中止工作流"
-                )
+                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 失败且未设置 continue_on_error，中止工作流")
                 break
 
         total_ms = (time.time() - start_time) * 1000
@@ -536,8 +542,13 @@ class WorkflowEngine:
             for step in linear_steps:
                 step_key = getattr(step, "_internal_id", f"step_{len(results)}")
                 step_result = self._execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results[step_key] = step_result
                 last_output = step_result.data
@@ -546,7 +557,9 @@ class WorkflowEngine:
                     break
 
             for group_name, group_steps in parallel_groups.items():
-                group_results = self._execute_parallel(group_steps, ctx, named_outputs, last_output, execution_log, errors)
+                group_results = self._execute_parallel(
+                    group_steps, ctx, named_outputs, last_output, execution_log, errors
+                )
                 results.update(group_results)
                 for sk, sr in group_results.items():
                     named_outputs[sk] = sr.data
@@ -555,8 +568,13 @@ class WorkflowEngine:
             for step in flat_steps:
                 step_key = getattr(step, "_internal_id", f"step_{len(results)}")
                 step_result = self._execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results[step_key] = step_result
                 last_output = step_result.data
@@ -592,8 +610,13 @@ class WorkflowEngine:
         def _run_step(step: WorkflowStep) -> Tuple[str, ToolResult]:
             step_key = getattr(step, "_internal_id", f"parallel_{id(step)}")
             result = self._execute_single_step(
-                step, step_key, ctx, named_outputs, last_output,
-                execution_log, errors,
+                step,
+                step_key,
+                ctx,
+                named_outputs,
+                last_output,
+                execution_log,
+                errors,
             )
             return step_key, result
 
@@ -611,11 +634,13 @@ class WorkflowEngine:
                         code="PARALLEL_STEP_ERROR",
                     )
                     results[step_key] = err_result
-                    errors.append(ErrorInfo(
-                        code="PARALLEL_STEP_ERROR",
-                        message=f"并行步骤 '{step.tool_name}' 异常: {str(e)}",
-                        severity="error",
-                    ))
+                    errors.append(
+                        ErrorInfo(
+                            code="PARALLEL_STEP_ERROR",
+                            message=f"并行步骤 '{step.tool_name}' 异常: {str(e)}",
+                            severity="error",
+                        )
+                    )
 
         return results
 
@@ -635,8 +660,13 @@ class WorkflowEngine:
         for idx, step in enumerate(workflow.steps):
             step_key = getattr(step, "_internal_id", f"step_{idx}")
             step_result = await self._async_execute_single_step(
-                step, step_key, ctx, named_outputs, last_output,
-                execution_log, errors,
+                step,
+                step_key,
+                ctx,
+                named_outputs,
+                last_output,
+                execution_log,
+                errors,
             )
             results[step_key] = step_result
             last_output = step_result.data
@@ -664,8 +694,13 @@ class WorkflowEngine:
             for step in linear_steps:
                 step_key = getattr(step, "_internal_id", f"step_{len(results)}")
                 step_result = await self._async_execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results[step_key] = step_result
                 last_output = step_result.data
@@ -675,8 +710,12 @@ class WorkflowEngine:
 
             for group_name, group_steps in parallel_groups.items():
                 group_results = await self._async_execute_parallel(
-                    group_steps, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    group_steps,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results.update(group_results)
                 for sk, sr in group_results.items():
@@ -686,8 +725,13 @@ class WorkflowEngine:
             for step in flat_steps:
                 step_key = getattr(step, "_internal_id", f"step_{len(results)}")
                 step_result = await self._async_execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results[step_key] = step_result
                 last_output = step_result.data
@@ -716,8 +760,13 @@ class WorkflowEngine:
                 step = item["step"]
                 step_key = getattr(step, "_internal_id", f"step_{len(results)}")
                 step_result = await self._async_execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results[step_key] = step_result
                 last_output = step_result.data
@@ -727,8 +776,12 @@ class WorkflowEngine:
             elif item["type"] == "group":
                 group_steps = item["steps"]
                 group_results = await self._async_execute_parallel(
-                    group_steps, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    group_steps,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results.update(group_results)
                 for sk, sr in group_results.items():
@@ -752,8 +805,13 @@ class WorkflowEngine:
             async with semaphore:
                 step_key = getattr(step, "_internal_id", f"async_parallel_{id(step)}")
                 result = await self._async_execute_single_step(
-                    step, step_key, ctx, named_outputs, last_output,
-                    execution_log, errors,
+                    step,
+                    step_key,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 return step_key, result
 
@@ -769,11 +827,13 @@ class WorkflowEngine:
                     code="ASYNC_PARALLEL_ERROR",
                 )
                 results[step_key] = err_result
-                errors.append(ErrorInfo(
-                    code="ASYNC_PARALLEL_ERROR",
-                    message=f"异步并行步骤 '{step.tool_name}' 异常: {str(outcome)}",
-                    severity="error",
-                ))
+                errors.append(
+                    ErrorInfo(
+                        code="ASYNC_PARALLEL_ERROR",
+                        message=f"异步并行步骤 '{step.tool_name}' 异常: {str(outcome)}",
+                        severity="error",
+                    )
+                )
             else:
                 sk, sr = outcome
                 results[sk] = sr
@@ -810,12 +870,14 @@ class WorkflowEngine:
                 logger.warning(f"[WorkflowEngine] 条件评估异常: {e}")
                 should_run = False
             if not should_run:
-                log_entry.update({
-                    "status": "skipped",
-                    "reason": "condition_evaluated_false",
-                    "end_time": time.time(),
-                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-                })
+                log_entry.update(
+                    {
+                        "status": "skipped",
+                        "reason": "condition_evaluated_false",
+                        "end_time": time.time(),
+                        "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                    }
+                )
                 skipped_result = ToolResult.success_result(
                     data=None,
                     skipped=True,
@@ -828,12 +890,14 @@ class WorkflowEngine:
             err_msg = f"工具 '{step.tool_name}' 未在注册表中找到"
             logger.error(f"[WorkflowEngine] {err_msg}")
             errors.append(ErrorInfo(code="TOOL_NOT_FOUND", message=err_msg))
-            log_entry.update({
-                "status": "error",
-                "error": err_msg,
-                "end_time": time.time(),
-                "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-            })
+            log_entry.update(
+                {
+                    "status": "error",
+                    "error": err_msg,
+                    "end_time": time.time(),
+                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                }
+            )
             return ToolResult.error_result(err_msg, code="TOOL_NOT_FOUND")
 
         resolved_args = self._resolve_args(step, named_outputs, last_output)
@@ -863,45 +927,49 @@ class WorkflowEngine:
                 break
             except _StepTimeoutError as e:
                 last_error = e
-                logger.warning(
-                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试超时"
-                )
+                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试超时")
                 if attempt <= step.retry_count:
                     time.sleep(step.retry_delay)
             except Exception as e:
                 last_error = e
-                logger.warning(
-                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试异常: {e}"
-                )
+                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试异常: {e}")
                 if attempt <= step.retry_count:
                     time.sleep(step.retry_delay)
 
         if result is None:
             err_msg = f"步骤 '{step.tool_name}' 执行失败 (已重试 {step.retry_count} 次): {last_error}"
-            errors.append(ErrorInfo(
-                code="STEP_EXECUTION_FAILED",
-                message=err_msg,
-                severity="error",
-                details={"tool_name": step.tool_name, "attempts": attempt},
-            ))
-            log_entry.update({
-                "status": "error",
-                "error": str(last_error),
-                "attempts": attempt,
-                "end_time": time.time(),
-                "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-            })
+            errors.append(
+                ErrorInfo(
+                    code="STEP_EXECUTION_FAILED",
+                    message=err_msg,
+                    severity="error",
+                    details={"tool_name": step.tool_name, "attempts": attempt},
+                )
+            )
+            log_entry.update(
+                {
+                    "status": "error",
+                    "error": str(last_error),
+                    "attempts": attempt,
+                    "end_time": time.time(),
+                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                }
+            )
             return ToolResult.error_result(err_msg, code="STEP_EXECUTION_FAILED")
 
         elapsed_ms = (time.time() - step_start) * 1000
-        log_entry.update({
-            "status": "success" if result.success else "failed",
-            "success": result.success,
-            "attempts": attempt,
-            "elapsed_ms": round(elapsed_ms, 2),
-            "end_time": time.time(),
-            "output_keys": list(result.data.keys()) if isinstance(result.data, dict) else type(result.data).__name__,
-        })
+        log_entry.update(
+            {
+                "status": "success" if result.success else "failed",
+                "success": result.success,
+                "attempts": attempt,
+                "elapsed_ms": round(elapsed_ms, 2),
+                "end_time": time.time(),
+                "output_keys": (
+                    list(result.data.keys()) if isinstance(result.data, dict) else type(result.data).__name__
+                ),
+            }
+        )
 
         if not result.success:
             for err in result.errors:
@@ -943,12 +1011,14 @@ class WorkflowEngine:
                 logger.warning(f"[WorkflowEngine] 条件评估异常: {e}")
                 should_run = False
             if not should_run:
-                log_entry.update({
-                    "status": "skipped",
-                    "reason": "condition_evaluated_false",
-                    "end_time": time.time(),
-                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-                })
+                log_entry.update(
+                    {
+                        "status": "skipped",
+                        "reason": "condition_evaluated_false",
+                        "end_time": time.time(),
+                        "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                    }
+                )
                 return ToolResult.success_result(
                     data=None,
                     skipped=True,
@@ -959,12 +1029,14 @@ class WorkflowEngine:
         if tool_class is None:
             err_msg = f"工具 '{step.tool_name}' 未在注册表中找到"
             errors.append(ErrorInfo(code="TOOL_NOT_FOUND", message=err_msg))
-            log_entry.update({
-                "status": "error",
-                "error": err_msg,
-                "end_time": time.time(),
-                "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-            })
+            log_entry.update(
+                {
+                    "status": "error",
+                    "error": err_msg,
+                    "end_time": time.time(),
+                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                }
+            )
             return ToolResult.error_result(err_msg, code="TOOL_NOT_FOUND")
 
         resolved_args = self._resolve_args(step, named_outputs, last_output)
@@ -1008,28 +1080,34 @@ class WorkflowEngine:
 
         if result is None:
             err_msg = f"步骤 '{step.tool_name}' 执行失败: {last_error}"
-            errors.append(ErrorInfo(
-                code="STEP_EXECUTION_FAILED",
-                message=err_msg,
-                severity="error",
-            ))
-            log_entry.update({
-                "status": "error",
-                "error": str(last_error),
-                "attempts": attempt,
-                "end_time": time.time(),
-                "elapsed_ms": round((time.time() - step_start) * 1000, 2),
-            })
+            errors.append(
+                ErrorInfo(
+                    code="STEP_EXECUTION_FAILED",
+                    message=err_msg,
+                    severity="error",
+                )
+            )
+            log_entry.update(
+                {
+                    "status": "error",
+                    "error": str(last_error),
+                    "attempts": attempt,
+                    "end_time": time.time(),
+                    "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                }
+            )
             return ToolResult.error_result(err_msg, code="STEP_EXECUTION_FAILED")
 
         elapsed_ms = (time.time() - step_start) * 1000
-        log_entry.update({
-            "status": "success" if result.success else "failed",
-            "success": result.success,
-            "attempts": attempt,
-            "elapsed_ms": round(elapsed_ms, 2),
-            "end_time": time.time(),
-        })
+        log_entry.update(
+            {
+                "status": "success" if result.success else "failed",
+                "success": result.success,
+                "attempts": attempt,
+                "elapsed_ms": round(elapsed_ms, 2),
+                "end_time": time.time(),
+            }
+        )
 
         if not result.success:
             errors.extend(result.errors)
@@ -1068,7 +1146,7 @@ class WorkflowEngine:
                     return self._get_nested(source_output, path)
                 if val.startswith("$") and "." in val:
                     ref_name = val.split(".")[0]
-                    ref_path = val[len(ref_name) + 1:]
+                    ref_path = val[len(ref_name) + 1 :]
                     if ref_name in named_outputs:
                         return self._get_nested(named_outputs[ref_name], ref_path)
                     if ref_name == "$prev":
@@ -1194,37 +1272,49 @@ class BuiltInWorkflows:
             name="daily_analysis",
             description="每日分析流程: 数据加载→特征→预测→权重分析→优化建议→报告",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="data_loader",
-            args={"path_or_data": "$config.data_path"},
-            continue_on_error=False,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="feature_engineer",
-            args={"raw_data": "$prev.data"},
-            input_from_step=None,
-            continue_on_error=False,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="predictor",
-            args={"features": "$prev.data.X"},
-            continue_on_error=False,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="weight_analyzer",
-            args={},
-            continue_on_error=True,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="optimization_advisor",
-            args={"performance_data": "$prev.data"},
-            continue_on_error=True,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="model_analyzer",
-            args={"load_model": False},
-            continue_on_error=True,
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="data_loader",
+                args={"path_or_data": "$config.data_path"},
+                continue_on_error=False,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="feature_engineer",
+                args={"raw_data": "$prev.data"},
+                input_from_step=None,
+                continue_on_error=False,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="predictor",
+                args={"features": "$prev.data.X"},
+                continue_on_error=False,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="weight_analyzer",
+                args={},
+                continue_on_error=True,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="optimization_advisor",
+                args={"performance_data": "$prev.data"},
+                continue_on_error=True,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="model_analyzer",
+                args={"load_model": False},
+                continue_on_error=True,
+            )
+        )
         return wf
 
     @staticmethod
@@ -1239,42 +1329,52 @@ class BuiltInWorkflows:
             name="model_training",
             description="模型训练流程: 数据→特征→选择→训练→评估→保存→验证",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="data_loader",
-            args={"path_or_data": "$config.training_data_path"},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="feature_engineer",
-            args={
-                "raw_data": "$prev.data",
-                "enable_selection": True,
-                "select_top": 80,
-            },
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="feature_selector",
-            args={
-                "X": "$prev.data.featured_dataframe",
-                "y": "$config.target_column",
-                "n_features": 60,
-            },
-            continue_on_error=True,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="model_analyzer",
-            args={"load_model": True},
-            retry_count=2,
-            retry_delay=2.0,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="history_evaluator",
-            args={
-                "predictions_history": "$config.recent_predictions",
-                "actual_results": "$config.recent_actuals",
-            },
-            continue_on_error=True,
-            condition=lambda state: state.get("has_evaluation_data", False),
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="data_loader",
+                args={"path_or_data": "$config.training_data_path"},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="feature_engineer",
+                args={
+                    "raw_data": "$prev.data",
+                    "enable_selection": True,
+                    "select_top": 80,
+                },
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="feature_selector",
+                args={
+                    "X": "$prev.data.featured_dataframe",
+                    "y": "$config.target_column",
+                    "n_features": 60,
+                },
+                continue_on_error=True,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="model_analyzer",
+                args={"load_model": True},
+                retry_count=2,
+                retry_delay=2.0,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="history_evaluator",
+                args={
+                    "predictions_history": "$config.recent_predictions",
+                    "actual_results": "$config.recent_actuals",
+                },
+                continue_on_error=True,
+                condition=lambda state: state.get("has_evaluation_data", False),
+            )
+        )
         return wf
 
     @staticmethod
@@ -1289,25 +1389,33 @@ class BuiltInWorkflows:
             name="evaluation",
             description="评估流程: 历史→诊断→评估→权重分析→建议→报告",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="model_analyzer",
-            args={"load_model": True},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="weight_analyzer",
-            args={},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="history_evaluator",
-            args={
-                "predictions_history": "$config.predictions_history",
-                "actual_results": "$config.actual_results",
-            },
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="optimization_advisor",
-            args={},
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="model_analyzer",
+                args={"load_model": True},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="weight_analyzer",
+                args={},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="history_evaluator",
+                args={
+                    "predictions_history": "$config.predictions_history",
+                    "actual_results": "$config.actual_results",
+                },
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="optimization_advisor",
+                args={},
+            )
+        )
         return wf
 
     @staticmethod
@@ -1322,27 +1430,33 @@ class BuiltInWorkflows:
             name="full_pipeline",
             description="完整自动化流水线: 数据→特征→预测→评估→分析→建议→报告",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="data_loader",
-            args={"path_or_data": "$config.data_path"},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="validation",
-            args={
-                "data": "$prev.data",
-                "required_columns": ["period"],
-                "strict": False,
-            },
-            continue_on_error=True,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="feature_engineer",
-            args={
-                "raw_data": "$prev.data",
-                "enable_selection": True,
-                "select_top": 100,
-            },
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="data_loader",
+                args={"path_or_data": "$config.data_path"},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="validation",
+                args={
+                    "data": "$prev.data",
+                    "required_columns": ["period"],
+                    "strict": False,
+                },
+                continue_on_error=True,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="feature_engineer",
+                args={
+                    "raw_data": "$prev.data",
+                    "enable_selection": True,
+                    "select_top": 100,
+                },
+            )
+        )
         wf.add_parallel(
             WorkflowStep(
                 tool_name="model_analyzer",
@@ -1355,24 +1469,30 @@ class BuiltInWorkflows:
                 parallel_group=None,
             ),
         )
-        wf.add_step(WorkflowStep(
-            tool_name="predictor",
-            args={"features": "$prev.data.X"},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="optimization_advisor",
-            args={},
-            continue_on_error=True,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="logger",
-            args={
-                "message": "完整流水线执行完成",
-                "level": "info",
-                "extra": {"workflow": "full_pipeline"},
-            },
-            continue_on_error=True,
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="predictor",
+                args={"features": "$prev.data.X"},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="optimization_advisor",
+                args={},
+                continue_on_error=True,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="logger",
+                args={
+                    "message": "完整流水线执行完成",
+                    "level": "info",
+                    "extra": {"workflow": "full_pipeline"},
+                },
+                continue_on_error=True,
+            )
+        )
         return wf
 
     @staticmethod
@@ -1387,16 +1507,20 @@ class BuiltInWorkflows:
             name="quick_predict",
             description="快速预测流程: 模型加载→预测",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="model_analyzer",
-            args={"load_model": True},
-            timeout=120.0,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="predictor",
-            args={"features": "$input.features"},
-            timeout=60.0,
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="model_analyzer",
+                args={"load_model": True},
+                timeout=120.0,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="predictor",
+                args={"features": "$input.features"},
+                timeout=60.0,
+            )
+        )
         return wf
 
     @staticmethod
@@ -1411,27 +1535,35 @@ class BuiltInWorkflows:
             name="batch_prediction",
             description="批量预测流程: 数据加载→特征→批量预测→汇总",
         )
-        wf.add_step(WorkflowStep(
-            tool_name="data_loader",
-            args={"path_or_data": "$config.batch_data_path"},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="feature_engineer",
-            args={"raw_data": "$prev.data"},
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="batch_predictor",
-            args={
-                "features_list": "$prev.data.X",
-                "top_k": "$config.top_k",
-            },
-            timeout=600.0,
-        ))
-        wf.add_step(WorkflowStep(
-            tool_name="optimization_advisor",
-            args={},
-            continue_on_error=True,
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="data_loader",
+                args={"path_or_data": "$config.batch_data_path"},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="feature_engineer",
+                args={"raw_data": "$prev.data"},
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="batch_predictor",
+                args={
+                    "features_list": "$prev.data.X",
+                    "top_k": "$config.top_k",
+                },
+                timeout=600.0,
+            )
+        )
+        wf.add_step(
+            WorkflowStep(
+                tool_name="optimization_advisor",
+                args={},
+                continue_on_error=True,
+            )
+        )
         return wf
 
     @staticmethod
@@ -1451,14 +1583,16 @@ class BuiltInWorkflows:
             WorkflowStep(tool_name="weight_analyzer", args={}),
             WorkflowStep(tool_name="cache", args={"operation": "stats"}),
         )
-        wf.add_step(WorkflowStep(
-            tool_name="logger",
-            args={
-                "message": "诊断检查完成",
-                "level": "info",
-                "extra": {"workflow": "diagnostic_check"},
-            },
-        ))
+        wf.add_step(
+            WorkflowStep(
+                tool_name="logger",
+                args={
+                    "message": "诊断检查完成",
+                    "level": "info",
+                    "extra": {"workflow": "diagnostic_check"},
+                },
+            )
+        )
         return wf
 
     @staticmethod
@@ -1498,8 +1632,5 @@ class BuiltInWorkflows:
         if callable(method):
             return method()
         available = list(BuiltInWorkflows.list_templates().keys())
-        logger.warning(
-            f"[BuiltInWorkflows] 未找到模板 '{name}'，"
-            f"可用模板: {available}"
-        )
+        logger.warning(f"[BuiltInWorkflows] 未找到模板 '{name}'，" f"可用模板: {available}")
         return None

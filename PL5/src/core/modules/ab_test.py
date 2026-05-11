@@ -2,6 +2,7 @@
 A/B测试框架
 管理实验配置、流量分流、指标收集和统计
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Set, Callable
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ExperimentStatus(Enum):
     """实验状态"""
+
     DRAFT = "draft"
     RUNNING = "running"
     PAUSED = "paused"
@@ -26,6 +28,7 @@ class ExperimentStatus(Enum):
 @dataclass
 class Variant:
     """实验变体"""
+
     id: str
     name: str
     description: str
@@ -37,6 +40,7 @@ class Variant:
 @dataclass
 class MetricValue:
     """指标值"""
+
     metric_name: str
     value: float
     timestamp: datetime = field(default_factory=datetime.now)
@@ -46,14 +50,15 @@ class MetricValue:
 @dataclass
 class ExperimentResult:
     """实验结果"""
+
     experiment_id: str
     variant_id: str
     metric_name: str
     count: int = 0
     sum_value: float = 0.0
     sum_squared: float = 0.0
-    min_value: float = float('inf')
-    max_value: float = -float('inf')
+    min_value: float = float("inf")
+    max_value: float = -float("inf")
 
     @property
     def mean(self) -> float:
@@ -66,7 +71,7 @@ class ExperimentResult:
         if self.count == 0:
             return 0.0
         mean = self.mean
-        return (self.sum_squared / self.count) - mean ** 2
+        return (self.sum_squared / self.count) - mean**2
 
     @property
     def std_dev(self) -> float:
@@ -76,6 +81,7 @@ class ExperimentResult:
 @dataclass
 class Experiment:
     """A/B实验"""
+
     id: str
     name: str
     description: str
@@ -100,13 +106,15 @@ class ABTestFramework:
         self._experiments: Dict[str, Experiment] = {}
         self._variant_assignments: Dict[str, Dict[str, str]] = {}
 
-    def create_experiment(self,
-                          experiment_id: str,
-                          name: str,
-                          description: str,
-                          variants: List[Variant],
-                          metrics: List[str],
-                          config: Optional[Dict[str, Any]] = None) -> Optional[Experiment]:
+    def create_experiment(
+        self,
+        experiment_id: str,
+        name: str,
+        description: str,
+        variants: List[Variant],
+        metrics: List[str],
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Experiment]:
         """
         创建A/B实验
 
@@ -140,7 +148,7 @@ class ABTestFramework:
             status=ExperimentStatus.DRAFT,
             variants=variants,
             metrics=metrics,
-            config=config or {}
+            config=config or {},
         )
 
         self._experiments[experiment_id] = experiment
@@ -263,9 +271,14 @@ class ABTestFramework:
         self._variant_assignments[experiment_id][user_id] = selected_variant.id
         return selected_variant
 
-    def record_metric(self, experiment_id: str, user_id: str,
-                      metric_name: str, value: float,
-                      metadata: Optional[Dict[str, Any]] = None) -> bool:
+    def record_metric(
+        self,
+        experiment_id: str,
+        user_id: str,
+        metric_name: str,
+        value: float,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """
         记录指标值
 
@@ -303,15 +316,13 @@ class ABTestFramework:
 
         if metric_name not in experiment.results[experiment_id][variant.id]:
             experiment.results[experiment_id][variant.id][metric_name] = ExperimentResult(
-                experiment_id=experiment_id,
-                variant_id=variant.id,
-                metric_name=metric_name
+                experiment_id=experiment_id, variant_id=variant.id, metric_name=metric_name
             )
 
         result = experiment.results[experiment_id][variant.id][metric_name]
         result.count += 1
         result.sum_value += value
-        result.sum_squared += value ** 2
+        result.sum_squared += value**2
         result.min_value = min(result.min_value, value)
         result.max_value = max(result.max_value, value)
 
@@ -392,7 +403,7 @@ class ABTestFramework:
         Returns:
             哈希值
         """
-        combined = f"{experiment_id}:{user_id}".encode('utf-8')
+        combined = f"{experiment_id}:{user_id}".encode("utf-8")
         hash_obj = hashlib.md5(combined)
         return int(hash_obj.hexdigest(), 16)
 

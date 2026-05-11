@@ -54,18 +54,19 @@ class VersionChangeLog:
 
 def _compute_checksum(data_dict: Dict[str, Any]) -> str:
     """计算模型数据的 SHA256 校验和（排除 metadata 和 checksum 字段本身）
-    
+
     注意：不直接pickle整个对象，而是构造一个可哈希的字典，
     避免lambda函数等不可序列化对象。
     """
     import copy
+
     data_for_hash = copy.deepcopy(data_dict)
     data_for_hash.pop("metadata", None)
     data_for_hash.pop("_v10_checksum", None)
-    
+
     # 构造安全的可哈希字典
     safe_data = {}
-    
+
     # 处理主要字段
     for key, value in data_for_hash.items():
         if key == "stacking":
@@ -85,9 +86,9 @@ def _compute_checksum(data_dict: Dict[str, Any]) -> str:
         else:
             # 对于其他复杂对象，只保存类型信息
             safe_data[key] = {"type": type(value).__name__}
-    
+
     # 计算哈希
-    serialized = json.dumps(safe_data, sort_keys=True, ensure_ascii=False).encode('utf-8')
+    serialized = json.dumps(safe_data, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(serialized).hexdigest()
 
 
@@ -125,7 +126,7 @@ class ModelVersionManager:
         """加载变更日志"""
         if self.version_log_path.exists():
             try:
-                with open(self.version_log_path, 'r', encoding='utf-8') as f:
+                with open(self.version_log_path, "r", encoding="utf-8") as f:
                     self._change_logs = json.load(f)
             except Exception as e:
                 logger.warning(f"[VersionManager] 加载变更日志失败: {e}, 将创建新日志")
@@ -134,7 +135,7 @@ class ModelVersionManager:
     def _save_change_logs(self):
         """持久化变更日志"""
         try:
-            with open(self.version_log_path, 'w', encoding='utf-8') as f:
+            with open(self.version_log_path, "w", encoding="utf-8") as f:
                 json.dump(self._change_logs[-500:], f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"[VersionManager] 保存变更日志失败: {e}")
@@ -150,9 +151,12 @@ class ModelVersionManager:
             f"{log_entry.description}"
         )
 
-    def build_v10_metadata(self, model_data: Dict[str, Any],
-                           performance_metrics: Optional[Dict[str, float]] = None,
-                           training_samples: int = 0) -> ModelMetadata:
+    def build_v10_metadata(
+        self,
+        model_data: Dict[str, Any],
+        performance_metrics: Optional[Dict[str, float]] = None,
+        training_samples: int = 0,
+    ) -> ModelMetadata:
         """构建 V10.0 格式的完整元数据"""
         meta = ModelMetadata(
             version=CURRENT_VERSION,
@@ -164,9 +168,12 @@ class ModelVersionManager:
         )
         return meta
 
-    def wrap_v10_format(self, model_data: Dict[str, Any],
-                        performance_metrics: Optional[Dict[str, float]] = None,
-                        training_samples: int = 0) -> Dict[str, Any]:
+    def wrap_v10_format(
+        self,
+        model_data: Dict[str, Any],
+        performance_metrics: Optional[Dict[str, float]] = None,
+        training_samples: int = 0,
+    ) -> Dict[str, Any]:
         """将模型数据包装为 V10.0 完整格式"""
         meta = self.build_v10_metadata(model_data, performance_metrics, training_samples)
         v10_data = dict(model_data)
@@ -218,16 +225,18 @@ class ModelVersionManager:
         v10_state["_v10_checksum"] = checksum_after
         v10_state["metadata"]["checksum"] = checksum_after
 
-        self._log_change(VersionChangeLog(
-            timestamp=datetime.now().isoformat(),
-            operation="migrate",
-            from_version=meta.source_version,
-            to_version=CURRENT_VERSION,
-            operator="system",
-            description=f"Auto-migrate V9.0→V10.0, features={len(feature_cols)}",
-            checksum_before=checksum_before,
-            checksum_after=checksum_after,
-        ))
+        self._log_change(
+            VersionChangeLog(
+                timestamp=datetime.now().isoformat(),
+                operation="migrate",
+                from_version=meta.source_version,
+                to_version=CURRENT_VERSION,
+                operator="system",
+                description=f"Auto-migrate V9.0→V10.0, features={len(feature_cols)}",
+                checksum_before=checksum_before,
+                checksum_after=checksum_after,
+            )
+        )
 
         logger.info(f"[VersionManager] 迁移完成 | checksum: {checksum_after[:16]}...")
         return v10_state
@@ -262,7 +271,7 @@ class ModelVersionManager:
             return result
 
         try:
-            with open(target_path, 'rb') as f:
+            with open(target_path, "rb") as f:
                 state = pickle.load(f)
         except Exception as e:
             result["errors"].append(f"Failed to load model file: {e}")
@@ -331,14 +340,16 @@ class ModelVersionManager:
                 oldest.unlink()
                 logger.info(f"[VersionManager] 清理旧备份: {oldest.name}")
 
-            self._log_change(VersionChangeLog(
-                timestamp=datetime.now().isoformat(),
-                operation="backup",
-                from_version="",
-                to_version="",
-                operator="system",
-                description=f"Created backup: {backup_name}",
-            ))
+            self._log_change(
+                VersionChangeLog(
+                    timestamp=datetime.now().isoformat(),
+                    operation="backup",
+                    from_version="",
+                    to_version="",
+                    operator="system",
+                    description=f"Created backup: {backup_name}",
+                )
+            )
             return backup_name
         except Exception as e:
             logger.error(f"[VersionManager] 创建备份失败: {e}")
@@ -349,12 +360,14 @@ class ModelVersionManager:
         backups = []
         for bp in sorted(self.backup_dir.glob("backup_*.pkl")):
             stat = bp.stat()
-            backups.append({
-                "filename": bp.name,
-                "path": str(bp),
-                "size_kb": round(stat.st_size / 1024, 1),
-                "created_time": datetime.fromtimestamp(stat.st_ctime).isoformat(),
-            })
+            backups.append(
+                {
+                    "filename": bp.name,
+                    "path": str(bp),
+                    "size_kb": round(stat.st_size / 1024, 1),
+                    "created_time": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                }
+            )
         return backups
 
     def rollback_to_backup(self, backup_filename: str) -> bool:
@@ -377,16 +390,20 @@ class ModelVersionManager:
 
             validation_after = self.validate_model_integrity(target_path)
 
-            self._log_change(VersionChangeLog(
-                timestamp=datetime.now().isoformat(),
-                operation="rollback",
-                from_version=validation_before.get("version") if validation_before else "unknown",
-                to_version=validation_after.get("version"),
-                operator="system",
-                description=f"Rolled back to backup: {backup_filename}",
-                checksum_before=validation_before.get("metadata", {}).get("checksum", "") if validation_before else "",
-                checksum_after=validation_after.get("metadata", {}).get("checksum", "") if validation_after else "",
-            ))
+            self._log_change(
+                VersionChangeLog(
+                    timestamp=datetime.now().isoformat(),
+                    operation="rollback",
+                    from_version=validation_before.get("version") if validation_before else "unknown",
+                    to_version=validation_after.get("version"),
+                    operator="system",
+                    description=f"Rolled back to backup: {backup_filename}",
+                    checksum_before=(
+                        validation_before.get("metadata", {}).get("checksum", "") if validation_before else ""
+                    ),
+                    checksum_after=validation_after.get("metadata", {}).get("checksum", "") if validation_after else "",
+                )
+            )
 
             logger.info(f"[VersionManager] 回滚成功: {backup_filename} -> {target_path}")
             return True
@@ -401,7 +418,7 @@ class ModelVersionManager:
         for bk in backups:
             bp = Path(bk["path"])
             try:
-                with open(bp, 'rb') as f:
+                with open(bp, "rb") as f:
                     state = pickle.load(f)
                 detected = self.detect_version(state)
                 if detected == version_str:
@@ -419,7 +436,7 @@ class ModelVersionManager:
             available = set()
             for bk in backups:
                 try:
-                    with open(bk["path"], 'rb') as f:
+                    with open(bk["path"], "rb") as f:
                         st = pickle.load(f)
                     available.add(self.detect_version(st))
                 except Exception:

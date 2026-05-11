@@ -15,70 +15,66 @@ from src.core.utils.logger import logger
 
 class EmailSender:
     """邮件发送器"""
-    
+
     def __init__(self, sender_email: str, auth_code: str, smtp_server: str = "smtp.qq.com", smtp_port: int = 465):
         self.sender_email = sender_email
         self.auth_code = auth_code
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-    
+
     def send_report(self, recipient_email: str, subject: str, html_content: str, text_content: str = None):
         """发送报告邮件
-        
+
         Raises:
             smtplib.SMTPException: SMTP通信错误，由外层 execute_with_retry 处理重试
             Exception: 其他异常，同样由外层重试机制处理
         """
         # 创建邮件对象
-        msg = MIMEMultipart('alternative')
-        msg['From'] = self.sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
-        
+        msg = MIMEMultipart("alternative")
+        msg["From"] = self.sender_email
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
+
         # 添加纯文本内容
         if text_content:
-            msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
-        
+            msg.attach(MIMEText(text_content, "plain", "utf-8"))
+
         # 添加HTML内容
-        msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-        
+        msg.attach(MIMEText(html_content, "html", "utf-8"))
+
         # 连接SMTP服务器并发送
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context) as server:
             server.login(self.sender_email, self.auth_code)
             server.sendmail(self.sender_email, recipient_email, msg.as_string())
-        
+
         logger.info(f"✓ 邮件发送成功: {recipient_email}")
         return True
 
 
-def generate_html_report(period: str, predictions: dict, analysis_data: dict, data_count: int, latest_period: str) -> str:
+def generate_html_report(
+    period: str, predictions: dict, analysis_data: dict, data_count: int, latest_period: str
+) -> str:
     """生成HTML格式的报告 - 全彩色清晰版"""
-    
-    position_names = {
-        'wan': '万位',
-        'qian': '千位',
-        'bai': '百位',
-        'shi': '十位',
-        'ge': '个位'
-    }
-    
+
+    position_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+
     # 提取预测结果
     top_8 = {}
     top_5 = {}
     top_3 = {}
     top_1 = {}
-    
-    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+
+    for pos in ["wan", "qian", "bai", "shi", "ge"]:
         pred = predictions.get(pos, {})
-        top_k = pred.get('top_k', [])
+        top_k = pred.get("top_k", [])
         top_8[pos] = top_k[:8]
         top_5[pos] = top_k[:5]
         top_3[pos] = top_k[:3]
         top_1[pos] = top_k[:1]
-    
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-    
+
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -377,11 +373,11 @@ def generate_html_report(period: str, predictions: dict, analysis_data: dict, da
             <div class="prediction-section">
                 <div class="section-header">🎯 预测结果 (Top 8 / 5 / 3)</div>
 """
-    
+
     # 生成每个位置的预测卡片
-    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+    for pos in ["wan", "qian", "bai", "shi", "ge"]:
         pos_name = position_names.get(pos, pos)
-        
+
         html += f"""
                 <div class="position-card">
                     <div class="position-name">{pos_name}</div>
@@ -413,7 +409,7 @@ def generate_html_report(period: str, predictions: dict, analysis_data: dict, da
                     </div>
                 </div>
 """
-    
+
     html += """
             </div>
             
@@ -426,18 +422,18 @@ def generate_html_report(period: str, predictions: dict, analysis_data: dict, da
                     <span class="model-tag active">Copula</span>
                     <span class="model-tag active">BSTS</span>
 """
-    
+
     # 根据V10模块状态显示标签
-    if analysis_data and 'mamba' in str(analysis_data).lower():
+    if analysis_data and "mamba" in str(analysis_data).lower():
         html += '<span class="model-tag active">Mamba</span>'
     else:
         html += '<span class="model-tag inactive">Mamba</span>'
-        
-    if analysis_data and 'itransformer' in str(analysis_data).lower():
+
+    if analysis_data and "itransformer" in str(analysis_data).lower():
         html += '<span class="model-tag active">iTransformer</span>'
     else:
         html += '<span class="model-tag inactive">iTransformer</span>'
-    
+
     html += f"""
                 </div>
             </div>
@@ -464,27 +460,27 @@ def generate_html_report(period: str, predictions: dict, analysis_data: dict, da
 </body>
 </html>
 """
-    
+
     return html
 
 
 if __name__ == "__main__":
     import os
-    
-    sender_email = os.environ.get('PL5_EMAIL', 'your_email@qq.com')
-    auth_code = os.environ.get('PL5_AUTH_CODE', 'your_auth_code')
-    
+
+    sender_email = os.environ.get("PL5_EMAIL", "your_email@qq.com")
+    auth_code = os.environ.get("PL5_AUTH_CODE", "your_auth_code")
+
     sender = EmailSender(sender_email, auth_code)
-    
+
     test_predictions = {
-        'wan': {'top_k': [1, 5, 0, 7, 3, 4, 8, 6]},
-        'qian': {'top_k': [4, 1, 3, 5, 9, 0, 2, 7]},
-        'bai': {'top_k': [9, 5, 1, 7, 4, 8, 0, 3]},
-        'shi': {'top_k': [6, 4, 8, 2, 1, 5, 9, 3]},
-        'ge': {'top_k': [7, 2, 9, 4, 1, 5, 3, 6]}
+        "wan": {"top_k": [1, 5, 0, 7, 3, 4, 8, 6]},
+        "qian": {"top_k": [4, 1, 3, 5, 9, 0, 2, 7]},
+        "bai": {"top_k": [9, 5, 1, 7, 4, 8, 0, 3]},
+        "shi": {"top_k": [6, 4, 8, 2, 1, 5, 9, 3]},
+        "ge": {"top_k": [7, 2, 9, 4, 1, 5, 3, 6]},
     }
-    
+
     html = generate_html_report("2026090", test_predictions, {})
-    
+
     print("HTML报告生成完成")
     print("提示: 请设置环境变量 PL5_EMAIL 和 PL5_AUTH_CODE 后再发送邮件")

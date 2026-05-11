@@ -32,24 +32,24 @@ class MultiMethodFeatureSelector:
     """多方法特征选择器 - 通过多方法投票机制实现智能特征选择"""
 
     METHOD_ALIASES = {
-        'rf': 'random_forest',
-        'random_forest': 'random_forest',
-        'mi': 'mutual_info',
-        'mutual_info': 'mutual_info',
-        'rfe': 'rfe',
-        'chi2': 'chi2',
+        "rf": "random_forest",
+        "random_forest": "random_forest",
+        "mi": "mutual_info",
+        "mutual_info": "mutual_info",
+        "rfe": "rfe",
+        "chi2": "chi2",
     }
 
     DEFAULT_WEIGHTS = {
-        'random_forest': 1.0,
-        'mutual_info': 0.9,
-        'rfe': 0.8,
-        'chi2': 0.7,
+        "random_forest": 1.0,
+        "mutual_info": 0.9,
+        "rfe": 0.8,
+        "chi2": 0.7,
     }
 
     def __init__(
         self,
-        methods: List[str] = ['rf', 'mi', 'rfe', 'chi2'],
+        methods: List[str] = ["rf", "mi", "rfe", "chi2"],
         correlation_threshold: float = 0.95,
         weights: Optional[Dict[str, float]] = None,
         exclude_cols: Optional[List[str]] = None,
@@ -61,7 +61,7 @@ class MultiMethodFeatureSelector:
             raise ValueError("至少需要指定一个有效的特征选择方法")
         self.correlation_threshold = correlation_threshold
         self.weights = {**self.DEFAULT_WEIGHTS, **(weights or {})}
-        self.exclude_cols = exclude_cols or ['period', 'full_number']
+        self.exclude_cols = exclude_cols or ["period", "full_number"]
         self.random_state = random_state
 
         self._fitted = False
@@ -75,7 +75,7 @@ class MultiMethodFeatureSelector:
         self._elbow_curve: Optional[Dict[int, float]] = None
         self._selected_features: List[str] = []
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> 'MultiMethodFeatureSelector':
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "MultiMethodFeatureSelector":
         logger.info(f"开始多方法特征选择，共 {X.shape[1]} 个特征，使用方法: {self.methods}")
 
         feature_cols = self._get_feature_columns(X)
@@ -133,24 +133,24 @@ class MultiMethodFeatureSelector:
         if not self._fitted:
             raise RuntimeError("请先调用 fit() 拟合选择器")
         report = {
-            'total_original_features': len(self._feature_names),
-            'total_after_correlation_filter': len(self._selected_features),
-            'methods_used': self.methods,
-            'weights_used': {m: self.weights[m] for m in self.methods},
-            'optimal_n_features': self._optimal_n_features,
-            'correlation_threshold': self.correlation_threshold,
-            'removed_correlated_pairs': self._removed_correlated,
-            'method_rankings': {},
-            'vote_ranking': [],
-            'top_50_features': [],
+            "total_original_features": len(self._feature_names),
+            "total_after_correlation_filter": len(self._selected_features),
+            "methods_used": self.methods,
+            "weights_used": {m: self.weights[m] for m in self.methods},
+            "optimal_n_features": self._optimal_n_features,
+            "correlation_threshold": self.correlation_threshold,
+            "removed_correlated_pairs": self._removed_correlated,
+            "method_rankings": {},
+            "vote_ranking": [],
+            "top_50_features": [],
         }
         for method, ranking in self._method_rankings.items():
-            report['method_rankings'][method] = ranking[:50]
+            report["method_rankings"][method] = ranking[:50]
         vote_sorted = sorted(self._vote_scores.items(), key=lambda x: x[1], reverse=True)
-        report['vote_ranking'] = [(f, round(s, 6)) for f, s in vote_sorted]
-        report['top_50_features'] = [(f, round(s, 6)) for f, s in vote_sorted[:50]]
+        report["vote_ranking"] = [(f, round(s, 6)) for f, s in vote_sorted]
+        report["top_50_features"] = [(f, round(s, 6)) for f, s in vote_sorted[:50]]
         if self._elbow_curve is not None:
-            report['elbow_curve'] = dict(sorted(self._elbow_curve.items()))
+            report["elbow_curve"] = dict(sorted(self._elbow_curve.items()))
         return report
 
     def suggest_optimal_n_features(self) -> int:
@@ -172,44 +172,46 @@ class MultiMethodFeatureSelector:
 
     def save_selector(self, filepath: Union[str, Path]):
         data = {
-            '_fitted': self._fitted,
-            '_feature_names': self._feature_names,
-            '_method_rankings': self._method_rankings,
-            '_method_scores': {k: {kk: float(vv) for kk, vv in v.items()} for k, v in self._method_scores.items()},
-            '_vote_scores': {k: float(v) for k, v in self._vote_scores.items()},
-            '_selected_features': self._selected_features,
-            '_removed_correlated': self._removed_correlated,
-            '_optimal_n_features': self._optimal_n_features,
-            '_elbow_curve': self._elbow_curve,
-            'methods': self.methods,
-            'correlation_threshold': self.correlation_threshold,
-            'weights': self.weights,
-            'exclude_cols': self.exclude_cols,
+            "_fitted": self._fitted,
+            "_feature_names": self._feature_names,
+            "_method_rankings": self._method_rankings,
+            "_method_scores": {k: {kk: float(vv) for kk, vv in v.items()} for k, v in self._method_scores.items()},
+            "_vote_scores": {k: float(v) for k, v in self._vote_scores.items()},
+            "_selected_features": self._selected_features,
+            "_removed_correlated": self._removed_correlated,
+            "_optimal_n_features": self._optimal_n_features,
+            "_elbow_curve": self._elbow_curve,
+            "methods": self.methods,
+            "correlation_threshold": self.correlation_threshold,
+            "weights": self.weights,
+            "exclude_cols": self.exclude_cols,
         }
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         import pickle
-        with open(filepath, 'wb') as f:
+
+        with open(filepath, "wb") as f:
             pickle.dump(data, f)
         logger.info(f"特征选择器已保存: {filepath}")
 
     def load_selector(self, filepath: Union[str, Path]):
         import pickle
-        with open(filepath, 'rb') as f:
+
+        with open(filepath, "rb") as f:
             data = pickle.load(f)
-        self._fitted = data['_fitted']
-        self._feature_names = data['_feature_names']
-        self._method_rankings = data['_method_rankings']
-        self._method_scores = data['_method_scores']
-        self._vote_scores = data['_vote_scores']
-        self._selected_features = data['_selected_features']
-        self._removed_correlated = data['_removed_correlated']
-        self._optimal_n_features = data['_optimal_n_features']
-        self._elbow_curve = data['_elbow_curve']
-        self.methods = data['methods']
-        self.correlation_threshold = data['correlation_threshold']
-        self.weights = data['weights']
-        self.exclude_cols = data['exclude_cols']
+        self._fitted = data["_fitted"]
+        self._feature_names = data["_feature_names"]
+        self._method_rankings = data["_method_rankings"]
+        self._method_scores = data["_method_scores"]
+        self._vote_scores = data["_vote_scores"]
+        self._selected_features = data["_selected_features"]
+        self._removed_correlated = data["_removed_correlated"]
+        self._optimal_n_features = data["_optimal_n_features"]
+        self._elbow_curve = data["_elbow_curve"]
+        self.methods = data["methods"]
+        self.correlation_threshold = data["correlation_threshold"]
+        self.weights = data["weights"]
+        self.exclude_cols = data["exclude_cols"]
         logger.info(f"特征选择器已加载: {filepath}")
 
     # ==================== 内部方法 ====================
@@ -232,13 +234,13 @@ class MultiMethodFeatureSelector:
         y: pd.Series,
         feature_cols: List[str],
     ) -> Dict[str, float]:
-        if method == 'random_forest':
+        if method == "random_forest":
             return self._rf_importance(X, y, feature_cols)
-        elif method == 'mutual_info':
+        elif method == "mutual_info":
             return self._mi_importance(X, y, feature_cols)
-        elif method == 'rfe':
+        elif method == "rfe":
             return self._rfe_importance(X, y, feature_cols)
-        elif method == 'chi2':
+        elif method == "chi2":
             return self._chi2_importance(X, y, feature_cols)
         else:
             raise ValueError(f"未知方法: {method}")
@@ -304,7 +306,7 @@ class MultiMethodFeatureSelector:
 
     def _compute_correlation_matrix(self, X: pd.DataFrame, feature_cols: List[str]) -> pd.DataFrame:
         logger.info("计算特征间相关系数矩阵...")
-        corr_matrix = X[feature_cols].corr(method='pearson').abs()
+        corr_matrix = X[feature_cols].corr(method="pearson").abs()
         return corr_matrix
 
     def _remove_highly_correlated(self):
@@ -318,7 +320,7 @@ class MultiMethodFeatureSelector:
         for i, feat_a in enumerate(features_by_vote):
             if feat_a in features_to_remove:
                 continue
-            for feat_b in features_by_vote[i + 1:]:
+            for feat_b in features_by_vote[i + 1 :]:
                 if feat_b in features_to_remove:
                     continue
                 if self._correlation_matrix is not None:

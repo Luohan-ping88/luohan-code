@@ -32,7 +32,6 @@ from .base import (
     register_tool,
 )
 
-
 # ================================================================
 # 1. DataLoaderTool — 数据加载与预处理
 # ================================================================
@@ -874,11 +873,14 @@ class LoggerTool(BaseTool):
             self._persist_to_file(message, level, extra, ctx)
 
         timestamp = time.time()
-        ctx.set("last_log_entry", {
-            "timestamp": timestamp,
-            "level": level,
-            "message": message,
-        })
+        ctx.set(
+            "last_log_entry",
+            {
+                "timestamp": timestamp,
+                "level": level,
+                "message": message,
+            },
+        )
 
         return ToolResult.success_result(
             data={
@@ -1047,8 +1049,7 @@ class ValidationTool(BaseTool):
         anomaly_report["total_anomalies"] = (
             sum(anomaly_report["nan_counts"].values())
             + sum(anomaly_report["inf_counts"].values())
-            + sum(v.get("below_min", 0) + v.get("above_max", 0)
-                  for v in anomaly_report["out_of_range"].values())
+            + sum(v.get("below_min", 0) + v.get("above_max", 0) for v in anomaly_report["out_of_range"].values())
         )
         return anomaly_report
 
@@ -1089,7 +1090,7 @@ class ValidationTool(BaseTool):
                     if clipped_count > 0:
                         cleaning_log.append(f"{col}: 截断 {clipped_count} 个越界值到 [{col_min}, {col_max}]")
 
-        ctx_local = getattr(self, '_clean_ctx', None)
+        ctx_local = getattr(self, "_clean_ctx", None)
         if ctx_local:
             ctx_local.set("validation_cleaning_log", cleaning_log)
 
@@ -1169,19 +1170,23 @@ class ValidationTool(BaseTool):
         if strict and has_errors:
             errors = []
             if columns_check["missing_columns"]:
-                errors.append(ErrorInfo(
-                    code="VALIDATION_MISSING_COLS",
-                    message=f"缺少必要列: {columns_check['missing_columns']}",
-                    severity="error",
-                    details=columns_check,
-                ))
+                errors.append(
+                    ErrorInfo(
+                        code="VALIDATION_MISSING_COLS",
+                        message=f"缺少必要列: {columns_check['missing_columns']}",
+                        severity="error",
+                        details=columns_check,
+                    )
+                )
             if anomalies["total_anomalies"] > 0:
-                errors.append(ErrorInfo(
-                    code="VALIDATION_ANOMALIES",
-                    message=f"检测到 {anomalies['total_anomalies']} 个异常值",
-                    severity="error",
-                    details=anomalies,
-                ))
+                errors.append(
+                    ErrorInfo(
+                        code="VALIDATION_ANOMALIES",
+                        message=f"检测到 {anomalies['total_anomalies']} 个异常值",
+                        severity="error",
+                        details=anomalies,
+                    )
+                )
 
             result = ToolResult.error_result(
                 f"严格模式验证失败: {len(errors)} 项检查未通过",

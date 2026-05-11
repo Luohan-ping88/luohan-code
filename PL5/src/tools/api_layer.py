@@ -25,6 +25,7 @@ try:
     from fastapi import FastAPI, HTTPException, Query, Body
     from fastapi.responses import JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
+
     _FASTAPI_AVAILABLE = True
 except ImportError:
     pass
@@ -32,12 +33,14 @@ except ImportError:
 try:
     import pydantic
     from pydantic import BaseModel, Field
+
     _PYDANTIC_AVAILABLE = True
 except ImportError:
     pass
 
 try:
     import uvicorn
+
     _UVICORN_AVAILABLE = True
 except ImportError:
     pass
@@ -118,10 +121,12 @@ if _PYDANTIC_AVAILABLE:
 
     class ToolRequestModel(BaseModel):
         """Pydantic 工具请求模型"""
+
         kwargs: Dict[str, Any] = Field(default_factory=dict)
 
     class ToolResponseModel(BaseModel):
         """Pydantic 工具响应模型"""
+
         success: bool
         data: Any = None
         errors: List[Dict] = Field(default_factory=list)
@@ -131,16 +136,19 @@ if _PYDANTIC_AVAILABLE:
 
     class BatchRequestModel(BaseModel):
         """Pydantic 批量请求模型"""
+
         calls: List[Dict[str, Any]] = Field(default_factory=list)
 
     class WorkflowRequestModel(BaseModel):
         """Pydantic 工作流请求模型"""
+
         template_name: str = ""
         config: Dict[str, Any] = Field(default_factory=dict)
         input_data: Dict[str, Any] = Field(default_factory=dict)
 
     class HealthResponse(BaseModel):
         """健康检查响应"""
+
         status: str
         version: str
         tools_count: int
@@ -175,10 +183,12 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
 
     def _get_registry():
         from .base import get_registry
+
         return get_registry()
 
     def _create_context():
         from .base import ToolContext
+
         return ToolContext()
 
     @app.get("/", tags=["root"])
@@ -211,11 +221,13 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
                 info = instance.get_info()
                 tools_info.append(info)
             except Exception as e:
-                tools_info.append({
-                    "name": name,
-                    "error": str(e),
-                    "class_name": cls.__name__,
-                })
+                tools_info.append(
+                    {
+                        "name": name,
+                        "error": str(e),
+                        "class_name": cls.__name__,
+                    }
+                )
         return {"count": len(tools_info), "tools": tools_info}
 
     @app.get("/tools/{tool_name}", tags=["tools"])
@@ -227,11 +239,7 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
         instance = cls()
         return instance.get_info()
 
-    @app.post(
-        "/tools/{tool_name}/execute",
-        response_model=ToolResponseModel,
-        tags=["execution"]
-    )
+    @app.post("/tools/{tool_name}/execute", response_model=ToolResponseModel, tags=["execution"])
     async def execute_tool(tool_name: str, request: ToolRequestModel = Body(...)):
         registry = _get_registry()
         cls = registry.get(tool_name)
@@ -276,29 +284,35 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
             cls = registry.get(tool_name)
 
             if cls is None:
-                results.append(ToolResponseModel(
-                    success=False,
-                    errors=[{"code": "TOOL_NOT_FOUND", "message": f"工具 '{tool_name}' 未注册"}],
-                    tool_name=tool_name,
-                ).to_dict())
+                results.append(
+                    ToolResponseModel(
+                        success=False,
+                        errors=[{"code": "TOOL_NOT_FOUND", "message": f"工具 '{tool_name}' 未注册"}],
+                        tool_name=tool_name,
+                    ).to_dict()
+                )
                 continue
 
             try:
                 tool_instance = cls()
                 result = tool_instance.run_safe(ctx, **args)
-                results.append(ToolResponseModel(
-                    success=result.success,
-                    data=result.data,
-                    errors=[e.to_dict() for e in result.errors],
-                    metadata=result.metadata,
-                    tool_name=tool_name,
-                ).to_dict())
+                results.append(
+                    ToolResponseModel(
+                        success=result.success,
+                        data=result.data,
+                        errors=[e.to_dict() for e in result.errors],
+                        metadata=result.metadata,
+                        tool_name=tool_name,
+                    ).to_dict()
+                )
             except Exception as e:
-                results.append(ToolResponseModel(
-                    success=False,
-                    errors=[{"code": "EXECUTION_ERROR", "message": str(e)}],
-                    tool_name=tool_name,
-                ).to_dict())
+                results.append(
+                    ToolResponseModel(
+                        success=False,
+                        errors=[{"code": "EXECUTION_ERROR", "message": str(e)}],
+                        tool_name=tool_name,
+                    ).to_dict()
+                )
 
         elapsed = (time.time() - start) * 1000
         return {
@@ -314,10 +328,7 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
 
         template = BuiltInWorkflows.get_template(request.template_name)
         if template is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"模板 '{request.template_name}' 不存在"
-            )
+            raise HTTPException(status_code=404, detail=f"模板 '{request.template_name}' 不存在")
 
         ctx = _create_context()
         if request.input_data:
@@ -336,9 +347,7 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
                 "step_count": wf_result.step_count,
                 "error_count": wf_result.error_count,
                 "total_time_ms": round(elapsed, 2),
-                "results": {
-                    k: v.to_dict() for k, v in wf_result.results.items()
-                },
+                "results": {k: v.to_dict() for k, v in wf_result.results.items()},
                 "final_output": wf_result.final_output,
                 "errors": [e.to_dict() for e in wf_result.errors],
             }
@@ -354,17 +363,14 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
     @app.get("/workflows/templates", tags=["workflow"])
     async def list_workflow_templates():
         from .orchestrator import BuiltInWorkflows
+
         templates = BuiltInWorkflows.list_templates()
-        return {
-            "templates": [
-                {"name": name, "description": wf.description}
-                for name, wf in templates.items()
-            ]
-        }
+        return {"templates": [{"name": name, "description": wf.description} for name, wf in templates.items()]}
 
     @app.get("/registry/stats", tags=["system"])
     async def registry_stats():
         from .base import get_registry, ToolLayer
+
         registry = get_registry()
         return {
             "total_tools": registry.count,
@@ -377,7 +383,7 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
         }
 
 
-def create_fastapi_app() -> 'FastAPI':
+def create_fastapi_app() -> "FastAPI":
     """创建并返回 FastAPI 应用实例
 
     Returns:
@@ -387,10 +393,7 @@ def create_fastapi_app() -> 'FastAPI':
         RuntimeError: 当 FastAPI 不可用时
     """
     if not _FASTAPI_AVAILABLE:
-        raise RuntimeError(
-            "FastAPI 不可用。请安装: pip install fastapi uvicorn pydantic\n"
-            "或使用轻量级 API 模式。"
-        )
+        raise RuntimeError("FastAPI 不可用。请安装: pip install fastapi uvicorn pydantic\n" "或使用轻量级 API 模式。")
     return app
 
 
@@ -404,8 +407,7 @@ def run_api_server(host: str = "0.0.0.0", port: int = 8000, **kwargs):
     """
     if not (_FASTAPI_AVAILABLE and _UVICORN_AVAILABLE):
         logger.warning(
-            "[API Layer] FastAPI/Uvicorn 不可用，无法启动服务器。\n"
-            "安装命令: pip install fastapi uvicorn pydantic"
+            "[API Layer] FastAPI/Uvicorn 不可用，无法启动服务器。\n" "安装命令: pip install fastapi uvicorn pydantic"
         )
         print("=" * 60)
         print("  PL5 API 服务层 - 轻量级模式")
@@ -471,6 +473,7 @@ class LightweightAPIRouter:
                 return {"error": f"工具 '{tool_name}' 未注册"}
 
             from .base import ToolContext
+
             ctx = ToolContext()
             kwargs = {k: v for k, v in params.items() if k != "tool_name"}
 
@@ -502,8 +505,7 @@ class LightweightAPIRouter:
 
     def list_routes(self) -> List[Dict]:
         """列出所有已注册路由"""
-        return [{"path": k.split(" ", 1)[1], "method": k.split(" ")[0]}
-                for k in self._routes.keys()]
+        return [{"path": k.split(" ", 1)[1], "method": k.split(" ")[0]} for k in self._routes.keys()]
 
     def handle_request(self, path: str, method: str, params: Optional[Dict] = None) -> Dict:
         """处理一个模拟请求
@@ -535,9 +537,7 @@ def get_api_status() -> Dict:
         "full_api_ready": _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE and _UVICORN_AVAILABLE,
         "lightweight_mode": not (_FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE),
         "install_hint": (
-            "pip install fastapi uvicorn pydantic"
-            if not (_FASTAPI_AVAILABLE and _UVICORN_AVAILABLE)
-            else None
+            "pip install fastapi uvicorn pydantic" if not (_FASTAPI_AVAILABLE and _UVICORN_AVAILABLE) else None
         ),
     }
 

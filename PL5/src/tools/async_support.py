@@ -64,12 +64,7 @@ class AsyncToolMixin:
             lambda: self.execute(ctx, **kwargs),
         )
 
-    async def execute_async_with_timeout(
-        self,
-        ctx: ToolContext,
-        timeout: float,
-        **kwargs
-    ) -> ToolResult:
+    async def execute_async_with_timeout(self, ctx: ToolContext, timeout: float, **kwargs) -> ToolResult:
         """带超时控制的异步执行
 
         Args:
@@ -89,15 +84,11 @@ class AsyncToolMixin:
             return ToolResult.error_result(
                 f"异步执行超时 ({timeout}s)",
                 code="ASYNC_TIMEOUT",
-                tool_name=getattr(self, 'name', 'unknown'),
+                tool_name=getattr(self, "name", "unknown"),
             )
 
     async def execute_async_with_retry(
-        self,
-        ctx: ToolContext,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
-        **kwargs
+        self, ctx: ToolContext, max_retries: int = 3, retry_delay: float = 1.0, **kwargs
     ) -> ToolResult:
         """带重试机制的异步执行
 
@@ -121,9 +112,7 @@ class AsyncToolMixin:
                 if attempt < max_retries:
                     delay = retry_delay * (2 ** (attempt - 1))
                     logger.debug(
-                        f"[{getattr(self, 'name', '?')}] "
-                        f"异步重试 {attempt}/{max_retries}, "
-                        f"等待 {delay:.1f}s"
+                        f"[{getattr(self, 'name', '?')}] " f"异步重试 {attempt}/{max_retries}, " f"等待 {delay:.1f}s"
                     )
                     await asyncio.sleep(delay)
 
@@ -133,12 +122,7 @@ class AsyncToolMixin:
             attempts=max_retries,
         )
 
-    async def execute_async_bounded(
-        self,
-        ctx: ToolContext,
-        semaphore: asyncio.Semaphore,
-        **kwargs
-    ) -> ToolResult:
+    async def execute_async_bounded(self, ctx: ToolContext, semaphore: asyncio.Semaphore, **kwargs) -> ToolResult:
         """在信号量限制下的异步执行
 
         Args:
@@ -203,9 +187,7 @@ class AsyncPredictorMixin(AsyncToolMixin):
             )
 
             positions = list(result.keys())
-            avg_uncertainty = sum(
-                result[p].get("uncertainty", 0.0) for p in positions
-            ) / max(len(positions), 1)
+            avg_uncertainty = sum(result[p].get("uncertainty", 0.0) for p in positions) / max(len(positions), 1)
 
             summary = {
                 "total_positions": len(positions),
@@ -278,7 +260,8 @@ class AsyncPredictorMixin(AsyncToolMixin):
                     single_result = await loop.run_in_executor(
                         None,
                         lambda f=features: predictor.predict(
-                            features=f, top_k=top_k,
+                            features=f,
+                            top_k=top_k,
                         ),
                     )
                     pos_uncertainties = [
@@ -286,10 +269,7 @@ class AsyncPredictorMixin(AsyncToolMixin):
                         for p in single_result
                         if isinstance(single_result.get(p), dict)
                     ]
-                    avg_unc = (
-                        float(sum(pos_uncertainties) / len(pos_uncertainties))
-                        if pos_uncertainties else 0.0
-                    )
+                    avg_unc = float(sum(pos_uncertainties) / len(pos_uncertainties)) if pos_uncertainties else 0.0
                     return idx, single_result, avg_unc
                 except Exception as e:
                     return idx, None, 0.0
@@ -357,6 +337,7 @@ class AsyncPredictorMixin(AsyncToolMixin):
 @dataclass(order=True)
 class _PriorityItem:
     """优先级队列条目（数值越小优先级越高）"""
+
     priority: int
     task_id: str = field(compare=False)
     coro: Any = field(compare=False)
@@ -624,6 +605,7 @@ class _ConcurrencyContext:
 @dataclass
 class BatchExecutionConfig:
     """批量执行配置"""
+
     max_concurrency: int = 4
     timeout_per_tool: float = 300.0
     stop_on_first_error: bool = False
@@ -693,10 +675,10 @@ class AsyncBatchExecutor:
         semaphore = asyncio.Semaphore(cfg.max_concurrency)
 
         async def _run_one(tool: BaseTool, args: Dict) -> Tuple[str, ToolResult]:
-            tool_name = getattr(tool, 'name', f'unnamed_{id(tool)}')
+            tool_name = getattr(tool, "name", f"unnamed_{id(tool)}")
             async with semaphore:
                 try:
-                    if hasattr(tool, 'execute_async'):
+                    if hasattr(tool, "execute_async"):
                         if isinstance(tool, AsyncToolMixin):
                             result = await tool.execute_async_with_timeout(
                                 ctx,
@@ -806,7 +788,7 @@ class AsyncBatchExecutor:
         last_output = None
 
         for tool, args in tools_and_args:
-            tool_name = getattr(tool, 'name', f'unnamed_{id(tool)}')
+            tool_name = getattr(tool, "name", f"unnamed_{id(tool)}")
 
             resolved_args = dict(args)
             if pass_output and last_output is not None:
@@ -815,9 +797,9 @@ class AsyncBatchExecutor:
                         resolved_args[k] = last_output
 
             try:
-                if hasattr(tool, 'execute_async') and isinstance(tool, AsyncToolMixin):
+                if hasattr(tool, "execute_async") and isinstance(tool, AsyncToolMixin):
                     result = await tool.execute_async_core(ctx, **resolved_args)
-                elif hasattr(tool, 'execute_async'):
+                elif hasattr(tool, "execute_async"):
                     result = await tool.execute_async(ctx, **resolved_args)
                 else:
                     result = tool.run_safe(ctx, **resolved_args)

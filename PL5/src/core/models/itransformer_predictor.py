@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 class InvertedMultiHeadAttention:
     """倒置多头注意力 - 作用于变量维度
-    
+
     与传统Transformer的关键区别:
     - 传统: 时间步作为token, 变量被拼接
     - 倒置: 变量作为token, 时间步被嵌入
-    
+
     优势:
     - 注意力图天然捕捉变量间动态相互作用
     - 避免时间维度注意力的排列不变性矛盾
@@ -40,7 +40,7 @@ class InvertedMultiHeadAttention:
         self.d_k = d_model // n_heads
         self.dropout_rate = dropout
 
-        scale = d_model ** -0.5
+        scale = d_model**-0.5
         self.W_q = np.random.randn(d_model, d_model) * scale
         self.W_k = np.random.randn(d_model, d_model) * scale
         self.W_v = np.random.randn(d_model, d_model) * scale
@@ -53,7 +53,7 @@ class InvertedMultiHeadAttention:
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """前向传播
-        
+
         Args:
             x: 变量嵌入 (n_vars, d_model), n_vars=5(万千万十个)
         Returns:
@@ -92,18 +92,18 @@ class InvertedMultiHeadAttention:
 
     def get_attention_map(self) -> np.ndarray:
         """获取注意力图 - 反映变量间相关性"""
-        if hasattr(self, '_last_attention'):
+        if hasattr(self, "_last_attention"):
             return np.mean(self._last_attention, axis=0)
         return np.eye(5)
 
     @property
     def training(self):
-        return getattr(self, '_training', True)
+        return getattr(self, "_training", True)
 
 
 class TemporalFFN:
     """时序前馈网络 - 沿时间维度操作
-    
+
     iTransformer的关键组件:
     - FFN在时间维度上操作(而非变量维度)
     - 神经元自发形成类似数字滤波器的模式
@@ -115,7 +115,7 @@ class TemporalFFN:
         self.d_ff = d_ff
         self.dropout_rate = dropout
 
-        scale = d_model ** -0.5
+        scale = d_model**-0.5
         self.W1 = np.random.randn(d_model, d_ff) * scale
         self.b1 = np.zeros(d_ff)
         self.W2 = np.random.randn(d_ff, d_model) * scale
@@ -123,7 +123,7 @@ class TemporalFFN:
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """前向传播
-        
+
         Args:
             x: (n_vars, d_model)
         Returns:
@@ -142,13 +142,12 @@ class TemporalFFN:
 
 class InvertedTransformerBlock:
     """倒置Transformer块
-    
-    结构: LayerNorm(变量) → MultiHeadAttention → Residual → 
+
+    结构: LayerNorm(变量) → MultiHeadAttention → Residual →
           LayerNorm(变量) → FFN(时间) → Residual
     """
 
-    def __init__(self, d_model: int = 64, n_heads: int = 4,
-                 d_ff: int = 256, dropout: float = 0.1):
+    def __init__(self, d_model: int = 64, n_heads: int = 4, d_ff: int = 256, dropout: float = 0.1):
         self.attention = InvertedMultiHeadAttention(d_model, n_heads, dropout)
         self.ffn = TemporalFFN(d_model, d_ff, dropout)
 
@@ -164,7 +163,7 @@ class InvertedTransformerBlock:
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         """前向传播
-        
+
         Args:
             x: (n_vars, d_model)
         Returns:
@@ -183,12 +182,12 @@ class InvertedTransformerBlock:
 
 class iTransformerPredictor:
     """iTransformer预测器 - 排列五专用
-    
+
     架构:
     1. 变量嵌入: 每个位置(万千万十个)的完整历史序列 → d_model维向量
     2. N层倒置Transformer: 变量维度注意力 + 时间维度FFN
     3. 预测头: 每个变量独立输出10维概率分布
-    
+
     核心优势:
     - 变量维度注意力天然捕捉5位置间的动态相互作用
     - FFN沿时间维度提取周期/趋势特征
@@ -196,12 +195,18 @@ class iTransformerPredictor:
     - 层归一化对单变量序列归一化, 解决非平稳性
     """
 
-    def __init__(self, n_layers: int = 3, d_model: int = 64,
-                 n_heads: int = 4, d_ff: int = 256,
-                 seq_length: int = 30, n_classes: int = 10,
-                 learning_rate: float = 0.001,
-                 model_config: Optional[ModelConfig] = None):
-        self.positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+    def __init__(
+        self,
+        n_layers: int = 3,
+        d_model: int = 64,
+        n_heads: int = 4,
+        d_ff: int = 256,
+        seq_length: int = 30,
+        n_classes: int = 10,
+        learning_rate: float = 0.001,
+        model_config: Optional[ModelConfig] = None,
+    ):
+        self.positions = ["wan", "qian", "bai", "shi", "ge"]
         self.n_vars = 5
         self.n_layers = n_layers
         self.d_model = d_model
@@ -216,17 +221,13 @@ class iTransformerPredictor:
 
     def _init_model(self):
         """初始化模型参数"""
-        scale = self.d_model ** -0.5
+        scale = self.d_model**-0.5
 
         self.var_embedding_W = np.random.randn(self.seq_length, self.d_model) * scale
         self.var_embedding_b = np.zeros(self.d_model)
 
         self.blocks = [
-            InvertedTransformerBlock(
-                d_model=self.d_model,
-                n_heads=self.n_heads,
-                d_ff=self.d_ff
-            )
+            InvertedTransformerBlock(d_model=self.d_model, n_heads=self.n_heads, d_ff=self.d_ff)
             for _ in range(self.n_layers)
         ]
 
@@ -238,7 +239,7 @@ class iTransformerPredictor:
 
     def _embed_variables(self, data: Dict[str, np.ndarray]) -> np.ndarray:
         """变量嵌入 - 将每个位置的历史序列映射为d_model维向量
-        
+
         Args:
             data: 各位置的历史序列
         Returns:
@@ -248,11 +249,11 @@ class iTransformerPredictor:
         for pos in self.positions:
             if pos in data and len(data[pos]) > 0:
                 seq = data[pos]
-                if hasattr(seq, 'values'):
+                if hasattr(seq, "values"):
                     seq = seq.values
                 seq = np.array(seq, dtype=np.float64)
 
-                recent = seq[-self.seq_length:]
+                recent = seq[-self.seq_length :]
                 if len(recent) < self.seq_length:
                     pad = np.zeros(self.seq_length - len(recent))
                     recent = np.concatenate([pad, recent])
@@ -265,7 +266,7 @@ class iTransformerPredictor:
 
                 freq_features = np.fft.rfft(one_hot, axis=0).real
                 if freq_features.shape[0] > self.seq_length:
-                    freq_features = freq_features[:self.seq_length]
+                    freq_features = freq_features[: self.seq_length]
                 elif freq_features.shape[0] < self.seq_length:
                     pad_rows = self.seq_length - freq_features.shape[0]
                     freq_features = np.vstack([freq_features, np.zeros((pad_rows, self.n_classes))])
@@ -273,7 +274,7 @@ class iTransformerPredictor:
                 combined = np.concatenate([one_hot, freq_features], axis=1)
 
                 if combined.shape[0] > self.seq_length:
-                    combined = combined[:self.seq_length]
+                    combined = combined[: self.seq_length]
 
                 target_len = self.var_embedding_W.shape[0]
                 if combined.shape[0] < target_len:
@@ -301,10 +302,9 @@ class iTransformerPredictor:
         var = np.var(x, axis=-1, keepdims=True)
         return self.final_norm_weight * (x - mean) / np.sqrt(var + 1e-5) + self.final_norm_bias
 
-    def fit(self, data: Dict[str, np.ndarray], epochs: int = 50,
-            verbose: bool = True) -> Dict:
+    def fit(self, data: Dict[str, np.ndarray], epochs: int = 50, verbose: bool = True) -> Dict:
         """训练模型
-        
+
         Args:
             data: 各位置的历史数字序列
             epochs: 训练轮数
@@ -313,7 +313,7 @@ class iTransformerPredictor:
         seq_len = min(len(data[p]) for p in self.positions if p in data)
         if seq_len < self.seq_length + 1:
             logger.warning(f"序列长度不足: {seq_len} < {self.seq_length + 1}")
-            return {'loss': float('inf'), 'epochs': 0}
+            return {"loss": float("inf"), "epochs": 0}
 
         m_W = [np.zeros_like(self.heads_W[i]) for i in range(self.n_vars)]
         v_W = [np.zeros_like(self.heads_W[i]) for i in range(self.n_vars)]
@@ -321,7 +321,7 @@ class iTransformerPredictor:
         v_b = [np.zeros_like(self.heads_b[i]) for i in range(self.n_vars)]
         beta1, beta2, eps = 0.9, 0.999, 1e-8
 
-        best_loss = float('inf')
+        best_loss = float("inf")
         patience = 10
         patience_counter = 0
         t_step = 0
@@ -335,7 +335,7 @@ class iTransformerPredictor:
                 targets = {}
                 for pos in self.positions:
                     if pos in data:
-                        window_data[pos] = data[pos][start:start + self.seq_length]
+                        window_data[pos] = data[pos][start : start + self.seq_length]
                         if start + self.seq_length < len(data[pos]):
                             targets[pos] = int(data[pos][start + self.seq_length])
 
@@ -383,10 +383,10 @@ class iTransformerPredictor:
                     m_b[i] = beta1 * m_b[i] + (1 - beta1) * grads_b[i]
                     v_b[i] = beta2 * v_b[i] + (1 - beta2) * grads_b[i] ** 2
 
-                    m_W_hat = m_W[i] / (1 - beta1 ** t_step)
-                    v_W_hat = v_W[i] / (1 - beta2 ** t_step)
-                    m_b_hat = m_b[i] / (1 - beta1 ** t_step)
-                    v_b_hat = v_b[i] / (1 - beta2 ** t_step)
+                    m_W_hat = m_W[i] / (1 - beta1**t_step)
+                    v_W_hat = v_W[i] / (1 - beta2**t_step)
+                    m_b_hat = m_b[i] / (1 - beta1**t_step)
+                    v_b_hat = v_b[i] / (1 - beta2**t_step)
 
                     self.heads_W[i] -= self.learning_rate * m_W_hat / (np.sqrt(v_W_hat) + eps)
                     self.heads_b[i] -= self.learning_rate * m_b_hat / (np.sqrt(v_b_hat) + eps)
@@ -408,11 +408,11 @@ class iTransformerPredictor:
                 logger.info(f"  iTransformer epoch {epoch+1}/{epochs}, loss={avg_loss:.4f}")
 
         self.fitted = True
-        return {'loss': best_loss, 'epochs': epoch + 1}
+        return {"loss": best_loss, "epochs": epoch + 1}
 
     def predict_proba(self, data: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         """预测各位置的下一个数字概率分布
-        
+
         Args:
             data: 各位置的历史数字序列
         Returns:
@@ -442,7 +442,7 @@ class iTransformerPredictor:
 
     def get_variable_attention_map(self, data: Dict[str, np.ndarray]) -> np.ndarray:
         """获取变量间注意力图
-        
+
         反映5个位置之间的动态相关性
         """
         if not self.fitted or not self.blocks:
@@ -466,26 +466,25 @@ class iTransformerPredictor:
         attn_map = self.get_variable_attention_map(data)
 
         insights = {
-            'attention_matrix': attn_map.tolist(),
-            'position_names': self.positions,
-            'strongest_pairs': [],
-            'independent_positions': []
+            "attention_matrix": attn_map.tolist(),
+            "position_names": self.positions,
+            "strongest_pairs": [],
+            "independent_positions": [],
         }
 
         for i in range(self.n_vars):
             for j in range(i + 1, self.n_vars):
                 strength = (attn_map[i, j] + attn_map[j, i]) / 2
-                insights['strongest_pairs'].append({
-                    'positions': (self.positions[i], self.positions[j]),
-                    'strength': float(strength)
-                })
+                insights["strongest_pairs"].append(
+                    {"positions": (self.positions[i], self.positions[j]), "strength": float(strength)}
+                )
 
-        insights['strongest_pairs'].sort(key=lambda x: x['strength'], reverse=True)
+        insights["strongest_pairs"].sort(key=lambda x: x["strength"], reverse=True)
 
         for i in range(self.n_vars):
             row = attn_map[i].copy()
             row[i] = 0
             if np.max(row) < 0.15:
-                insights['independent_positions'].append(self.positions[i])
+                insights["independent_positions"].append(self.positions[i])
 
         return insights

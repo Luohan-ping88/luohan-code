@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ToolCategory(Enum):
@@ -127,11 +127,11 @@ class WorkflowStep:
             "condition_expr": self.condition_expr,
             "retry_count": self.retry_count,
             "retry_delay": self.retry_delay,
-            "parallel_group": self.parallel_group
+            "parallel_group": self.parallel_group,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'WorkflowStep':
+    def from_dict(cls, data: Dict[str, Any]) -> "WorkflowStep":
         step = cls(
             name=data["name"],
             tool_name=data["tool_name"],
@@ -139,7 +139,7 @@ class WorkflowStep:
             condition_expr=data.get("condition_expr"),
             retry_count=data.get("retry_count", 0),
             retry_delay=data.get("retry_delay", 1.0),
-            parallel_group=data.get("parallel_group")
+            parallel_group=data.get("parallel_group"),
         )
         if step.condition_expr:
             step.condition = cls._compile_condition(step.condition_expr)
@@ -152,6 +152,7 @@ class WorkflowStep:
                 return bool(eval(expr, {}, variables))
             except Exception:
                 return False
+
         return condition
 
 

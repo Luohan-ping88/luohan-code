@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
     """消息类型枚举"""
+
     REQUEST = auto()
     RESPONSE = auto()
     BROADCAST = auto()
@@ -24,6 +25,7 @@ class MessageType(Enum):
 
 class MessagePriority(Enum):
     """消息优先级"""
+
     LOW = 1
     NORMAL = 5
     HIGH = 8
@@ -33,6 +35,7 @@ class MessagePriority(Enum):
 @dataclass
 class MessageHeader:
     """消息头部"""
+
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     sender_id: str
     receiver_id: Optional[str] = None
@@ -46,6 +49,7 @@ class MessageHeader:
 @dataclass
 class Message:
     """消息数据结构"""
+
     header: MessageHeader
     content: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -53,34 +57,34 @@ class Message:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
-            'header': {
-                'message_id': self.header.message_id,
-                'sender_id': self.header.sender_id,
-                'receiver_id': self.header.receiver_id,
-                'message_type': self.header.message_type.name,
-                'priority': self.header.priority.value,
-                'created_at': self.header.created_at.isoformat(),
-                'correlation_id': self.header.correlation_id,
-                'timestamp': self.header.timestamp.isoformat() if self.header.timestamp else None
+            "header": {
+                "message_id": self.header.message_id,
+                "sender_id": self.header.sender_id,
+                "receiver_id": self.header.receiver_id,
+                "message_type": self.header.message_type.name,
+                "priority": self.header.priority.value,
+                "created_at": self.header.created_at.isoformat(),
+                "correlation_id": self.header.correlation_id,
+                "timestamp": self.header.timestamp.isoformat() if self.header.timestamp else None,
             },
-            'content': self.content,
-            'metadata': self.metadata
+            "content": self.content,
+            "metadata": self.metadata,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Message':
+    def from_dict(cls, data: Dict[str, Any]) -> "Message":
         """从字典创建消息"""
         header = MessageHeader(
-            message_id=data['header']['message_id'],
-            sender_id=data['header']['sender_id'],
-            receiver_id=data['header']['receiver_id'],
-            message_type=MessageType[data['header']['message_type']],
-            priority=MessagePriority(data['header']['priority']),
-            created_at=datetime.fromisoformat(data['header']['created_at']),
-            correlation_id=data['header']['correlation_id'],
-            timestamp=datetime.fromisoformat(data['header']['timestamp']) if data['header'].get('timestamp') else None
+            message_id=data["header"]["message_id"],
+            sender_id=data["header"]["sender_id"],
+            receiver_id=data["header"]["receiver_id"],
+            message_type=MessageType[data["header"]["message_type"]],
+            priority=MessagePriority(data["header"]["priority"]),
+            created_at=datetime.fromisoformat(data["header"]["created_at"]),
+            correlation_id=data["header"]["correlation_id"],
+            timestamp=datetime.fromisoformat(data["header"]["timestamp"]) if data["header"].get("timestamp") else None,
         )
-        return cls(header=header, content=data['content'], metadata=data.get('metadata', {}))
+        return cls(header=header, content=data["content"], metadata=data.get("metadata", {}))
 
 
 class MessageQueue:
@@ -157,10 +161,14 @@ class CommunicationProtocol:
         self._pending_requests: Dict[str, asyncio.Future] = {}
         self._lock = asyncio.Lock()
 
-    async def send_request(self, sender_id: str, receiver_id: str, 
-                           content: Dict[str, Any], 
-                           timeout: float = 30.0,
-                           priority: MessagePriority = MessagePriority.NORMAL) -> Optional[Message]:
+    async def send_request(
+        self,
+        sender_id: str,
+        receiver_id: str,
+        content: Dict[str, Any],
+        timeout: float = 30.0,
+        priority: MessagePriority = MessagePriority.NORMAL,
+    ) -> Optional[Message]:
         """发送请求并等待响应"""
         message_id = str(uuid.uuid4())
         header = MessageHeader(
@@ -168,7 +176,7 @@ class CommunicationProtocol:
             sender_id=sender_id,
             receiver_id=receiver_id,
             message_type=MessageType.REQUEST,
-            priority=priority
+            priority=priority,
         )
         message = Message(header=header, content=content)
 
@@ -190,17 +198,16 @@ class CommunicationProtocol:
             async with self._lock:
                 self._pending_requests.pop(message_id, None)
 
-    async def send_response(self, request: Message, content: Dict[str, Any], 
-                            success: bool = True) -> bool:
+    async def send_response(self, request: Message, content: Dict[str, Any], success: bool = True) -> bool:
         """发送响应"""
         header = MessageHeader(
             sender_id=request.header.receiver_id or "unknown",
             receiver_id=request.header.sender_id,
             message_type=MessageType.RESPONSE,
             priority=request.header.priority,
-            correlation_id=request.header.message_id
+            correlation_id=request.header.message_id,
         )
-        response_content = {**content, 'success': success}
+        response_content = {**content, "success": success}
         message = Message(header=header, content=response_content)
 
         async with self._lock:
@@ -219,32 +226,30 @@ class CommunicationProtocol:
             receiver_id=message.header.sender_id,
             message_type=MessageType.ACK,
             priority=MessagePriority.LOW,
-            correlation_id=message.header.message_id
+            correlation_id=message.header.message_id,
         )
         ack_message = Message(header=header, content={})
         return await self.message_queue.send_message(ack_message)
 
-    async def send_broadcast(self, sender_id: str, content: Dict[str, Any],
-                              priority: MessagePriority = MessagePriority.NORMAL) -> bool:
+    async def send_broadcast(
+        self, sender_id: str, content: Dict[str, Any], priority: MessagePriority = MessagePriority.NORMAL
+    ) -> bool:
         """广播消息"""
-        header = MessageHeader(
-            sender_id=sender_id,
-            message_type=MessageType.BROADCAST,
-            priority=priority
-        )
+        header = MessageHeader(sender_id=sender_id, message_type=MessageType.BROADCAST, priority=priority)
         message = Message(header=header, content=content)
         await self.message_queue.broadcast(message)
         return True
 
-    async def send_notification(self, sender_id: str, receiver_id: str,
-                                 content: Dict[str, Any],
-                                 priority: MessagePriority = MessagePriority.NORMAL) -> bool:
+    async def send_notification(
+        self,
+        sender_id: str,
+        receiver_id: str,
+        content: Dict[str, Any],
+        priority: MessagePriority = MessagePriority.NORMAL,
+    ) -> bool:
         """发送通知"""
         header = MessageHeader(
-            sender_id=sender_id,
-            receiver_id=receiver_id,
-            message_type=MessageType.NOTIFICATION,
-            priority=priority
+            sender_id=sender_id, receiver_id=receiver_id, message_type=MessageType.NOTIFICATION, priority=priority
         )
         message = Message(header=header, content=content)
         return await self.message_queue.send_message(message)

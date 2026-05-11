@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class GoalStatus(Enum):
     """目标状态"""
+
     PENDING = auto()
     ACTIVE = auto()
     IN_PROGRESS = auto()
@@ -25,6 +26,7 @@ class GoalStatus(Enum):
 
 class GoalPriority(Enum):
     """目标优先级"""
+
     LOW = 1
     MEDIUM = 5
     HIGH = 8
@@ -34,6 +36,7 @@ class GoalPriority(Enum):
 @dataclass
 class Milestone:
     """目标里程碑"""
+
     milestone_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     description: str
@@ -58,6 +61,7 @@ class Milestone:
 @dataclass
 class AlignmentGoal:
     """对齐目标"""
+
     goal_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     description: str
@@ -110,30 +114,33 @@ class AlignmentGoal:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
-            'goal_id': self.goal_id,
-            'name': self.name,
-            'description': self.description,
-            'status': self.status.name,
-            'priority': self.priority.value,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat(),
-            'target_date': self.target_date.isoformat() if self.target_date else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'milestones': [{
-                'milestone_id': m.milestone_id,
-                'name': m.name,
-                'description': m.description,
-                'target_date': m.target_date.isoformat() if m.target_date else None,
-                'completion_criteria': m.completion_criteria,
-                'completed_at': m.completed_at.isoformat() if m.completed_at else None,
-                'is_completed': m.is_completed
-            } for m in self.milestones],
-            'progress': self.progress,
-            'success_metrics': self.success_metrics,
-            'involved_agents': list(self.involved_agents),
-            'parent_goal_id': self.parent_goal_id,
-            'sub_goals': self.sub_goals,
-            'metadata': self.metadata
+            "goal_id": self.goal_id,
+            "name": self.name,
+            "description": self.description,
+            "status": self.status.name,
+            "priority": self.priority.value,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "target_date": self.target_date.isoformat() if self.target_date else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "milestones": [
+                {
+                    "milestone_id": m.milestone_id,
+                    "name": m.name,
+                    "description": m.description,
+                    "target_date": m.target_date.isoformat() if m.target_date else None,
+                    "completion_criteria": m.completion_criteria,
+                    "completed_at": m.completed_at.isoformat() if m.completed_at else None,
+                    "is_completed": m.is_completed,
+                }
+                for m in self.milestones
+            ],
+            "progress": self.progress,
+            "success_metrics": self.success_metrics,
+            "involved_agents": list(self.involved_agents),
+            "parent_goal_id": self.parent_goal_id,
+            "sub_goals": self.sub_goals,
+            "metadata": self.metadata,
         }
 
 
@@ -144,12 +151,16 @@ class GoalTracker:
         self.goals: Dict[str, AlignmentGoal] = {}
         self._lock = asyncio.Lock()
 
-    async def create_goal(self, name: str, description: str,
-                          priority: GoalPriority = GoalPriority.MEDIUM,
-                          target_date: Optional[datetime] = None,
-                          milestones: Optional[List[Milestone]] = None,
-                          involved_agents: Optional[Set[str]] = None,
-                          parent_goal_id: Optional[str] = None) -> str:
+    async def create_goal(
+        self,
+        name: str,
+        description: str,
+        priority: GoalPriority = GoalPriority.MEDIUM,
+        target_date: Optional[datetime] = None,
+        milestones: Optional[List[Milestone]] = None,
+        involved_agents: Optional[Set[str]] = None,
+        parent_goal_id: Optional[str] = None,
+    ) -> str:
         """创建目标"""
         async with self._lock:
             goal = AlignmentGoal(
@@ -160,7 +171,7 @@ class GoalTracker:
                 milestones=milestones or [],
                 involved_agents=involved_agents or set(),
                 parent_goal_id=parent_goal_id,
-                status=GoalStatus.ACTIVE
+                status=GoalStatus.ACTIVE,
             )
             self.goals[goal.goal_id] = goal
 
@@ -234,24 +245,23 @@ class GoalEvaluator:
             time_remaining = (goal.target_date - datetime.now()).total_seconds()
 
         evaluation = {
-            'goal_id': goal.goal_id,
-            'name': goal.name,
-            'status': goal.status.name,
-            'progress_percentage': progress_pct,
-            'time_elapsed_seconds': time_elapsed,
-            'time_remaining_seconds': time_remaining,
-            'milestones_total': len(goal.milestones),
-            'milestones_completed': sum(1 for m in goal.milestones if m.is_completed),
-            'success_metrics': goal.success_metrics,
-            'evaluation_time': datetime.now().isoformat(),
-            'is_on_track': self._is_on_track(goal, progress_pct, time_elapsed)
+            "goal_id": goal.goal_id,
+            "name": goal.name,
+            "status": goal.status.name,
+            "progress_percentage": progress_pct,
+            "time_elapsed_seconds": time_elapsed,
+            "time_remaining_seconds": time_remaining,
+            "milestones_total": len(goal.milestones),
+            "milestones_completed": sum(1 for m in goal.milestones if m.is_completed),
+            "success_metrics": goal.success_metrics,
+            "evaluation_time": datetime.now().isoformat(),
+            "is_on_track": self._is_on_track(goal, progress_pct, time_elapsed),
         }
 
         self.evaluation_history.append(evaluation)
         return evaluation
 
-    def _is_on_track(self, goal: AlignmentGoal, progress_pct: float, 
-                     time_elapsed: float) -> bool:
+    def _is_on_track(self, goal: AlignmentGoal, progress_pct: float, time_elapsed: float) -> bool:
         """判断是否在正轨上"""
         if goal.status == GoalStatus.COMPLETED:
             return True
@@ -270,15 +280,15 @@ class GoalEvaluator:
         """获取智能体表现"""
         agent_goals = [g for g in goals if agent_id in g.involved_agents]
         if not agent_goals:
-            return {'agent_id': agent_id, 'total_goals': 0}
+            return {"agent_id": agent_id, "total_goals": 0}
 
         completed = sum(1 for g in agent_goals if g.status == GoalStatus.COMPLETED)
         avg_progress = sum(g.get_progress_percentage() for g in agent_goals) / len(agent_goals)
 
         return {
-            'agent_id': agent_id,
-            'total_goals': len(agent_goals),
-            'completed_goals': completed,
-            'completion_rate': completed / len(agent_goals) if agent_goals else 0,
-            'avg_progress_percentage': avg_progress
+            "agent_id": agent_id,
+            "total_goals": len(agent_goals),
+            "completed_goals": completed,
+            "completion_rate": completed / len(agent_goals) if agent_goals else 0,
+            "avg_progress_percentage": avg_progress,
         }

@@ -9,4 +9,4 @@ from .auto_scheduler_v8 import AutoSchedulerV8, TaskRetryManager, TaskHistoryMan
 # 保持向后兼容
 AutoScheduler = AutoSchedulerV8
 
-__all__ = ['AutoScheduler', 'TaskRetryManager', 'TaskHistoryManager']
+__all__ = ["AutoScheduler", "TaskRetryManager", "TaskHistoryManager"]

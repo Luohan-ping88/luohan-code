@@ -2,6 +2,7 @@
 上下文感知策略选择器模块
 上下文特征提取、策略匹配算法和置信度计算
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SelectionStrategy(Enum):
     """选择策略枚举"""
+
     BEST_MATCH = "best_match"
     WEIGHTED_RANDOM = "weighted_random"
     TOP_K = "top_k"
@@ -26,6 +28,7 @@ class SelectionStrategy(Enum):
 @dataclass
 class ContextFeatures:
     """上下文特征"""
+
     numerical_features: Dict[str, float] = field(default_factory=dict)
     categorical_features: Dict[str, str] = field(default_factory=dict)
     temporal_features: Dict[str, Any] = field(default_factory=dict)
@@ -42,6 +45,7 @@ class ContextFeatures:
 @dataclass
 class PolicyMatch:
     """策略匹配结果"""
+
     policy_name: str
     policy_version: str
     similarity_score: float
@@ -95,7 +99,7 @@ class ContextFeatureExtractor:
             numerical_features=dict(zip(features.numerical_features.keys(), scaled_array[0])),
             categorical_features=features.categorical_features,
             temporal_features=features.temporal_features,
-            custom_features=features.custom_features
+            custom_features=features.custom_features,
         )
         return scaled_features
 
@@ -109,11 +113,13 @@ class ContextAwareSelector:
         self._policy_contexts: Dict[str, Tuple[str, ContextFeatures, Dict[str, float]]] = {}
         self._confidence_threshold = 0.5
 
-    def register_policy_context(self,
-                                policy_name: str,
-                                policy_version: str,
-                                context_features: ContextFeatures,
-                                performance_weights: Optional[Dict[str, float]] = None) -> None:
+    def register_policy_context(
+        self,
+        policy_name: str,
+        policy_version: str,
+        context_features: ContextFeatures,
+        performance_weights: Optional[Dict[str, float]] = None,
+    ) -> None:
         """
         注册策略的上下文特征
 
@@ -124,13 +130,14 @@ class ContextAwareSelector:
             performance_weights: 性能权重
         """
         self._policy_contexts[f"{policy_name}:{policy_version}"] = (
-            policy_name, policy_version, context_features, performance_weights or {}
+            policy_name,
+            policy_version,
+            context_features,
+            performance_weights or {},
         )
         logger.info(f"策略 {policy_name} v{policy_version} 上下文特征已注册")
 
-    def calculate_similarity(self,
-                             context1: ContextFeatures,
-                             context2: ContextFeatures) -> float:
+    def calculate_similarity(self, context1: ContextFeatures, context2: ContextFeatures) -> float:
         """
         计算两个上下文之间的相似度
 
@@ -153,10 +160,12 @@ class ContextAwareSelector:
 
         return float(cosine_similarity(vec1, vec2)[0][0])
 
-    def calculate_confidence(self,
-                             similarity: float,
-                             policy_performance: Optional[Dict[str, float]] = None,
-                             performance_weights: Optional[Dict[str, float]] = None) -> float:
+    def calculate_confidence(
+        self,
+        similarity: float,
+        policy_performance: Optional[Dict[str, float]] = None,
+        performance_weights: Optional[Dict[str, float]] = None,
+    ) -> float:
         """
         计算置信度
 
@@ -184,9 +193,9 @@ class ContextAwareSelector:
 
         return max(0.0, min(1.0, confidence))
 
-    def match_policies(self,
-                       current_context: ContextFeatures,
-                       policy_performances: Optional[Dict[str, Dict[str, float]]] = None) -> List[PolicyMatch]:
+    def match_policies(
+        self, current_context: ContextFeatures, policy_performances: Optional[Dict[str, Dict[str, float]]] = None
+    ) -> List[PolicyMatch]:
         """
         匹配策略
 
@@ -205,21 +214,25 @@ class ContextAwareSelector:
             perf = policy_performances.get(name, {})
             confidence = self.calculate_confidence(similarity, perf, weights)
 
-            matches.append(PolicyMatch(
-                policy_name=name,
-                policy_version=version,
-                similarity_score=similarity,
-                confidence=confidence,
-                context_features=current_context
-            ))
+            matches.append(
+                PolicyMatch(
+                    policy_name=name,
+                    policy_version=version,
+                    similarity_score=similarity,
+                    confidence=confidence,
+                    context_features=current_context,
+                )
+            )
 
         return sorted(matches, key=lambda x: x.confidence, reverse=True)
 
-    def select_policy(self,
-                      current_context: ContextFeatures,
-                      policy_performances: Optional[Dict[str, Dict[str, float]]] = None,
-                      top_k: int = 1,
-                      threshold: Optional[float] = None) -> List[PolicyMatch]:
+    def select_policy(
+        self,
+        current_context: ContextFeatures,
+        policy_performances: Optional[Dict[str, Dict[str, float]]] = None,
+        top_k: int = 1,
+        threshold: Optional[float] = None,
+    ) -> List[PolicyMatch]:
         """
         选择策略
 

@@ -30,6 +30,7 @@ class BayesianEnsemble:
             estimators = []
             for est in self.base_estimators:
                 from sklearn.base import clone
+
                 est_clone = clone(est)
                 est_clone.fit(X_boot, y_boot)
                 estimators.append(est_clone)
@@ -47,7 +48,7 @@ class BayesianEnsemble:
 
         for estimators in self.fitted_estimators:
             for est in estimators:
-                if hasattr(est, 'predict_proba'):
+                if hasattr(est, "predict_proba"):
                     pred = est.predict_proba(X)
                     all_predictions.append(pred)
 
@@ -74,9 +75,7 @@ class BayesianEnsemble:
 
 
 class MCDropoutEstimator(BaseEstimator, ClassifierMixin):
-    def __init__(self, base_estimator: BaseEstimator = None,
-                 dropout_rate: float = 0.2,
-                 n_samples: int = 50):
+    def __init__(self, base_estimator: BaseEstimator = None, dropout_rate: float = 0.2, n_samples: int = 50):
         self.base_estimator = base_estimator
         self.dropout_rate = dropout_rate
         self.n_samples = n_samples
@@ -85,8 +84,10 @@ class MCDropoutEstimator(BaseEstimator, ClassifierMixin):
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "MCDropoutEstimator":
         from sklearn.base import clone
+
         if self.base_estimator is None:
             from sklearn.ensemble import RandomForestClassifier
+
             self.base_estimator = RandomForestClassifier(n_estimators=50, max_depth=8, random_state=42)
 
         self.fitted_model_ = clone(self.base_estimator)
@@ -103,7 +104,7 @@ class MCDropoutEstimator(BaseEstimator, ClassifierMixin):
             mask = np.random.binomial(1, 1 - self.dropout_rate, X_dropout.shape)
             X_dropout = X_dropout * mask
 
-            if hasattr(self.fitted_model_, 'predict_proba'):
+            if hasattr(self.fitted_model_, "predict_proba"):
                 proba = self.fitted_model_.predict_proba(X_dropout)
             else:
                 proba = np.zeros((len(X), 10))
@@ -175,11 +176,7 @@ class CalibrationEvaluator:
                 confidences_per_bin.append(confidences[mask].mean())
                 accuracies_per_bin.append(accuracies[mask].mean())
 
-        return {
-            "bins": bins,
-            "confidences": confidences_per_bin,
-            "accuracies": accuracies_per_bin
-        }
+        return {"bins": bins, "confidences": confidences_per_bin, "accuracies": accuracies_per_bin}
 
 
 class UncertaintyAwarePredictor:
@@ -203,20 +200,18 @@ class UncertaintyAwarePredictor:
             elif entropy[i] > self.uncertainty_threshold:
                 uncertainty_level = "medium"
 
-            results.append({
-                "prediction": int(predictions[i]),
-                "confidence": float(mean_pred[i].max()),
-                "uncertainty": float(entropy[i]),
-                "uncertainty_level": uncertainty_level,
-                "std": float(std_pred[i].mean()),
-                "is_uncertain": bool(high_uncertainty_mask[i])
-            })
+            results.append(
+                {
+                    "prediction": int(predictions[i]),
+                    "confidence": float(mean_pred[i].max()),
+                    "uncertainty": float(entropy[i]),
+                    "uncertainty_level": uncertainty_level,
+                    "std": float(std_pred[i].mean()),
+                    "is_uncertain": bool(high_uncertainty_mask[i]),
+                }
+            )
 
-        return {
-            "predictions": results,
-            "mean_prediction": mean_pred,
-            "uncertainty": entropy
-        }
+        return {"predictions": results, "mean_prediction": mean_pred, "uncertainty": entropy}
 
     def calibrate(self, X_cal: np.ndarray, y_cal: np.ndarray):
         proba = self.base_predictor.predict_proba(X_cal)

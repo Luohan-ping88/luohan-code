@@ -39,51 +39,30 @@ class PredictorTool(BaseTool):
     input_schema = {
         "type": "object",
         "properties": {
-            "features": {
-                "type": "array",
-                "description": "特征向量 (np.ndarray 或 list)"
-            },
-            "recent_original_data": {
-                "type": "object",
-                "description": "近期原始数据字典 {pos: np.ndarray}"
-            },
-            "top_k": {
-                "type": "integer",
-                "description": "推荐号码数量",
-                "default": 8
-            }
+            "features": {"type": "array", "description": "特征向量 (np.ndarray 或 list)"},
+            "recent_original_data": {"type": "object", "description": "近期原始数据字典 {pos: np.ndarray}"},
+            "top_k": {"type": "integer", "description": "推荐号码数量", "default": 8},
         },
-        "required": ["features"]
+        "required": ["features"],
     }
-    output_schema = {
-        "type": "object",
-        "properties": {
-            "predictions": {"type": "object"},
-            "summary": {"type": "object"}
-        }
-    }
+    output_schema = {"type": "object", "properties": {"predictions": {"type": "object"}, "summary": {"type": "object"}}}
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
         predictor = ctx.get("predictor")
         if predictor is None:
             return ToolResult.error_result(
-                "上下文中未找到 predictor 实例，请先通过 ModelAnalyzerTool 加载模型",
-                code="PREDICTOR_NOT_FOUND"
+                "上下文中未找到 predictor 实例，请先通过 ModelAnalyzerTool 加载模型", code="PREDICTOR_NOT_FOUND"
             )
 
         features = kwargs.get("features")
         if features is None:
-            return ToolResult.error_result(
-                "缺少必填参数: features",
-                code="MISSING_FEATURES"
-            )
+            return ToolResult.error_result("缺少必填参数: features", code="MISSING_FEATURES")
 
         if isinstance(features, list):
             features = np.array(features, dtype=np.float64)
         elif not isinstance(features, np.ndarray):
             return ToolResult.error_result(
-                f"features 类型错误: 期望 np.ndarray/list, 实际 {type(features).__name__}",
-                code="INVALID_FEATURES_TYPE"
+                f"features 类型错误: 期望 np.ndarray/list, 实际 {type(features).__name__}", code="INVALID_FEATURES_TYPE"
             )
 
         recent_original_data = kwargs.get("recent_original_data")
@@ -107,7 +86,7 @@ class PredictorTool(BaseTool):
                     "predictions": result,
                     "summary": summary,
                 },
-                model_version=getattr(predictor, '_mc', None),
+                model_version=getattr(predictor, "_mc", None),
                 feature_dim=int(len(features)),
             )
 
@@ -164,30 +143,21 @@ class BatchPredictorTool(BaseTool):
             "features_list": {
                 "type": "array",
                 "description": "特征向量列表 (list of np.ndarray/list)",
-                "items": {"type": "array"}
+                "items": {"type": "array"},
             },
-            "top_k": {
-                "type": "integer",
-                "default": 8
-            }
+            "top_k": {"type": "integer", "default": 8},
         },
-        "required": ["features_list"]
+        "required": ["features_list"],
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
         predictor = ctx.get("predictor")
         if predictor is None:
-            return ToolResult.error_result(
-                "上下文中未找到 predictor 实例",
-                code="PREDICTOR_NOT_FOUND"
-            )
+            return ToolResult.error_result("上下文中未找到 predictor 实例", code="PREDICTOR_NOT_FOUND")
 
         features_list = kwargs.get("features_list")
         if not features_list or not isinstance(features_list, (list, tuple)):
-            return ToolResult.error_result(
-                "缺少或无效参数: features_list (需为非空列表)",
-                code="INVALID_FEATURES_LIST"
-            )
+            return ToolResult.error_result("缺少或无效参数: features_list (需为非空列表)", code="INVALID_FEATURES_LIST")
 
         top_k = kwargs.get("top_k", 8)
         batch_results = []
@@ -206,7 +176,8 @@ class BatchPredictorTool(BaseTool):
 
                 pos_uncertainties = [
                     single_result[p].get("uncertainty", 0.0)
-                    for p in single_result if isinstance(single_result[p], dict)
+                    for p in single_result
+                    if isinstance(single_result[p], dict)
                 ]
                 if pos_uncertainties:
                     uncertainties.append(np.mean(pos_uncertainties))
@@ -215,8 +186,9 @@ class BatchPredictorTool(BaseTool):
 
             ctx.set("last_batch_predictions", batch_results)
             ctx.record_metric("batch_predictor.count", len(batch_results))
-            ctx.record_metric("batch_predictor.avg_uncertainty",
-                              float(np.mean(uncertainties)) if uncertainties else 0.0)
+            ctx.record_metric(
+                "batch_predictor.avg_uncertainty", float(np.mean(uncertainties)) if uncertainties else 0.0
+            )
 
             return ToolResult.success_result(
                 data={
@@ -284,7 +256,7 @@ class FeatureEngineerTool(BaseTool):
             "select_top": {"type": "integer", "default": 100},
             "enable_scaler": {"type": "boolean", "default": False},
         },
-        "required": ["raw_data"]
+        "required": ["raw_data"],
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -292,14 +264,10 @@ class FeatureEngineerTool(BaseTool):
 
         raw_data = kwargs.get("raw_data")
         if raw_data is None:
-            return ToolResult.error_result(
-                "缺少必填参数: raw_data",
-                code="MISSING_RAW_DATA"
-            )
+            return ToolResult.error_result("缺少必填参数: raw_data", code="MISSING_RAW_DATA")
         if not isinstance(raw_data, pd.DataFrame):
             return ToolResult.error_result(
-                f"raw_data 类型错误: 期望 DataFrame, 实际 {type(raw_data).__name__}",
-                code="INVALID_RAW_DATA_TYPE"
+                f"raw_data 类型错误: 期望 DataFrame, 实际 {type(raw_data).__name__}", code="INVALID_RAW_DATA_TYPE"
             )
 
         enable_selection = kwargs.get("enable_selection", False)
@@ -315,7 +283,7 @@ class FeatureEngineerTool(BaseTool):
                 enable_scaler=enable_scaler,
             )
 
-            basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
+            basic_cols = ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
             feature_cols = [c for c in df_featured.columns if c not in basic_cols]
 
             X = df_featured[feature_cols].fillna(0).values
@@ -329,7 +297,7 @@ class FeatureEngineerTool(BaseTool):
                 "has_missing": int(pd.isna(df_featured[feature_cols]).sum().sum() > 0),
                 "selection_applied": enable_selection,
                 "scaler_applied": enable_scaler,
-                "cache_stats": getattr(engineer.cache, 'stats', {}),
+                "cache_stats": getattr(engineer.cache, "stats", {}),
             }
 
             ctx.set("feature_matrix_X", X)
@@ -373,7 +341,7 @@ class FeatureEngineerTool(BaseTool):
         n_features: int,
     ) -> ToolResult:
         selector_tool = FeatureSelectorTool()
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         target_pos = POSITIONS[0]
         if target_pos in df_featured.columns:
             y = df_featured[target_pos].values.astype(int)
@@ -400,7 +368,7 @@ class FeatureSelectorTool(BaseTool):
             "y": {"type": "array", "description": "目标变量数组"},
             "n_features": {"type": "integer", "description": "目标特征数量（可选）"},
         },
-        "required": ["X", "y"]
+        "required": ["X", "y"],
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -409,22 +377,18 @@ class FeatureSelectorTool(BaseTool):
         X = kwargs.get("X")
         y = kwargs.get("y")
         if X is None or y is None:
-            return ToolResult.error_result(
-                "缺少必填参数: X 和/或 y",
-                code="MISSING_SELECTION_INPUT"
-            )
+            return ToolResult.error_result("缺少必填参数: X 和/或 y", code="MISSING_SELECTION_INPUT")
         if not isinstance(X, pd.DataFrame):
             return ToolResult.error_result(
-                f"X 类型错误: 期望 DataFrame, 实际 {type(X).__name__}",
-                code="INVALID_X_TYPE"
+                f"X 类型错误: 期望 DataFrame, 实际 {type(X).__name__}", code="INVALID_X_TYPE"
             )
 
         n_features = kwargs.get("n_features")
 
         target_y = (
-            pd.Series(y, index=X.index) if hasattr(y, '__len__') and len(y) == len(X)
-            else X.iloc[:, -1] if len(X.columns) > 0
-            else pd.Series(np.zeros(len(X), dtype=int), index=X.index)
+            pd.Series(y, index=X.index)
+            if hasattr(y, "__len__") and len(y) == len(X)
+            else X.iloc[:, -1] if len(X.columns) > 0 else pd.Series(np.zeros(len(X), dtype=int), index=X.index)
         )
 
         try:
@@ -481,7 +445,7 @@ class ModelAnalyzerTool(BaseTool):
         "type": "object",
         "properties": {
             "load_model": {"type": "boolean", "default": True},
-        }
+        },
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -511,10 +475,7 @@ class ModelAnalyzerTool(BaseTool):
                 )
 
         if predictor is None:
-            return ToolResult.error_result(
-                "上下文中无 predictor 且未启用自动加载",
-                code="NO_PREDICTOR_AVAILABLE"
-            )
+            return ToolResult.error_result("上下文中无 predictor 且未启用自动加载", code="NO_PREDICTOR_AVAILABLE")
 
         try:
             model_info = predictor.get_model_info()
@@ -541,8 +502,7 @@ class ModelAnalyzerTool(BaseTool):
             }
             components_status["rl_optimizer"] = {
                 "loaded": predictor.rl_optimizer is not None,
-                "trained": getattr(predictor.rl_optimizer, 'is_trained', False)
-                           if predictor.rl_optimizer else False,
+                "trained": getattr(predictor.rl_optimizer, "is_trained", False) if predictor.rl_optimizer else False,
             }
             components_status["thompson_sampler"] = {
                 "loaded": predictor.thompson_sampler is not None,
@@ -564,9 +524,7 @@ class ModelAnalyzerTool(BaseTool):
                 "is_trained": predictor.is_trained,
                 "feature_dim": predictor.trained_feature_dim,
                 "feature_cols_count": len(predictor.feature_cols),
-                "performance_history_samples": {
-                    m: len(h) for m, h in predictor._model_performance_history.items()
-                },
+                "performance_history_samples": {m: len(h) for m, h in predictor._model_performance_history.items()},
                 "prediction_cache_size": len(predictor._prediction_results_cache),
                 "rewards_history_length": len(predictor._rewards_history),
             }
@@ -602,37 +560,23 @@ class WeightAnalyzerTool(BaseTool):
     input_schema = {
         "type": "object",
         "properties": {
-            "history": {
-                "type": "array",
-                "description": "历史预测结果列表 (可选)"
-            },
-            "n_samples": {
-                "type": "integer",
-                "description": "Thompson采样次数",
-                "default": 1000
-            },
-        }
+            "history": {"type": "array", "description": "历史预测结果列表 (可选)"},
+            "n_samples": {"type": "integer", "description": "Thompson采样次数", "default": 1000},
+        },
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
         predictor = ctx.get("predictor")
         if predictor is None:
-            return ToolResult.error_result(
-                "上下文中未找到 predictor 实例",
-                code="PREDICTOR_NOT_FOUND"
-            )
+            return ToolResult.error_result("上下文中未找到 predictor 实例", code="PREDICTOR_NOT_FOUND")
 
         history = kwargs.get("history")
         n_samples = kwargs.get("n_samples", 1000)
 
         try:
-            adaptive_weights, uncertainty_info = predictor.get_adaptive_weights(
-                include_uncertainty=True
-            )
+            adaptive_weights, uncertainty_info = predictor.get_adaptive_weights(include_uncertainty=True)
 
-            mean_weights, bayesian_uncertainty = predictor._get_bayesian_weights_with_uncertainty(
-                n_samples=n_samples
-            )
+            mean_weights, bayesian_uncertainty = predictor._get_bayesian_weights_with_uncertainty(n_samples=n_samples)
 
             current_weights = dict(predictor.weights)
 
@@ -645,12 +589,9 @@ class WeightAnalyzerTool(BaseTool):
                         "mean": round(bi["mean"], 4),
                         "median": round(bi["median"], 4),
                         "std": round(bi["std"], 4),
-                        "ci_95": [round(bi["ci_95"]["lower"], 4),
-                                  round(bi["ci_95"]["upper"], 4)],
-                        "ci_80": [round(bi["ci_80"]["lower"], 4),
-                                  round(bi["ci_80"]["upper"], 4)],
-                        "ci_50": [round(bi["ci_50"]["lower"], 4),
-                                  round(bi["ci_50"]["upper"], 4)],
+                        "ci_95": [round(bi["ci_95"]["lower"], 4), round(bi["ci_95"]["upper"], 4)],
+                        "ci_80": [round(bi["ci_80"]["lower"], 4), round(bi["ci_80"]["upper"], 4)],
+                        "ci_50": [round(bi["ci_50"]["lower"], 4), round(bi["ci_50"]["upper"], 4)],
                         "cv": round(bi.get("cv", 0.0), 4),
                         "skewness": round(bi.get("skewness", 0.0), 4),
                     }
@@ -666,8 +607,7 @@ class WeightAnalyzerTool(BaseTool):
 
             analysis_data = {
                 "current_weights": current_weights,
-                "adaptive_weights": {m: round(float(adaptive_weights[i]), 4)
-                                    for i, m in enumerate(model_names)},
+                "adaptive_weights": {m: round(float(adaptive_weights[i]), 4) for i, m in enumerate(model_names)},
                 "uncertainty_intervals": ci_summary,
                 "global_uncertainty": {
                     "total_entropy": round(global_info.get("total_entropy", 0.0), 4),
@@ -683,10 +623,10 @@ class WeightAnalyzerTool(BaseTool):
             }
 
             ctx.set("weight_analysis", analysis_data)
-            ctx.record_metric("weight_analyzer.effective_dims",
-                              global_info.get("effective_dimensions", 0.0))
-            ctx.record_metric("weight_analyzer.confidence",
-                              1.0 if global_info.get("overall_confidence") == "high" else 0.5)
+            ctx.record_metric("weight_analyzer.effective_dims", global_info.get("effective_dimensions", 0.0))
+            ctx.record_metric(
+                "weight_analyzer.confidence", 1.0 if global_info.get("overall_confidence") == "high" else 0.5
+            )
 
             return ToolResult.success_result(data=analysis_data)
 
@@ -708,40 +648,48 @@ class WeightAnalyzerTool(BaseTool):
         confidence = global_info.get("overall_confidence", "unknown")
 
         if confidence == "low":
-            suggestions.append({
-                "type": "warning",
-                "message": "整体置信度低，建议增加历史数据积累以降低权重不确定性",
-                "priority": "high",
-            })
+            suggestions.append(
+                {
+                    "type": "warning",
+                    "message": "整体置信度低，建议增加历史数据积累以降低权重不确定性",
+                    "priority": "high",
+                }
+            )
 
         for mname, ci in ci_summary.items():
             cv = ci.get("cv", 0.0)
             if cv > 0.5:
-                suggestions.append({
-                    "type": "adjustment",
-                    "model": mname,
-                    "message": f"{mname} 权重变异系数较高(CV={cv:.2f})，建议关注该模型稳定性",
-                    "priority": "medium",
-                    "current_value": current_weights.get(mname, 0.25),
-                    "suggested_range": [ci["ci_95"][0], ci["ci_95"][1]],
-                })
+                suggestions.append(
+                    {
+                        "type": "adjustment",
+                        "model": mname,
+                        "message": f"{mname} 权重变异系数较高(CV={cv:.2f})，建议关注该模型稳定性",
+                        "priority": "medium",
+                        "current_value": current_weights.get(mname, 0.25),
+                        "suggested_range": [ci["ci_95"][0], ci["ci_95"][1]],
+                    }
+                )
 
         if adjustment_result:
             adj_mag = adjustment_result.get("adjustment_magnitude", 0.0)
             if adj_mag > 0.15:
-                suggestions.append({
-                    "type": "action",
-                    "message": f"基于EMA的历史权重调整幅度较大({adj_mag:.4f})，建议审查近期模型表现变化",
-                    "priority": "important",
-                    "adjusted_weights": adjustment_result.get("weights", {}),
-                })
+                suggestions.append(
+                    {
+                        "type": "action",
+                        "message": f"基于EMA的历史权重调整幅度较大({adj_mag:.4f})，建议审查近期模型表现变化",
+                        "priority": "important",
+                        "adjusted_weights": adjustment_result.get("weights", {}),
+                    }
+                )
 
         if not suggestions:
-            suggestions.append({
-                "type": "info",
-                "message": "权重配置合理，无需立即调整",
-                "priority": "low",
-            })
+            suggestions.append(
+                {
+                    "type": "info",
+                    "message": "权重配置合理，无需立即调整",
+                    "priority": "low",
+                }
+            )
 
         return suggestions
 
@@ -761,16 +709,10 @@ class HistoryEvaluatorTool(BaseTool):
     input_schema = {
         "type": "object",
         "properties": {
-            "predictions_history": {
-                "type": "array",
-                "description": "预测历史记录列表"
-            },
-            "actual_results": {
-                "type": "array",
-                "description": "实际开奖结果列表"
-            },
+            "predictions_history": {"type": "array", "description": "预测历史记录列表"},
+            "actual_results": {"type": "array", "description": "实际开奖结果列表"},
         },
-        "required": ["predictions_history", "actual_results"]
+        "required": ["predictions_history", "actual_results"],
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -781,13 +723,12 @@ class HistoryEvaluatorTool(BaseTool):
 
         if not predictions_history or not actual_results:
             return ToolResult.error_result(
-                "缺少必填参数: predictions_history 和 actual_results",
-                code="MISSING_HISTORY_DATA"
+                "缺少必填参数: predictions_history 和 actual_results", code="MISSING_HISTORY_DATA"
             )
         if len(predictions_history) != len(actual_results):
             return ToolResult.error_result(
                 f"predictions_history({len(predictions_history)}) 与 actual_results({len(actual_results)}) 长度不匹配",
-                code="HISTORY_LENGTH_MISMATCH"
+                code="HISTORY_LENGTH_MISMATCH",
             )
 
         try:
@@ -800,10 +741,7 @@ class HistoryEvaluatorTool(BaseTool):
                 hit_rate = self._compute_hit_rate(pred, actual)
                 accuracies.append(accuracy)
                 hit_rates.append(hit_rate)
-                sl_system.record_evaluation(
-                    accuracy=accuracy,
-                    extra={"hit_rate": hit_rate}
-                )
+                sl_system.record_evaluation(accuracy=accuracy, extra={"hit_rate": hit_rate})
 
             mk_result = SelfLearningSystem.mann_kendall_test(accuracies)
             comprehensive_score = sl_system.compute_comprehensive_score()
@@ -850,7 +788,7 @@ class HistoryEvaluatorTool(BaseTool):
 
     @staticmethod
     def _compute_accuracy(prediction: Dict, actual: Dict) -> float:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         hits = 0
         total = 0
         for pos in POSITIONS:
@@ -865,7 +803,7 @@ class HistoryEvaluatorTool(BaseTool):
 
     @staticmethod
     def _compute_hit_rate(prediction: Dict, actual: Dict) -> float:
-        POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
+        POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         hits = 0
         total = 0
         for pos in POSITIONS:
@@ -896,11 +834,8 @@ class OptimizationAdvisorTool(BaseTool):
     input_schema = {
         "type": "object",
         "properties": {
-            "performance_data": {
-                "type": "object",
-                "description": "性能数据字典 (可选，用于自定义评估)"
-            },
-        }
+            "performance_data": {"type": "object", "description": "性能数据字典 (可选，用于自定义评估)"},
+        },
     }
 
     def execute(self, ctx: ToolContext, **kwargs) -> ToolResult:
@@ -933,12 +868,9 @@ class OptimizationAdvisorTool(BaseTool):
             suggestions_output = [s.to_dict() for s in structured_suggestions]
 
             priority_breakdown = {
-                "urgent": sum(1 for s in structured_suggestions
-                             if s.priority.value == 3),
-                "important": sum(1 for s in structured_suggestions
-                                 if s.priority.value == 2),
-                "regular": sum(1 for s in structured_suggestions
-                               if s.priority.value == 1),
+                "urgent": sum(1 for s in structured_suggestions if s.priority.value == 3),
+                "important": sum(1 for s in structured_suggestions if s.priority.value == 2),
+                "regular": sum(1 for s in structured_suggestions if s.priority.value == 1),
             }
 
             advisor_data = {
@@ -957,10 +889,8 @@ class OptimizationAdvisorTool(BaseTool):
 
             ctx.set("optimization_suggestions", structured_suggestions)
             ctx.set("self_learning_system", sl_system)
-            ctx.record_metric("optimization_advisor.total_suggestions",
-                              len(structured_suggestions))
-            ctx.record_metric("optimization_advisor.urgent_count",
-                              priority_breakdown["urgent"])
+            ctx.record_metric("optimization_advisor.total_suggestions", len(structured_suggestions))
+            ctx.record_metric("optimization_advisor.urgent_count", priority_breakdown["urgent"])
 
             return ToolResult.success_result(data=advisor_data)
 

@@ -73,12 +73,25 @@ class SuggestionStatus(Enum):
 
 class OptimizationSuggestion:
     __slots__ = (
-        "id", "timestamp", "category", "priority", "status",
-        "title", "description",
-        "parameter_name", "current_value", "recommended_value",
-        "value_range_min", "value_range_max", "unit",
-        "estimated_improvement_low", "estimated_improvement_mid", "estimated_improvement_high",
-        "confidence_level", "reasoning", "source_metrics"
+        "id",
+        "timestamp",
+        "category",
+        "priority",
+        "status",
+        "title",
+        "description",
+        "parameter_name",
+        "current_value",
+        "recommended_value",
+        "value_range_min",
+        "value_range_max",
+        "unit",
+        "estimated_improvement_low",
+        "estimated_improvement_mid",
+        "estimated_improvement_high",
+        "confidence_level",
+        "reasoning",
+        "source_metrics",
     )
 
     def __init__(
@@ -151,8 +164,7 @@ class OptimizationSuggestion:
         }
         if self.source_metrics:
             d["source_metrics"] = {
-                k: round(v, 6) if isinstance(v, float) else v
-                for k, v in self.source_metrics.items()
+                k: round(v, 6) if isinstance(v, float) else v for k, v in self.source_metrics.items()
             }
         return d
 
@@ -184,9 +196,24 @@ _PARAMETER_KNOWLEDGE_BASE = {
         "max": 500,
         "step": 50,
         "rules": [
-            {"condition": "accuracy < 0.15 and std > 0.05", "action": "increase", "factor": 2.0, "reason": "\u4f4e\u51c6\u786e\u7387+\u9ad8\u6ce2\u52a8->\u589e\u52a0\u6811\u6570\u91cf\u63d0\u5347\u7a33\u5b9a\u6027"},
-            {"condition": "accuracy < 0.20 and std > 0.04", "action": "increase", "factor": 1.5, "reason": "\u504f\u4f4e\u51c6\u786e\u7387+\u4e2d\u7b49\u6ce2\u52a8->\u9002\u5ea6\u589e\u52a0\u6811\u6570\u91cf"},
-            {"condition": "accuracy > 0.30 and std < 0.03", "action": "fine_tune", "factor": 1.2, "reason": "\u826f\u597d\u6027\u80fd->\u5fae\u8c03\u6811\u6570\u91cf\u4ee5\u5e73\u8861\u6548\u7387"},
+            {
+                "condition": "accuracy < 0.15 and std > 0.05",
+                "action": "increase",
+                "factor": 2.0,
+                "reason": "\u4f4e\u51c6\u786e\u7387+\u9ad8\u6ce2\u52a8->\u589e\u52a0\u6811\u6570\u91cf\u63d0\u5347\u7a33\u5b9a\u6027",
+            },
+            {
+                "condition": "accuracy < 0.20 and std > 0.04",
+                "action": "increase",
+                "factor": 1.5,
+                "reason": "\u504f\u4f4e\u51c6\u786e\u7387+\u4e2d\u7b49\u6ce2\u52a8->\u9002\u5ea6\u589e\u52a0\u6811\u6570\u91cf",
+            },
+            {
+                "condition": "accuracy > 0.30 and std < 0.03",
+                "action": "fine_tune",
+                "factor": 1.2,
+                "reason": "\u826f\u597d\u6027\u80fd->\u5fae\u8c03\u6811\u6570\u91cf\u4ee5\u5e73\u8861\u6548\u7387",
+            },
         ],
     },
     "max_depth": {
@@ -195,9 +222,24 @@ _PARAMETER_KNOWLEDGE_BASE = {
         "max": 20,
         "step": 2,
         "rules": [
-            {"condition": "accuracy < 0.12", "action": "increase", "factor": 1.5, "reason": "\u4e25\u91cd\u6b20\u62df\u5408->\u589e\u52a0\u6a21\u578b\u590d\u6742\u5ea6"},
-            {"condition": "accuracy > 0.35 and std > 0.06", "action": "decrease", "factor": 0.8, "reason": "\u8fc7\u62df\u5408\u8ff9\u8c61->\u964d\u4f4e\u6df1\u5ea6\u589e\u5f3a\u6cdb\u5316"},
-            {"condition": "std > 0.07", "action": "decrease", "factor": 0.85, "reason": "\u9ad8\u6ce2\u52a8\u6027->\u51cf\u5c11\u8fc7\u62df\u5408\u98ce\u9669"},
+            {
+                "condition": "accuracy < 0.12",
+                "action": "increase",
+                "factor": 1.5,
+                "reason": "\u4e25\u91cd\u6b20\u62df\u5408->\u589e\u52a0\u6a21\u578b\u590d\u6742\u5ea6",
+            },
+            {
+                "condition": "accuracy > 0.35 and std > 0.06",
+                "action": "decrease",
+                "factor": 0.8,
+                "reason": "\u8fc7\u62df\u5408\u8ff9\u8c61->\u964d\u4f4e\u6df1\u5ea6\u589e\u5f3a\u6cdb\u5316",
+            },
+            {
+                "condition": "std > 0.07",
+                "action": "decrease",
+                "factor": 0.85,
+                "reason": "\u9ad8\u6ce2\u52a8\u6027->\u51cf\u5c11\u8fc7\u62df\u5408\u98ce\u9669",
+            },
         ],
     },
     "learning_rate": {
@@ -206,9 +248,24 @@ _PARAMETER_KNOWLEDGE_BASE = {
         "max": 0.3,
         "step": 0.02,
         "rules": [
-            {"condition": "accuracy < 0.14 and trend == 'declining'", "action": "decrease", "factor": 0.5, "reason": "\u4e0b\u964d\u8d8b\u52bf+\u4f4e\u51c6\u786e\u7387->\u964d\u4f4e\u5b66\u4e60\u7387\u7a33\u5b9a\u8bad\u7ec3"},
-            {"condition": "accuracy > 0.30 and std < 0.03", "action": "fine_tune", "factor": 0.8, "reason": "\u7a33\u5b9a\u9ad8\u6027\u80fd->\u7cbe\u7ec6\u8c03\u4f18\u5b66\u4e60\u7387"},
-            {"condition": "std > 0.08", "action": "decrease", "factor": 0.6, "reason": "\u6781\u9ad8\u6ce2\u52a8->\u5927\u5e45\u964d\u4f4e\u5b66\u4e60\u7387"},
+            {
+                "condition": "accuracy < 0.14 and trend == 'declining'",
+                "action": "decrease",
+                "factor": 0.5,
+                "reason": "\u4e0b\u964d\u8d8b\u52bf+\u4f4e\u51c6\u786e\u7387->\u964d\u4f4e\u5b66\u4e60\u7387\u7a33\u5b9a\u8bad\u7ec3",
+            },
+            {
+                "condition": "accuracy > 0.30 and std < 0.03",
+                "action": "fine_tune",
+                "factor": 0.8,
+                "reason": "\u7a33\u5b9a\u9ad8\u6027\u80fd->\u7cbe\u7ec6\u8c03\u4f18\u5b66\u4e60\u7387",
+            },
+            {
+                "condition": "std > 0.08",
+                "action": "decrease",
+                "factor": 0.6,
+                "reason": "\u6781\u9ad8\u6ce2\u52a8->\u5927\u5e45\u964d\u4f4e\u5b66\u4e60\u7387",
+            },
         ],
     },
 }
@@ -229,16 +286,30 @@ class SelfLearningSystem:
         _mc = model_config or get_model_config()
         sl_cfg = _mc.self_learning_config()
 
-        self.window = window if window != _DEFAULT_WINDOW_SIZE else sl_cfg.get('window', _DEFAULT_WINDOW_SIZE)
-        self.retrain_threshold = (retrain_threshold if retrain_threshold != _DEFAULT_RETRAIN_THRESHOLD
-                                  else sl_cfg.get('retrain_threshold', _DEFAULT_RETRAIN_THRESHOLD))
-        self.min_history = min_history if min_history != _DEFAULT_MIN_HISTORY else sl_cfg.get('min_history', _DEFAULT_MIN_HISTORY)
-        self.volatility_factor = (volatility_factor if volatility_factor != _DEFAULT_VOLATILITY_FACTOR
-                                  else sl_cfg.get('volatility_factor', _DEFAULT_VOLATILITY_FACTOR))
-        self.warning_accuracy = (warning_accuracy if warning_accuracy != _DEFAULT_WARNING_ACCURACY
-                                 else sl_cfg.get('warning_accuracy', _DEFAULT_WARNING_ACCURACY))
-        self.urgent_accuracy = (urgent_accuracy if urgent_accuracy != _DEFAULT_URGENT_ACCURACY
-                                else sl_cfg.get('urgent_accuracy', _DEFAULT_URGENT_ACCURACY))
+        self.window = window if window != _DEFAULT_WINDOW_SIZE else sl_cfg.get("window", _DEFAULT_WINDOW_SIZE)
+        self.retrain_threshold = (
+            retrain_threshold
+            if retrain_threshold != _DEFAULT_RETRAIN_THRESHOLD
+            else sl_cfg.get("retrain_threshold", _DEFAULT_RETRAIN_THRESHOLD)
+        )
+        self.min_history = (
+            min_history if min_history != _DEFAULT_MIN_HISTORY else sl_cfg.get("min_history", _DEFAULT_MIN_HISTORY)
+        )
+        self.volatility_factor = (
+            volatility_factor
+            if volatility_factor != _DEFAULT_VOLATILITY_FACTOR
+            else sl_cfg.get("volatility_factor", _DEFAULT_VOLATILITY_FACTOR)
+        )
+        self.warning_accuracy = (
+            warning_accuracy
+            if warning_accuracy != _DEFAULT_WARNING_ACCURACY
+            else sl_cfg.get("warning_accuracy", _DEFAULT_WARNING_ACCURACY)
+        )
+        self.urgent_accuracy = (
+            urgent_accuracy
+            if urgent_accuracy != _DEFAULT_URGENT_ACCURACY
+            else sl_cfg.get("urgent_accuracy", _DEFAULT_URGENT_ACCURACY)
+        )
         self.learning_history: List[Dict[str, Any]] = []
         self.suggestion_history: List[Dict[str, Any]] = []
         self._load_history()
@@ -364,21 +435,25 @@ class SelfLearningSystem:
 
         if effects:
             effects_arr = np.array(effects)
-            stats.update({
-                "avg_actual_effect": round(float(np.mean(effects_arr)), 6),
-                "median_actual_effect": round(float(np.median(effects_arr)), 6),
-                "max_actual_effect": round(float(np.max(effects_arr)), 6),
-                "min_actual_effect": round(float(np.min(effects_arr)), 6),
-                "effect_sample_size": len(effects),
-                "positive_effect_rate": round(sum(1 for e in effects if e > 0) / len(effects) * 100, 1),
-            })
+            stats.update(
+                {
+                    "avg_actual_effect": round(float(np.mean(effects_arr)), 6),
+                    "median_actual_effect": round(float(np.median(effects_arr)), 6),
+                    "max_actual_effect": round(float(np.max(effects_arr)), 6),
+                    "min_actual_effect": round(float(np.min(effects_arr)), 6),
+                    "effect_sample_size": len(effects),
+                    "positive_effect_rate": round(sum(1 for e in effects if e > 0) / len(effects) * 100, 1),
+                }
+            )
         else:
-            stats.update({
-                "avg_actual_effect": None,
-                "median_actual_effect": None,
-                "effect_sample_size": 0,
-                "positive_effect_rate": 0.0,
-            })
+            stats.update(
+                {
+                    "avg_actual_effect": None,
+                    "median_actual_effect": None,
+                    "effect_sample_size": 0,
+                    "positive_effect_rate": 0.0,
+                }
+            )
 
         return stats
 
@@ -433,6 +508,7 @@ class SelfLearningSystem:
 
         z = (s - np.sign(s)) / math.sqrt(var_s) if s != 0 else 0.0
         from math import erf, sqrt
+
         p_value = 2.0 * (1.0 - 0.5 * (1.0 + erf(abs(z) / sqrt(2.0))))
         tau = 2.0 * s / (n * (n - 1)) if n > 1 else 0.0
 
@@ -456,7 +532,7 @@ class SelfLearningSystem:
         }
 
     def compute_comprehensive_score(self, history=None) -> Dict[str, Any]:
-        hist = history or self.learning_history[-self.window:]
+        hist = history or self.learning_history[-self.window :]
         accs = [r.get("accuracy", 0.0) for r in hist if "accuracy" in r]
         hit_rates = [r.get("hit_rate", 0.0) for r in hist if "hit_rate" in r]
         confidences = [r.get("confidence", 0.0) for r in hist if "confidence" in r]
@@ -478,12 +554,7 @@ class SelfLearningSystem:
         stability = 1.0 / (1.0 + std_acc * 10)
 
         w_acc, w_hit, w_conf, w_stab = 0.40, 0.20, 0.20, 0.20
-        score = (
-            w_acc * avg_acc * 2.0
-            + w_hit * avg_hit
-            + w_conf * avg_conf
-            + w_stab * stability
-        )
+        score = w_acc * avg_acc * 2.0 + w_hit * avg_hit + w_conf * avg_conf + w_stab * stability
         score = max(0.0, min(1.0, score))
 
         available = []
@@ -529,15 +600,11 @@ class SelfLearningSystem:
 
         if current_acc <= self.urgent_accuracy:
             alert_level = AlertLevel.URGENT
-            reasons.append(
-                f"URGENT: current accuracy {current_acc:.4f} below urgent line {self.urgent_accuracy}"
-            )
+            reasons.append(f"URGENT: current accuracy {current_acc:.4f} below urgent line {self.urgent_accuracy}")
         elif current_acc <= self.warning_accuracy:
             if alert_level != AlertLevel.URGENT:
                 alert_level = AlertLevel.WARNING
-            reasons.append(
-                f"WARNING: current accuracy {current_acc:.4f} below warning line {self.warning_accuracy}"
-            )
+            reasons.append(f"WARNING: current accuracy {current_acc:.4f} below warning line {self.warning_accuracy}")
 
         if trend in ("declining", "decreasing"):
             is_significant = mk_result.get("significant", False)
@@ -574,7 +641,7 @@ class SelfLearningSystem:
         }
 
     def _mk_trend_recent(self) -> Dict[str, Any]:
-        recent = self.learning_history[-self.window:]
+        recent = self.learning_history[-self.window :]
         accs = [r["accuracy"] for r in recent if "accuracy" in r]
         if len(accs) >= 4:
             return self.mann_kendall_test(accs)
@@ -666,7 +733,7 @@ class SelfLearningSystem:
 
         all_accs = [r["accuracy"] for r in self.learning_history if "accuracy" in r]
         if len(all_accs) >= 2 * self.min_history:
-            hist_avg = float(np.mean(all_accs[:-self.window]))
+            hist_avg = float(np.mean(all_accs[: -self.window]))
             drop = hist_avg - recent["accuracy"]
             if drop > dyn_threshold:
                 return True, (
@@ -705,9 +772,7 @@ class SelfLearningSystem:
 
         if mk["trend"] in ("decreasing", "declining"):
             if mk["significant"]:
-                low, mid, high, conf = self._estimate_optimization_effect(
-                    "retraining_full", current_acc, hist_stats
-                )
+                low, mid, high, conf = self._estimate_optimization_effect("retraining_full", current_acc, hist_stats)
                 suggestions.append(
                     f"[URGENT] Significant declining trend detected (tau={mk['tau']:.4f}). "
                     f"Recommended: Full retraining with expanded ensemble. "
@@ -715,9 +780,7 @@ class SelfLearningSystem:
                 )
 
         if current_acc < 0.12:
-            low, mid, high, conf = self._estimate_optimization_effect(
-                "data_quality_fix", current_acc, hist_stats
-            )
+            low, mid, high, conf = self._estimate_optimization_effect("data_quality_fix", current_acc, hist_stats)
             suggestions.append(
                 f"[CRITICAL] Very low accuracy ({current_acc:.4f}). "
                 f"Recommended: Check data quality and preprocessing pipeline. "
@@ -744,8 +807,7 @@ class SelfLearningSystem:
 
         if not suggestions:
             suggestions.append(
-                f"[INFO] System performance is stable. "
-                f"Recent accuracy: {current_acc:.4f}, trend: {mk['trend']}"
+                f"[INFO] System performance is stable. " f"Recent accuracy: {current_acc:.4f}, trend: {mk['trend']}"
             )
 
         return suggestions
@@ -753,11 +815,7 @@ class SelfLearningSystem:
     def _determine_priority(self, accuracy_drop_pct: float, current_acc: float, trend: str) -> SuggestionPriority:
         if accuracy_drop_pct > 0.10 or current_acc <= self.urgent_accuracy:
             return SuggestionPriority.URGENT
-        if (
-            accuracy_drop_pct > 0.05
-            or current_acc <= self.warning_accuracy
-            or trend in ("decreasing", "declining")
-        ):
+        if accuracy_drop_pct > 0.05 or current_acc <= self.warning_accuracy or trend in ("decreasing", "declining"):
             return SuggestionPriority.IMPORTANT
         return SuggestionPriority.REGULAR
 
@@ -846,10 +904,16 @@ class SelfLearningSystem:
             for rule in knowledge["rules"]:
                 cond = rule["condition"]
                 try:
-                    cond_eval = eval(cond, {
-                        "accuracy": acc, "std": std, "trend": trend,
-                        "drop_pct": drop_pct, "peak": peak,
-                    })
+                    cond_eval = eval(
+                        cond,
+                        {
+                            "accuracy": acc,
+                            "std": std,
+                            "trend": trend,
+                            "drop_pct": drop_pct,
+                            "peak": peak,
+                        },
+                    )
                     if cond_eval:
                         matched_rule = rule
                         break
@@ -877,9 +941,7 @@ class SelfLearningSystem:
             range_hi = min(knowledge["max"], rec_val + range_margin)
 
             cat_key = f"{param_name}_{action}"
-            eff_low, eff_mid, eff_high, eff_conf = self._estimate_optimization_effect(
-                cat_key, acc, hist_stats
-            )
+            eff_low, eff_mid, eff_high, eff_conf = self._estimate_optimization_effect(cat_key, acc, hist_stats)
 
             sug = OptimizationSuggestion(
                 category=f"parameter_{param_name}",
@@ -902,8 +964,11 @@ class SelfLearningSystem:
                     f"Matched rule: {matched_rule['reason']}"
                 ),
                 source_metrics={
-                    "accuracy": acc, "peak": peak, "drop_pct": drop_pct,
-                    "std": std, "trend": trend,
+                    "accuracy": acc,
+                    "peak": peak,
+                    "drop_pct": drop_pct,
+                    "std": std,
+                    "trend": trend,
                 },
             )
             suggestions.append(sug)
@@ -925,165 +990,165 @@ class SelfLearningSystem:
         hist_stats = self._get_similar_historical_stats(category_prefix="model")
 
         if alert["alert_level"] == AlertLevel.URGENT.value:
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "retraining_full", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("retraining_full", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="model_retraining",
+                    priority=SuggestionPriority.URGENT,
+                    title="Execute full model retraining",
+                    description=(
+                        "Currently in URGENT state, need immediate retraining. "
+                        "Recommend checking data source quality then full retrain with latest data."
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning=(
+                        f"accuracy={acc:.4f} below urgent line {self.urgent_accuracy}, "
+                        f"dropped {drop_pct*100:.1f}% from peak {peak:.4f}"
+                    ),
+                    source_metrics={"accuracy": acc, "alert_level": alert["alert_level"], "drop_pct": drop_pct},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="model_retraining",
-                priority=SuggestionPriority.URGENT,
-                title="Execute full model retraining",
-                description=(
-                    "Currently in URGENT state, need immediate retraining. "
-                    "Recommend checking data source quality then full retrain with latest data."
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning=(
-                    f"accuracy={acc:.4f} below urgent line {self.urgent_accuracy}, "
-                    f"dropped {drop_pct*100:.1f}% from peak {peak:.4f}"
-                ),
-                source_metrics={"accuracy": acc, "alert_level": alert["alert_level"], "drop_pct": drop_pct},
-            ))
 
-            eff_l2, eff_m2, eff_h2, eff_c2 = self._estimate_optimization_effect(
-                "data_quality_fix", acc, hist_stats
+            eff_l2, eff_m2, eff_h2, eff_c2 = self._estimate_optimization_effect("data_quality_fix", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="data_quality",
+                    priority=SuggestionPriority.URGENT,
+                    title="Comprehensive review of data source quality and timeliness",
+                    description=(
+                        "In URGENT state, must first rule out data issues. Check: "
+                        "(1) Is data up-to-date (2) Are there outliers (3) Has feature engineering pipeline degraded"
+                    ),
+                    estimated_improvement_low=eff_l2,
+                    estimated_improvement_mid=eff_m2,
+                    estimated_improvement_high=eff_h2,
+                    confidence_level=eff_c2,
+                    reasoning="Root cause analysis for URGENT state usually points to data quality or concept drift",
+                    source_metrics={"accuracy": acc},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="data_quality",
-                priority=SuggestionPriority.URGENT,
-                title="Comprehensive review of data source quality and timeliness",
-                description=(
-                    "In URGENT state, must first rule out data issues. Check: "
-                    "(1) Is data up-to-date (2) Are there outliers (3) Has feature engineering pipeline degraded"
-                ),
-                estimated_improvement_low=eff_l2,
-                estimated_improvement_mid=eff_m2,
-                estimated_improvement_high=eff_h2,
-                confidence_level=eff_c2,
-                reasoning="Root cause analysis for URGENT state usually points to data quality or concept drift",
-                source_metrics={"accuracy": acc},
-            ))
 
         if trend in ("declining", "decreasing"):
             sig_mark = "(statistically significant)" if mk.get("significant") else ""
             pri = SuggestionPriority.IMPORTANT if drop_pct <= 0.10 else SuggestionPriority.URGENT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "incremental_learning", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("incremental_learning", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="strategy_incremental",
+                    priority=pri,
+                    title=f"Enable incremental learning strategy to counter declining trend{sig_mark}",
+                    description=(
+                        f"Detected accuracy declining trend (tau={mk['tau']:.4f}), "
+                        f"recommend enabling incremental or online learning to continuously adapt to data distribution changes."
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning=f"Mann-Kendall tau={mk['tau']:.4f}, p={mk['p_value']:.4f}, trend={trend}",
+                    source_metrics={
+                        "tau": mk.get("tau", 0),
+                        "p_value": mk.get("p_value", 1),
+                        "trend": trend,
+                        "significant": mk.get("significant", False),
+                    },
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="strategy_incremental",
-                priority=pri,
-                title=f"Enable incremental learning strategy to counter declining trend{sig_mark}",
-                description=(
-                    f"Detected accuracy declining trend (tau={mk['tau']:.4f}), "
-                    f"recommend enabling incremental or online learning to continuously adapt to data distribution changes."
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning=f"Mann-Kendall tau={mk['tau']:.4f}, p={mk['p_value']:.4f}, trend={trend}",
-                source_metrics={
-                    "tau": mk.get("tau", 0), "p_value": mk.get("p_value", 1),
-                    "trend": trend, "significant": mk.get("significant", False),
-                },
-            ))
 
         if std > 0.06:
             pri = self._determine_priority(drop_pct, acc, trend)
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "regularization", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("regularization", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="stability_regularization",
+                    priority=pri,
+                    title=f"Enhance regularization to reduce volatility (std={std:.4f})",
+                    description=(
+                        f"Detected high volatility (CV={self.calculate_dynamic_threshold()['volatility']:.4f}). "
+                        "Recommendations: (1) Increase L1/L2 regularization strength "
+                        "(2) Raise cross-validation folds to 8-10 (3) Check training data consistency"
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning=f"Standard deviation={std:.4f} exceeds threshold 0.06, indicating model instability",
+                    source_metrics={"std": std, "accuracy": acc},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="stability_regularization",
-                priority=pri,
-                title=f"Enhance regularization to reduce volatility (std={std:.4f})",
-                description=(
-                    f"Detected high volatility (CV={self.calculate_dynamic_threshold()['volatility']:.4f}). "
-                    "Recommendations: (1) Increase L1/L2 regularization strength "
-                    "(2) Raise cross-validation folds to 8-10 (3) Check training data consistency"
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning=f"Standard deviation={std:.4f} exceeds threshold 0.06, indicating model instability",
-                source_metrics={"std": std, "accuracy": acc},
-            ))
 
         if acc < 0.10:
             pri = SuggestionPriority.URGENT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "feature_engineering", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("feature_engineering", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="model_diagnosis",
+                    priority=pri,
+                    title=f"Full diagnosis of model architecture (accuracy only {acc:.4f})",
+                    description=(
+                        "Extremely low accuracy requires systematic investigation: "
+                        "(1) Feature engineering quality and correlation analysis "
+                        "(2) Whether model architecture matches problem complexity "
+                        "(3) Label annotation quality and consistency (4) Data leakage check"
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning="Accuracy far below random level (0.10), possible systemic issues",
+                    source_metrics={"accuracy": acc},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="model_diagnosis",
-                priority=pri,
-                title=f"Full diagnosis of model architecture (accuracy only {acc:.4f})",
-                description=(
-                    "Extremely low accuracy requires systematic investigation: "
-                    "(1) Feature engineering quality and correlation analysis "
-                    "(2) Whether model architecture matches problem complexity "
-                    "(3) Label annotation quality and consistency (4) Data leakage check"
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning="Accuracy far below random level (0.10), possible systemic issues",
-                source_metrics={"accuracy": acc},
-            ))
         elif acc < 0.18:
             pri = SuggestionPriority.IMPORTANT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "feature_engineering", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("feature_engineering", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="feature_enhancement",
+                    priority=pri,
+                    title=f"Expand feature engineering or try different base models (accuracy={acc:.4f})",
+                    description=(
+                        "Accuracy at low level. Recommendations: "
+                        "(1) Introduce more temporal features (lag terms, rolling statistics) "
+                        "(2) Try deep learning methods (3) Adjust ensemble weight allocation strategy"
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning="Accuracy in 0.10-0.18 range, significant room for improvement",
+                    source_metrics={"accuracy": acc},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="feature_enhancement",
-                priority=pri,
-                title=f"Expand feature engineering or try different base models (accuracy={acc:.4f})",
-                description=(
-                    "Accuracy at low level. Recommendations: "
-                    "(1) Introduce more temporal features (lag terms, rolling statistics) "
-                    "(2) Try deep learning methods (3) Adjust ensemble weight allocation strategy"
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning="Accuracy in 0.10-0.18 range, significant room for improvement",
-                source_metrics={"accuracy": acc},
-            ))
         elif acc > 0.35:
             pri = SuggestionPriority.REGULAR
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "ensemble_expansion", acc, hist_stats
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("ensemble_expansion", acc, hist_stats)
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="performance_fine_tuning",
+                    priority=pri,
+                    title=f"Fine-tune high-performance model (accuracy={acc:.4f})",
+                    description=(
+                        "Model performing well, further exploration possible: "
+                        "(1) Reduce learning rate to 0.01-0.03 for fine-tuning "
+                        "(2) Integrate more heterogeneous weak classifiers "
+                        "(3) Deep analysis of high-confidence predictions"
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning="Accuracy above 0.35, entering fine-tuning phase",
+                    source_metrics={"accuracy": acc},
+                )
             )
-            suggestions.append(OptimizationSuggestion(
-                category="performance_fine_tuning",
-                priority=pri,
-                title=f"Fine-tune high-performance model (accuracy={acc:.4f})",
-                description=(
-                    "Model performing well, further exploration possible: "
-                    "(1) Reduce learning rate to 0.01-0.03 for fine-tuning "
-                    "(2) Integrate more heterogeneous weak classifiers "
-                    "(3) Deep analysis of high-confidence predictions"
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning="Accuracy above 0.35, entering fine-tuning phase",
-                source_metrics={"accuracy": acc},
-            ))
 
         if comp["comprehensive_score"] < 0.20 and acc > 0.15:
             pri = SuggestionPriority.IMPORTANT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
-                "cross_validation", acc, hist_stats
-            )
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("cross_validation", acc, hist_stats)
             missing = []
             if "hit_rate" not in comp.get("metrics_available", []):
                 missing.append("hit_rate")
@@ -1091,27 +1156,30 @@ class SelfLearningSystem:
                 missing.append("confidence")
             miss_text = f", missing {', '.join(missing)} records" if missing else ""
 
-            suggestions.append(OptimizationSuggestion(
-                category="metric_completeness",
-                priority=pri,
-                title=f"Supplement missing metrics to improve comprehensive scoring (current={comp['comprehensive_score']:.4f}){miss_text}",
-                description=(
-                    f"While accuracy is acceptable ({acc:.4f}), comprehensive score is low. "
-                    f"Please ensure hit_rate and confidence are recorded during evaluation for more complete assessment."
-                ),
-                estimated_improvement_low=eff_l,
-                estimated_improvement_mid=eff_m,
-                estimated_improvement_high=eff_h,
-                confidence_level=eff_c,
-                reasoning=f"Comprehensive score={comp['comprehensive_score']:.4f}<0.20 threshold, available metrics={comp.get('metrics_available', [])}",
-                source_metrics={"comprehensive_score": comp["comprehensive_score"], "accuracy": acc},
-            ))
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="metric_completeness",
+                    priority=pri,
+                    title=f"Supplement missing metrics to improve comprehensive scoring (current={comp['comprehensive_score']:.4f}){miss_text}",
+                    description=(
+                        f"While accuracy is acceptable ({acc:.4f}), comprehensive score is low. "
+                        f"Please ensure hit_rate and confidence are recorded during evaluation for more complete assessment."
+                    ),
+                    estimated_improvement_low=eff_l,
+                    estimated_improvement_mid=eff_m,
+                    estimated_improvement_high=eff_h,
+                    confidence_level=eff_c,
+                    reasoning=f"Comprehensive score={comp['comprehensive_score']:.4f}<0.20 threshold, available metrics={comp.get('metrics_available', [])}",
+                    source_metrics={"comprehensive_score": comp["comprehensive_score"], "accuracy": acc},
+                )
+            )
 
         return suggestions
 
     def _get_similar_historical_stats(self, category_prefix: str = "") -> Optional[Dict[str, float]]:
         relevant = [
-            r for r in self.suggestion_history
+            r
+            for r in self.suggestion_history
             if r.get("status") == "applied"
             and "actual_effect" in r
             and r["actual_effect"] is not None
@@ -1136,14 +1204,16 @@ class SelfLearningSystem:
         alert = self.check_performance_alert()
 
         if perf["count"] == 0:
-            suggestions.append(OptimizationSuggestion(
-                category="system",
-                priority=SuggestionPriority.REGULAR,
-                title="Initialize system: complete first training",
-                description="History empty, recommend completing at least one full training to establish baseline.",
-                confidence_level=0.90,
-                reasoning="No historical evaluation data",
-            ))
+            suggestions.append(
+                OptimizationSuggestion(
+                    category="system",
+                    priority=SuggestionPriority.REGULAR,
+                    title="Initialize system: complete first training",
+                    description="History empty, recommend completing at least one full training to establish baseline.",
+                    confidence_level=0.90,
+                    reasoning="No historical evaluation data",
+                )
+            )
             self._persist_suggestions(suggestions)
             return suggestions
 
@@ -1353,8 +1423,7 @@ class SelfLearningSystem:
         """
         pending = [r for r in self.suggestion_history if r.get("status") == "pending"]
         if not pending:
-            return {"applied": [], "skipped": [], "dry_run": dry_run,
-                    "message": "无 pending 建议"}
+            return {"applied": [], "skipped": [], "dry_run": dry_run, "message": "无 pending 建议"}
 
         applied_list = []
         skipped_list = []
@@ -1369,22 +1438,26 @@ class SelfLearningSystem:
 
             # 过滤条件
             if conf < confidence_threshold:
-                skipped_list.append({
-                    "id": record.get("id"),
-                    "category": cat,
-                    "reason": f"置信度不足: {conf} < {confidence_threshold}",
-                    "conf": conf,
-                    "priority": prio,
-                })
+                skipped_list.append(
+                    {
+                        "id": record.get("id"),
+                        "category": cat,
+                        "reason": f"置信度不足: {conf} < {confidence_threshold}",
+                        "conf": conf,
+                        "priority": prio,
+                    }
+                )
                 continue
             if prio > priority_threshold:
-                skipped_list.append({
-                    "id": record.get("id"),
-                    "category": cat,
-                    "reason": f"优先级不足: {prio} > {priority_threshold}",
-                    "conf": conf,
-                    "priority": prio,
-                })
+                skipped_list.append(
+                    {
+                        "id": record.get("id"),
+                        "category": cat,
+                        "reason": f"优先级不足: {prio} > {priority_threshold}",
+                        "conf": conf,
+                        "priority": prio,
+                    }
+                )
                 continue
 
             # 尝试应用
@@ -1392,13 +1465,15 @@ class SelfLearningSystem:
             if res.get("applied"):
                 applied_list.append(res)
             else:
-                skipped_list.append({
-                    "id": record.get("id"),
-                    "category": cat,
-                    "reason": res.get("message", "未知原因"),
-                    "conf": conf,
-                    "priority": prio,
-                })
+                skipped_list.append(
+                    {
+                        "id": record.get("id"),
+                        "category": cat,
+                        "reason": res.get("message", "未知原因"),
+                        "conf": conf,
+                        "priority": prio,
+                    }
+                )
 
         summary = {
             "applied": applied_list,
@@ -1428,7 +1503,9 @@ class SelfLearningSystem:
         regular_count = sum(1 for s in structured if s.priority == SuggestionPriority.REGULAR)
 
         text_lines.append(f"=== V10.0 Optimization Suggestion Report ===")
-        text_lines.append(f"Total {len(structured)} suggestions | Urgent:{urgent_count} Important:{important_count} Regular:{regular_count}")
+        text_lines.append(
+            f"Total {len(structured)} suggestions | Urgent:{urgent_count} Important:{important_count} Regular:{regular_count}"
+        )
         text_lines.append("")
 
         for i, sug in enumerate(structured, 1):

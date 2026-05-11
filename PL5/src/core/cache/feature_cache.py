@@ -25,10 +25,10 @@ class FeatureCacheManager:
 
     def get_key(self, df: pd.DataFrame, extra_tags: Tuple = ()) -> str:
         """生成缓存key（基于数据内容hash）"""
-        core_cols = ['period']
-        if 'full_number' in df.columns:
-            core_cols.append('full_number')
-        
+        core_cols = ["period"]
+        if "full_number" in df.columns:
+            core_cols.append("full_number")
+
         # 计算数据hash
         hash_obj = hashlib.sha256()
         for col in core_cols:
@@ -36,7 +36,7 @@ class FeatureCacheManager:
                 values = df[col].values.tobytes()
                 hash_obj.update(values)
                 hash_obj.update(str(len(df)).encode())
-        
+
         data_hash = hash_obj.hexdigest()[:16]
         tag_hash = hashlib.md5(str(extra_tags).encode()).hexdigest()[:8]
         return f"{data_hash}_{tag_hash}"
@@ -62,7 +62,7 @@ class FeatureCacheManager:
                 # 智能淘汰：优先淘汰访问频率低且时间久的
                 self._smart_evict()
             self._cache[key] = df.copy()
-        
+
         self._cache_times[key] = time.time()
         self._access_patterns[key] = 1
 
@@ -70,17 +70,17 @@ class FeatureCacheManager:
         """智能淘汰策略 - 结合LRU和LFU"""
         if not self._cache:
             return
-        
+
         # 计算每个条目的综合得分（越低越容易被淘汰）
         current_time = time.time()
         scores = {}
-        
+
         for key in self._cache:
             age = current_time - self._cache_times.get(key, 0)
             freq = self._access_patterns.get(key, 1)
             # 得分 = 年龄 / 频率 (年龄越大、频率越低，得分越高，越容易被淘汰)
             scores[key] = age / (freq + 1)
-        
+
         # 淘汰得分最高的
         key_to_remove = max(scores, key=scores.get)
         del self._cache[key_to_remove]
@@ -119,24 +119,24 @@ class FeatureCacheManager:
     def get_similar_keys(self, key: str, threshold: float = 0.8) -> List[str]:
         """查找相似的缓存key（用于近似匹配）"""
         similar = []
-        key_prefix = key.split('_')[0]  # 数据部分
-        
+        key_prefix = key.split("_")[0]  # 数据部分
+
         for cached_key in self._cache:
             if cached_key.startswith(key_prefix):
                 similar.append(cached_key)
-        
+
         return similar
 
     @property
     def stats(self) -> Dict[str, Any]:
         total = self._hit_count + self._miss_count
         return {
-            'size': len(self._cache),
-            'max_size': self._max_size,
-            'hits': self._hit_count,
-            'misses': self._miss_count,
-            'hit_rate': self._hit_count / total if total > 0 else 0.0,
-            'utilization': len(self._cache) / self._max_size if self._max_size > 0 else 0.0
+            "size": len(self._cache),
+            "max_size": self._max_size,
+            "hits": self._hit_count,
+            "misses": self._miss_count,
+            "hit_rate": self._hit_count / total if total > 0 else 0.0,
+            "utilization": len(self._cache) / self._max_size if self._max_size > 0 else 0.0,
         }
 
     def __len__(self):

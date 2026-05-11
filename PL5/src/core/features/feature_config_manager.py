@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FeatureConfig:
     """特征配置数据类"""
+
     select_top: Optional[int] = None
     feature_columns: List[str] = field(default_factory=list)
     feature_count: int = 0
@@ -31,7 +32,7 @@ class FeatureConfigManager:
     统一管理训练和预测流程中的特征配置，确保两者使用一致的配置
     """
 
-    _instance: Optional['FeatureConfigManager'] = None
+    _instance: Optional["FeatureConfigManager"] = None
     _lock = Lock()
 
     def __new__(cls):
@@ -49,11 +50,7 @@ class FeatureConfigManager:
         # 默认配置目录
         if config_dirs is None:
             base_dir = Path(__file__).parent.parent.parent
-            config_dirs = [
-                base_dir / "logs",
-                base_dir / "models",
-                base_dir / "config"
-            ]
+            config_dirs = [base_dir / "logs", base_dir / "models", base_dir / "config"]
 
         self.config_dirs = [Path(d) for d in config_dirs]
         self._cached_config: Optional[FeatureConfig] = None
@@ -97,27 +94,29 @@ class FeatureConfigManager:
             return None
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # 兼容两种格式：直接配置或嵌套在 best_config 中
-            config_data = data.get('best_config', data)
+            config_data = data.get("best_config", data)
 
             config = FeatureConfig(
-                select_top=config_data.get('select_top'),
-                feature_columns=config_data.get('feature_columns', []),
-                feature_count=config_data.get('feature_count', 0),
-                version=config_data.get('version', ''),
-                created_at=config_data.get('created_at', ''),
-                validation_score=config_data.get('validation_score', 0.0),
-                config_source=str(config_path)
+                select_top=config_data.get("select_top"),
+                feature_columns=config_data.get("feature_columns", []),
+                feature_count=config_data.get("feature_count", 0),
+                version=config_data.get("version", ""),
+                created_at=config_data.get("created_at", ""),
+                validation_score=config_data.get("validation_score", 0.0),
+                config_source=str(config_path),
             )
 
             self._cached_config = config
             self._cached_config_path = config_path
 
-            logger.info(f"[FeatureConfigManager] 加载配置成功: select_top={config.select_top}, "
-                       f"feature_count={config.feature_count}")
+            logger.info(
+                f"[FeatureConfigManager] 加载配置成功: select_top={config.select_top}, "
+                f"feature_count={config.feature_count}"
+            )
 
             return config
 
@@ -186,11 +185,11 @@ class FeatureConfigManager:
                     "feature_count": config.feature_count,
                     "version": config.version,
                     "created_at": config.created_at,
-                    "validation_score": config.validation_score
+                    "validation_score": config.validation_score,
                 }
             }
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
             self._cached_config = config
@@ -234,12 +233,7 @@ class FeatureConfigManager:
         config = self.get_config()
 
         if config is None:
-            return {
-                "is_valid": True,
-                "missing_columns": [],
-                "extra_columns": [],
-                "valid_columns": available_columns
-            }
+            return {"is_valid": True, "missing_columns": [], "extra_columns": [], "valid_columns": available_columns}
 
         config_columns = set(config.feature_columns)
         available_set = set(available_columns)
@@ -257,7 +251,7 @@ class FeatureConfigManager:
             "valid_columns": list(valid),
             "config_feature_count": len(config_columns),
             "available_feature_count": len(available_set),
-            "valid_feature_count": len(valid)
+            "valid_feature_count": len(valid),
         }
 
         if not is_valid:
@@ -280,7 +274,7 @@ class FeatureConfigManager:
             "config_source": config.config_source if config else None,
             "validation_score": config.validation_score if config else 0.0,
             "cached": self._cached_config is not None,
-            "cache_path": str(self._cached_config_path) if self._cached_config_path else None
+            "cache_path": str(self._cached_config_path) if self._cached_config_path else None,
         }
 
     def reset(self) -> None:

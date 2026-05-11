@@ -2,6 +2,7 @@
 多策略并行评估器模块
 并行评估多个策略、性能指标收集和策略排名
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class MetricType(Enum):
     """性能指标类型"""
+
     ACCURACY = "accuracy"
     PRECISION = "precision"
     RECALL = "recall"
@@ -30,6 +32,7 @@ class MetricType(Enum):
 @dataclass
 class EvaluationResult:
     """评估结果"""
+
     policy_name: str
     policy_version: str
     metrics: Dict[str, float]
@@ -45,6 +48,7 @@ class EvaluationResult:
 @dataclass
 class PolicyRank:
     """策略排名"""
+
     policy_name: str
     policy_version: str
     rank: int
@@ -59,14 +63,16 @@ class ParallelEvaluator:
         self.max_workers = max_workers
         self.results: List[EvaluationResult] = []
 
-    def evaluate_policy(self,
-                        policy: BaseEstimator,
-                        policy_name: str,
-                        policy_version: str,
-                        X_test: np.ndarray,
-                        y_test: np.ndarray,
-                        metrics: List[MetricType],
-                        custom_metrics: Optional[Dict[str, Callable]] = None) -> EvaluationResult:
+    def evaluate_policy(
+        self,
+        policy: BaseEstimator,
+        policy_name: str,
+        policy_version: str,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        metrics: List[MetricType],
+        custom_metrics: Optional[Dict[str, Callable]] = None,
+    ) -> EvaluationResult:
         """
         评估单个策略
 
@@ -92,11 +98,11 @@ class ParallelEvaluator:
             if metric == MetricType.ACCURACY:
                 metric_values[metric.value] = accuracy_score(y_test, y_pred)
             elif metric == MetricType.PRECISION:
-                metric_values[metric.value] = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+                metric_values[metric.value] = precision_score(y_test, y_pred, average="weighted", zero_division=0)
             elif metric == MetricType.RECALL:
-                metric_values[metric.value] = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+                metric_values[metric.value] = recall_score(y_test, y_pred, average="weighted", zero_division=0)
             elif metric == MetricType.F1:
-                metric_values[metric.value] = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+                metric_values[metric.value] = f1_score(y_test, y_pred, average="weighted", zero_division=0)
             elif metric == MetricType.MSE:
                 metric_values[metric.value] = mean_squared_error(y_test, y_pred)
             elif metric == MetricType.RMSE:
@@ -110,18 +116,20 @@ class ParallelEvaluator:
             policy_name=policy_name,
             policy_version=policy_version,
             metrics=metric_values,
-            evaluation_time=evaluation_time
+            evaluation_time=evaluation_time,
         )
 
         logger.info(f"策略 {policy_name} v{policy_version} 评估完成: {metric_values}")
         return result
 
-    def evaluate_parallel(self,
-                          policies: List[Tuple[BaseEstimator, str, str]],
-                          X_test: np.ndarray,
-                          y_test: np.ndarray,
-                          metrics: List[MetricType],
-                          custom_metrics: Optional[Dict[str, Callable]] = None) -> List[EvaluationResult]:
+    def evaluate_parallel(
+        self,
+        policies: List[Tuple[BaseEstimator, str, str]],
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        metrics: List[MetricType],
+        custom_metrics: Optional[Dict[str, Callable]] = None,
+    ) -> List[EvaluationResult]:
         """
         并行评估多个策略
 
@@ -139,10 +147,10 @@ class ParallelEvaluator:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_policy = {
-                executor.submit(
-                    self.evaluate_policy,
-                    policy, name, version, X_test, y_test, metrics, custom_metrics
-                ): (name, version)
+                executor.submit(self.evaluate_policy, policy, name, version, X_test, y_test, metrics, custom_metrics): (
+                    name,
+                    version,
+                )
                 for policy, name, version in policies
             }
 
@@ -156,9 +164,7 @@ class ParallelEvaluator:
 
         return self.results
 
-    def rank_policies(self,
-                      primary_metric: str,
-                      higher_is_better: bool = True) -> List[PolicyRank]:
+    def rank_policies(self, primary_metric: str, higher_is_better: bool = True) -> List[PolicyRank]:
         """
         对策略进行排名
 
@@ -173,27 +179,23 @@ class ParallelEvaluator:
             logger.warning("没有评估结果可用于排名")
             return []
 
-        sorted_results = sorted(
-            self.results,
-            key=lambda x: x.metrics.get(primary_metric, 0),
-            reverse=higher_is_better
-        )
+        sorted_results = sorted(self.results, key=lambda x: x.metrics.get(primary_metric, 0), reverse=higher_is_better)
 
         ranks = []
         for i, result in enumerate(sorted_results, 1):
-            ranks.append(PolicyRank(
-                policy_name=result.policy_name,
-                policy_version=result.policy_version,
-                rank=i,
-                score=result.metrics.get(primary_metric, 0),
-                evaluation_result=result
-            ))
+            ranks.append(
+                PolicyRank(
+                    policy_name=result.policy_name,
+                    policy_version=result.policy_version,
+                    rank=i,
+                    score=result.metrics.get(primary_metric, 0),
+                    evaluation_result=result,
+                )
+            )
 
         return ranks
 
-    def get_best_policy(self,
-                        primary_metric: str,
-                        higher_is_better: bool = True) -> Optional[PolicyRank]:
+    def get_best_policy(self, primary_metric: str, higher_is_better: bool = True) -> Optional[PolicyRank]:
         """
         获取最佳策略
 

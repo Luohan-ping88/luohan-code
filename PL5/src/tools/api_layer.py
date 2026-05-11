@@ -177,7 +177,7 @@ if _FASTAPI_AVAILABLE and _PYDANTIC_AVAILABLE:
         from .base import get_registry
         return get_registry()
 
-    def _create_context() -> 'ToolContext':
+    def _create_context():
         from .base import ToolContext
         return ToolContext()
 

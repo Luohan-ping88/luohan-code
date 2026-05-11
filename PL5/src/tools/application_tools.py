@@ -36,6 +36,15 @@ from .base import (
 
 
 # ================================================================
+# 统计辅助函数
+# ================================================================
+
+def _approx_normal_cdf(x: float) -> float:
+    """标准正态分布CDF近似计算（模块级函数）"""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+# ================================================================
 # 1. DailyReportTool — 每日完整分析报告生成
 # ================================================================
 
@@ -1473,7 +1482,7 @@ class ComparisonTool(BaseTool):
             }
 
         t_stat = mean_diff / (std_diff / math.sqrt(n))
-        p_value = 2.0 * (1.0 - self._approx_normal_cdf(abs(t_stat)))
+        p_value = 2.0 * (1.0 - _approx_normal_cdf(abs(t_stat)))
 
         alpha = 0.05
         significant = p_value < alpha
@@ -1502,10 +1511,6 @@ class ComparisonTool(BaseTool):
                 f"t={t_stat:.2f}, 强度={strength})"
             ),
         }
-
-    @staticmethod
-    def _approx_normal_cdf(x: float) -> float:
-        return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
     @staticmethod
     def _compute_win_loss(preds_a: List[Dict], preds_b: List[Dict], actuals: List[Dict], top_n: int) -> Dict:

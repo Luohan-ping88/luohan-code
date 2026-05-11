@@ -2658,7 +2658,7 @@ class EnhancedPL5Predictor:
         }
 
     @classmethod
-    def as_tool(cls, **predictor_kwargs) -> "PredictorTool":
+    def as_tool(cls, **predictor_kwargs):
         """创建 PredictorTool 工具实例并绑定当前预测器
 
         将 EnhancedPL5Predictor 实例封装为标准工具接口，

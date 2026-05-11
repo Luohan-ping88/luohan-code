@@ -2,6 +2,7 @@
 测试免疫系统功能
 """
 
+import pytest
 import asyncio
 import logging
 import time
@@ -13,6 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+@pytest.mark.asyncio
 async def test_immune_system():
     """测试免疫系统功能"""
     logger.info("开始测试免疫系统")

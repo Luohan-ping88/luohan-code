@@ -3,12 +3,14 @@
 Research Agent测试脚本
 """
 
+import pytest
 import asyncio
 import pandas as pd
 
 from src.agents.orchestrator import AgentOrchestrator
 
 
+@pytest.mark.asyncio
 async def test_research_agent():
     """测试Research Agent"""
     print("开始测试Research Agent...")

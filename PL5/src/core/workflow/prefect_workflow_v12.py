@@ -4,6 +4,7 @@ PL5智能分析系统 - Prefect工作流定义 V12.0
 Phase 3: 分布式智能体升级
 - 任务周期：22:00-20:30（第二天）
 - 节点时间控制：多智能体智能协调分配
+- 充分利用22.5小时时间窗口
 """
 
 from prefect import flow, task, get_run_logger
@@ -15,10 +16,10 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# 导入时间协调器
+# 导入时间协调器 V2.0
 try:
-    from src.agents.distributed.time_coordinator import (
-        TimeCoordinator,
+    from src.agents.distributed.time_coordinator_v2 import (
+        TimeCoordinatorV2,
         DynamicTimeCoordinator,
         TaskSlot
     )
@@ -34,30 +35,30 @@ time_coordinator = None
 
 def get_time_coordinator():
     """
-    获取时间协调器实例
+    获取时间协调器实例 V2.0
 
     Returns:
-        TimeCoordinator: 时间协调器实例
+        TimeCoordinatorV2: 时间协调器实例
     """
     global time_coordinator
     if time_coordinator is None:
-        time_coordinator = TimeCoordinator(
+        time_coordinator = TimeCoordinatorV2(
             window_start_hour=22,
             window_end_hour=20,
             window_end_next_day=True
         )
 
-        # 注册任务（保持原有的14个任务节点）
-        time_coordinator.register_task("数据采集", estimated_duration_minutes=15, priority=5)
-        time_coordinator.register_task("模型评估", estimated_duration_minutes=10, priority=4, dependencies=["数据采集"])
-        time_coordinator.register_task("策略优化", estimated_duration_minutes=15, priority=4, dependencies=["模型评估"])
-        time_coordinator.register_task("模型训练", estimated_duration_minutes=30, priority=3, dependencies=["策略优化"])
-        time_coordinator.register_task("增量训练", estimated_duration_minutes=20, priority=3, dependencies=["模型训练"])
-        time_coordinator.register_task("第一次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"])
-        time_coordinator.register_task("第二次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"])
-        time_coordinator.register_task("第三次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"])
-        time_coordinator.register_task("深度策略优化", estimated_duration_minutes=20, priority=2, dependencies=["第一次预测验证", "第二次预测验证", "第三次预测验证"])
-        time_coordinator.register_task("预测预览", estimated_duration_minutes=5, priority=1, dependencies=["深度策略优化"])
+        # 注册核心任务（保持原有的14个任务节点）
+        time_coordinator.register_task("数据采集", estimated_duration_minutes=15, priority=5, is_core_task=True)
+        time_coordinator.register_task("模型评估", estimated_duration_minutes=10, priority=4, dependencies=["数据采集"], is_core_task=True)
+        time_coordinator.register_task("策略优化", estimated_duration_minutes=15, priority=4, dependencies=["模型评估"], is_core_task=True)
+        time_coordinator.register_task("模型训练", estimated_duration_minutes=30, priority=3, dependencies=["策略优化"], is_core_task=True)
+        time_coordinator.register_task("增量训练", estimated_duration_minutes=20, priority=3, dependencies=["模型训练"], is_core_task=True)
+        time_coordinator.register_task("第一次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("第二次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("第三次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("深度策略优化", estimated_duration_minutes=20, priority=2, dependencies=["第一次预测验证", "第二次预测验证", "第三次预测验证"], is_core_task=True)
+        time_coordinator.register_task("预测预览", estimated_duration_minutes=5, priority=1, dependencies=["深度策略优化"], is_core_task=True)
         time_coordinator.register_task("最终预测", estimated_duration_minutes=15, priority=1, dependencies=["预测预览"])
         time_coordinator.register_task("最终预测验证", estimated_duration_minutes=5, priority=1, dependencies=["最终预测"])
         time_coordinator.register_task("售前预测", estimated_duration_minutes=5, priority=1, dependencies=["最终预测验证"])

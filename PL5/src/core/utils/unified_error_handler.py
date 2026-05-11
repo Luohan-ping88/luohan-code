@@ -110,8 +110,8 @@ class PL5Error(Exception):
 class DataError(PL5Error):
     """数据相关错误"""
     def __init__(self, message: str, data_source: str = "unknown",
-                 record_count: int = 0, **kwargs):
-        super().__init__(message, ErrorType.DATA_ERROR, **kwargs)
+                 record_count: int = 0, error_type: ErrorType = ErrorType.DATA_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
         self.data_source = data_source
         self.record_count = record_count
         self.context.update({
@@ -142,8 +142,8 @@ class DataParseError(DataError):
 class ModelError(PL5Error):
     """模型相关错误"""
     def __init__(self, message: str, model_name: str = "unknown",
-                 operation: str = "unknown", **kwargs):
-        super().__init__(message, ErrorType.MODEL_ERROR, **kwargs)
+                 operation: str = "unknown", error_type: ErrorType = ErrorType.MODEL_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
         self.model_name = model_name
         self.operation = operation
         self.context.update({
@@ -167,8 +167,8 @@ class ModelPredictError(ModelError):
 # 网络相关错误
 class NetworkError(PL5Error):
     """网络相关错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.NETWORK_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.NETWORK_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 class NetworkTimeoutError(NetworkError):
@@ -194,8 +194,8 @@ class NetworkHTTPError(NetworkError):
 # 配置相关错误
 class ConfigError(PL5Error):
     """配置相关错误"""
-    def __init__(self, message: str, config_key: str = "unknown", **kwargs):
-        super().__init__(message, ErrorType.CONFIG_ERROR, **kwargs)
+    def __init__(self, message: str, config_key: str = "unknown", error_type: ErrorType = ErrorType.CONFIG_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
         self.config_key = config_key
         self.context.update({"config_key": config_key})
 
@@ -203,34 +203,34 @@ class ConfigError(PL5Error):
 # API相关错误
 class ApiError(PL5Error):
     """API错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.API_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.API_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 class RateLimitError(PL5Error):
     """速率限制错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.RATE_LIMIT_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.RATE_LIMIT_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 # 认证相关错误
 class AuthError(PL5Error):
     """认证错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.AUTH_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.AUTH_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 # 服务器相关错误
 class ServerError(PL5Error):
     """服务器错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.SERVER_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.SERVER_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 class ClientError(PL5Error):
     """客户端错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.CLIENT_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.CLIENT_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 T = TypeVar('T')

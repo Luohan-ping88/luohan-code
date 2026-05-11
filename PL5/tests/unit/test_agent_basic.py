@@ -6,7 +6,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 
-from agent_framework.base_agent import BaseAgent, AgentTask, AgentResult
+from src.agents.base_agent import BaseAgent
 
 
 class TestAgentTask:

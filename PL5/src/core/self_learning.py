@@ -689,6 +689,67 @@ class SelfLearningSystem:
             f"dynamic threshold={dyn_threshold:.4f})"
         )
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议列表"""
+        if len(self.learning_history) < self.min_history:
+            return []
+
+        suggestions = []
+        recent = self.evaluate_recent_performance()
+        current_acc = recent["accuracy"]
+        mk = self._mk_trend_recent()
+        comp = self.compute_comprehensive_score()
+        acc_drop, drop_pct, peak_acc = self._compute_accuracy_drop()
+        hist_stats = self.get_suggestion_statistics()
+        priority = self._determine_priority(drop_pct, current_acc, mk["trend"])
+
+        if mk["trend"] in ("decreasing", "declining"):
+            if mk["significant"]:
+                low, mid, high, conf = self._estimate_optimization_effect(
+                    "retraining_full", current_acc, hist_stats
+                )
+                suggestions.append(
+                    f"[URGENT] Significant declining trend detected (tau={mk['tau']:.4f}). "
+                    f"Recommended: Full retraining with expanded ensemble. "
+                    f"Expected improvement: {mid*100:.1f}% (confidence: {conf*100:.0f}%)"
+                )
+
+        if current_acc < 0.12:
+            low, mid, high, conf = self._estimate_optimization_effect(
+                "data_quality_fix", current_acc, hist_stats
+            )
+            suggestions.append(
+                f"[CRITICAL] Very low accuracy ({current_acc:.4f}). "
+                f"Recommended: Check data quality and preprocessing pipeline. "
+                f"Expected improvement: {mid*100:.1f}% (confidence: {conf*100:.0f}%)"
+            )
+
+        if comp["comprehensive_score"] < 0.15:
+            suggestions.append(
+                f"[WARNING] Low comprehensive score ({comp['comprehensive_score']:.4f}). "
+                f"Consider multi-dimensional optimization across features, hyperparameters, and ensemble."
+            )
+
+        if drop_pct > 0.05:
+            priority_str = "[URGENT]" if priority == SuggestionPriority.URGENT else "[IMPORTANT]"
+            suggestions.append(
+                f"{priority_str} Accuracy drop of {drop_pct*100:.1f}% from peak ({peak_acc:.4f} -> {current_acc:.4f}). "
+                f"Consider adaptive learning rate or feature re-selection."
+            )
+
+        if current_acc > 0.35:
+            suggestions.append(
+                f"[INFO] Good performance ({current_acc:.4f}). Focus on fine-tuning and stability maintenance."
+            )
+
+        if not suggestions:
+            suggestions.append(
+                f"[INFO] System performance is stable. "
+                f"Recent accuracy: {current_acc:.4f}, trend: {mk['trend']}"
+            )
+
+        return suggestions
+
     def _determine_priority(self, accuracy_drop_pct: float, current_acc: float, trend: str) -> SuggestionPriority:
         if accuracy_drop_pct > 0.10 or current_acc <= self.urgent_accuracy:
             return SuggestionPriority.URGENT

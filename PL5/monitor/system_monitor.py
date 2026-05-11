@@ -39,13 +39,43 @@ class SystemMonitor:
             'last_run': None,
             'next_run': None
         }
+
+        # 【修复V11】使用精确匹配规则，避免误杀其他Python进程
+        # PL5系统进程标识符
+        PL5_PROCESS_IDENTIFIERS = [
+            'auto_scheduler_v8',
+            'process_watchdog',
+            'prevent_sleep',
+            'pl5_intelligent_system',
+            'start_system',
+            'start_sentinel',
+            'launch_simple',
+            'src.app.auto_scheduler_v8',
+        ]
         
-        # 检查Python进程
+        # PL5项目路径
+        PL5_PROJECT_PATHS = ['\\PL5\\', '/PL5/', 'E:\\PL5', 'D:\\PL5']
+        
+        def _is_pl5_process(cmdline: str) -> bool:
+            """精确检查是否属于PL5系统"""
+            if not cmdline:
+                return False
+            cmdline_lower = cmdline.lower()
+            # 必须包含至少一个PL5标识符
+            has_identifier = any(pid in cmdline_lower for pid in PL5_PROCESS_IDENTIFIERS)
+            if not has_identifier:
+                return False
+            # 必须在PL5项目目录下
+            has_path = any(path.lower() in cmdline_lower for path in PL5_PROJECT_PATHS)
+            return has_path
+
+        # 检查Python进程（使用精确匹配）
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
-                if proc.info['name'] in ('python.exe', 'python'):
+                if proc.info['name'] in ('python.exe', 'python', 'pythonw.exe', 'pythonw'):
                     cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
-                    if 'PL5' in cmdline or 'pl5' in cmdline or 'auto_scheduler' in cmdline:
+                    # 【修复】使用精确匹配，而不是宽松的子串匹配
+                    if _is_pl5_process(cmdline):
                         status['python_processes'].append({
                             'pid': proc.info['pid'],
                             'cmdline': cmdline[:100]

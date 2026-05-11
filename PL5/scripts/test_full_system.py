@@ -29,7 +29,6 @@ async def full_test():
         print(f"[OK] stacking: {bool(predictor.stacking)}")
         print(f"[OK] hmm_models: {len(predictor.hmm_models)} 个")
         print(f"[OK] bsts_models: {len(predictor.bsts_models)} 个")
-        print(f"[OK] evm_models: {len(predictor.evm_models)} 个")
         print()
         
         # 2. 测试预测流程（包含数据更新、特征工程、模型推理）

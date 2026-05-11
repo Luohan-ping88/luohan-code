@@ -175,9 +175,13 @@ def log_structured(level: str, module: str, message: str, **extra):
 
 # ── 装饰器 ────────────────────────────────────────────────
 
+import functools
+import asyncio
+
 def log_exception(func_name: str):
     """异常装饰器"""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
@@ -190,9 +194,10 @@ def log_exception(func_name: str):
 
 
 def log_execution_time(func_name: str):
-    """计时装饰器"""
+    """计时装饰器（支持同步和异步函数）"""
     def decorator(func):
-        def wrapper(*args, **kwargs):
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
             start = datetime.now()
             try:
                 return func(*args, **kwargs)
@@ -200,7 +205,23 @@ def log_execution_time(func_name: str):
                 dur = (datetime.now() - start).total_seconds()
                 logger = get_logger()
                 logger.info(f'[⏱ {func_name}] {dur:.2f}秒')
-        return wrapper
+        
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            start = datetime.now()
+            try:
+                return await func(*args, **kwargs)
+            finally:
+                dur = (datetime.now() - start).total_seconds()
+                logger = get_logger()
+                logger.info(f'[⏱ {func_name}] {dur:.2f}秒')
+        
+        # 根据函数类型返回对应的包装器
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
+    
     return decorator
 
 

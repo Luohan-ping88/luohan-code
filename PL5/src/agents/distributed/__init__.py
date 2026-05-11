@@ -31,6 +31,13 @@ from .specialized_agents import (
     OrchestratorAgent,
 )
 
+from .time_coordinator import (
+    TimeCoordinator,
+    DynamicTimeCoordinator,
+    TaskSlot,
+    TimeWindow,
+)
+
 __all__ = [
     "AgentCommunicationProtocol",
     "AgentInfo",
@@ -51,4 +58,8 @@ __all__ = [
     "DataCollectionAgent",
     "EvaluationAgent",
     "OrchestratorAgent",
+    "TimeCoordinator",
+    "DynamicTimeCoordinator",
+    "TaskSlot",
+    "TimeWindow",
 ]

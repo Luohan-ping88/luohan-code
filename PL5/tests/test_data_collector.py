@@ -12,7 +12,7 @@ import os
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.data_collector import PL5DataCollector, DataValidator, DataVersionManager, retry_on_failure
+from src.core.data.collector import PL5DataCollector, DataValidator, DataVersionManager, retry_on_failure
 
 
 class TestDataValidator(unittest.TestCase):

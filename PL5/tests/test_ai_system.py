@@ -6,7 +6,7 @@
 import unittest
 from src.ai.registry import get_registry, register_tool, reset_registry
 from src.ai.tools.builtin import SearchTool, CalculatorTool, FileTool
-from src.ai.types import ToolParameter, LLMConfig, LLMType, AgentConfig, AgentType
+from src.ai.ai_types import ToolParameter, LLMConfig, LLMType, AgentConfig, AgentType
 from src.ai.agents.base import AgentFactory
 from src.ai.orchestrator import WorkflowEngine, Workflow, WorkflowStep
 import asyncio
@@ -29,7 +29,7 @@ class TestToolRegistry(unittest.TestCase):
             parameters=[ToolParameter(name="param1", type="str", description="参数1", required=True)],
         )
         def test_tool_func(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             return ToolResult(success=True, data=params)
 
@@ -48,7 +48,7 @@ class TestToolRegistry(unittest.TestCase):
             parameters=[ToolParameter(name="expression", type="str", description="数学表达式", required=True)],
         )
         def calculator_tool(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             try:
                 result = eval(params["expression"])
@@ -68,13 +68,13 @@ class TestToolRegistry(unittest.TestCase):
         # 注册多个工具
         @register_tool(name="tool1", description="工具1", parameters=[])
         def tool1(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             return ToolResult(success=True)
 
         @register_tool(name="tool2", description="工具2", parameters=[])
         def tool2(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             return ToolResult(success=True)
 
@@ -100,7 +100,7 @@ class TestAgent(unittest.TestCase):
             parameters=[ToolParameter(name="expression", type="str", description="数学表达式", required=True)],
         )
         def calculator_tool(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             try:
                 result = eval(params["expression"])
@@ -151,7 +151,7 @@ class TestWorkflow(unittest.TestCase):
             parameters=[ToolParameter(name="expression", type="str", description="数学表达式", required=True)],
         )
         def calculator_tool(params):
-            from src.ai.types import ToolResult
+            from src.ai.ai_types import ToolResult
 
             try:
                 result = eval(params["expression"])

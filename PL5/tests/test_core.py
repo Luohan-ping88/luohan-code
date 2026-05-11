@@ -2,7 +2,7 @@ import unittest
 import asyncio
 import time
 from src.ai.orchestrator import WorkflowEngine, Workflow
-from src.ai.types import WorkflowStep, WorkflowStatus
+from src.ai.ai_types import WorkflowStep, WorkflowStatus
 from src.ai.security import get_validator, get_permission_manager, get_secrets_manager, get_scanner
 from src.ai.performance import get_cache, get_performance_monitor, get_load_balancer, get_auto_scaler
 from src.ai.api import app

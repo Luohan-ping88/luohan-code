@@ -1354,7 +1354,14 @@ class SelfLearningSystem:
         )
         return summary
 
-    def get_suggestion_statistics(self) -> Dict[str, Any]:
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议（返回字符串列表格式，兼容V8调用）。
+        
+        这是一个向后兼容的接口，内部调用generate_structured_suggestions。
+        
+        Returns:
+            优化建议的字符串列表
+        """
         structured = self.generate_structured_suggestions()
         text_lines: List[str] = []
 

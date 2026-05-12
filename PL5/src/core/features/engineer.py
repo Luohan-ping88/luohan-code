@@ -1003,25 +1003,17 @@ class FeatureEngineerV9:
         return result
         
     def _add_pl5_specific_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """排列五特定特征"""
+        """排列五特定特征（优化版本）"""
         result = df.copy()
         
-        # 1. 数字频率特征
+        # 1. 数字频率特征（优化版本：向量化操作）
         for pos in POSITIONS:
             # 计算每个数字的频率
             freq = df[pos].value_counts(normalize=True)
             freq_dict = freq.to_dict()
-            # 数字频率特征
-            result[f'{pos}_freq_0'] = df[pos].apply(lambda x: freq_dict.get(0, 0))
-            result[f'{pos}_freq_1'] = df[pos].apply(lambda x: freq_dict.get(1, 0))
-            result[f'{pos}_freq_2'] = df[pos].apply(lambda x: freq_dict.get(2, 0))
-            result[f'{pos}_freq_3'] = df[pos].apply(lambda x: freq_dict.get(3, 0))
-            result[f'{pos}_freq_4'] = df[pos].apply(lambda x: freq_dict.get(4, 0))
-            result[f'{pos}_freq_5'] = df[pos].apply(lambda x: freq_dict.get(5, 0))
-            result[f'{pos}_freq_6'] = df[pos].apply(lambda x: freq_dict.get(6, 0))
-            result[f'{pos}_freq_7'] = df[pos].apply(lambda x: freq_dict.get(7, 0))
-            result[f'{pos}_freq_8'] = df[pos].apply(lambda x: freq_dict.get(8, 0))
-            result[f'{pos}_freq_9'] = df[pos].apply(lambda x: freq_dict.get(9, 0))
+            # 使用map代替apply提高速度
+            for digit in range(10):
+                result[f'{pos}_freq_{digit}'] = df[pos].map(freq_dict).fillna(0)
             
             # 2. 数字分布特征
             result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
@@ -1029,99 +1021,94 @@ class FeatureEngineerV9:
             result[f'{pos}_skew'] = df[pos].rolling(window=100, min_periods=1).skew()
             result[f'{pos}_kurt'] = df[pos].rolling(window=100, min_periods=1).kurt()
         
-        # 3. 排列五特定模式特征
-        # 连号特征
-        result['consecutive_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            consecutive = 1
-            max_consecutive = 1
-            for j in range(1, len(numbers)):
-                if numbers[j] == numbers[j-1] + 1:
-                    consecutive += 1
-                    max_consecutive = max(max_consecutive, consecutive)
+        # 3. 排列五特定模式特征（优化版本）
+        # 连号特征：使用向量化操作
+        position_values = df[POSITIONS].values
+        # 计算相邻位置的差异
+        diffs = position_values[:, 1:] - position_values[:, :-1]
+        # 计算连续递增为1的序列
+        consecutive_masks = (diffs == 1)
+        
+        # 计算每行的最大连续长度
+        max_consecutive = np.ones(len(df), dtype=int)
+        for i in range(len(df)):
+            current_consecutive = 1
+            row_max = 1
+            for j in range(consecutive_masks.shape[1]):
+                if consecutive_masks[i, j]:
+                    current_consecutive += 1
+                    row_max = max(row_max, current_consecutive)
                 else:
-                    consecutive = 1
-            result.loc[i, 'consecutive_numbers'] = max_consecutive
+                    current_consecutive = 1
+            max_consecutive[i] = row_max
+        result['consecutive_numbers'] = max_consecutive
         
-        # 重号特征
-        result['repeat_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            unique_numbers = len(set(numbers))
-            result.loc[i, 'repeat_numbers'] = 5 - unique_numbers
+        # 重号特征：使用向量化操作
+        # 计算每行的唯一值数量
+        result['repeat_numbers'] = 5 - df[POSITIONS].apply(lambda row: len(set(row)), axis=1)
         
-        # 4. 位置间相关性特征
+        # 4. 位置间相关性特征（保持不变）
         for i, pos1 in enumerate(POSITIONS):
             for j, pos2 in enumerate(POSITIONS):
                 if i < j:
                     result[f'{pos1}_{pos2}_corr'] = df[[pos1, pos2]].rolling(window=50, min_periods=1).corr().iloc[::2, 1].reset_index(drop=True)
         
-        # 5. 历史开奖模式特征
+        # 5. 历史开奖模式特征（优化版本：使用pandas内置函数）
         # 最近n期的数字组合模式
-        def rolling_mode(series, window):
-            """计算滚动窗口的众数"""
-            result = []
+        def optimized_rolling_mode(series, window):
+            """优化的滚动众数计算"""
+            result = np.zeros(len(series))
             for i in range(len(series)):
-                window_data = series.iloc[max(0, i-window+1):i+1]
-                if len(window_data) > 0:
-                    mode_val = window_data.mode().iloc[0] if not window_data.mode().empty else 0
-                    result.append(mode_val)
+                if i >= window:
+                    window_data = series.iloc[i-window:i]
                 else:
-                    result.append(0)
+                    window_data = series.iloc[:i+1]
+                if len(window_data) > 0:
+                    modes = window_data.mode()
+                    result[i] = modes.iloc[0] if not modes.empty else 0
+                else:
+                    result[i] = 0
             return pd.Series(result, index=series.index)
         
         for n in [3, 5, 10]:
             for pos in POSITIONS:
-                result[f'{pos}_last_{n}_mode'] = rolling_mode(df[pos], n)
-                result[f'{pos}_last_{n}_most_freq'] = df[pos].rolling(window=n, min_periods=1).apply(lambda x: x.value_counts().idxmax() if len(x) > 0 else 0, raw=False)
+                result[f'{pos}_last_{n}_mode'] = optimized_rolling_mode(df[pos], n)
+                # 使用apply，但更高效
+                result[f'{pos}_last_{n}_most_freq'] = df[pos].rolling(window=n, min_periods=1).apply(
+                    lambda x: x.value_counts().index[0] if len(x) > 0 else 0,
+                    raw=True
+                )
         
-        # 6. 随机性类型特征
-        # 认知随机特征：基于历史数据的主观认知模式
+        # 6. 随机性类型特征（优化版本）
         for pos in POSITIONS:
-            # 连续出现次数
-            result[f'{pos}_consecutive_occurrences'] = 0
-            current_num = None
-            count = 0
-            for i in df.index:
-                num = df.loc[i, pos]
-                if num == current_num:
-                    count += 1
+            # 连续出现次数：使用向量化操作
+            values = df[pos].values
+            consecutive = np.ones(len(values), dtype=int)
+            for i in range(1, len(values)):
+                if values[i] == values[i-1]:
+                    consecutive[i] = consecutive[i-1] + 1
                 else:
-                    current_num = num
-                    count = 1
-                result.loc[i, f'{pos}_consecutive_occurrences'] = count
+                    consecutive[i] = 1
+            result[f'{pos}_consecutive_occurrences'] = consecutive
             
-            # 间隔出现次数
-            result[f'{pos}_gap_occurrences'] = 0
+            # 间隔出现次数：使用向量化操作
+            gap_occurrences = np.zeros(len(values), dtype=int)
             last_occurrence = {}
-            for i in df.index:
-                num = df.loc[i, pos]
+            for i, num in enumerate(values):
                 if num in last_occurrence:
-                    gap = i - last_occurrence[num]
-                    result.loc[i, f'{pos}_gap_occurrences'] = gap
+                    gap_occurrences[i] = i - last_occurrence[num]
                 last_occurrence[num] = i
+            result[f'{pos}_gap_occurrences'] = gap_occurrences
         
-        # 确定性规则的伪随机特征：基于数学规则的模式
+        # 确定性规则的伪随机特征：基于数学规则的模式（优化版本）
         # 数字和特征
-        result['sum_digits'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'sum_digits'] = sum(numbers)
+        result['sum_digits'] = df[POSITIONS].sum(axis=1)
         
         # 数字积特征
-        result['product_digits'] = 1
-        for i in df.index:
-            product = 1
-            for pos in POSITIONS:
-                product *= df.loc[i, pos]
-            result.loc[i, 'product_digits'] = product
+        result['product_digits'] = df[POSITIONS].product(axis=1)
         
         # 数字差特征
-        result['max_min_diff'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'max_min_diff'] = max(numbers) - min(numbers)
+        result['max_min_diff'] = df[POSITIONS].max(axis=1) - df[POSITIONS].min(axis=1)
         
         # 混沌复杂系统的随机特征：基于混沌理论的特征
         # 李雅普诺夫指数近似

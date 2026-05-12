@@ -1,0 +1,19 @@
+# PL5 调度器 systemd 服务文件
+# 用于 Linux 服务器部署
+
+[Unit]
+Description=PL5 Prediction System Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/PL5
+ExecStart=/usr/bin/python3 /path/to/PL5/src/app/auto_scheduler_v8.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/pl5/scheduler.log
+StandardError=append:/var/log/pl5/scheduler_error.log
+
+[Install]
+WantedBy=multi-user.target

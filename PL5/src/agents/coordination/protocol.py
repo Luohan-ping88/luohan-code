@@ -3,12 +3,18 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, AsyncQueue
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum, auto
 import asyncio
 import uuid
 import logging
+
+# Python 3.10+ 兼容性: AsyncQueue已移除，使用asyncio.Queue
+try:
+    from asyncio import Queue as AsyncQueue
+except ImportError:
+    from typing import Queue as AsyncQueue
 
 logger = logging.getLogger(__name__)
 

@@ -52,8 +52,11 @@ class TestUtilityFunctions:
         result = _safe_proba(proba, n_classes=10)
         
         assert len(result) == 10
-        assert np.allclose(result[:2], proba)
-        assert np.all(result[2:] == 0)
+        # 归一化后的值
+        expected = np.array([0.5, 0.3, 0, 0, 0, 0, 0, 0, 0, 0])
+        expected = expected / expected.sum()
+        assert np.allclose(result, expected)
+        assert np.allclose(result.sum(), 1.0)
     
     @pytest.mark.unit
     def test_safe_proba_long(self):
@@ -579,5 +582,8 @@ class TestPredictorEdgeCases:
         result = _safe_proba(proba, n_classes=10)
         
         assert len(result) == 10
-        # NaN应该被处理为0
-        assert result[1] == 0
+        # NaN应该被处理为0，然后归一化
+        expected = np.array([0.1, 0, 0.3, 0.4, 0, 0, 0, 0, 0, 0])
+        expected = expected / expected.sum()
+        assert np.allclose(result, expected)
+        assert np.allclose(result.sum(), 1.0)

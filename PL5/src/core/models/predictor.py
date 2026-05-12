@@ -45,6 +45,7 @@ def _safe_proba(proba: np.ndarray, n_classes: int = 10) -> np.ndarray:
     out = np.zeros(n_classes)
     valid = min(len(proba), n_classes)
     out[:valid] = proba[:valid]
+    out = np.nan_to_num(out)
     return out / (out.sum() + 1e-12)
 
 
@@ -124,7 +125,7 @@ class CopulaModel:
         n = data.shape[1]
         # pandas corr(method='kendall') 内部使用快速排序 O(n·log(n))，
         # 比手写 O(n²) Python 循环快 100 倍以上
-        tau = pd.DataFrame(data).corr(method='kendall').values
+        tau = pd.DataFrame(data).corr(method='kendall').values.copy()
         np.fill_diagonal(tau, 1.0)
         self.kendall_tau = tau
         self._fitted = True

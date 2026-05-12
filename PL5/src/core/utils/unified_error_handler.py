@@ -110,8 +110,8 @@ class PL5Error(Exception):
 class DataError(PL5Error):
     """数据相关错误"""
     def __init__(self, message: str, data_source: str = "unknown",
-                 record_count: int = 0, **kwargs):
-        super().__init__(message, ErrorType.DATA_ERROR, **kwargs)
+                 record_count: int = 0, error_type: ErrorType = ErrorType.DATA_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
         self.data_source = data_source
         self.record_count = record_count
         self.context.update({
@@ -142,8 +142,8 @@ class DataParseError(DataError):
 class ModelError(PL5Error):
     """模型相关错误"""
     def __init__(self, message: str, model_name: str = "unknown",
-                 operation: str = "unknown", **kwargs):
-        super().__init__(message, ErrorType.MODEL_ERROR, **kwargs)
+                 operation: str = "unknown", error_type: ErrorType = ErrorType.MODEL_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
         self.model_name = model_name
         self.operation = operation
         self.context.update({
@@ -167,26 +167,26 @@ class ModelPredictError(ModelError):
 # 网络相关错误
 class NetworkError(PL5Error):
     """网络相关错误"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.NETWORK_ERROR, **kwargs)
+    def __init__(self, message: str, error_type: ErrorType = ErrorType.NETWORK_ERROR, **kwargs):
+        super().__init__(message, error_type=error_type, **kwargs)
 
 
 class NetworkTimeoutError(NetworkError):
     """网络超时错误"""
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_TIMEOUT_ERROR, **kwargs)
+        super().__init__(message, ErrorType.NETWORK_TIMEOUT_ERROR, **kwargs)
 
 
 class NetworkConnectionError(NetworkError):
     """网络连接错误"""
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_CONNECTION_ERROR, **kwargs)
+        super().__init__(message, ErrorType.NETWORK_CONNECTION_ERROR, **kwargs)
 
 
 class NetworkHTTPError(NetworkError):
     """网络HTTP错误"""
     def __init__(self, message: str, status_code: int = None, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_HTTP_ERROR, **kwargs)
+        super().__init__(message, ErrorType.NETWORK_HTTP_ERROR, **kwargs)
         if status_code:
             self.context.update({"status_code": status_code})
 
@@ -503,13 +503,13 @@ def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,))
             current_delay = delay
             last_error = None
 
-            while retry_count < max_retries:
+            while retry_count <= max_retries:
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
                     last_error = e
-                    retry_count += 1
                     if retry_count < max_retries:
+                        retry_count += 1
                         logger.info(f"Retrying {func.__name__} in {current_delay} seconds... (Attempt {retry_count}/{max_retries})")
                         time.sleep(current_delay)
                         current_delay *= backoff

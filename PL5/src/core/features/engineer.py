@@ -1073,10 +1073,9 @@ class FeatureEngineerV9:
         for n in [3, 5, 10]:
             for pos in POSITIONS:
                 result[f'{pos}_last_{n}_mode'] = optimized_rolling_mode(df[pos], n)
-                # 使用apply，但更高效
+                # 使用apply，不使用raw=True以保持pandas Series
                 result[f'{pos}_last_{n}_most_freq'] = df[pos].rolling(window=n, min_periods=1).apply(
-                    lambda x: x.value_counts().index[0] if len(x) > 0 else 0,
-                    raw=True
+                    lambda x: x.value_counts().index[0] if len(x) > 0 else 0
                 )
         
         # 6. 随机性类型特征（优化版本）

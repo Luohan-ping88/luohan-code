@@ -13,6 +13,7 @@
   "final_prediction_verification_time": "19:00",
   "pre_sale_prediction_time": "20:00",
   "email_send_time": "20:15",
+  "system_status_time": "21:20",
   "training_deadline": "17:00",
   "enabled": true,
   "monitoring_enabled": true,
@@ -86,6 +87,11 @@
       "name": "发送训练报告和最终预测到邮箱",
       "time": "20:15",
       "description": "发送训练报告和最终预测到邮箱"
+    },
+    {
+      "name": "发送系统运行状态报告到邮箱",
+      "time": "21:20",
+      "description": "发送系统运行状态报告到邮箱，包含任务执行情况和系统健康状态"
     }
   ],
   "last_completed_period": "2026118"

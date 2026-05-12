@@ -1638,7 +1638,130 @@ class AutoSchedulerV8:
             datetime.now(),
             error_msg
         )
-    
+
+    def task_send_system_status(self):
+        """发送系统运行状态报告到邮箱（包含任务执行情况和系统健康状态）"""
+        logger.info("=" * 80)
+        logger.info("【任务15】发送系统运行状态报告")
+        logger.info("=" * 80)
+        self.log_status("发送系统状态报告", "开始执行", 0)
+
+        structured_logger.log_operation_start(
+            StructuredLogger.OPERATION_EMAIL_SEND,
+            {"action": "send_system_status"}
+        )
+        start_time = datetime.now()
+        task_name = "send_system_status"
+
+        if self.workflow_enabled and self.orchestrator:
+            self.orchestrator.start_task(task_name)
+
+        try:
+            from src.core.email.sender import EmailSender
+            from src.core.monitoring.health_monitor import get_health_monitor
+            import json
+
+            # 获取系统健康状态
+            health_monitor = get_health_monitor()
+            health_status = health_monitor.check_health()
+
+            # 获取任务执行历史
+            task_history = self.history_manager.get_task_history(limit=20)
+
+            # 获取当前状态
+            current_status = self.current_status.copy()
+            current_status['uptime'] = (datetime.now() - self.start_time).total_seconds()
+
+            # 统计今日任务执行情况
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_tasks = [t for t in task_history if today in t['start_time']]
+            
+            success_count = sum(1 for t in today_tasks if t['status'] == 'SUCCESS')
+            failed_count = sum(1 for t in today_tasks if t['status'] == 'FAILED')
+            total_count = len(today_tasks)
+
+            # 构建系统状态报告
+            system_report = {
+                'report_type': 'system_status',
+                'report_time': datetime.now().isoformat(),
+                'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'system_status': {
+                    'uptime_seconds': current_status['uptime'],
+                    'uptime_hours': current_status['uptime'] / 3600,
+                    'current_task': current_status['current_task'],
+                    'last_successful_run': current_status['last_successful_run']
+                },
+                'health_status': health_status,
+                'task_summary': {
+                    'total_tasks': total_count,
+                    'success_count': success_count,
+                    'failed_count': failed_count,
+                    'success_rate': success_count / total_count if total_count > 0 else 0
+                },
+                'recent_tasks': task_history[:10],
+                'model_version': 'V10.3',
+                'scheduler_status': 'RUNNING' if self.running else 'STOPPED'
+            }
+
+            # 发送邮件
+            sender = EmailSender()
+            result = sender.send_email({
+                'title': 'PL5 系统运行状态报告',
+                'type': 'system_status',
+                'content': system_report,
+                'generated_at': datetime.now().isoformat()
+            })
+
+            # 保存报告
+            report_path = LOGS_DIR / f"system_status_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(report_path, 'w', encoding='utf-8') as f:
+                json.dump(system_report, f, indent=2, ensure_ascii=False)
+
+            duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+            structured_logger.log_operation_success(
+                StructuredLogger.OPERATION_EMAIL_SEND,
+                duration_ms,
+                {
+                    "report_type": "system_status",
+                    "send_result": result,
+                    "success_rate": system_report['task_summary']['success_rate']
+                }
+            )
+
+            self.log_status("发送系统状态报告", "完成", 100)
+            logger.info("✓ 系统状态报告发送完成")
+
+            if self.workflow_enabled and self.orchestrator:
+                self.orchestrator.complete_task(task_name, system_report)
+
+            self.history_manager.add_task_record(
+                "send_system_status",
+                "SUCCESS",
+                start_time,
+                datetime.now()
+            )
+            return True
+        except Exception as e:
+            error_msg = f"发送系统状态报告失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            if self.workflow_enabled and self.orchestrator:
+                self.orchestrator.fail_task(task_name, error_msg)
+            
+            self.log_status("发送系统状态报告", f"失败: {str(e)}", 0)
+            structured_logger.log_operation_failure(
+                StructuredLogger.OPERATION_EMAIL_SEND,
+                PL5BaseError(error_msg, original_error=e),
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            self.history_manager.add_task_record(
+                "send_system_status",
+                "FAILED",
+                start_time,
+                datetime.now(),
+                error_msg
+            )
+            return False
+
     def _get_task_handler(self, task_name: str):
         """根据任务名从 task_map 动态获取处理器方法（用于 run_full_pipeline）"""
         if hasattr(self, 'task_map') and task_name in self.task_map:
@@ -2592,6 +2715,7 @@ class AutoSchedulerV8:
         final_prediction_verification_time = self.config.get('final_prediction_verification_time', '19:00')
         pre_sale_prediction_time = self.config.get('pre_sale_prediction_time', '20:00')
         email_send_time = self.config.get('email_send_time', '20:15')
+        system_status_time = self.config.get('system_status_time', '21:20')
         
         # 任务1: 自动获取开奖数据 (22:15)
         schedule.every().day.at(data_fetch_time).do(lambda: self._schedule_thread_wrapper(self.task_fetch_data))
@@ -2653,9 +2777,13 @@ class AutoSchedulerV8:
         schedule.every().day.at(pre_sale_prediction_time).do(lambda: self._schedule_thread_wrapper(self.task_pre_sale_prediction))
         logger.info(f"[OK] {pre_sale_prediction_time} - 售前最终预测")
         
-        # 任务14: 发送训练报告和最终预测到邮箱 (20:00)
+        # 任务14: 发送训练报告和最终预测到邮箱 (20:15)
         schedule.every().day.at(email_send_time).do(lambda: self._schedule_thread_wrapper(self.task_send_report))
         logger.info(f"[OK] {email_send_time} - 发送训练报告和最终预测到邮箱")
+        
+        # 任务15: 发送系统运行状态报告到邮箱 (21:20)
+        schedule.every().day.at(system_status_time).do(lambda: self._schedule_thread_wrapper(self.task_send_system_status))
+        logger.info(f"[OK] {system_status_time} - 发送系统运行状态报告到邮箱")
         
         logger.info("=" * 80)
         logger.info("完整佐证流程已设置完成！")

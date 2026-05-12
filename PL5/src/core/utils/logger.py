@@ -190,17 +190,30 @@ def log_exception(func_name: str):
 
 
 def log_execution_time(func_name: str):
-    """计时装饰器"""
+    """计时装饰器 - 支持同步和异步函数"""
     def decorator(func):
-        def wrapper(*args, **kwargs):
-            start = datetime.now()
-            try:
-                return func(*args, **kwargs)
-            finally:
-                dur = (datetime.now() - start).total_seconds()
-                logger = get_logger()
-                logger.info(f'[⏱ {func_name}] {dur:.2f}秒')
-        return wrapper
+        import asyncio
+        
+        if asyncio.iscoroutinefunction(func):
+            async def async_wrapper(*args, **kwargs):
+                start = datetime.now()
+                try:
+                    return await func(*args, **kwargs)
+                finally:
+                    dur = (datetime.now() - start).total_seconds()
+                    logger = get_logger()
+                    logger.info(f'[⏱ {func_name}] {dur:.2f}秒')
+            return async_wrapper
+        else:
+            def sync_wrapper(*args, **kwargs):
+                start = datetime.now()
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    dur = (datetime.now() - start).total_seconds()
+                    logger = get_logger()
+                    logger.info(f'[⏱ {func_name}] {dur:.2f}秒')
+            return sync_wrapper
     return decorator
 
 

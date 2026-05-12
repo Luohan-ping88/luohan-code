@@ -1101,6 +1101,11 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[Dict[str, Any]]:
+        """生成优化建议（兼容旧API）"""
+        structured = self.generate_structured_suggestions()
+        return [s.to_dict() for s in structured]
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

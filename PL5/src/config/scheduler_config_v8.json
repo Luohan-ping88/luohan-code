@@ -1,97 +1,114 @@
 {
-  "data_fetch_time": "22:00",
-  "evaluation_time": "22:15",
-  "optimization_start": "22:45",
-  "training_start": "00:30",
-  "incremental_training_morning": "08:00",
-  "first_prediction_verification": "10:00",
-  "incremental_training_noon": "12:00",
-  "incremental_training_afternoon": "14:00",
-  "deep_strategy_optimization": "16:00",
-  "prediction_preview": "17:00",
-  "final_prediction_time": "18:00",
-  "final_prediction_verification_time": "19:00",
-  "pre_sale_prediction_time": "20:00",
-  "email_send_time": "20:15",
-  "system_status_time": "21:20",
-  "training_deadline": "17:00",
+  "data_fetch_time": "14:15",
+  "evaluation_time": "14:15",
+  "optimization_start": "14:45",
+  "training_start": "16:30",
+  "incremental_training_morning": "00:00",
+  "first_prediction_verification": "02:00",
+  "incremental_training_noon": "04:00",
+  "incremental_training_afternoon": "06:00",
+  "deep_strategy_optimization": "08:00",
+  "prediction_preview": "09:00",
+  "final_prediction_time": "10:00",
+  "final_prediction_verification_time": "11:00",
+  "pre_sale_prediction_time": "12:00",
+  "email_send_time": "12:15",
+  "system_status_time": "13:20",
+  "training_deadline": "09:00",
   "enabled": true,
   "monitoring_enabled": true,
+  "timezone": "Asia/Shanghai",
+  "note": "所有时间已转换为UTC时间，北京时间需+8小时",
   "task_sequence": [
     {
       "name": "自动获取开奖数据",
-      "time": "22:15",
+      "time_beijing": "22:15",
+      "time_utc": "14:15",
       "description": "获取最新开奖数据，用于后续评估和训练"
     },
     {
       "name": "评估预测逻辑与命中情况",
-      "time": "22:15",
-      "description": "评估上一期预测的命中情况，优化推理策略（评估在训练之前）"
+      "time_beijing": "22:15",
+      "time_utc": "14:15",
+      "description": "评估上一期预测的命中情况"
     },
     {
       "name": "推理逻辑策略优化学习",
-      "time": "22:45",
+      "time_beijing": "22:45",
+      "time_utc": "14:45",
       "description": "根据评估结果优化推理策略"
     },
     {
       "name": "开始深度训练",
-      "time": "00:30",
+      "time_beijing": "00:30",
+      "time_utc": "16:30",
       "description": "基于优化后的策略进行深度训练"
     },
     {
       "name": "进行增量训练（上午）",
-      "time": "08:00",
-      "description": "利用上午时间进行增量训练（首次佐证）"
+      "time_beijing": "08:00",
+      "time_utc": "00:00",
+      "description": "利用上午时间进行增量训练"
     },
     {
       "name": "首次预测验证",
-      "time": "10:00",
-      "description": "首次预测验证，检查推理逻辑是否存在问题（首次佐证）"
+      "time_beijing": "10:00",
+      "time_utc": "02:00",
+      "description": "首次预测验证"
     },
     {
       "name": "进行增量训练（中午）",
-      "time": "12:00",
-      "description": "利用中午时间进行增量训练（二次佐证）"
+      "time_beijing": "12:00",
+      "time_utc": "04:00",
+      "description": "利用中午时间进行增量训练"
     },
     {
       "name": "进行增量训练（下午）",
-      "time": "14:00",
-      "description": "利用下午时间进行增量训练，持续学习（三次佐证）"
+      "time_beijing": "14:00",
+      "time_utc": "06:00",
+      "description": "利用下午时间进行增量训练"
     },
     {
       "name": "深度策略优化",
-      "time": "16:00",
-      "description": "深度优化推理策略，为最终预测做准备（四次佐证）"
+      "time_beijing": "16:00",
+      "time_utc": "08:00",
+      "description": "深度优化推理策略"
     },
     {
       "name": "预测结果预生成",
-      "time": "17:00",
-      "description": "预生成预测结果，提前验证（五次佐证）"
+      "time_beijing": "17:00",
+      "time_utc": "09:00",
+      "description": "预生成预测结果"
     },
     {
       "name": "生成最终预测结果",
-      "time": "18:00",
+      "time_beijing": "18:00",
+      "time_utc": "10:00",
       "description": "生成最终预测结果"
     },
     {
       "name": "验证最终预测结果",
-      "time": "19:00",
-      "description": "验证最终预测结果的一致性（六次佐证）"
+      "time_beijing": "19:00",
+      "time_utc": "11:00",
+      "description": "验证最终预测结果"
     },
     {
       "name": "售前最终预测",
-      "time": "20:00",
-      "description": "停售前1小时生成最终预测"
+      "time_beijing": "20:00",
+      "time_utc": "12:00",
+      "description": "停售前生成最终预测"
     },
     {
       "name": "发送训练报告和最终预测到邮箱",
-      "time": "20:15",
+      "time_beijing": "20:15",
+      "time_utc": "12:15",
       "description": "发送训练报告和最终预测到邮箱"
     },
     {
       "name": "发送系统运行状态报告到邮箱",
-      "time": "21:20",
-      "description": "发送系统运行状态报告到邮箱，包含任务执行情况和系统健康状态"
+      "time_beijing": "21:20",
+      "time_utc": "13:20",
+      "description": "发送系统运行状态报告到邮箱"
     }
   ],
   "last_completed_period": "2026118"

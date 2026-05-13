@@ -593,6 +593,84 @@ class PL5DailyAuditor:
             "recommendations": recommendations
         }
 
+    def run_full_training_prediction(self) -> TaskResult:
+        """执行完整的训练预测任务"""
+        return self.run_task("执行完整训练预测", self._run_full_training_prediction_impl)
+
+    def _run_full_training_prediction_impl(self) -> Dict[str, Any]:
+        """完整训练预测任务实现"""
+        self.log_subsection("完整训练预测任务执行")
+        import time
+        
+        result = {
+            "data_updated": False,
+            "data_count": 0,
+            "training_completed": False,
+            "prediction_completed": False,
+            "predictions": {},
+            "duration": 0,
+            "issues": [],
+            "recommendations": []
+        }
+        
+        start_time = time.time()
+        
+        try:
+            # 1. 数据采集更新
+            logger.info("1/5 数据采集更新...")
+            from src.core.data.collector import PL5DataCollectorV8
+            collector = PL5DataCollectorV8()
+            data = collector.update_data()
+            if data is None:
+                data = collector.load_processed_data()
+            result["data_count"] = len(data)
+            result["data_updated"] = True
+            logger.info(f"  ✓ 数据加载成功: {len(data)} 条记录")
+            logger.info(f"  ✓ 最新期号: {data['period'].iloc[-1]}")
+            self.performance_metrics["prediction_runs"] += 1
+            
+            # 2. 特征工程
+            logger.info("2/5 特征工程...")
+            from src.core.features.engineer import FeatureEngineer
+            engineer = FeatureEngineer()
+            features = engineer.extract_all_features(data)
+            non_feature_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge', 'date']
+            feature_cols = [col for col in features.columns if col not in non_feature_cols]
+            logger.info(f"  ✓ 特征提取完成: {len(feature_cols)} 个特征")
+            
+            # 3. 模型训练
+            logger.info("3/5 模型训练...")
+            from src.core.models.predictor import PL5Predictor
+            predictor = PL5Predictor()
+            predictor.train(features, feature_cols)
+            result["training_completed"] = True
+            logger.info("  ✓ 模型训练完成")
+            self.performance_metrics["training_runs"] += 1
+            
+            # 4. 执行预测
+            logger.info("4/5 执行预测...")
+            latest = features.iloc[[-1]]
+            preds = predictor.predict(latest)
+            result["prediction_completed"] = True
+            result["predictions"] = {
+                pos: preds[pos]['top_k'][:5] for pos in ['wan', 'qian', 'bai', 'shi', 'ge']
+            }
+            logger.info("  ✓ 预测完成")
+            
+            # 5. 显示结果
+            logger.info("5/5 结果汇总:")
+            for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+                top_k = result["predictions"][pos]
+                logger.info(f"  {pos}: {top_k}")
+                
+        except Exception as e:
+            logger.error(f"训练预测任务出错: {str(e)}")
+            result["issues"].append(str(e))
+            result["recommendations"].append("检查训练预测流程")
+        
+        result["duration"] = time.time() - start_time
+        return result
+
     def check_log_files(self) -> TaskResult:
         """检查日志文件"""
         return self.run_task("检查日志文件", self._check_log_files_impl)
@@ -795,6 +873,7 @@ class PL5DailyAuditor:
         self.results.append(self.check_model_evaluator())
         self.results.append(self.check_training_logic())
         self.results.append(self.check_data_collector())
+        self.results.append(self.run_full_training_prediction())
 
         # 2. 代码质量优化
         self.log_section("2. 代码质量优化")

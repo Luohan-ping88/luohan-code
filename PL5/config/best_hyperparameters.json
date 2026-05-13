@@ -1,0 +1,12 @@
+{
+  "hyperparameter_search_date": "2026-05-13 04:59:13",
+  "best_params": {
+    "stacking": 0.65,
+    "hmm": 0.14,
+    "bsts": 0.07499999999999998,
+    "evm": 0.07499999999999998,
+    "copula": 0.06
+  },
+  "search_space_size": 27,
+  "optimization_strategy": "quick_grid_search"
+}

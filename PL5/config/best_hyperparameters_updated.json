@@ -1,0 +1,12 @@
+{
+  "best_params": {
+    "stacking": 0.55,
+    "hmm": 0.16,
+    "bsts": 0.1,
+    "evm": 0.125,
+    "copula": 0.07
+  },
+  "best_score": 0.20100000000000004,
+  "search_space_size": 20,
+  "optimization_strategy": "grid_search"
+}

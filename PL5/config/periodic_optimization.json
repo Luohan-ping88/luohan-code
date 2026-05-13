@@ -1,0 +1,17 @@
+{
+  "periodic_feature_weight": 0.15,
+  "enable_weekday_pattern": true,
+  "enable_monthly_pattern": true,
+  "enable_freq_7d": true,
+  "enable_freq_14d": false,
+  "enable_freq_30d": false,
+  "weekday_priority": {
+    "0": 0.25,
+    "1": 0.2,
+    "2": 0.15000000000000002,
+    "3": 0.1,
+    "4": 0.15000000000000002,
+    "5": 0.2,
+    "6": 0.25
+  }
+}

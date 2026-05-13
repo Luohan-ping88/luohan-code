@@ -1,0 +1,49 @@
+{
+  "uniform": {
+    "name": "均匀集成",
+    "description": "所有模型权重相等",
+    "weights": {
+      "wan": 0.2,
+      "qian": 0.2,
+      "bai": 0.2,
+      "shi": 0.2,
+      "ge": 0.2
+    }
+  },
+  "adaptive": {
+    "name": "自适应集成",
+    "description": "根据各位置特性动态调整权重",
+    "weights": {
+      "wan": {
+        "stacking": 0.65,
+        "hmm": 0.15,
+        "copula": 0.2
+      },
+      "qian": {
+        "stacking": 0.6,
+        "hmm": 0.2,
+        "copula": 0.2
+      },
+      "bai": {
+        "stacking": 0.6,
+        "hmm": 0.2,
+        "copula": 0.2
+      },
+      "shi": {
+        "stacking": 0.55,
+        "hmm": 0.25,
+        "copula": 0.2
+      },
+      "ge": {
+        "stacking": 0.55,
+        "hmm": 0.25,
+        "copula": 0.2
+      }
+    }
+  },
+  "confidence_based": {
+    "name": "置信度集成",
+    "description": "根据预测置信度动态调整权重",
+    "strategy": "当置信度高时增加Stacking权重，低时增加HMM权重"
+  }
+}

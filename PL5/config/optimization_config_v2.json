@@ -1,0 +1,25 @@
+{
+  "optimization_date": "2026-05-13 04:01:48",
+  "optimization_type": "weight_and_integration",
+  "default_weights": {
+    "stacking": 0.55,
+    "hmm": 0.1,
+    "bsts": 0.12,
+    "evm": 0.15,
+    "copula": 0.08
+  },
+  "optimized_weights": {
+    "stacking": 0.6,
+    "hmm": 0.12,
+    "bsts": 0.1,
+    "evm": 0.1,
+    "copula": 0.08
+  },
+  "optimization_strategy": {
+    "stacking": "保持主导地位，提升权重",
+    "hmm": "提升权重以增强序列捕捉",
+    "bsts": "降低权重以减少过拟合风险",
+    "evm": "降低权重以平衡模型",
+    "copula": "保持权重以捕捉位置相关性"
+  }
+}

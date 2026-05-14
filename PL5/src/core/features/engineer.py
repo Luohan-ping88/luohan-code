@@ -659,16 +659,25 @@ class FeatureScaler:
             f"标准化器已拟合: method={self.method}, groups={list(self._scalers.keys())}"
         )
 
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> pd.DataFrame:
         """转换数据"""
         if not self._fitted or self.method == "none":
             return df
+        
+        cols = feature_cols or [
+            c
+            for c in df.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+        ]
+        
         result = df.copy()
         for group, scaler in self._scalers.items():
             group_cols = [
                 c
-                for c in result.columns
-                if self._get_group(c) == group
+                for c in cols
+                if c in result.columns
+                and self._get_group(c) == group
                 and np.issubdtype(result[c].dtype, np.number)
             ]
             if group_cols:
@@ -874,10 +883,15 @@ class FeatureEngineerV9:
 
     def _add_fibonacci_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """黄金分割特征 - 向量化版本"""
+        if df.empty:
+            return df.copy()
+        
         result = df.copy()
         fib_windows = [5, 8, 13, 21]
 
         for pos in POSITIONS:
+            if pos not in df.columns:
+                continue
             s = df[pos]
             for window in fib_windows:
                 if len(df) >= window:
@@ -1089,8 +1103,9 @@ class FeatureEngineerV9:
         for i, pos1 in enumerate(POSITIONS):
             for pos2 in POSITIONS:
                 if pos1 != pos2:
+                    corr_val = df[pos1].shift(1).corr(df[pos2])
                     result[f"granger_{pos1}_{pos2}"] = (
-                        df[pos1].shift(1).corr(df[pos2]).fillna(0)
+                        corr_val if pd.notna(corr_val) else 0
                     )
         return result
 
@@ -1659,8 +1674,8 @@ class FeatureEngineerV9:
             df, (select_top, feature_selection_method, enable_scaler)
         )
 
-        # 强制刷新缓存，确保特征选择逻辑被执行
-        cached = None
+        # 尝试从缓存获取
+        cached = self.cache.get(cache_key)
         if cached is not None:
             logger.info("  从缓存加载特征（命中）")
             duration = time.time() - start_time

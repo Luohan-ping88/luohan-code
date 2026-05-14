@@ -66,20 +66,21 @@ class ErrorType(Enum):
 class PL5Error(Exception):
     """PL5系统统一错误基类"""
 
+    _error_type = ErrorType.UNKNOWN_ERROR
+
     def __init__(
         self,
         message: str,
-        error_type: ErrorType = ErrorType.UNKNOWN_ERROR,
         severity: ErrorSeverity = ErrorSeverity.ERROR_SEVERITY_MEDIUM,
         error_code: Optional[int] = None,
         context: Optional[Dict] = None,
         original_error: Optional[Exception] = None,
+        **kwargs,
     ):
         """初始化错误
 
         Args:
             message: 错误消息
-            error_type: 错误类型
             severity: 错误严重性
             error_code: 错误代码
             context: 上下文信息
@@ -87,7 +88,7 @@ class PL5Error(Exception):
         """
         super().__init__(message)
         self.message = message
-        self.error_type = error_type
+        self.error_type = self._error_type
         self.severity = severity
         self.error_code = error_code
         self.context = context or {}
@@ -122,6 +123,8 @@ class PL5Error(Exception):
 class DataError(PL5Error):
     """数据相关错误"""
 
+    _error_type = ErrorType.DATA_ERROR
+
     def __init__(
         self,
         message: str,
@@ -129,7 +132,7 @@ class DataError(PL5Error):
         record_count: int = 0,
         **kwargs,
     ):
-        super().__init__(message, ErrorType.DATA_ERROR, **kwargs)
+        super().__init__(message, **kwargs)
         self.data_source = data_source
         self.record_count = record_count
         self.context.update(
@@ -140,33 +143,26 @@ class DataError(PL5Error):
 class DataLoadError(DataError):
     """数据加载失败"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.DATA_LOAD_ERROR, **kwargs
-        )
+    _error_type = ErrorType.DATA_LOAD_ERROR
 
 
 class DataValidationError(DataError):
     """数据验证失败"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.DATA_VALIDATION_ERROR, **kwargs
-        )
+    _error_type = ErrorType.DATA_VALIDATION_ERROR
 
 
 class DataParseError(DataError):
     """数据解析失败"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.DATA_PARSE_ERROR, **kwargs
-        )
+    _error_type = ErrorType.DATA_PARSE_ERROR
 
 
 # 模型相关错误
 class ModelError(PL5Error):
     """模型相关错误"""
+
+    _error_type = ErrorType.MODEL_ERROR
 
     def __init__(
         self,
@@ -175,7 +171,7 @@ class ModelError(PL5Error):
         operation: str = "unknown",
         **kwargs,
     ):
-        super().__init__(message, ErrorType.MODEL_ERROR, **kwargs)
+        super().__init__(message, **kwargs)
         self.model_name = model_name
         self.operation = operation
         self.context.update({"model_name": model_name, "operation": operation})
@@ -184,54 +180,41 @@ class ModelError(PL5Error):
 class ModelLoadError(ModelError):
     """模型加载失败"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.MODEL_LOAD_ERROR, **kwargs
-        )
+    _error_type = ErrorType.MODEL_LOAD_ERROR
 
 
 class ModelPredictError(ModelError):
     """模型预测失败"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.MODEL_PREDICT_ERROR, **kwargs
-        )
+    _error_type = ErrorType.MODEL_PREDICT_ERROR
 
 
 # 网络相关错误
 class NetworkError(PL5Error):
     """网络相关错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.NETWORK_ERROR, **kwargs)
+    _error_type = ErrorType.NETWORK_ERROR
 
 
 class NetworkTimeoutError(NetworkError):
     """网络超时错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.NETWORK_TIMEOUT_ERROR, **kwargs
-        )
+    _error_type = ErrorType.NETWORK_TIMEOUT_ERROR
 
 
 class NetworkConnectionError(NetworkError):
     """网络连接错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.NETWORK_CONNECTION_ERROR, **kwargs
-        )
+    _error_type = ErrorType.NETWORK_CONNECTION_ERROR
 
 
 class NetworkHTTPError(NetworkError):
     """网络HTTP错误"""
 
+    _error_type = ErrorType.NETWORK_HTTP_ERROR
+
     def __init__(self, message: str, status_code: int = None, **kwargs):
-        super().__init__(
-            message, error_type=ErrorType.NETWORK_HTTP_ERROR, **kwargs
-        )
+        super().__init__(message, **kwargs)
         if status_code:
             self.context.update({"status_code": status_code})
 
@@ -240,8 +223,10 @@ class NetworkHTTPError(NetworkError):
 class ConfigError(PL5Error):
     """配置相关错误"""
 
+    _error_type = ErrorType.CONFIG_ERROR
+
     def __init__(self, message: str, config_key: str = "unknown", **kwargs):
-        super().__init__(message, ErrorType.CONFIG_ERROR, **kwargs)
+        super().__init__(message, **kwargs)
         self.config_key = config_key
         self.context.update({"config_key": config_key})
 
@@ -250,38 +235,33 @@ class ConfigError(PL5Error):
 class ApiError(PL5Error):
     """API错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.API_ERROR, **kwargs)
+    _error_type = ErrorType.API_ERROR
 
 
 class RateLimitError(PL5Error):
     """速率限制错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.RATE_LIMIT_ERROR, **kwargs)
+    _error_type = ErrorType.RATE_LIMIT_ERROR
 
 
 # 认证相关错误
 class AuthError(PL5Error):
     """认证错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.AUTH_ERROR, **kwargs)
+    _error_type = ErrorType.AUTH_ERROR
 
 
 # 服务器相关错误
 class ServerError(PL5Error):
     """服务器错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.SERVER_ERROR, **kwargs)
+    _error_type = ErrorType.SERVER_ERROR
 
 
 class ClientError(PL5Error):
     """客户端错误"""
 
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, ErrorType.CLIENT_ERROR, **kwargs)
+    _error_type = ErrorType.CLIENT_ERROR
 
 
 T = TypeVar("T")
@@ -394,7 +374,7 @@ def retry_with_backoff(
         except Exception as e:
             # 将普通异常转换为PL5Error
             last_error = PL5Error(
-                str(e), ErrorType.UNKNOWN_ERROR, original_error=e
+                str(e), original_error=e
             )
             break
 
@@ -491,7 +471,6 @@ class ErrorHandler:
 
         return PL5Error(
             message=str(error),
-            error_type=error_type,
             error_code=error_code,
             severity=severity,
             context=context,
@@ -598,13 +577,13 @@ def retry_on_failure(
             current_delay = delay
             last_error = None
 
-            while retry_count < max_retries:
+            while retry_count <= max_retries:
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:
                     last_error = e
                     retry_count += 1
-                    if retry_count < max_retries:
+                    if retry_count <= max_retries:
                         logger.info(
                             f"Retrying {func.__name__} in {current_delay} seconds... (Attempt {retry_count}/{max_retries})"
                         )

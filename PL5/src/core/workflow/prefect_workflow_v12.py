@@ -48,24 +48,26 @@ def get_time_coordinator():
             window_end_next_day=True
         )
 
-        # 注册核心任务（保持原有的14个任务节点）
-        time_coordinator.register_task("数据采集", estimated_duration_minutes=15, priority=5, is_core_task=True)
-        time_coordinator.register_task("模型评估", estimated_duration_minutes=10, priority=4, dependencies=["数据采集"], is_core_task=True)
-        time_coordinator.register_task("策略优化", estimated_duration_minutes=15, priority=4, dependencies=["模型评估"], is_core_task=True)
-        time_coordinator.register_task("模型训练", estimated_duration_minutes=30, priority=3, dependencies=["策略优化"], is_core_task=True)
-        time_coordinator.register_task("增量训练", estimated_duration_minutes=20, priority=3, dependencies=["模型训练"], is_core_task=True)
-        time_coordinator.register_task("第一次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
-        time_coordinator.register_task("第二次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
-        time_coordinator.register_task("第三次预测验证", estimated_duration_minutes=10, priority=2, dependencies=["增量训练"], is_core_task=True)
-        time_coordinator.register_task("深度策略优化", estimated_duration_minutes=20, priority=2, dependencies=["第一次预测验证", "第二次预测验证", "第三次预测验证"], is_core_task=True)
-        time_coordinator.register_task("预测预览", estimated_duration_minutes=5, priority=1, dependencies=["深度策略优化"], is_core_task=True)
-        time_coordinator.register_task("最终预测", estimated_duration_minutes=15, priority=1, dependencies=["预测预览"])
-        time_coordinator.register_task("最终预测验证", estimated_duration_minutes=5, priority=1, dependencies=["最终预测"])
-        time_coordinator.register_task("售前预测", estimated_duration_minutes=5, priority=1, dependencies=["最终预测验证"])
-        time_coordinator.register_task("发送报告", estimated_duration_minutes=10, priority=1, dependencies=["售前预测"])
+        # 注册核心任务（14个任务节点 + 自适应特征选择）
+        time_coordinator.register_task("数据采集", estimated_duration_minutes=30, priority=5, is_core_task=True)
+        time_coordinator.register_task("自适应特征选择", estimated_duration_minutes=60, priority=4, dependencies=["数据采集"], is_core_task=True)
+        time_coordinator.register_task("模型评估", estimated_duration_minutes=20, priority=4, dependencies=["自适应特征选择"], is_core_task=True)
+        time_coordinator.register_task("策略优化", estimated_duration_minutes=60, priority=4, dependencies=["模型评估"], is_core_task=True)
+        time_coordinator.register_task("模型训练", estimated_duration_minutes=180, priority=3, dependencies=["策略优化"], is_core_task=True)
+        time_coordinator.register_task("增量训练", estimated_duration_minutes=150, priority=3, dependencies=["模型训练"], is_core_task=True)
+        time_coordinator.register_task("第一次预测验证", estimated_duration_minutes=40, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("第二次预测验证", estimated_duration_minutes=40, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("第三次预测验证", estimated_duration_minutes=40, priority=2, dependencies=["增量训练"], is_core_task=True)
+        time_coordinator.register_task("深度策略优化", estimated_duration_minutes=120, priority=2, dependencies=["第一次预测验证", "第二次预测验证", "第三次预测验证"], is_core_task=True)
+        time_coordinator.register_task("预测预览", estimated_duration_minutes=30, priority=1, dependencies=["深度策略优化"], is_core_task=True)
+        time_coordinator.register_task("最终预测", estimated_duration_minutes=60, priority=1, dependencies=["预测预览"], is_core_task=True)
+        time_coordinator.register_task("最终预测验证", estimated_duration_minutes=20, priority=1, dependencies=["最终预测"], is_core_task=True)
+        time_coordinator.register_task("售前预测", estimated_duration_minutes=30, priority=1, dependencies=["最终预测验证"], is_core_task=True)
+        time_coordinator.register_task("发送报告", estimated_duration_minutes=30, priority=1, dependencies=["售前预测"], is_core_task=True)
 
         # 注册智能体
         time_coordinator.register_agent("data_agent", ["数据", "采集", "fetch", "data"])
+        time_coordinator.register_agent("feature_agent", ["特征", "自适应", "feature", "adaptive"])
         time_coordinator.register_agent("analysis_agent", ["评估", "优化", "策略", "evaluation", "optimization"])
         time_coordinator.register_agent("prediction_agent", ["预测", "训练", "prediction", "training"])
         time_coordinator.register_agent("report_agent", ["报告", "发送", "report", "send"])
@@ -113,7 +115,75 @@ def data_fetch() -> Dict[str, Any]:
 
 
 # ================================================================
-# Task 2: 模型评估
+# Task 2: 自适应特征选择
+# ================================================================
+
+@task(
+    name="自适应特征选择",
+    description="根据开奖数据变化动态评估和调整特征组",
+    tags=["feature", "adaptive", "pl5"],
+    retries=1,
+    retry_delay_seconds=60
+)
+def adaptive_feature_selection(data_result: Dict[str, Any]) -> Dict[str, Any]:
+    """自适应特征选择任务"""
+    logger = get_run_logger()
+    _log_task_start(logger, "自适应特征选择")
+
+    try:
+        from src.core.data.collector import PL5DataCollector
+        from src.core.features.adaptive_feature_engine import (
+            AdaptiveFeatureEngine,
+            DynamicFeatureOptimizer
+        )
+
+        # 获取最新数据
+        collector = PL5DataCollector()
+        df = collector.get_latest_data()
+
+        # 初始化自适应特征引擎
+        engine = AdaptiveFeatureEngine(history_window=100)
+        optimizer = DynamicFeatureOptimizer(engine)
+
+        # 设置基准分布
+        baseline_df = df.head(1000)
+        engine.set_baseline(baseline_df)
+
+        # 执行自适应特征优化
+        selected_features, importance_scores, suggestions = optimizer.optimize_for_current_data(df)
+
+        # 生成特征推荐
+        recommendations = engine.get_feature_recommendations()
+
+        result = {
+            "success": True,
+            "selected_features": selected_features,
+            "feature_importance": importance_scores,
+            "suggestions": suggestions,
+            "recommendations": recommendations,
+            "data_result": data_result,
+            "record_count": len(df),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info(f"自适应特征选择完成: 选择了 {len(selected_features)} 个特征")
+        logger.info(f"特征列表: {selected_features[:5]}...")
+
+        if suggestions:
+            logger.info("优化建议:")
+            for suggestion in suggestions:
+                logger.info(f"  - {suggestion}")
+
+        _log_task_end(logger, "自适应特征选择")
+        return result
+
+    except Exception as e:
+        logger.error(f"自适应特征选择失败: {str(e)}")
+        raise
+
+
+# ================================================================
+# Task 3: 模型评估
 # ================================================================
 
 @task(

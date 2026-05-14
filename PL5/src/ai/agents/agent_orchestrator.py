@@ -3,7 +3,7 @@
 from typing import Dict, List, Any, Optional
 
 from .base import BaseAgent, AgentFactory
-from ..ai_types import AgentConfig, AgentType, ToolResult, ConversationMessage
+from ..ai_types import AgentConfig, ToolResult, ConversationMessage
 
 
 class AgentOrchestrator:
@@ -72,7 +72,9 @@ class AgentOrchestrator:
             return True
         return False
 
-    def select_agent(self, task: str, context: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    def select_agent(
+        self, task: str, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
         """选择合适的Agent
 
         Args:
@@ -88,16 +90,27 @@ class AgentOrchestrator:
         # 检查是否有专门的Agent
         if "predict" in task_lower or "forecast" in task_lower:
             return "tool_agent"  # 工具Agent适合预测任务
-        elif "chat" in task_lower or "talk" in task_lower or "discuss" in task_lower:
+        elif (
+            "chat" in task_lower
+            or "talk" in task_lower
+            or "discuss" in task_lower
+        ):
             return "conversation_agent"  # 对话Agent适合聊天任务
         elif "react" in task_lower or "plan" in task_lower:
             return "react_agent"  # ReAct Agent适合复杂任务
 
         # 默认使用工具Agent
-        return "tool_agent" if "tool_agent" in self._agents else next(iter(self._agents.keys()), None)
+        return (
+            "tool_agent"
+            if "tool_agent" in self._agents
+            else next(iter(self._agents.keys()), None)
+        )
 
     def run_task(
-        self, task: str, context: Optional[Dict[str, Any]] = None, agent_name: Optional[str] = None
+        self,
+        task: str,
+        context: Optional[Dict[str, Any]] = None,
+        agent_name: Optional[str] = None,
     ) -> ToolResult:
         """执行任务
 
@@ -118,7 +131,9 @@ class AgentOrchestrator:
 
         agent = self.get_agent(agent_name)
         if agent is None:
-            return ToolResult(success=False, error=f"Agent {agent_name} 不存在")
+            return ToolResult(
+                success=False, error=f"Agent {agent_name} 不存在"
+            )
 
         # 执行任务
         try:
@@ -126,7 +141,11 @@ class AgentOrchestrator:
             result.metadata["agent_name"] = agent_name
             return result
         except Exception as e:
-            return ToolResult(success=False, error=f"Agent执行失败: {str(e)}", metadata={"agent_name": agent_name})
+            return ToolResult(
+                success=False,
+                error=f"Agent执行失败: {str(e)}",
+                metadata={"agent_name": agent_name},
+            )
 
     def run_chat(
         self,
@@ -147,7 +166,9 @@ class AgentOrchestrator:
         # 选择对话Agent
         if agent_name is None:
             agent_name = (
-                "conversation_agent" if "conversation_agent" in self._agents else self.select_agent("chat", context)
+                "conversation_agent"
+                if "conversation_agent" in self._agents
+                else self.select_agent("chat", context)
             )
 
         if agent_name is None:
@@ -155,7 +176,9 @@ class AgentOrchestrator:
 
         agent = self.get_agent(agent_name)
         if agent is None:
-            return ToolResult(success=False, error=f"Agent {agent_name} 不存在")
+            return ToolResult(
+                success=False, error=f"Agent {agent_name} 不存在"
+            )
 
         # 执行对话
         try:
@@ -163,7 +186,11 @@ class AgentOrchestrator:
             result.metadata["agent_name"] = agent_name
             return result
         except Exception as e:
-            return ToolResult(success=False, error=f"对话执行失败: {str(e)}", metadata={"agent_name": agent_name})
+            return ToolResult(
+                success=False,
+                error=f"对话执行失败: {str(e)}",
+                metadata={"agent_name": agent_name},
+            )
 
     def get_agent_info(self, agent_name: str) -> Optional[Dict[str, Any]]:
         """获取Agent信息
@@ -192,4 +219,8 @@ class AgentOrchestrator:
         Returns:
             Agent信息列表
         """
-        return [self.get_agent_info(name) for name in self._agents.keys() if self.get_agent_info(name)]
+        return [
+            self.get_agent_info(name)
+            for name in self._agents.keys()
+            if self.get_agent_info(name)
+        ]

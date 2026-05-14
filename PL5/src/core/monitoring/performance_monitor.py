@@ -7,7 +7,6 @@
 
 import time
 import psutil
-import logging
 import json
 from datetime import datetime
 from pathlib import Path
@@ -26,7 +25,9 @@ logger = setup_logging(__name__)
 class PerformanceMonitor:
     """性能监控器"""
 
-    def __init__(self, log_interval: int = 60, data_dir: Optional[Path] = None):
+    def __init__(
+        self, log_interval: int = 60, data_dir: Optional[Path] = None
+    ):
         """初始化性能监控器"""
         self.log_interval = log_interval  # 日志记录间隔（秒）
         self.data_dir = data_dir or Path("logs") / "performance"
@@ -41,7 +42,11 @@ class PerformanceMonitor:
         self.anomaly_history = []
 
         # 性能告警阈值
-        self.thresholds = {"cpu_percent": 80, "memory_percent": 85, "disk_percent": 90}
+        self.thresholds = {
+            "cpu_percent": 80,
+            "memory_percent": 85,
+            "disk_percent": 90,
+        }
 
         # 告警配置
         self.alert_config = {
@@ -68,7 +73,9 @@ class PerformanceMonitor:
         """启动性能监控"""
         if not self.is_running:
             self.is_running = True
-            self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitor_thread = threading.Thread(
+                target=self._monitor_loop, daemon=True
+            )
             self.monitor_thread.start()
             logger.info("性能监控已启动")
 
@@ -119,7 +126,11 @@ class PerformanceMonitor:
             system = platform.system()
 
             # 初始化指标字典
-            metrics = {"timestamp": datetime.now().isoformat(), "system": {}, "process": {}}
+            metrics = {
+                "timestamp": datetime.now().isoformat(),
+                "system": {},
+                "process": {},
+            }
 
             # 尝试使用psutil获取指标
             try:
@@ -158,11 +169,17 @@ class PerformanceMonitor:
                     "memory_mb": process_memory.rss / 1024 / 1024,
                     "memory_percent": process.memory_percent(),
                     "threads": process.num_threads(),
-                    "open_files": len(process.open_files()) if hasattr(process, "open_files") else 0,
+                    "open_files": (
+                        len(process.open_files())
+                        if hasattr(process, "open_files")
+                        else 0
+                    ),
                 }
 
             except Exception as psutil_error:
-                logger.warning(f"使用psutil获取指标失败，尝试备用方法: {psutil_error}")
+                logger.warning(
+                    f"使用psutil获取指标失败，尝试备用方法: {psutil_error}"
+                )
 
                 # 备用方法：使用ctypes和subprocess
                 if system == "Windows":
@@ -180,27 +197,47 @@ class PerformanceMonitor:
                                 ("ullAvailPageFile", ctypes.c_ulonglong),
                                 ("ullTotalVirtual", ctypes.c_ulonglong),
                                 ("ullAvailVirtual", ctypes.c_ulonglong),
-                                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                                (
+                                    "sullAvailExtendedVirtual",
+                                    ctypes.c_ulonglong,
+                                ),
                             ]
 
                         memory_status = MEMORYSTATUSEX()
                         memory_status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-                        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory_status))
-
-                        metrics["system"]["memory_percent"] = memory_status.dwMemoryLoad
-                        metrics["system"]["memory_used_mb"] = (
-                            (memory_status.ullTotalPhys - memory_status.ullAvailPhys) / 1024 / 1024
+                        ctypes.windll.kernel32.GlobalMemoryStatusEx(
+                            ctypes.byref(memory_status)
                         )
-                        metrics["system"]["memory_total_mb"] = memory_status.ullTotalPhys / 1024 / 1024
+
+                        metrics["system"][
+                            "memory_percent"
+                        ] = memory_status.dwMemoryLoad
+                        metrics["system"]["memory_used_mb"] = (
+                            (
+                                memory_status.ullTotalPhys
+                                - memory_status.ullAvailPhys
+                            )
+                            / 1024
+                            / 1024
+                        )
+                        metrics["system"]["memory_total_mb"] = (
+                            memory_status.ullTotalPhys / 1024 / 1024
+                        )
 
                     except Exception as ctypes_error:
-                        logger.error(f"使用ctypes获取内存信息失败: {ctypes_error}")
+                        logger.error(
+                            f"使用ctypes获取内存信息失败: {ctypes_error}"
+                        )
 
                     # 使用subprocess获取磁盘信息
                     try:
                         import subprocess
 
-                        result = subprocess.run(["fsutil", "volume", "diskfree", "C:"], capture_output=True, text=True)
+                        result = subprocess.run(
+                            ["fsutil", "volume", "diskfree", "C:"],
+                            capture_output=True,
+                            text=True,
+                        )
                         if result.returncode == 0:
                             output = result.stdout
                             # 解析fsutil输出
@@ -209,17 +246,36 @@ class PerformanceMonitor:
                             free_bytes = 0
                             for line in lines:
                                 if "总字节数" in line:
-                                    total_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
-                                    metrics["system"]["disk_total_gb"] = total_bytes / 1024 / 1024 / 1024
+                                    total_bytes = int(
+                                        line.split(":")[1]
+                                        .strip()
+                                        .split(" ")[0]
+                                        .replace(",", "")
+                                    )
+                                    metrics["system"]["disk_total_gb"] = (
+                                        total_bytes / 1024 / 1024 / 1024
+                                    )
                                 elif "可用字节总数" in line:
-                                    free_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
+                                    free_bytes = int(
+                                        line.split(":")[1]
+                                        .strip()
+                                        .split(" ")[0]
+                                        .replace(",", "")
+                                    )
                                     if total_bytes > 0:
                                         metrics["system"]["disk_used_gb"] = (
-                                            (total_bytes - free_bytes) / 1024 / 1024 / 1024
+                                            (total_bytes - free_bytes)
+                                            / 1024
+                                            / 1024
+                                            / 1024
                                         )
-                                        metrics["system"]["disk_percent"] = (1 - free_bytes / total_bytes) * 100
+                                        metrics["system"]["disk_percent"] = (
+                                            1 - free_bytes / total_bytes
+                                        ) * 100
                     except Exception as subprocess_error:
-                        logger.error(f"使用subprocess获取磁盘信息失败: {subprocess_error}")
+                        logger.error(
+                            f"使用subprocess获取磁盘信息失败: {subprocess_error}"
+                        )
 
                     # 简单的CPU使用率估算
                     metrics["system"]["cpu_percent"] = 0  # 暂时设为0
@@ -242,7 +298,10 @@ class PerformanceMonitor:
     def save_metrics(self, metrics: Dict[str, Any]):
         """保存性能指标到文件"""
         try:
-            filename = self.data_dir / f"performance_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            filename = (
+                self.data_dir
+                / f"performance_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            )
             with open(filename, "a", encoding="utf-8") as f:
                 json.dump(metrics, f, ensure_ascii=False)
                 f.write("\n")
@@ -267,21 +326,33 @@ class PerformanceMonitor:
         recent_metrics = self.performance_history[-30:]
 
         cpu_values = [
-            m["system"]["cpu_percent"] for m in recent_metrics if "system" in m and "cpu_percent" in m["system"]
+            m["system"]["cpu_percent"]
+            for m in recent_metrics
+            if "system" in m and "cpu_percent" in m["system"]
         ]
         memory_values = [
-            m["system"]["memory_percent"] for m in recent_metrics if "system" in m and "memory_percent" in m["system"]
+            m["system"]["memory_percent"]
+            for m in recent_metrics
+            if "system" in m and "memory_percent" in m["system"]
         ]
         disk_values = [
-            m["system"]["disk_percent"] for m in recent_metrics if "system" in m and "disk_percent" in m["system"]
+            m["system"]["disk_percent"]
+            for m in recent_metrics
+            if "system" in m and "disk_percent" in m["system"]
         ]
 
         if cpu_values:
-            self.baseline_metrics["cpu_percent"] = sum(cpu_values) / len(cpu_values)
+            self.baseline_metrics["cpu_percent"] = sum(cpu_values) / len(
+                cpu_values
+            )
         if memory_values:
-            self.baseline_metrics["memory_percent"] = sum(memory_values) / len(memory_values)
+            self.baseline_metrics["memory_percent"] = sum(memory_values) / len(
+                memory_values
+            )
         if disk_values:
-            self.baseline_metrics["disk_percent"] = sum(disk_values) / len(disk_values)
+            self.baseline_metrics["disk_percent"] = sum(disk_values) / len(
+                disk_values
+            )
 
         logger.info(f"性能基线已建立: {self.baseline_metrics}")
 
@@ -295,21 +366,33 @@ class PerformanceMonitor:
         recent_metrics = self.performance_history[-60:]
 
         cpu_values = [
-            m["system"]["cpu_percent"] for m in recent_metrics if "system" in m and "cpu_percent" in m["system"]
+            m["system"]["cpu_percent"]
+            for m in recent_metrics
+            if "system" in m and "cpu_percent" in m["system"]
         ]
         memory_values = [
-            m["system"]["memory_percent"] for m in recent_metrics if "system" in m and "memory_percent" in m["system"]
+            m["system"]["memory_percent"]
+            for m in recent_metrics
+            if "system" in m and "memory_percent" in m["system"]
         ]
         disk_values = [
-            m["system"]["disk_percent"] for m in recent_metrics if "system" in m and "disk_percent" in m["system"]
+            m["system"]["disk_percent"]
+            for m in recent_metrics
+            if "system" in m and "disk_percent" in m["system"]
         ]
 
         if cpu_values:
-            self.baseline_metrics["cpu_percent"] = sum(cpu_values) / len(cpu_values)
+            self.baseline_metrics["cpu_percent"] = sum(cpu_values) / len(
+                cpu_values
+            )
         if memory_values:
-            self.baseline_metrics["memory_percent"] = sum(memory_values) / len(memory_values)
+            self.baseline_metrics["memory_percent"] = sum(memory_values) / len(
+                memory_values
+            )
         if disk_values:
-            self.baseline_metrics["disk_percent"] = sum(disk_values) / len(disk_values)
+            self.baseline_metrics["disk_percent"] = sum(disk_values) / len(
+                disk_values
+            )
 
         logger.info(f"性能基线已更新: {self.baseline_metrics}")
 
@@ -326,11 +409,17 @@ class PerformanceMonitor:
             # 使用基线进行异常检测
             if self.baseline_metrics:
                 # 检查CPU异常
-                if "cpu_percent" in latest["system"] and "cpu_percent" in self.baseline_metrics:
+                if (
+                    "cpu_percent" in latest["system"]
+                    and "cpu_percent" in self.baseline_metrics
+                ):
                     cpu_value = latest["system"]["cpu_percent"]
                     cpu_baseline = self.baseline_metrics["cpu_percent"]
 
-                    if cpu_value > cpu_baseline * 1.5 or cpu_value > self.thresholds["cpu_percent"]:
+                    if (
+                        cpu_value > cpu_baseline * 1.5
+                        or cpu_value > self.thresholds["cpu_percent"]
+                    ):
                         anomaly = {
                             "type": "cpu_anomaly",
                             "value": cpu_value,
@@ -344,11 +433,17 @@ class PerformanceMonitor:
                         self.trigger_alert(anomaly)
 
                 # 检查内存异常
-                if "memory_percent" in latest["system"] and "memory_percent" in self.baseline_metrics:
+                if (
+                    "memory_percent" in latest["system"]
+                    and "memory_percent" in self.baseline_metrics
+                ):
                     memory_value = latest["system"]["memory_percent"]
                     memory_baseline = self.baseline_metrics["memory_percent"]
 
-                    if memory_value > memory_baseline * 1.5 or memory_value > self.thresholds["memory_percent"]:
+                    if (
+                        memory_value > memory_baseline * 1.5
+                        or memory_value > self.thresholds["memory_percent"]
+                    ):
                         anomaly = {
                             "type": "memory_anomaly",
                             "value": memory_value,
@@ -362,11 +457,17 @@ class PerformanceMonitor:
                         self.trigger_alert(anomaly)
 
                 # 检查磁盘异常
-                if "disk_percent" in latest["system"] and "disk_percent" in self.baseline_metrics:
+                if (
+                    "disk_percent" in latest["system"]
+                    and "disk_percent" in self.baseline_metrics
+                ):
                     disk_value = latest["system"]["disk_percent"]
                     disk_baseline = self.baseline_metrics["disk_percent"]
 
-                    if disk_value > disk_baseline * 1.2 or disk_value > self.thresholds["disk_percent"]:
+                    if (
+                        disk_value > disk_baseline * 1.2
+                        or disk_value > self.thresholds["disk_percent"]
+                    ):
                         anomaly = {
                             "type": "disk_anomaly",
                             "value": disk_value,
@@ -384,7 +485,9 @@ class PerformanceMonitor:
 
                 # 计算平均值
                 cpu_values = [
-                    m["system"]["cpu_percent"] for m in recent_metrics if "system" in m and "cpu_percent" in m["system"]
+                    m["system"]["cpu_percent"]
+                    for m in recent_metrics
+                    if "system" in m and "cpu_percent" in m["system"]
                 ]
                 memory_values = [
                     m["system"]["memory_percent"]
@@ -394,7 +497,10 @@ class PerformanceMonitor:
 
                 if cpu_values:
                     avg_cpu = sum(cpu_values) / len(cpu_values)
-                    if "cpu_percent" in latest["system"] and latest["system"]["cpu_percent"] > avg_cpu * 1.5:
+                    if (
+                        "cpu_percent" in latest["system"]
+                        and latest["system"]["cpu_percent"] > avg_cpu * 1.5
+                    ):
                         anomaly = {
                             "type": "cpu_spike",
                             "value": latest["system"]["cpu_percent"],
@@ -406,7 +512,11 @@ class PerformanceMonitor:
 
                 if memory_values:
                     avg_memory = sum(memory_values) / len(memory_values)
-                    if "memory_percent" in latest["system"] and latest["system"]["memory_percent"] > avg_memory * 1.5:
+                    if (
+                        "memory_percent" in latest["system"]
+                        and latest["system"]["memory_percent"]
+                        > avg_memory * 1.5
+                    ):
                         anomaly = {
                             "type": "memory_spike",
                             "value": latest["system"]["memory_percent"],
@@ -452,18 +562,28 @@ class PerformanceMonitor:
                 "min": min(cpu_values) if cpu_values else 0,
             },
             "memory": {
-                "avg": sum(memory_values) / len(memory_values) if memory_values else 0,
+                "avg": (
+                    sum(memory_values) / len(memory_values)
+                    if memory_values
+                    else 0
+                ),
                 "max": max(memory_values) if memory_values else 0,
                 "min": min(memory_values) if memory_values else 0,
             },
             "disk": {
-                "avg": sum(disk_values) / len(disk_values) if disk_values else 0,
+                "avg": (
+                    sum(disk_values) / len(disk_values) if disk_values else 0
+                ),
                 "max": max(disk_values) if disk_values else 0,
                 "min": min(disk_values) if disk_values else 0,
             },
             "baseline": self.baseline_metrics,
             "anomaly_count": len(self.anomaly_history),
-            "last_updated": self.performance_history[-1]["timestamp"] if self.performance_history else None,
+            "last_updated": (
+                self.performance_history[-1]["timestamp"]
+                if self.performance_history
+                else None
+            ),
         }
 
         return summary
@@ -543,7 +663,11 @@ class PerformanceMonitor:
             webhook_url = self.alert_config["webhook"]["url"]
 
             # 发送webhook
-            response = requests.post(webhook_url, json=alert, headers={"Content-Type": "application/json"})
+            response = requests.post(
+                webhook_url,
+                json=alert,
+                headers={"Content-Type": "application/json"},
+            )
 
             if response.status_code == 200:
                 logger.info(f"Webhook告警已发送: {alert['type']}")
@@ -638,7 +762,9 @@ class PerformanceTracker:
                     }
                 )
 
-            logger.debug(f"函数 {func_name} 执行时间: {execution_time:.4f} 秒, 内存使用: {memory_used:.2f} MB")
+            logger.debug(
+                f"函数 {func_name} 执行时间: {execution_time:.4f} 秒, 内存使用: {memory_used:.2f} MB"
+            )
 
             return result
 

@@ -14,7 +14,9 @@ class ReactAgent(BaseAgent):
     按照Think → Act → Observe的循环进行工作。
     """
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def run(
+        self, task: str, context: Optional[Dict[str, Any]] = None
+    ) -> ToolResult:
         """执行任务
 
         Args:
@@ -48,18 +50,36 @@ class ReactAgent(BaseAgent):
                 thought, action, action_input = self._parse_response(response)
 
                 # 记录步骤
-                steps.append({"step": step + 1, "thought": thought, "action": action, "action_input": action_input})
+                steps.append(
+                    {
+                        "step": step + 1,
+                        "thought": thought,
+                        "action": action,
+                        "action_input": action_input,
+                    }
+                )
 
                 # 检查是否完成
                 if action == "finish":
-                    return ToolResult(success=True, data={"task": task, "result": action_input, "steps": steps})
+                    return ToolResult(
+                        success=True,
+                        data={
+                            "task": task,
+                            "result": action_input,
+                            "steps": steps,
+                        },
+                    )
 
                 # 执行工具
                 if action in available_tools:
                     result = self.execute_tool(action, action_input)
 
                     # 记录观察结果
-                    steps[-1]["observation"] = {"success": result.success, "data": result.data, "error": result.error}
+                    steps[-1]["observation"] = {
+                        "success": result.success,
+                        "data": result.data,
+                        "error": result.error,
+                    }
 
                     # 更新用户提示
                     user_prompt += f"\n\nThought: {thought}\nAction: {action}\nAction Input: {json.dumps(action_input, ensure_ascii=False)}\nObservation: {json.dumps(steps[-1]['observation'], ensure_ascii=False)}"
@@ -68,12 +88,20 @@ class ReactAgent(BaseAgent):
                     user_prompt += f"\n\nThought: {thought}\nAction: {action}\nAction Input: {json.dumps(action_input, ensure_ascii=False)}\nObservation: Tool '{action}' not found"
 
             # 达到最大步骤数
-            return ToolResult(success=False, error="Max steps reached", data={"steps": steps})
+            return ToolResult(
+                success=False, error="Max steps reached", data={"steps": steps}
+            )
 
         except Exception as e:
-            return ToolResult(success=False, error=f"Agent execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"Agent execution failed: {str(e)}"
+            )
 
-    def chat(self, messages: List[ConversationMessage], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def chat(
+        self,
+        messages: List[ConversationMessage],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> ToolResult:
         """对话模式
 
         Args:
@@ -102,7 +130,9 @@ class ReactAgent(BaseAgent):
             return self.run(user_message.content, context)
 
         except Exception as e:
-            return ToolResult(success=False, error=f"Chat execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"Chat execution failed: {str(e)}"
+            )
 
     def _build_system_prompt(self, available_tools: List[str]) -> str:
         """构建系统提示
@@ -117,7 +147,9 @@ class ReactAgent(BaseAgent):
         for tool_name in available_tools:
             tool_info = self.get_tool_info(tool_name)
             if tool_info:
-                tool_descriptions.append(f"- {tool_name}: {tool_info['description']}")
+                tool_descriptions.append(
+                    f"- {tool_name}: {tool_info['description']}"
+                )
 
         tools_str = "\n".join(tool_descriptions)
 
@@ -148,7 +180,9 @@ Thought: 计算完成，结果是579
 Action: finish
 Action Input: 579"""
 
-    def _parse_response(self, response: str) -> tuple[str, str, Dict[str, Any]]:
+    def _parse_response(
+        self, response: str
+    ) -> tuple[str, str, Dict[str, Any]]:
         """解析LLM响应
 
         Args:

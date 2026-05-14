@@ -30,7 +30,13 @@ class PL5Tool(BaseTool):
             "enum": ["predict", "analyze"],
             "example": "predict",
         },
-        {"name": "model_name", "type": "str", "description": "模型名称", "required": True, "example": "pl5-default"},
+        {
+            "name": "model_name",
+            "type": "str",
+            "description": "模型名称",
+            "required": True,
+            "example": "pl5-default",
+        },
         {
             "name": "input_data",
             "type": "dict",
@@ -68,11 +74,15 @@ class PL5Tool(BaseTool):
             elif action == "analyze":
                 result = self._analyze(model_name, input_data, params)
             else:
-                return ToolResult(success=False, error=f"不支持的操作: {action}")
+                return ToolResult(
+                    success=False, error=f"不支持的操作: {action}"
+                )
 
             return ToolResult(success=True, data=result)
         except Exception as e:
-            return ToolResult(success=False, error=f"PL5工具执行失败: {str(e)}")
+            return ToolResult(
+                success=False, error=f"PL5工具执行失败: {str(e)}"
+            )
 
     def execute(self, parameters: Dict[str, Any]) -> ToolResult:
         """执行PL5工具
@@ -85,7 +95,12 @@ class PL5Tool(BaseTool):
         """
         return super().execute(parameters)
 
-    def _predict(self, model_name: str, input_data: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    def _predict(
+        self,
+        model_name: str,
+        input_data: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """执行预测
 
         Args:
@@ -107,7 +122,12 @@ class PL5Tool(BaseTool):
             "timestamp": "2026-04-03T12:00:00Z",
         }
 
-    def _analyze(self, model_name: str, input_data: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze(
+        self,
+        model_name: str,
+        input_data: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """执行分析
 
         Args:
@@ -125,7 +145,10 @@ class PL5Tool(BaseTool):
             "analysis": {
                 "feature_importance": [0.3, 0.4, 0.3],
                 "data_quality": "good",
-                "recommendations": ["Feature 1 is most important", "Consider normalizing input data"],
+                "recommendations": [
+                    "Feature 1 is most important",
+                    "Consider normalizing input data",
+                ],
             },
             "input_data": input_data,
             "params": params,

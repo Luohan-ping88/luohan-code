@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple
 import logging
-from datetime import datetime
 import pickle
 from pathlib import Path
 
@@ -22,7 +21,8 @@ class PositionalEncoding:
         pe = np.zeros((max_len, d_model))
         position = np.arange(0, max_len, dtype=np.float32).reshape(-1, 1)
         div_term = np.exp(
-            np.arange(0, d_model, 2, dtype=np.float32) * (-np.log(10000.0) / d_model)
+            np.arange(0, d_model, 2, dtype=np.float32)
+            * (-np.log(10000.0) / d_model)
         )
         pe[:, 0::2] = np.sin(position * div_term)
         pe[:, 1::2] = np.cos(position * div_term)
@@ -46,12 +46,28 @@ class MultiHeadAttention:
         self.W_o = np.random.randn(d_model, d_model) * 0.02
 
     def forward(
-        self, query: np.ndarray, key: np.ndarray, value: np.ndarray, mask: Optional[np.ndarray] = None
+        self,
+        query: np.ndarray,
+        key: np.ndarray,
+        value: np.ndarray,
+        mask: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         batch_size = query.shape[0]
-        Q = np.dot(query, self.W_q).reshape(batch_size, -1, self.n_heads, self.d_k).transpose(0, 2, 1, 3)
-        K = np.dot(key, self.W_k).reshape(batch_size, -1, self.n_heads, self.d_k).transpose(0, 2, 1, 3)
-        V = np.dot(value, self.W_v).reshape(batch_size, -1, self.n_heads, self.d_k).transpose(0, 2, 1, 3)
+        Q = (
+            np.dot(query, self.W_q)
+            .reshape(batch_size, -1, self.n_heads, self.d_k)
+            .transpose(0, 2, 1, 3)
+        )
+        K = (
+            np.dot(key, self.W_k)
+            .reshape(batch_size, -1, self.n_heads, self.d_k)
+            .transpose(0, 2, 1, 3)
+        )
+        V = (
+            np.dot(value, self.W_v)
+            .reshape(batch_size, -1, self.n_heads, self.d_k)
+            .transpose(0, 2, 1, 3)
+        )
 
         scores = np.matmul(Q, K.transpose(0, 1, 3, 2)) / np.sqrt(self.d_k)
         if mask is not None:
@@ -59,7 +75,9 @@ class MultiHeadAttention:
 
         attention_weights = self._softmax(scores)
         context = np.matmul(attention_weights, V)
-        context = context.transpose(0, 2, 1, 3).reshape(batch_size, -1, self.d_model)
+        context = context.transpose(0, 2, 1, 3).reshape(
+            batch_size, -1, self.d_model
+        )
         output = np.dot(context, self.W_o)
 
         return output
@@ -87,14 +105,22 @@ class FeedForward:
 class TransformerBlock:
     """Transformer编码器块"""
 
-    def __init__(self, d_model: int, n_heads: int = 8, d_ff: int = 2048, dropout: float = 0.1):
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int = 8,
+        d_ff: int = 2048,
+        dropout: float = 0.1,
+    ):
         self.attention = MultiHeadAttention(d_model, n_heads)
         self.feed_forward = FeedForward(d_model, d_ff)
         self.norm1 = np.zeros(d_model)
         self.norm2 = np.zeros(d_model)
         self.dropout = dropout
 
-    def forward(self, x: np.ndarray, mask: Optional[np.ndarray] = None) -> np.ndarray:
+    def forward(
+        self, x: np.ndarray, mask: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         attn_output = self.attention.forward(x, x, x, mask)
         x = x + attn_output
         x = x / (np.std(x, axis=-1, keepdims=True) + 1e-6)
@@ -127,7 +153,8 @@ class TimeSeriesTransformer:
 
         self.pos_encoder = PositionalEncoding(d_model, max_seq_len)
         self.encoder_blocks = [
-            TransformerBlock(d_model, n_heads, d_ff, dropout) for _ in range(n_layers)
+            TransformerBlock(d_model, n_heads, d_ff, dropout)
+            for _ in range(n_layers)
         ]
         self.output_layer = np.random.randn(d_model, 10) * 0.02
 
@@ -165,7 +192,9 @@ class TimeSeriesTransformer:
         batch_size: int = 32,
     ) -> Dict[str, Any]:
         """训练模型"""
-        logger.info(f"开始训练Time-Series Transformer，序列长度={seq_len}，轮次={epochs}")
+        logger.info(
+            f"开始训练Time-Series Transformer，序列长度={seq_len}，轮次={epochs}"
+        )
 
         X, y = self._prepare_input(data, seq_len)
 
@@ -196,7 +225,9 @@ class TimeSeriesTransformer:
                 logits = np.dot(last_hidden, self.output_layer)
 
                 probs = self._softmax(logits)
-                loss = -np.mean(np.log(probs[np.arange(len(y_batch)), y_batch] + 1e-8))
+                loss = -np.mean(
+                    np.log(probs[np.arange(len(y_batch)), y_batch] + 1e-8)
+                )
 
                 gradient = (probs - np.eye(10)[y_batch]) / len(y_batch)
                 output_gradient = np.dot(hidden[:, -1, :].T, gradient)
@@ -206,12 +237,18 @@ class TimeSeriesTransformer:
                 n_batches += 1
 
             if (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss / n_batches:.4f}")
+                logger.info(
+                    f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss / n_batches:.4f}"
+                )
 
         self.is_fitted = True
         logger.info("Time-Series Transformer训练完成")
 
-        return {"status": "trained", "epochs": epochs, "final_loss": total_loss / n_batches}
+        return {
+            "status": "trained",
+            "epochs": epochs,
+            "final_loss": total_loss / n_batches,
+        }
 
     def predict_proba(self, data: np.ndarray, seq_len: int = 50) -> np.ndarray:
         """预测概率分布"""
@@ -234,7 +271,9 @@ class TimeSeriesTransformer:
 
         return probs
 
-    def predict(self, data: np.ndarray, seq_len: int = 50, top_k: int = 8) -> Dict[str, Any]:
+    def predict(
+        self, data: np.ndarray, seq_len: int = 50, top_k: int = 8
+    ) -> Dict[str, Any]:
         """预测并返回top_k结果"""
         probs = self.predict_proba(data, seq_len)
 
@@ -325,14 +364,18 @@ class TransformerEnsemble:
 
         return results
 
-    def predict(self, df: pd.DataFrame, top_k: int = 8) -> Dict[str, Dict[str, Any]]:
+    def predict(
+        self, df: pd.DataFrame, top_k: int = 8
+    ) -> Dict[str, Dict[str, Any]]:
         """预测所有位置"""
         predictions = {}
 
         for pos in self.positions:
             if pos in df.columns and pos in self.models:
                 data = df[pos].values
-                predictions[pos] = self.models[pos].predict(data, seq_len=30, top_k=top_k)
+                predictions[pos] = self.models[pos].predict(
+                    data, seq_len=30, top_k=top_k
+                )
 
         return predictions
 
@@ -343,7 +386,10 @@ class TransformerEnsemble:
         with open(path, "wb") as f:
             pickle.dump(
                 {
-                    "models": {pos: model.output_layer for pos, model in self.models.items()},
+                    "models": {
+                        pos: model.output_layer
+                        for pos, model in self.models.items()
+                    },
                     "positions": self.positions,
                 },
                 f,

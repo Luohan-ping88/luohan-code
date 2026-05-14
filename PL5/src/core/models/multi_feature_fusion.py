@@ -14,12 +14,10 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 from collections import defaultdict
 from datetime import datetime
-import json
 from pathlib import Path
-import pickle
 import joblib
 import time
 from sklearn.ensemble import RandomForestClassifier
@@ -45,7 +43,13 @@ class FeatureCombination:
 
     def update_performance(self, hit: bool, period: str):
         """更新特征组合的表现"""
-        self.performance_history.append({"period": period, "hit": hit, "timestamp": datetime.now().isoformat()})
+        self.performance_history.append(
+            {
+                "period": period,
+                "hit": hit,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         # 只保留最近20期的记录
         if len(self.performance_history) > 20:
             self.performance_history.pop(0)
@@ -81,7 +85,9 @@ class DynamicFeatureSelector:
             "statistical": [],  # 统计特征
         }
 
-    def analyze_data(self, df: pd.DataFrame, all_features: List[str]) -> List[FeatureCombination]:
+    def analyze_data(
+        self, df: pd.DataFrame, all_features: List[str]
+    ) -> List[FeatureCombination]:
         """
         分析数据特征，智能生成多个特征组合
 
@@ -119,11 +125,15 @@ class DynamicFeatureSelector:
 
         logger.info(f"[智能特征选择] 生成了 {len(unique_combos)} 个特征组合")
         for combo in unique_combos:
-            logger.info(f"  - {combo.name}: {len(combo.features)} 个特征, 优先级={combo.priority:.2f}")
+            logger.info(
+                f"  - {combo.name}: {len(combo.features)} 个特征, 优先级={combo.priority:.2f}"
+            )
 
         return unique_combos
 
-    def _group_by_feature_type(self, features: List[str]) -> List[FeatureCombination]:
+    def _group_by_feature_type(
+        self, features: List[str]
+    ) -> List[FeatureCombination]:
         """按特征类型分组"""
         groups = defaultdict(list)
         for f in features:
@@ -137,12 +147,16 @@ class DynamicFeatureSelector:
             if feats:
                 combos.append(
                     FeatureCombination(
-                        name=f"类型_{name}", features=feats, priority=len(feats) / 10.0  # 特征越多优先级越高
+                        name=f"类型_{name}",
+                        features=feats,
+                        priority=len(feats) / 10.0,  # 特征越多优先级越高
                     )
                 )
         return combos
 
-    def _group_by_position(self, features: List[str]) -> List[FeatureCombination]:
+    def _group_by_position(
+        self, features: List[str]
+    ) -> List[FeatureCombination]:
         """按位置分组（万位特征、千位特征等）"""
         groups = defaultdict(list)
         for f in features:
@@ -155,13 +169,21 @@ class DynamicFeatureSelector:
         for pos, feats in groups.items():
             if feats:
                 combos.append(
-                    FeatureCombination(name=f"位置_{pos}", features=feats, priority=1.2)  # 位置特征优先级较高
+                    FeatureCombination(
+                        name=f"位置_{pos}", features=feats, priority=1.2
+                    )  # 位置特征优先级较高
                 )
         return combos
 
-    def _group_by_time_window(self, features: List[str]) -> List[FeatureCombination]:
+    def _group_by_time_window(
+        self, features: List[str]
+    ) -> List[FeatureCombination]:
         """按时序窗口分组（短期、中期、长期）"""
-        windows = {"短期": [3, 5, 7, 10], "中期": [15, 20, 30], "长期": [50, 100]}
+        windows = {
+            "短期": [3, 5, 7, 10],
+            "中期": [15, 20, 30],
+            "长期": [50, 100],
+        }
 
         combos = []
         for window_type, values in windows.items():
@@ -174,11 +196,17 @@ class DynamicFeatureSelector:
 
             if window_features:
                 combos.append(
-                    FeatureCombination(name=f"时序_{window_type}", features=list(set(window_features)), priority=1.0)
+                    FeatureCombination(
+                        name=f"时序_{window_type}",
+                        features=list(set(window_features)),
+                        priority=1.0,
+                    )
                 )
         return combos
 
-    def _group_by_correlation(self, df: pd.DataFrame, features: List[str]) -> List[FeatureCombination]:
+    def _group_by_correlation(
+        self, df: pd.DataFrame, features: List[str]
+    ) -> List[FeatureCombination]:
         """基于特征相关性分组"""
         # 选择目标变量
         target_cols = [c for c in df.columns if c in POSITIONS]
@@ -195,7 +223,9 @@ class DynamicFeatureSelector:
             mi_dict = dict(zip(features, mi_scores))
 
             # 选择互信息最高的特征
-            sorted_features = sorted(mi_dict.items(), key=lambda x: x[1], reverse=True)
+            sorted_features = sorted(
+                mi_dict.items(), key=lambda x: x[1], reverse=True
+            )
 
             # 分成高、中、低相关三组
             n = len(sorted_features) // 3
@@ -204,10 +234,16 @@ class DynamicFeatureSelector:
                 mid_corr = [f for f, _ in sorted_features[n : 2 * n]]
                 low_corr = [f for f, _ in sorted_features[2 * n :]]
 
-                combos.append(FeatureCombination("高相关", high_corr, priority=1.5))
-                combos.append(FeatureCombination("中相关", mid_corr, priority=1.0))
+                combos.append(
+                    FeatureCombination("高相关", high_corr, priority=1.5)
+                )
+                combos.append(
+                    FeatureCombination("中相关", mid_corr, priority=1.0)
+                )
                 if low_corr:
-                    combos.append(FeatureCombination("低相关", low_corr, priority=0.5))
+                    combos.append(
+                        FeatureCombination("低相关", low_corr, priority=0.5)
+                    )
         except Exception as e:
             logger.warning(f"相关性分析失败: {e}")
 
@@ -233,12 +269,20 @@ class MultiFeatureFusionPredictor:
         self.feature_selector = DynamicFeatureSelector(max_combinations)
         self.feature_combinations: List[FeatureCombination] = []
         self.models: Dict[str, Any] = {}  # 组合名 -> 模型
-        self.position_models: Dict[str, Dict[str, Any]] = {}  # 位置 -> 组合名 -> 模型
+        self.position_models: Dict[str, Dict[str, Any]] = (
+            {}
+        )  # 位置 -> 组合名 -> 模型
         self.is_trained = False
         self.training_history = []
-        self._cache_info = {"trained_at": None, "data_periods": 0, "n_combinations": 0}
+        self._cache_info = {
+            "trained_at": None,
+            "data_periods": 0,
+            "n_combinations": 0,
+        }
 
-    def _clean_data(self, df: pd.DataFrame, features: List[str]) -> Tuple[np.ndarray, List[str]]:
+    def _clean_data(
+        self, df: pd.DataFrame, features: List[str]
+    ) -> Tuple[np.ndarray, List[str]]:
         """清洗数据，移除无穷大值和非有限值"""
         valid_features = []
         for f in features:
@@ -319,14 +363,20 @@ class MultiFeatureFusionPredictor:
             self.feature_combinations = []
             for combo_data in cache_data.get("feature_combinations_data", []):
                 combo = FeatureCombination(
-                    name=combo_data["name"], features=combo_data["features"], priority=combo_data.get("priority", 1.0)
+                    name=combo_data["name"],
+                    features=combo_data["features"],
+                    priority=combo_data.get("priority", 1.0),
                 )
                 combo.hit_rate = combo_data.get("hit_rate", 0.0)
-                combo.performance_history = combo_data.get("performance_history", [])
+                combo.performance_history = combo_data.get(
+                    "performance_history", []
+                )
                 self.feature_combinations.append(combo)
 
             self.position_models = {}
-            for pos, pos_models in cache_data.get("position_models", {}).items():
+            for pos, pos_models in cache_data.get(
+                "position_models", {}
+            ).items():
                 self.position_models[pos] = {}
                 for combo_name, model_info in pos_models.items():
                     combo = None
@@ -348,7 +398,9 @@ class MultiFeatureFusionPredictor:
                     }
 
             logger.info(f"[MFF] 模型已加载: {filepath}")
-            logger.info(f"  训练时间: {self._cache_info.get('trained_at', '未知')}")
+            logger.info(
+                f"  训练时间: {self._cache_info.get('trained_at', '未知')}"
+            )
             logger.info(f"  特征组合数: {len(self.feature_combinations)}")
             return True
 
@@ -356,7 +408,9 @@ class MultiFeatureFusionPredictor:
             logger.error(f"[MFF] 加载模型失败: {e}")
             return False
 
-    def is_cache_valid(self, data_periods: int = 0, max_age_hours: int = 24) -> bool:
+    def is_cache_valid(
+        self, data_periods: int = 0, max_age_hours: int = 24
+    ) -> bool:
         """检查缓存是否有效"""
         if not Path(self.MODEL_CACHE_FILE).exists():
             return False
@@ -368,16 +422,27 @@ class MultiFeatureFusionPredictor:
         cache_age_hours = (time.time() - cache_time) / 3600
 
         if cache_age_hours > max_age_hours:
-            logger.info(f"[MFF] 缓存过期: {cache_age_hours:.1f}小时 > {max_age_hours}小时")
+            logger.info(
+                f"[MFF] 缓存过期: {cache_age_hours:.1f}小时 > {max_age_hours}小时"
+            )
             return False
 
-        if data_periods > 0 and self._cache_info.get("data_periods", 0) < data_periods:
+        if (
+            data_periods > 0
+            and self._cache_info.get("data_periods", 0) < data_periods
+        ):
             logger.info(f"[MFF] 数据量增加，需要重新训练")
             return False
 
         return True
 
-    def fit(self, df: pd.DataFrame, all_features: List[str], recent_periods: int = 100, save_cache: bool = True):
+    def fit(
+        self,
+        df: pd.DataFrame,
+        all_features: List[str],
+        recent_periods: int = 100,
+        save_cache: bool = True,
+    ):
         """
         使用多特征组合训练模型
 
@@ -400,12 +465,20 @@ class MultiFeatureFusionPredictor:
         logger.info(f"  有效特征数: {len(valid_all_features)}")
 
         # 动态生成特征组合（使用清洗后的特征）
-        self.feature_combinations = self.feature_selector.analyze_data(train_df, valid_all_features)
+        self.feature_combinations = self.feature_selector.analyze_data(
+            train_df, valid_all_features
+        )
 
         if not self.feature_combinations:
-            logger.warning("[MultiFeatureFusion] 未能生成特征组合，使用默认特征")
+            logger.warning(
+                "[MultiFeatureFusion] 未能生成特征组合，使用默认特征"
+            )
             self.feature_combinations = [
-                FeatureCombination("默认", valid_all_features[: min(50, len(valid_all_features))], 1.0)
+                FeatureCombination(
+                    "默认",
+                    valid_all_features[: min(50, len(valid_all_features))],
+                    1.0,
+                )
             ]
 
         # 为每个位置训练多个特征组合的模型
@@ -415,7 +488,9 @@ class MultiFeatureFusionPredictor:
 
             for combo in self.feature_combinations:
                 # 只使用有效特征
-                combo_valid_features = [f for f in combo.features if f in valid_all_features]
+                combo_valid_features = [
+                    f for f in combo.features if f in valid_all_features
+                ]
                 if len(combo_valid_features) < 5:
                     continue
 
@@ -424,7 +499,9 @@ class MultiFeatureFusionPredictor:
                 X = np.clip(X, -1e10, 1e10)
 
                 # 训练随机森林模型
-                model = RandomForestClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1)
+                model = RandomForestClassifier(
+                    n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
+                )
                 model.fit(X, y)
 
                 self.position_models[pos][combo.name] = {
@@ -433,7 +510,9 @@ class MultiFeatureFusionPredictor:
                     "combination": combo,
                 }
 
-                logger.info(f"  [{pos}] {combo.name}: {len(combo_valid_features)} 个特征训练完成")
+                logger.info(
+                    f"  [{pos}] {combo.name}: {len(combo_valid_features)} 个特征训练完成"
+                )
 
         self.is_trained = True
         self.training_history.append(
@@ -453,9 +532,13 @@ class MultiFeatureFusionPredictor:
         if save_cache:
             self.save_model()
 
-        logger.info(f"[MultiFeatureFusion] 多特征组合训练完成！共 {len(self.feature_combinations)} 个组合")
+        logger.info(
+            f"[MultiFeatureFusion] 多特征组合训练完成！共 {len(self.feature_combinations)} 个组合"
+        )
 
-    def predict(self, df: pd.DataFrame, top_k: int = 8) -> Dict[str, Dict[str, Any]]:
+    def predict(
+        self, df: pd.DataFrame, top_k: int = 8
+    ) -> Dict[str, Dict[str, Any]]:
         """
         使用多特征组合融合进行预测
 
@@ -465,7 +548,11 @@ class MultiFeatureFusionPredictor:
         if not self.is_trained:
             logger.warning("[MultiFeatureFusion] 模型未训练，返回默认预测")
             return {
-                pos: {"top_k": list(range(10))[:top_k], "probabilities": [0.1] * top_k, "combination_details": {}}
+                pos: {
+                    "top_k": list(range(10))[:top_k],
+                    "probabilities": [0.1] * top_k,
+                    "combination_details": {},
+                }
                 for pos in POSITIONS
             }
 
@@ -520,17 +607,25 @@ class MultiFeatureFusionPredictor:
 
                 # 构建组合详情
                 combo_details = {}
-                for i, (combo_name, model_info) in enumerate(self.position_models[pos].items()):
+                for i, (combo_name, model_info) in enumerate(
+                    self.position_models[pos].items()
+                ):
                     combo = model_info["combination"]
                     combo_details[combo_name] = {
-                        "weight": normalized_weights[i] if i < len(normalized_weights) else 0,
+                        "weight": (
+                            normalized_weights[i]
+                            if i < len(normalized_weights)
+                            else 0
+                        ),
                         "hit_rate": combo.hit_rate,
                         "n_features": len(model_info["features"]),
                     }
 
                 results[pos] = {
                     "top_k": top_indices.tolist(),
-                    "probabilities": [float(fused_proba[i]) for i in top_indices],
+                    "probabilities": [
+                        float(fused_proba[i]) for i in top_indices
+                    ],
                     "fused_proba": fused_proba.tolist(),
                     "combination_details": combo_details,
                     "n_combinations_used": len(all_proba),
@@ -575,7 +670,11 @@ class MultiFeatureFusionPredictor:
 
     def get_intelligent_summary(self) -> Dict[str, Any]:
         """获取智能融合摘要"""
-        summary = {"n_combinations": len(self.feature_combinations), "is_trained": self.is_trained, "combinations": []}
+        summary = {
+            "n_combinations": len(self.feature_combinations),
+            "is_trained": self.is_trained,
+            "combinations": [],
+        }
 
         for combo in self.feature_combinations:
             summary["combinations"].append(
@@ -584,7 +683,11 @@ class MultiFeatureFusionPredictor:
                     "n_features": len(combo.features),
                     "hit_rate": combo.hit_rate,
                     "adaptive_weight": combo.get_adaptive_weight(),
-                    "recent_performance": combo.performance_history[-5:] if combo.performance_history else [],
+                    "recent_performance": (
+                        combo.performance_history[-5:]
+                        if combo.performance_history
+                        else []
+                    ),
                 }
             )
 

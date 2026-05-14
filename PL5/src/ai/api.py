@@ -8,22 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-from typing import Dict, List, Any, Optional, Callable
-import json
+from typing import Dict, Any, Optional
 import jwt
 from datetime import datetime, timedelta
 import time
 
 from .registry import get_registry
 from .orchestrator import WorkflowEngine, Workflow
-from .ai_types import ToolResult, LLMConfig, LLMType, AgentConfig, AgentType
-from .models.base import LLMFactory
+from .ai_types import LLMConfig, LLMType, AgentConfig, AgentType
 from .agents.base import AgentFactory
 from .memory.base import MemoryManager
 from .tools.pl5 import register_pl5_tools
 from .security import get_permission_manager, SecurityConfig, get_scanner
 from .performance import monitored, cached, get_load_balancer, get_auto_scaler
-from .error_handling import handle_error, execute_with_retry, AIError
+from .error_handling import handle_error, AIError
 from .system_health import (
     start_health_monitoring,
     register_service,
@@ -41,24 +39,42 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_urlsafe(32))  # 从环境变量读取，默认生成安全密钥
+JWT_SECRET = os.getenv(
+    "JWT_SECRET", secrets.token_urlsafe(32)
+)  # 从环境变量读取，默认生成安全密钥
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION = int(os.getenv("JWT_EXPIRATION", "3600"))  # 1小时
 
 # 会话配置
 SESSION_CONFIG = {
-    "access_token_expiry": int(os.getenv("ACCESS_TOKEN_EXPIRY", "3600")),  # 访问令牌过期时间（秒）
-    "refresh_token_expiry": int(os.getenv("REFRESH_TOKEN_EXPIRY", "86400")),  # 刷新令牌过期时间（秒）
-    "session_timeout": int(os.getenv("SESSION_TIMEOUT", "1800")),  # 会话超时时间（秒）
-    "max_concurrent_sessions": int(os.getenv("MAX_CONCURRENT_SESSIONS", "5")),  # 最大并发会话数
-    "session_cleanup_interval": int(os.getenv("SESSION_CLEANUP_INTERVAL", "60")),  # 会话清理间隔（秒）
+    "access_token_expiry": int(
+        os.getenv("ACCESS_TOKEN_EXPIRY", "3600")
+    ),  # 访问令牌过期时间（秒）
+    "refresh_token_expiry": int(
+        os.getenv("REFRESH_TOKEN_EXPIRY", "86400")
+    ),  # 刷新令牌过期时间（秒）
+    "session_timeout": int(
+        os.getenv("SESSION_TIMEOUT", "1800")
+    ),  # 会话超时时间（秒）
+    "max_concurrent_sessions": int(
+        os.getenv("MAX_CONCURRENT_SESSIONS", "5")
+    ),  # 最大并发会话数
+    "session_cleanup_interval": int(
+        os.getenv("SESSION_CLEANUP_INTERVAL", "60")
+    ),  # 会话清理间隔（秒）
 }
 
 # 创建FastAPI应用
-app = FastAPI(title="AI工具系统API", description="让智能体拥有动手能力的API服务", version="1.0.0")
+app = FastAPI(
+    title="AI工具系统API",
+    description="让智能体拥有动手能力的API服务",
+    version="1.0.0",
+)
 
 # 配置CORS - 从环境变量读取允许的域名
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "https://your-domain.com").split(",")
+allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS", "https://your-domain.com"
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -160,7 +176,9 @@ class RateLimitMiddleware:
         if client_ip in self.blocked_ips:
             response = JSONResponse(
                 status_code=http_status.HTTP_403_FORBIDDEN,
-                content={"detail": "IP blocked due to repeated rate limit violations"},
+                content={
+                    "detail": "IP blocked due to repeated rate limit violations"
+                },
             )
             await response(scope, receive, send)
             return
@@ -179,7 +197,11 @@ class RateLimitMiddleware:
             self.requests[client_ip][category] = []
 
         # 清理过期记录
-        self.requests[client_ip][category] = [t for t in self.requests[client_ip][category] if now - t < window_seconds]
+        self.requests[client_ip][category] = [
+            t
+            for t in self.requests[client_ip][category]
+            if now - t < window_seconds
+        ]
 
         # 检查请求数
         if len(self.requests[client_ip][category]) >= max_requests:
@@ -193,7 +215,9 @@ class RateLimitMiddleware:
                 self.blocked_ips.add(client_ip)
                 response = JSONResponse(
                     status_code=http_status.HTTP_403_FORBIDDEN,
-                    content={"detail": "IP blocked due to repeated rate limit violations"},
+                    content={
+                        "detail": "IP blocked due to repeated rate limit violations"
+                    },
                 )
             else:
                 response = JSONResponse(
@@ -231,7 +255,9 @@ class HTTPSRedirectMiddleware:
 
     def __init__(self, app):
         self.app = app
-        self.https_enabled = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+        self.https_enabled = (
+            os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+        )
 
     async def __call__(self, scope, receive, send):
         """处理请求"""
@@ -254,7 +280,10 @@ class HTTPSRedirectMiddleware:
                 if request.url.query:
                     https_url += f"?{request.url.query}"
 
-                response = RedirectResponse(url=https_url, status_code=http_status.HTTP_301_MOVED_PERMANENTLY)
+                response = RedirectResponse(
+                    url=https_url,
+                    status_code=http_status.HTTP_301_MOVED_PERMANENTLY,
+                )
                 await response(scope, receive, send)
                 return
 
@@ -265,7 +294,9 @@ class HTTPSRedirectMiddleware:
 class HSTSMiddleware:
     """HTTP严格传输安全中间件"""
 
-    def __init__(self, app, max_age: int = 31536000, include_subdomains: bool = True):
+    def __init__(
+        self, app, max_age: int = 31536000, include_subdomains: bool = True
+    ):
         self.app = app
         self.hsts_header = f"max-age={max_age}"
         if include_subdomains:
@@ -284,7 +315,9 @@ class HSTSMiddleware:
             nonlocal response_sent
             if message["type"] == "http.response.start" and not response_sent:
                 headers = list(message.get("headers", []))
-                headers.append((b"strict-transport-security", self.hsts_header.encode()))
+                headers.append(
+                    (b"strict-transport-security", self.hsts_header.encode())
+                )
                 message["headers"] = headers
                 response_sent = True
             await send(message)
@@ -308,7 +341,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     # 处理HTTP异常
     if isinstance(exc, HTTPException):
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, "error_type": "http_error"})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "error_type": "http_error"},
+        )
 
     # 处理AIError
     if isinstance(ai_error, AIError):
@@ -321,17 +357,24 @@ async def global_exception_handler(request: Request, exc: Exception):
         elif ai_error.error_type == "rate_limit_error":
             status_code = status.HTTP_429_TOO_MANY_REQUESTS
 
-        return JSONResponse(status_code=status_code, content=ai_error.to_dict())
+        return JSONResponse(
+            status_code=status_code, content=ai_error.to_dict()
+        )
 
     # 处理其他异常
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error", "error_type": "unknown_error"},
+        content={
+            "detail": "Internal server error",
+            "error_type": "unknown_error",
+        },
     )
 
 
 # 依赖项
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict[str, Any]:
     """获取当前用户"""
     token = credentials.credentials
     payload = verify_token(token)
@@ -361,8 +404,19 @@ def startup_event():
         name="search",
         description="在互联网上搜索信息",
         parameters=[
-            {"name": "query", "type": "str", "description": "搜索查询词", "required": True},
-            {"name": "max_results", "type": "int", "description": "最大结果数量", "required": False, "default": 5},
+            {
+                "name": "query",
+                "type": "str",
+                "description": "搜索查询词",
+                "required": True,
+            },
+            {
+                "name": "max_results",
+                "type": "int",
+                "description": "最大结果数量",
+                "required": False,
+                "default": 5,
+            },
         ],
         category="builtin",
     )
@@ -374,7 +428,14 @@ def startup_event():
     @register_tool(
         name="calculator",
         description="执行数学计算",
-        parameters=[{"name": "expression", "type": "str", "description": "数学表达式", "required": True}],
+        parameters=[
+            {
+                "name": "expression",
+                "type": "str",
+                "description": "数学表达式",
+                "required": True,
+            }
+        ],
         category="builtin",
     )
     def calculator_tool(params):
@@ -386,9 +447,24 @@ def startup_event():
         name="file",
         description="文件操作工具",
         parameters=[
-            {"name": "action", "type": "str", "description": "操作类型: read, write, list", "required": True},
-            {"name": "path", "type": "str", "description": "文件路径", "required": True},
-            {"name": "content", "type": "str", "description": "文件内容（仅write操作需要）", "required": False},
+            {
+                "name": "action",
+                "type": "str",
+                "description": "操作类型: read, write, list",
+                "required": True,
+            },
+            {
+                "name": "path",
+                "type": "str",
+                "description": "文件路径",
+                "required": True,
+            },
+            {
+                "name": "content",
+                "type": "str",
+                "description": "文件内容（仅write操作需要）",
+                "required": False,
+            },
             {
                 "name": "max_lines",
                 "type": "int",
@@ -416,14 +492,22 @@ def startup_event():
             # 检查工作流引擎是否正常
             workflow_count = len(workflow_engine.list_workflows())
 
-            metrics = {"tool_count": tool_count, "workflow_count": workflow_count}
+            metrics = {
+                "tool_count": tool_count,
+                "workflow_count": workflow_count,
+            }
 
             return HealthCheckResult(
-                service="api", status=ServiceStatus.HEALTHY, message="API service is healthy", metrics=metrics
+                service="api",
+                status=ServiceStatus.HEALTHY,
+                message="API service is healthy",
+                metrics=metrics,
             )
         except Exception as e:
             return HealthCheckResult(
-                service="api", status=ServiceStatus.UNHEALTHY, message=f"API service health check failed: {str(e)}"
+                service="api",
+                status=ServiceStatus.UNHEALTHY,
+                message=f"API service health check failed: {str(e)}",
             )
 
     # 注册API服务健康检查
@@ -454,7 +538,12 @@ async def health_check():
     """健康检查"""
     from src import __version__
 
-    return {"status": "healthy", "version": __version__, "timestamp": datetime.now().isoformat(), "uptime": "running"}
+    return {
+        "status": "healthy",
+        "version": __version__,
+        "timestamp": datetime.now().isoformat(),
+        "uptime": "running",
+    }
 
 
 # ── 前端页面路由 ────────────────────────────────────────────
@@ -534,7 +623,9 @@ async def login(username: str, password: str):
 
 
 @app.get("/api/auth/me")
-async def get_current_user_info(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_current_user_info(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取当前用户信息
 
     Args:
@@ -586,12 +677,16 @@ async def list_tools():
 @app.post("/api/tools/{tool_name}/execute")
 @monitored(name="execute_tool")
 async def execute_tool(
-    tool_name: str, parameters: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)
+    tool_name: str,
+    parameters: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """执行工具"""
     # 检查权限
     if not permission_manager.has_permission(current_user["role"], tool_name):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     registry = get_registry()
     result = registry.execute_tool(tool_name, parameters)
@@ -609,7 +704,10 @@ async def execute_tool(
 
 
 @app.post("/api/agents/create")
-def create_agent(config: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def create_agent(
+    config: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """创建Agent"""
     try:
         # 构建LLM配置
@@ -657,7 +755,11 @@ async def run_agent(
     try:
         # 构建默认配置
         if not agent_config:
-            agent_config = {"agent_type": "react", "model_type": "local", "model_name": "gpt-3.5-turbo"}
+            agent_config = {
+                "agent_type": "react",
+                "model_type": "local",
+                "model_name": "gpt-3.5-turbo",
+            }
 
         # 创建Agent
         llm_config = LLMConfig(
@@ -684,7 +786,12 @@ async def run_agent(
         # 运行Agent
         result = agent.run(task, context)
 
-        return {"success": result.success, "data": result.data, "error": result.error, "metadata": result.metadata}
+        return {
+            "success": result.success,
+            "data": result.data,
+            "error": result.error,
+            "metadata": result.metadata,
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -693,7 +800,10 @@ async def run_agent(
 
 
 @app.post("/api/workflows/create")
-def create_workflow(workflow_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def create_workflow(
+    workflow_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """创建工作流"""
     try:
         from .ai_types import WorkflowStep
@@ -732,7 +842,10 @@ def create_workflow(workflow_data: Dict[str, Any], current_user: Dict[str, Any] 
 
 @app.post("/api/workflows/run")
 @monitored(name="run_workflow")
-async def run_workflow(workflow_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+async def run_workflow(
+    workflow_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """运行工作流"""
     try:
         from .ai_types import WorkflowStep
@@ -768,14 +881,19 @@ async def run_workflow(workflow_data: Dict[str, Any], current_user: Dict[str, An
 
 
 @app.get("/api/workflows/running")
-def list_running_workflows(current_user: Dict[str, Any] = Depends(get_current_user)):
+def list_running_workflows(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """列出运行中的工作流"""
     workflows = workflow_engine.list_running_workflows()
     return {"workflows": workflows, "count": len(workflows)}
 
 
 @app.get("/api/workflows/list")
-def list_workflows(status: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
+def list_workflows(
+    status: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """列出工作流"""
     from .ai_types import WorkflowStatus
 
@@ -785,7 +903,9 @@ def list_workflows(status: Optional[str] = None, current_user: Dict[str, Any] = 
 
 
 @app.post("/api/workflows/{execution_id}/resume")
-async def resume_workflow(execution_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def resume_workflow(
+    execution_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """恢复工作流"""
     try:
         result = await workflow_engine.resume_workflow(execution_id)
@@ -795,7 +915,9 @@ async def resume_workflow(execution_id: str, current_user: Dict[str, Any] = Depe
 
 
 @app.delete("/api/workflows/{execution_id}")
-def delete_workflow(execution_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def delete_workflow(
+    execution_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """删除工作流"""
     success = workflow_engine.delete_workflow(execution_id)
     return {"success": success}
@@ -805,7 +927,10 @@ def delete_workflow(execution_id: str, current_user: Dict[str, Any] = Depends(ge
 
 
 @app.post("/api/memory/create")
-def create_memory(memory_config: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def create_memory(
+    memory_config: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """创建记忆"""
     try:
         from .ai_types import MemoryConfig, MemoryType
@@ -814,7 +939,9 @@ def create_memory(memory_config: Dict[str, Any], current_user: Dict[str, Any] = 
 
         # 构建记忆配置
         config = MemoryConfig(
-            memory_type=MemoryType(memory_config.get("memory_type", "conversation")),
+            memory_type=MemoryType(
+                memory_config.get("memory_type", "conversation")
+            ),
             max_size=memory_config.get("max_size", 1000),
             ttl=memory_config.get("ttl"),
             embedding_dim=memory_config.get("embedding_dim", 1536),
@@ -829,23 +956,35 @@ def create_memory(memory_config: Dict[str, Any], current_user: Dict[str, Any] = 
             raise ValueError(f"Unsupported memory type: {config.memory_type}")
 
         # 添加到管理器
-        memory_name = memory_config.get("name", f"memory_{config.memory_type.value}")
+        memory_name = memory_config.get(
+            "name", f"memory_{config.memory_type.value}"
+        )
         memory_manager.add_memory(memory_name, memory)
 
-        return {"success": True, "memory_name": memory_name, "memory_type": config.memory_type.value}
+        return {
+            "success": True,
+            "memory_name": memory_name,
+            "memory_type": config.memory_type.value,
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/memory/{memory_name}/add")
-def add_memory_item(memory_name: str, item: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def add_memory_item(
+    memory_name: str,
+    item: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """添加记忆项"""
     memory = memory_manager.get_memory(memory_name)
     if not memory:
-        raise HTTPException(status_code=404, detail=f"Memory '{memory_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Memory '{memory_name}' not found"
+        )
 
     try:
-        from .ai_types import ConversationMessage, ExecutionRecord
+        from .ai_types import ConversationMessage
 
         # 根据记忆类型添加不同的项
         if hasattr(memory, "add_user_message"):
@@ -853,7 +992,9 @@ def add_memory_item(memory_name: str, item: Dict[str, Any], current_user: Dict[s
             if "content" in item:
                 memory.add_user_message(item["content"])
             elif "role" in item and "content" in item:
-                message = ConversationMessage(role=item["role"], content=item["content"])
+                message = ConversationMessage(
+                    role=item["role"], content=item["content"]
+                )
                 memory.add(message)
         elif hasattr(memory, "add_execution_record"):
             # 执行记忆
@@ -872,12 +1013,16 @@ def add_memory_item(memory_name: str, item: Dict[str, Any], current_user: Dict[s
 
 @app.get("/api/memory/{memory_name}/get")
 def get_memory_items(
-    memory_name: str, limit: int = Query(10, ge=1, le=100), current_user: Dict[str, Any] = Depends(get_current_user)
+    memory_name: str,
+    limit: int = Query(10, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """获取记忆项"""
     memory = memory_manager.get_memory(memory_name)
     if not memory:
-        raise HTTPException(status_code=404, detail=f"Memory '{memory_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Memory '{memory_name}' not found"
+        )
 
     items = memory.get_all()
     if hasattr(memory, "get_last_n_messages"):
@@ -891,7 +1036,13 @@ def get_memory_items(
         if hasattr(item, "to_dict"):
             serialized_items.append(item.to_dict())
         elif hasattr(item, "__dict__"):
-            serialized_items.append({k: v for k, v in item.__dict__.items() if not k.startswith("_")})
+            serialized_items.append(
+                {
+                    k: v
+                    for k, v in item.__dict__.items()
+                    if not k.startswith("_")
+                }
+            )
         else:
             serialized_items.append(str(item))
 
@@ -903,7 +1054,9 @@ def get_memory_items(
 
 @app.post("/api/workflow-templates/save")
 def save_workflow_template(
-    template_name: str, workflow_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)
+    template_name: str,
+    workflow_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """保存工作流模板"""
     try:
@@ -939,24 +1092,34 @@ def save_workflow_template(
 
 
 @app.get("/api/workflow-templates/list")
-def list_workflow_templates(current_user: Dict[str, Any] = Depends(get_current_user)):
+def list_workflow_templates(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """列出工作流模板"""
     templates = workflow_engine.list_templates()
     return {"templates": templates, "count": len(templates)}
 
 
 @app.post("/api/workflow-templates/{template_name}/load")
-def load_workflow_template(template_name: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def load_workflow_template(
+    template_name: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """加载工作流模板"""
     workflow = workflow_engine.load_template(template_name)
     if not workflow:
-        raise HTTPException(status_code=404, detail=f"Template '{template_name}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Template '{template_name}' not found"
+        )
 
     return {"success": True, "workflow": workflow.to_dict()}
 
 
 @app.delete("/api/workflow-templates/{template_name}")
-def delete_workflow_template(template_name: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def delete_workflow_template(
+    template_name: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """删除工作流模板"""
     success = workflow_engine.delete_template(template_name)
     return {"success": success}
@@ -971,8 +1134,13 @@ def get_system_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
     registry = get_registry()
 
     return {
-        "tools": {"total": len(registry.list_tools()), "stats": registry.get_stats()},
-        "workflows": {"running": len(workflow_engine.list_running_workflows())},
+        "tools": {
+            "total": len(registry.list_tools()),
+            "stats": registry.get_stats(),
+        },
+        "workflows": {
+            "running": len(workflow_engine.list_running_workflows())
+        },
         "memory": memory_manager.get_stats(),
     }
 
@@ -998,7 +1166,9 @@ class ConnectionManager:
         if client_id in self.training_subscribers:
             del self.training_subscribers[client_id]
 
-    async def send_personal_message(self, message: Dict[str, Any], client_id: str):
+    async def send_personal_message(
+        self, message: Dict[str, Any], client_id: str
+    ):
         """发送个人消息"""
         if client_id in self.active_connections:
             await self.active_connections[client_id].send_json(message)
@@ -1037,7 +1207,7 @@ class TrainingStatusManager:
             try:
                 with open(status_file, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
 
         return {
@@ -1051,8 +1221,6 @@ class TrainingStatusManager:
     def get_detailed_status(self) -> Dict[str, Any]:
         """获取详细训练状态"""
         from pathlib import Path
-        import json
-        import re
         from datetime import datetime
 
         status = self.get_current_status()
@@ -1063,10 +1231,30 @@ class TrainingStatusManager:
             log_path = Path("logs/latest.log")
 
         training_steps = {
-            "data_fetch": {"step": "数据采集", "status": "pending", "time": None, "desc": "等待定时采集"},
-            "feature_engineering": {"step": "特征提取", "status": "pending", "time": None, "desc": "等待特征提取"},
-            "training": {"step": "模型训练", "status": "pending", "time": None, "desc": "等待模型训练"},
-            "prediction": {"step": "生成预测", "status": "pending", "time": None, "desc": "等待生成预测"},
+            "data_fetch": {
+                "step": "数据采集",
+                "status": "pending",
+                "time": None,
+                "desc": "等待定时采集",
+            },
+            "feature_engineering": {
+                "step": "特征提取",
+                "status": "pending",
+                "time": None,
+                "desc": "等待特征提取",
+            },
+            "training": {
+                "step": "模型训练",
+                "status": "pending",
+                "time": None,
+                "desc": "等待模型训练",
+            },
+            "prediction": {
+                "step": "生成预测",
+                "status": "pending",
+                "time": None,
+                "desc": "等待生成预测",
+            },
         }
 
         current_task = status.get("current_task", "")
@@ -1087,7 +1275,11 @@ class TrainingStatusManager:
                     "time": status.get("last_run", ""),
                     "desc": "已完成",
                 }
-            if "训练" in current_task or "特征" in current_task or "采集" in current_task:
+            if (
+                "训练" in current_task
+                or "特征" in current_task
+                or "采集" in current_task
+            ):
                 training_steps["training"] = {
                     "step": "模型训练",
                     "status": "completed",
@@ -1186,7 +1378,7 @@ class TrainingStatusManager:
                             "desc": "预测已生成",
                         }
                         break
-            except:
+            except Exception:
                 pass
 
         return {
@@ -1224,20 +1416,29 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
     try:
         await manager.send_personal_message(
-            {"type": "connected", "client_id": client_id, "message": "已连接到训练监控系统"}, client_id
+            {
+                "type": "connected",
+                "client_id": client_id,
+                "message": "已连接到训练监控系统",
+            },
+            client_id,
         )
 
         while True:
             data = await websocket.receive_json()
 
             if data.get("type") == "ping":
-                await manager.send_personal_message({"type": "pong"}, client_id)
+                await manager.send_personal_message(
+                    {"type": "pong"}, client_id
+                )
 
             elif data.get("type") == "subscribe_training":
                 manager.training_subscribers[client_id] = websocket
                 training_subscribed = True
                 status = training_manager.get_detailed_status()
-                await manager.send_personal_message({"type": "training_status", "data": status}, client_id)
+                await manager.send_personal_message(
+                    {"type": "training_status", "data": status}, client_id
+                )
                 logger.info(f"[WebSocket] 客户端 {client_id} 订阅了训练状态")
 
             elif data.get("type") == "unsubscribe_training":
@@ -1247,19 +1448,25 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             elif data.get("type") == "get_training_status":
                 status = training_manager.get_detailed_status()
-                await manager.send_personal_message({"type": "training_status", "data": status}, client_id)
+                await manager.send_personal_message(
+                    {"type": "training_status", "data": status}, client_id
+                )
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)
         if training_subscribed:
-            logger.info(f"[WebSocket] 客户端 {client_id} 断开连接，已取消训练状态订阅")
+            logger.info(
+                f"[WebSocket] 客户端 {client_id} 断开连接，已取消训练状态订阅"
+            )
 
 
 async def broadcast_training_update():
     """广播训练状态更新到所有订阅者"""
     try:
         status = training_manager.get_detailed_status()
-        await manager.broadcast_training_update({"type": "training_status_update", "data": status})
+        await manager.broadcast_training_update(
+            {"type": "training_status_update", "data": status}
+        )
     except Exception as e:
         logger.error(f"广播训练状态失败: {e}")
 
@@ -1292,7 +1499,12 @@ def send_workflow_update(workflow_id: str, status: str, data: Dict[str, Any]):
     """发送工作流状态更新"""
     import asyncio
 
-    message = {"type": "workflow_update", "workflow_id": workflow_id, "status": status, "data": data}
+    message = {
+        "type": "workflow_update",
+        "workflow_id": workflow_id,
+        "status": status,
+        "data": data,
+    }
     asyncio.create_task(manager.broadcast(message))
 
 
@@ -1300,10 +1512,14 @@ def send_workflow_update(workflow_id: str, status: str, data: Dict[str, Any]):
 
 
 @app.get("/api/security/config")
-async def get_security_config(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_security_config(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取安全配置"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     config = {
         "MAX_STRING_LENGTH": SecurityConfig.MAX_STRING_LENGTH,
@@ -1338,10 +1554,15 @@ async def get_security_config(current_user: Dict[str, Any] = Depends(get_current
 
 
 @app.post("/api/security/config")
-async def update_security_config(config_data: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+async def update_security_config(
+    config_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """更新安全配置"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     # 更新配置
     for key, value in config_data.items():
@@ -1363,7 +1584,9 @@ async def run_security_scan(
 ):
     """运行安全扫描"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     scanner = get_scanner()
     vulnerabilities = scanner.run_full_scan(input_data, config, directory)
@@ -1373,10 +1596,15 @@ async def run_security_scan(
 
 
 @app.get("/api/security/vulnerabilities")
-async def get_vulnerabilities(severity: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_vulnerabilities(
+    severity: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取漏洞列表"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     scanner = get_scanner()
     vulnerabilities = scanner.get_vulnerabilities(severity)
@@ -1388,10 +1616,14 @@ async def get_vulnerabilities(severity: Optional[str] = None, current_user: Dict
 
 
 @app.get("/api/performance/load-balancer/services")
-async def list_load_balancer_services(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def list_load_balancer_services(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """列出负载均衡器服务"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     lb = get_load_balancer()
     services = lb.list_services()
@@ -1401,11 +1633,16 @@ async def list_load_balancer_services(current_user: Dict[str, Any] = Depends(get
 
 @app.post("/api/performance/load-balancer/services")
 async def register_service(
-    service_id: str, service_url: str, weight: int = 1, current_user: Dict[str, Any] = Depends(get_current_user)
+    service_id: str,
+    service_url: str,
+    weight: int = 1,
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """注册服务到负载均衡器"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     lb = get_load_balancer()
     lb.register_service(service_id, service_url, weight)
@@ -1414,10 +1651,14 @@ async def register_service(
 
 
 @app.delete("/api/performance/load-balancer/services/{service_id}")
-async def unregister_service(service_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def unregister_service(
+    service_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """从负载均衡器注销服务"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     lb = get_load_balancer()
     lb.unregister_service(service_id)
@@ -1426,10 +1667,14 @@ async def unregister_service(service_id: str, current_user: Dict[str, Any] = Dep
 
 
 @app.get("/api/performance/auto-scaler/instances")
-async def list_auto_scaler_instances(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def list_auto_scaler_instances(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """列出自动扩展器实例"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     scaler = get_auto_scaler()
     instances = scaler.list_instances()
@@ -1439,11 +1684,15 @@ async def list_auto_scaler_instances(current_user: Dict[str, Any] = Depends(get_
 
 @app.post("/api/performance/auto-scaler/scale")
 async def scale_auto_scaler(
-    cpu_usage: float, memory_usage: float, current_user: Dict[str, Any] = Depends(get_current_user)
+    cpu_usage: float,
+    memory_usage: float,
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """执行自动扩展决策"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     scaler = get_auto_scaler()
     decision = scaler.scale(cpu_usage, memory_usage)
@@ -1461,10 +1710,14 @@ def health_check():
 
 
 @app.get("/api/system/health")
-async def get_system_health(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_system_health(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取系统健康状态"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     system_status = get_system_status()
     metrics = get_system_metrics()
@@ -1473,20 +1726,28 @@ async def get_system_health(current_user: Dict[str, Any] = Depends(get_current_u
 
 
 @app.get("/api/system/diagnostics")
-async def run_system_diagnostics(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def run_system_diagnostics(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """运行系统诊断"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     diagnostics = run_diagnostics()
     return {"diagnostics": diagnostics}
 
 
 @app.get("/api/system/metrics")
-async def get_system_metrics_api(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_system_metrics_api(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取系统指标"""
     if current_user["role"] != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied"
+        )
 
     metrics = get_system_metrics()
     return {"metrics": metrics}
@@ -1496,7 +1757,9 @@ async def get_system_metrics_api(current_user: Dict[str, Any] = Depends(get_curr
 
 
 @app.get("/api/pl5/stats")
-async def get_pl5_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_pl5_stats(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取PL5系统训练统计数据"""
     try:
         from src.core.data.collector import PL5DataCollector
@@ -1511,9 +1774,15 @@ async def get_pl5_stats(current_user: Dict[str, Any] = Depends(get_current_user)
         total_records = len(df) if df is not None else 0
 
         model_dir = Path("models")
-        model_count = len(list(model_dir.glob("*.pkl"))) if model_dir.exists() else 0
+        model_count = (
+            len(list(model_dir.glob("*.pkl"))) if model_dir.exists() else 0
+        )
 
-        eval_reports = list(Path("results").glob("eval_report_*.json")) if Path("results").exists() else []
+        eval_reports = (
+            list(Path("results").glob("eval_report_*.json"))
+            if Path("results").exists()
+            else []
+        )
         eval_reports.sort(key=lambda x: x.stat().st_mtime, reverse=True)
 
         accuracy = 0.0
@@ -1549,12 +1818,18 @@ async def get_pl5_stats(current_user: Dict[str, Any] = Depends(get_current_user)
 
 
 @app.get("/api/pl5/prediction")
-async def get_pl5_prediction(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_pl5_prediction(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取PL5最新预测结果 - 使用智能多特征组合融合系统 V11 (优化缓存版)"""
     try:
-        from src.core.models.multi_feature_fusion import MultiFeatureFusionPredictor
+        from src.core.models.multi_feature_fusion import (
+            MultiFeatureFusionPredictor,
+        )
         from src.core.data.collector import PL5DataCollector
-        from src.core.features.engineer_v10 import FeatureEngineerV10 as FeatureEngineer
+        from src.core.features.engineer_v10 import (
+            FeatureEngineerV10 as FeatureEngineer,
+        )
 
         collector = PL5DataCollector()
         data = collector.load_processed_data()
@@ -1565,15 +1840,32 @@ async def get_pl5_prediction(current_user: Dict[str, Any] = Depends(get_current_
         engineer = FeatureEngineer()
         df_features = engineer.extract_all_features(data, select_top=0)
 
-        non_feature_cols = ["period", "full_number", "wan", "qian", "bai", "shi", "ge", "date"]
-        feature_cols = [col for col in df_features.columns if col not in non_feature_cols]
+        non_feature_cols = [
+            "period",
+            "full_number",
+            "wan",
+            "qian",
+            "bai",
+            "shi",
+            "ge",
+            "date",
+        ]
+        feature_cols = [
+            col for col in df_features.columns if col not in non_feature_cols
+        ]
 
-        logger.info(f"[预测API] 使用智能多特征融合预测，特征数: {len(feature_cols)}")
+        logger.info(
+            f"[预测API] 使用智能多特征融合预测，特征数: {len(feature_cols)}"
+        )
 
         mff_predictor = MultiFeatureFusionPredictor(max_combinations=5)
-        cache_file = os.path.join(get_models_dir(), "multi_feature_fusion_cache.joblib")
+        cache_file = os.path.join(
+            get_models_dir(), "multi_feature_fusion_cache.joblib"
+        )
         cache_loaded = mff_predictor.load_model(cache_file)
-        cache_valid = mff_predictor.is_cache_valid(data_periods=len(data), max_age_hours=24)
+        cache_valid = mff_predictor.is_cache_valid(
+            data_periods=len(data), max_age_hours=24
+        )
 
         if cache_loaded and cache_valid:
             logger.info("[预测API] 使用缓存模型进行快速预测")
@@ -1591,7 +1883,9 @@ async def get_pl5_prediction(current_user: Dict[str, Any] = Depends(get_current_
 
         summary = mff_predictor.get_intelligent_summary()
 
-        logger.info(f"[预测API] 多特征融合完成: {summary['n_combinations']} 个特征组合")
+        logger.info(
+            f"[预测API] 多特征融合完成: {summary['n_combinations']} 个特征组合"
+        )
 
         return {
             "success": True,
@@ -1620,7 +1914,9 @@ async def get_pl5_prediction(current_user: Dict[str, Any] = Depends(get_current_
 
 
 @app.get("/api/pl5/training-status")
-async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_pl5_training_status(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取PL5训练状态 - 完整日循环任务时间周期"""
     try:
         from src.core.data.collector import PL5DataCollector
@@ -1639,7 +1935,11 @@ async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_cur
             with open(scheduler_config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 daily_cycle_tasks = [
-                    {"time": config.get("data_fetch_time", "22:15"), "name": "数据采集", "desc": "自动获取开奖数据"},
+                    {
+                        "time": config.get("data_fetch_time", "22:15"),
+                        "name": "数据采集",
+                        "desc": "自动获取开奖数据",
+                    },
                     {
                         "time": config.get("evaluation_time", "22:15"),
                         "name": "评估预测",
@@ -1650,39 +1950,57 @@ async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_cur
                         "name": "策略优化",
                         "desc": "推理逻辑策略优化学习",
                     },
-                    {"time": config.get("training_start", "00:30"), "name": "深度训练", "desc": "开始深度训练模型"},
                     {
-                        "time": config.get("incremental_training_morning", "08:00"),
+                        "time": config.get("training_start", "00:30"),
+                        "name": "深度训练",
+                        "desc": "开始深度训练模型",
+                    },
+                    {
+                        "time": config.get(
+                            "incremental_training_morning", "08:00"
+                        ),
                         "name": "增量训练(上午)",
                         "desc": "首次佐证前增量学习",
                     },
                     {
-                        "time": config.get("first_prediction_verification", "10:00"),
+                        "time": config.get(
+                            "first_prediction_verification", "10:00"
+                        ),
                         "name": "佐证1",
                         "desc": "首次预测验证",
                     },
                     {
-                        "time": config.get("incremental_training_noon", "12:00"),
+                        "time": config.get(
+                            "incremental_training_noon", "12:00"
+                        ),
                         "name": "增量训练(中午)",
                         "desc": "二次佐证前增量学习",
                     },
                     {
-                        "time": config.get("second_prediction_verification", "13:00"),
+                        "time": config.get(
+                            "second_prediction_verification", "13:00"
+                        ),
                         "name": "佐证2",
                         "desc": "二次预测验证",
                     },
                     {
-                        "time": config.get("incremental_training_afternoon", "14:00"),
+                        "time": config.get(
+                            "incremental_training_afternoon", "14:00"
+                        ),
                         "name": "增量训练(下午)",
                         "desc": "三次佐证前增量学习",
                     },
                     {
-                        "time": config.get("third_prediction_verification", "15:00"),
+                        "time": config.get(
+                            "third_prediction_verification", "15:00"
+                        ),
                         "name": "佐证3",
                         "desc": "三次预测验证",
                     },
                     {
-                        "time": config.get("deep_strategy_optimization", "16:00"),
+                        "time": config.get(
+                            "deep_strategy_optimization", "16:00"
+                        ),
                         "name": "深度策略优化",
                         "desc": "深度策略优化（四次佐证）",
                     },
@@ -1697,12 +2015,16 @@ async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_cur
                         "desc": "生成最终预测结果",
                     },
                     {
-                        "time": config.get("final_prediction_verification_time", "19:00"),
+                        "time": config.get(
+                            "final_prediction_verification_time", "19:00"
+                        ),
                         "name": "佐证6",
                         "desc": "验证最终预测结果",
                     },
                     {
-                        "time": config.get("pre_sale_prediction_time", "20:00"),
+                        "time": config.get(
+                            "pre_sale_prediction_time", "20:00"
+                        ),
                         "name": "售前预测",
                         "desc": "售前最终预测",
                     },
@@ -1718,42 +2040,117 @@ async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_cur
 
         def get_task_status(task_name: str, desc: str) -> dict:
             task_name_lower = task_name.lower()
-            if any(keyword in current_task_lower for keyword in ["空闲", "idle"]):
-                return {"time": "", "name": task_name, "desc": desc, "status": "pending"}
+            if any(
+                keyword in current_task_lower for keyword in ["空闲", "idle"]
+            ):
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "pending",
+                }
 
-            if "采集" in task_name and ("data" in current_task_lower or "fetch" in current_task_lower):
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
+            if "采集" in task_name and (
+                "data" in current_task_lower or "fetch" in current_task_lower
+            ):
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
             if "评估" in task_name and "evaluate" in current_task_lower:
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
             if "优化" in task_name and "optim" in current_task_lower:
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
-            if "训练" in task_name and ("train" in current_task_lower or "incremental" in current_task_lower):
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
+            if "训练" in task_name and (
+                "train" in current_task_lower
+                or "incremental" in current_task_lower
+            ):
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
             if "佐证" in task_name or "验证" in task_name:
-                if "verification" in current_task_lower or "佐证" in current_task_lower or "验证" in current_task_lower:
-                    return {"time": "", "name": task_name, "desc": desc, "status": "running"}
-            if "预测" in task_name and ("prediction" in current_task_lower or "predict" in current_task_lower):
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
+                if (
+                    "verification" in current_task_lower
+                    or "佐证" in current_task_lower
+                    or "验证" in current_task_lower
+                ):
+                    return {
+                        "time": "",
+                        "name": task_name,
+                        "desc": desc,
+                        "status": "running",
+                    }
+            if "预测" in task_name and (
+                "prediction" in current_task_lower
+                or "predict" in current_task_lower
+            ):
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
             if "报告" in task_name and "report" in current_task_lower:
-                return {"time": "", "name": task_name, "desc": desc, "status": "running"}
+                return {
+                    "time": "",
+                    "name": task_name,
+                    "desc": desc,
+                    "status": "running",
+                }
 
-            return {"time": "", "name": task_name, "desc": desc, "status": "pending"}
+            return {
+                "time": "",
+                "name": task_name,
+                "desc": desc,
+                "status": "pending",
+            }
 
-        training_status = [get_task_status(t["name"], t["desc"]) for t in daily_cycle_tasks]
+        training_status = [
+            get_task_status(t["name"], t["desc"]) for t in daily_cycle_tasks
+        ]
 
         return {
             "latest_period": latest_period,
-            "next_period": str(int(latest_period) + 1) if latest_period and latest_period.isdigit() else "未知",
+            "next_period": (
+                str(int(latest_period) + 1)
+                if latest_period and latest_period.isdigit()
+                else "未知"
+            ),
             "daily_cycle": {
-                "enabled": config.get("enabled", True) if scheduler_config_file.exists() else True,
+                "enabled": (
+                    config.get("enabled", True)
+                    if scheduler_config_file.exists()
+                    else True
+                ),
                 "data_fetch_time": (
-                    config.get("data_fetch_time", "22:15") if scheduler_config_file.exists() else "22:15"
+                    config.get("data_fetch_time", "22:15")
+                    if scheduler_config_file.exists()
+                    else "22:15"
                 ),
                 "training_deadline": (
-                    config.get("training_deadline", "17:00") if scheduler_config_file.exists() else "17:00"
+                    config.get("training_deadline", "17:00")
+                    if scheduler_config_file.exists()
+                    else "17:00"
                 ),
                 "final_prediction_time": (
-                    config.get("final_prediction_time", "18:00") if scheduler_config_file.exists() else "18:00"
+                    config.get("final_prediction_time", "18:00")
+                    if scheduler_config_file.exists()
+                    else "18:00"
                 ),
             },
             "training_status": training_status,
@@ -1785,7 +2182,9 @@ async def get_pl5_training_status(current_user: Dict[str, Any] = Depends(get_cur
 
 
 @app.get("/api/pl5/daily-cycle-timeline")
-async def get_pl5_daily_cycle_timeline(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_pl5_daily_cycle_timeline(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取日循环任务时间线 - 完整可视化时间周期"""
     try:
         from pathlib import Path
@@ -1794,7 +2193,11 @@ async def get_pl5_daily_cycle_timeline(current_user: Dict[str, Any] = Depends(ge
 
         scheduler_config_file = Path("config/scheduler_config_v8.json")
         if not scheduler_config_file.exists():
-            return {"success": False, "error": "配置文件不存在", "timeline": []}
+            return {
+                "success": False,
+                "error": "配置文件不存在",
+                "timeline": [],
+            }
 
         with open(scheduler_config_file, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -1895,7 +2298,9 @@ async def get_pl5_daily_cycle_timeline(current_user: Dict[str, Any] = Depends(ge
             },
             {
                 "id": 14,
-                "time": config.get("final_prediction_verification_time", "19:00"),
+                "time": config.get(
+                    "final_prediction_verification_time", "19:00"
+                ),
                 "name": "佐证6",
                 "type": "verify",
                 "desc": "验证最终预测结果",
@@ -1941,7 +2346,9 @@ async def get_pl5_daily_cycle_timeline(current_user: Dict[str, Any] = Depends(ge
 
 
 @app.get("/api/pl5/models")
-async def get_pl5_models(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_pl5_models(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """获取PL5模型列表"""
     try:
         from pathlib import Path
@@ -1957,7 +2364,9 @@ async def get_pl5_models(current_user: Dict[str, Any] = Depends(get_current_user
                     {
                         "name": model_file.stem,
                         "size_mb": round(size_mb, 2),
-                        "updated": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                        "updated": datetime.fromtimestamp(
+                            stat.st_mtime
+                        ).strftime("%Y-%m-%d %H:%M"),
                         "status": "ready",
                     }
                 )

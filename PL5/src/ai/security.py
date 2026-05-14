@@ -9,7 +9,6 @@ import secrets
 import string
 import os
 from typing import Dict, Any, Optional, List, Callable
-from dataclasses import dataclass
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,9 @@ class InputValidator:
     """
 
     @staticmethod
-    def validate_string(value: str, max_length: int = 1000, allow_empty: bool = False) -> bool:
+    def validate_string(
+        value: str, max_length: int = 1000, allow_empty: bool = False
+    ) -> bool:
         """验证字符串
 
         Args:
@@ -45,7 +46,11 @@ class InputValidator:
         return True
 
     @staticmethod
-    def validate_integer(value: int, min_value: Optional[int] = None, max_value: Optional[int] = None) -> bool:
+    def validate_integer(
+        value: int,
+        min_value: Optional[int] = None,
+        max_value: Optional[int] = None,
+    ) -> bool:
         """验证整数
 
         Args:
@@ -68,7 +73,11 @@ class InputValidator:
         return True
 
     @staticmethod
-    def validate_float(value: float, min_value: Optional[float] = None, max_value: Optional[float] = None) -> bool:
+    def validate_float(
+        value: float,
+        min_value: Optional[float] = None,
+        max_value: Optional[float] = None,
+    ) -> bool:
         """验证浮点数
 
         Args:
@@ -103,7 +112,9 @@ class InputValidator:
         return isinstance(value, bool)
 
     @staticmethod
-    def validate_list(value: list, min_length: int = 0, max_length: int = 100) -> bool:
+    def validate_list(
+        value: list, min_length: int = 0, max_length: int = 100
+    ) -> bool:
         """验证列表
 
         Args:
@@ -126,7 +137,9 @@ class InputValidator:
         return True
 
     @staticmethod
-    def validate_dict(value: dict, required_keys: Optional[List[str]] = None) -> bool:
+    def validate_dict(
+        value: dict, required_keys: Optional[List[str]] = None
+    ) -> bool:
         """验证字典
 
         Args:
@@ -160,7 +173,19 @@ class InputValidator:
             return str(value)
 
         # 移除危险字符
-        dangerous_chars = [";", "'", '"', "`", "$", "|", "&", ">", "<", "!", "\\"]
+        dangerous_chars = [
+            ";",
+            "'",
+            '"',
+            "`",
+            "$",
+            "|",
+            "&",
+            ">",
+            "<",
+            "!",
+            "\\",
+        ]
         for char in dangerous_chars:
             value = value.replace(char, "")
 
@@ -250,7 +275,10 @@ class InputValidator:
             return False, "Password must contain at least one digit"
 
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', value):
-            return False, "Password must contain at least one special character"
+            return (
+                False,
+                "Password must contain at least one special character",
+            )
 
         return True, None
 
@@ -275,7 +303,10 @@ class InputValidator:
 
         # 只允许字母、数字和下划线
         if not re.match(r"^[a-zA-Z0-9_]+$", value):
-            return False, "Username can only contain letters, numbers, and underscores"
+            return (
+                False,
+                "Username can only contain letters, numbers, and underscores",
+            )
 
         return True, None
 
@@ -392,7 +423,9 @@ class InputValidator:
             return False, f"Invalid JSON: {str(e)}"
 
     @staticmethod
-    def validate_numeric_range(value: float, min_value: float, max_value: float) -> tuple[bool, Optional[str]]:
+    def validate_numeric_range(
+        value: float, min_value: float, max_value: float
+    ) -> tuple[bool, Optional[str]]:
         """验证数值范围
 
         Args:
@@ -415,7 +448,9 @@ class InputValidator:
         return True, None
 
     @staticmethod
-    def validate_and_sanitize(value: Any, expected_type: str, **kwargs) -> tuple[Any, Optional[str]]:
+    def validate_and_sanitize(
+        value: Any, expected_type: str, **kwargs
+    ) -> tuple[Any, Optional[str]]:
         """验证并清理输入
 
         Args:
@@ -508,7 +543,9 @@ class InputValidator:
             return None, f"Unknown type: {expected_type}"
 
     @staticmethod
-    def validate_tool_parameters(parameters: Dict[str, Any], tool_schema: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate_tool_parameters(
+        parameters: Dict[str, Any], tool_schema: Dict[str, Any]
+    ) -> tuple[bool, Optional[str]]:
         """验证工具参数
 
         Args:
@@ -536,16 +573,29 @@ class InputValidator:
 
                 if param_type == "string" and not isinstance(param_value, str):
                     return False, f"Parameter {param_name} must be a string"
-                elif param_type == "integer" and not isinstance(param_value, int):
+                elif param_type == "integer" and not isinstance(
+                    param_value, int
+                ):
                     return False, f"Parameter {param_name} must be an integer"
-                elif param_type == "number" and not isinstance(param_value, (int, float)):
+                elif param_type == "number" and not isinstance(
+                    param_value, (int, float)
+                ):
                     return False, f"Parameter {param_name} must be a number"
-                elif param_type == "boolean" and not isinstance(param_value, bool):
+                elif param_type == "boolean" and not isinstance(
+                    param_value, bool
+                ):
                     return False, f"Parameter {param_name} must be a boolean"
-                elif param_type == "array" and not isinstance(param_value, list):
+                elif param_type == "array" and not isinstance(
+                    param_value, list
+                ):
                     return False, f"Parameter {param_name} must be a list"
-                elif param_type == "object" and not isinstance(param_value, dict):
-                    return False, f"Parameter {param_name} must be a dictionary"
+                elif param_type == "object" and not isinstance(
+                    param_value, dict
+                ):
+                    return (
+                        False,
+                        f"Parameter {param_name} must be a dictionary",
+                    )
 
         return True, None
 
@@ -560,7 +610,11 @@ class PermissionManager:
         """初始化权限管理器"""
         self.permissions = {
             "admin": ["*"],  # 管理员拥有所有权限
-            "user": ["calculator", "search", "file"],  # 普通用户只能使用基础工具
+            "user": [
+                "calculator",
+                "search",
+                "file",
+            ],  # 普通用户只能使用基础工具
             "guest": ["calculator"],  # 访客只能使用计算器
         }
         # 资源权限映射
@@ -570,8 +624,16 @@ class PermissionManager:
                 "user": ["create", "run", "list"],
                 "guest": [],
             },
-            "template": {"admin": ["save", "load", "list", "delete"], "user": ["load", "list"], "guest": []},
-            "memory": {"admin": ["create", "add", "get"], "user": ["create", "add", "get"], "guest": []},
+            "template": {
+                "admin": ["save", "load", "list", "delete"],
+                "user": ["load", "list"],
+                "guest": [],
+            },
+            "memory": {
+                "admin": ["create", "add", "get"],
+                "user": ["create", "add", "get"],
+                "guest": [],
+            },
         }
 
     def has_permission(self, role: str, tool_name: str) -> bool:
@@ -593,7 +655,9 @@ class PermissionManager:
 
         return tool_name in self.permissions[role]
 
-    def has_resource_permission(self, role: str, resource: str, action: str) -> bool:
+    def has_resource_permission(
+        self, role: str, resource: str, action: str
+    ) -> bool:
         """检查用户是否有操作资源的权限
 
         Args:
@@ -613,7 +677,9 @@ class PermissionManager:
 
         # 检查资源权限
         if resource in self.resource_permissions:
-            resource_actions = self.resource_permissions[resource].get(role, [])
+            resource_actions = self.resource_permissions[resource].get(
+                role, []
+            )
             return action in resource_actions
 
         return False
@@ -631,7 +697,9 @@ class PermissionManager:
         if tool_name not in self.permissions[role]:
             self.permissions[role].append(tool_name)
 
-    def add_resource_permission(self, role: str, resource: str, action: str) -> None:
+    def add_resource_permission(
+        self, role: str, resource: str, action: str
+    ) -> None:
         """添加资源权限
 
         Args:
@@ -658,7 +726,9 @@ class PermissionManager:
         if role in self.permissions and tool_name in self.permissions[role]:
             self.permissions[role].remove(tool_name)
 
-    def remove_resource_permission(self, role: str, resource: str, action: str) -> None:
+    def remove_resource_permission(
+        self, role: str, resource: str, action: str
+    ) -> None:
         """移除资源权限
 
         Args:
@@ -729,7 +799,10 @@ class SecretsManager:
         Returns:
             盐值
         """
-        return "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+        return "".join(
+            secrets.choice(string.ascii_letters + string.digits)
+            for _ in range(32)
+        )
 
     def _generate_encryption_key(self) -> bytes:
         """生成加密密钥
@@ -988,12 +1061,16 @@ class SecurityAuditor:
 
         cutoff_time = time.time() - (days_to_keep * 24 * 3600)
         original_count = len(self.audit_logs)
-        self.audit_logs = [log for log in self.audit_logs if log["timestamp"] >= cutoff_time]
+        self.audit_logs = [
+            log for log in self.audit_logs if log["timestamp"] >= cutoff_time
+        ]
         removed_count = original_count - len(self.audit_logs)
         if removed_count > 0:
             logger.info(f"Cleaned {removed_count} old audit logs")
 
-    def _create_log_entry(self, event_type: str, user: str, action: str, details: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_log_entry(
+        self, event_type: str, user: str, action: str, details: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """创建日志条目
 
         Args:
@@ -1034,7 +1111,9 @@ class SecurityAuditor:
         except Exception:
             return socket.gethostbyname(socket.gethostname())
 
-    def log_event(self, event_type: str, user: str, action: str, details: Dict[str, Any]) -> None:
+    def log_event(
+        self, event_type: str, user: str, action: str, details: Dict[str, Any]
+    ) -> None:
         """记录安全事件
 
         Args:
@@ -1050,7 +1129,9 @@ class SecurityAuditor:
         self.audit_logs.append(log_entry)
 
         # 记录到应用日志
-        logger.info(f"Security event: {event_type} - {action} by {user} from {log_entry['ip_address']}")
+        logger.info(
+            f"Security event: {event_type} - {action} by {user} from {log_entry['ip_address']}"
+        )
 
         # 检查日志数量并清理旧日志
         if len(self.audit_logs) > self.max_logs:
@@ -1059,7 +1140,13 @@ class SecurityAuditor:
         # 保存日志到文件
         self._save_logs()
 
-    def log_login(self, user: str, success: bool, ip_address: str = None, reason: str = None) -> None:
+    def log_login(
+        self,
+        user: str,
+        success: bool,
+        ip_address: str = None,
+        reason: str = None,
+    ) -> None:
         """记录登录事件
 
         Args:
@@ -1069,7 +1156,10 @@ class SecurityAuditor:
             reason: 失败原因（如果失败）
         """
         event_type = self.EVENT_LOGIN if success else self.EVENT_LOGIN_FAILED
-        details = {"success": success, "ip_address": ip_address or self._get_client_ip()}
+        details = {
+            "success": success,
+            "ip_address": ip_address or self._get_client_ip(),
+        }
         if reason:
             details["reason"] = reason
 
@@ -1083,7 +1173,9 @@ class SecurityAuditor:
         """
         self.log_event(self.EVENT_LOGOUT, user, "logout", {})
 
-    def log_permission_change(self, user: str, role: str, action: str, details: Dict[str, Any]) -> None:
+    def log_permission_change(
+        self, user: str, role: str, action: str, details: Dict[str, Any]
+    ) -> None:
         """记录权限变更事件
 
         Args:
@@ -1094,10 +1186,20 @@ class SecurityAuditor:
         """
         log_details = {"role": role, "action": action}
         log_details.update(details)
-        self.log_event(self.EVENT_PERMISSION_CHANGE, user, f"permission_{action}", log_details)
+        self.log_event(
+            self.EVENT_PERMISSION_CHANGE,
+            user,
+            f"permission_{action}",
+            log_details,
+        )
 
     def log_tool_execution(
-        self, user: str, tool_name: str, success: bool, parameters: Dict[str, Any] = None, error: str = None
+        self,
+        user: str,
+        tool_name: str,
+        success: bool,
+        parameters: Dict[str, Any] = None,
+        error: str = None,
     ) -> None:
         """记录工具执行事件
 
@@ -1108,7 +1210,11 @@ class SecurityAuditor:
             parameters: 参数
             error: 错误信息
         """
-        event_type = self.EVENT_TOOL_EXECUTION if success else self.EVENT_TOOL_EXECUTION_FAILED
+        event_type = (
+            self.EVENT_TOOL_EXECUTION
+            if success
+            else self.EVENT_TOOL_EXECUTION_FAILED
+        )
         details = {"tool_name": tool_name, "success": success}
         if parameters:
             # 脱敏处理敏感参数
@@ -1125,7 +1231,9 @@ class SecurityAuditor:
         action = f"execute_tool_{tool_name}"
         self.log_event(event_type, user, action, details)
 
-    def log_error(self, user: str, error_type: str, message: str, stack_trace: str = None) -> None:
+    def log_error(
+        self, user: str, error_type: str, message: str, stack_trace: str = None
+    ) -> None:
         """记录错误事件
 
         Args:
@@ -1141,7 +1249,12 @@ class SecurityAuditor:
         self.log_event(self.EVENT_ERROR, user, "error", details)
 
     def log_sensitive_operation(
-        self, user: str, operation: str, resource: str, success: bool, details: Dict[str, Any] = None
+        self,
+        user: str,
+        operation: str,
+        resource: str,
+        success: bool,
+        details: Dict[str, Any] = None,
     ) -> None:
         """记录敏感操作事件
 
@@ -1152,14 +1265,25 @@ class SecurityAuditor:
             success: 是否成功
             details: 详细信息
         """
-        log_details = {"operation": operation, "resource": resource, "success": success}
+        log_details = {
+            "operation": operation,
+            "resource": resource,
+            "success": success,
+        }
         if details:
             log_details.update(details)
 
-        self.log_event(self.EVENT_SENSITIVE_OPERATION, user, operation, log_details)
+        self.log_event(
+            self.EVENT_SENSITIVE_OPERATION, user, operation, log_details
+        )
 
     def log_data_access(
-        self, user: str, data_type: str, action: str, success: bool, details: Dict[str, Any] = None
+        self,
+        user: str,
+        data_type: str,
+        action: str,
+        success: bool,
+        details: Dict[str, Any] = None,
     ) -> None:
         """记录数据访问事件
 
@@ -1170,13 +1294,21 @@ class SecurityAuditor:
             success: 是否成功
             details: 详细信息
         """
-        log_details = {"data_type": data_type, "action": action, "success": success}
+        log_details = {
+            "data_type": data_type,
+            "action": action,
+            "success": success,
+        }
         if details:
             log_details.update(details)
 
-        self.log_event(self.EVENT_DATA_ACCESS, user, f"data_{action}", log_details)
+        self.log_event(
+            self.EVENT_DATA_ACCESS, user, f"data_{action}", log_details
+        )
 
-    def log_config_change(self, user: str, config_key: str, old_value: Any, new_value: Any) -> None:
+    def log_config_change(
+        self, user: str, config_key: str, old_value: Any, new_value: Any
+    ) -> None:
         """记录配置变更事件
 
         Args:
@@ -1190,12 +1322,23 @@ class SecurityAuditor:
             old_value = "***"
             new_value = "***"
 
-        details = {"config_key": config_key, "old_value": old_value, "new_value": new_value}
+        details = {
+            "config_key": config_key,
+            "old_value": old_value,
+            "new_value": new_value,
+        }
 
-        self.log_event(self.EVENT_CONFIG_CHANGE, user, "config_change", details)
+        self.log_event(
+            self.EVENT_CONFIG_CHANGE, user, "config_change", details
+        )
 
     def log_model_access(
-        self, user: str, model_name: str, action: str, success: bool, details: Dict[str, Any] = None
+        self,
+        user: str,
+        model_name: str,
+        action: str,
+        success: bool,
+        details: Dict[str, Any] = None,
     ) -> None:
         """记录模型访问事件
 
@@ -1206,11 +1349,17 @@ class SecurityAuditor:
             success: 是否成功
             details: 详细信息
         """
-        log_details = {"model_name": model_name, "action": action, "success": success}
+        log_details = {
+            "model_name": model_name,
+            "action": action,
+            "success": success,
+        }
         if details:
             log_details.update(details)
 
-        self.log_event(self.EVENT_MODEL_ACCESS, user, f"model_{action}", log_details)
+        self.log_event(
+            self.EVENT_MODEL_ACCESS, user, f"model_{action}", log_details
+        )
 
     def get_logs(
         self,
@@ -1262,16 +1411,22 @@ class SecurityAuditor:
         import collections
 
         start_time = time.time() - (days * 24 * 3600)
-        recent_logs = [log for log in self.audit_logs if log["timestamp"] >= start_time]
+        recent_logs = [
+            log for log in self.audit_logs if log["timestamp"] >= start_time
+        ]
 
         # 统计事件类型
-        event_counts = collections.Counter([log["event_type"] for log in recent_logs])
+        event_counts = collections.Counter(
+            [log["event_type"] for log in recent_logs]
+        )
 
         # 统计用户活动
         user_counts = collections.Counter([log["user"] for log in recent_logs])
 
         # 统计操作
-        action_counts = collections.Counter([log["action"] for log in recent_logs])
+        action_counts = collections.Counter(
+            [log["action"] for log in recent_logs]
+        )
 
         return {
             "total_events": len(recent_logs),
@@ -1295,10 +1450,14 @@ class SecurityAuditor:
 
         # 检查最近1小时的事件
         start_time = time.time() - 3600
-        recent_logs = [log for log in self.audit_logs if log["timestamp"] >= start_time]
+        recent_logs = [
+            log for log in self.audit_logs if log["timestamp"] >= start_time
+        ]
 
         # 按IP地址统计事件数
-        ip_counts = collections.Counter([log.get("ip_address", "unknown") for log in recent_logs])
+        ip_counts = collections.Counter(
+            [log.get("ip_address", "unknown") for log in recent_logs]
+        )
 
         # 按用户统计事件数
         user_counts = collections.Counter([log["user"] for log in recent_logs])
@@ -1370,7 +1529,9 @@ class AntiDosProtection:
 
         # 清理过期的请求记录
         if ip in self.requests:
-            self.requests[ip] = [t for t in self.requests[ip] if now - t < self.window]
+            self.requests[ip] = [
+                t for t in self.requests[ip] if now - t < self.window
+            ]
 
         # 检查请求数
         if ip not in self.requests:
@@ -1397,7 +1558,9 @@ class AntiDosProtection:
         now = time.time()
 
         if ip in self.requests:
-            self.requests[ip] = [t for t in self.requests[ip] if now - t < self.window]
+            self.requests[ip] = [
+                t for t in self.requests[ip] if now - t < self.window
+            ]
             return len(self.requests[ip])
 
         return 0
@@ -1437,7 +1600,8 @@ class VulnerabilityScanner:
 
         # 检查SQL注入
         if isinstance(input_data, str) and any(
-            pattern in input_data.lower() for pattern in ["union select", "drop table", "insert into"]
+            pattern in input_data.lower()
+            for pattern in ["union select", "drop table", "insert into"]
         ):
             vulnerabilities.append(
                 {
@@ -1450,7 +1614,8 @@ class VulnerabilityScanner:
 
         # 检查XSS
         if isinstance(input_data, str) and any(
-            pattern in input_data.lower() for pattern in ["<script>", "javascript:", "onerror="]
+            pattern in input_data.lower()
+            for pattern in ["<script>", "javascript:", "onerror="]
         ):
             vulnerabilities.append(
                 {
@@ -1493,7 +1658,10 @@ class VulnerabilityScanner:
                     "type": "config",
                     "severity": "high",
                     "message": "Weak secret key",
-                    "details": {"setting": "secret", "length": len(config["secret"])},
+                    "details": {
+                        "setting": "secret",
+                        "length": len(config["secret"]),
+                    },
                 }
             )
 
@@ -1520,7 +1688,10 @@ class VulnerabilityScanner:
                         "type": "filesystem",
                         "severity": "medium",
                         "message": f"Sensitive file found: {file}",
-                        "details": {"file": file, "path": os.path.join(directory, file)},
+                        "details": {
+                            "file": file,
+                            "path": os.path.join(directory, file),
+                        },
                     }
                 )
 
@@ -1528,7 +1699,10 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def run_full_scan(
-        self, input_data: Optional[Any] = None, config: Optional[Dict[str, Any]] = None, directory: str = "."
+        self,
+        input_data: Optional[Any] = None,
+        config: Optional[Dict[str, Any]] = None,
+        directory: str = ".",
     ) -> List[Dict[str, Any]]:
         """运行完整扫描
 
@@ -1576,7 +1750,9 @@ class VulnerabilityScanner:
 
         return report
 
-    def get_vulnerabilities(self, severity: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_vulnerabilities(
+        self, severity: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """获取漏洞列表
 
         Args:
@@ -1586,7 +1762,11 @@ class VulnerabilityScanner:
             漏洞列表
         """
         if severity:
-            return [vuln for vuln in self.vulnerabilities if vuln.get("severity") == severity]
+            return [
+                vuln
+                for vuln in self.vulnerabilities
+                if vuln.get("severity") == severity
+            ]
         return self.vulnerabilities
 
     def clear_vulnerabilities(self) -> None:
@@ -1667,7 +1847,10 @@ def secure_tool(func: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         # 记录工具执行
         get_auditor().log_event(
-            "tool_execution", "system", f"Executing tool: {func.__name__}", {"args": args, "kwargs": kwargs}
+            "tool_execution",
+            "system",
+            f"Executing tool: {func.__name__}",
+            {"args": args, "kwargs": kwargs},
         )
 
         try:
@@ -1676,13 +1859,21 @@ def secure_tool(func: Callable) -> Callable:
 
             # 记录成功
             get_auditor().log_event(
-                "tool_execution", "system", f"Tool execution success: {func.__name__}", {"success": True}
+                "tool_execution",
+                "system",
+                f"Tool execution success: {func.__name__}",
+                {"success": True},
             )
 
             return result
         except Exception as e:
             # 记录错误
-            get_auditor().log_event("error", "system", f"Tool execution error: {func.__name__}", {"error": str(e)})
+            get_auditor().log_event(
+                "error",
+                "system",
+                f"Tool execution error: {func.__name__}",
+                {"error": str(e)},
+            )
             raise
 
     return wrapper
@@ -1774,7 +1965,9 @@ class VulnerabilityScanner:
 
         return vulnerabilities
 
-    def scan_configuration(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def scan_configuration(
+        self, config: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """扫描配置漏洞
 
         Args:
@@ -1787,7 +1980,9 @@ class VulnerabilityScanner:
 
         # 检查弱密码
         if "password" in config and isinstance(config["password"], str):
-            is_valid, error = SecurityConfig.validate_password(config["password"])
+            is_valid, error = SecurityConfig.validate_password(
+                config["password"]
+            )
             if not is_valid:
                 vulnerabilities.append(
                     {
@@ -1815,7 +2010,12 @@ class VulnerabilityScanner:
         # 检查不安全的配置
         if "debug" in config and config["debug"] is True:
             vulnerabilities.append(
-                {"type": "DEBUG_MODE", "severity": "medium", "description": "Debug mode is enabled", "key": "debug"}
+                {
+                    "type": "DEBUG_MODE",
+                    "severity": "medium",
+                    "description": "Debug mode is enabled",
+                    "key": "debug",
+                }
             )
 
         if "cors" in config and config["cors"] == "*":
@@ -1861,7 +2061,11 @@ class VulnerabilityScanner:
 
         for root, dirs, files in os.walk(directory):
             # 跳过某些目录
-            dirs[:] = [d for d in dirs if d not in ["__pycache__", ".git", "node_modules"]]
+            dirs[:] = [
+                d
+                for d in dirs
+                if d not in ["__pycache__", ".git", "node_modules"]
+            ]
 
             for file in files:
                 if file in sensitive_files:
@@ -1878,7 +2082,10 @@ class VulnerabilityScanner:
         return vulnerabilities
 
     def run_full_scan(
-        self, input_data: Any = None, config: Dict[str, Any] = None, directory: str = "."
+        self,
+        input_data: Any = None,
+        config: Dict[str, Any] = None,
+        directory: str = ".",
     ) -> List[Dict[str, Any]]:
         """运行完整扫描
 
@@ -1906,7 +2113,9 @@ class VulnerabilityScanner:
         self.vulnerabilities = vulnerabilities
         return vulnerabilities
 
-    def get_vulnerabilities(self, severity: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_vulnerabilities(
+        self, severity: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """获取漏洞列表
 
         Args:
@@ -1916,7 +2125,11 @@ class VulnerabilityScanner:
             漏洞列表
         """
         if severity:
-            return [v for v in self.vulnerabilities if v.get("severity") == severity]
+            return [
+                v
+                for v in self.vulnerabilities
+                if v.get("severity") == severity
+            ]
         return self.vulnerabilities
 
     def generate_report(self) -> Dict[str, Any]:
@@ -1928,10 +2141,14 @@ class VulnerabilityScanner:
         import collections
 
         # 按严重程度分组
-        severity_counts = collections.Counter([v.get("severity", "unknown") for v in self.vulnerabilities])
+        severity_counts = collections.Counter(
+            [v.get("severity", "unknown") for v in self.vulnerabilities]
+        )
 
         # 按类型分组
-        type_counts = collections.Counter([v.get("type", "unknown") for v in self.vulnerabilities])
+        type_counts = collections.Counter(
+            [v.get("type", "unknown") for v in self.vulnerabilities]
+        )
 
         return {
             "total_vulnerabilities": len(self.vulnerabilities),
@@ -2004,19 +2221,33 @@ class SecurityConfig:
             (是否有效, 错误信息)
         """
         if len(password) < SecurityConfig.PASSWORD_MIN_LENGTH:
-            return False, f"Password must be at least {SecurityConfig.PASSWORD_MIN_LENGTH} characters long"
+            return (
+                False,
+                f"Password must be at least {SecurityConfig.PASSWORD_MIN_LENGTH} characters long",
+            )
 
-        if SecurityConfig.PASSWORD_REQUIRE_UPPERCASE and not re.search(r"[A-Z]", password):
+        if SecurityConfig.PASSWORD_REQUIRE_UPPERCASE and not re.search(
+            r"[A-Z]", password
+        ):
             return False, "Password must contain at least one uppercase letter"
 
-        if SecurityConfig.PASSWORD_REQUIRE_LOWERCASE and not re.search(r"[a-z]", password):
+        if SecurityConfig.PASSWORD_REQUIRE_LOWERCASE and not re.search(
+            r"[a-z]", password
+        ):
             return False, "Password must contain at least one lowercase letter"
 
-        if SecurityConfig.PASSWORD_REQUIRE_DIGIT and not re.search(r"[0-9]", password):
+        if SecurityConfig.PASSWORD_REQUIRE_DIGIT and not re.search(
+            r"[0-9]", password
+        ):
             return False, "Password must contain at least one digit"
 
-        if SecurityConfig.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-            return False, "Password must contain at least one special character"
+        if SecurityConfig.PASSWORD_REQUIRE_SPECIAL and not re.search(
+            r'[!@#$%^&*(),.?":{}|<>]', password
+        ):
+            return (
+                False,
+                "Password must contain at least one special character",
+            )
 
         return True, None
 

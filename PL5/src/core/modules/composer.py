@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Tuple
+from typing import Dict, List, Optional
 from enum import Enum
 import logging
 from collections import deque
@@ -41,7 +41,9 @@ class ModuleCombination:
     dependencies: Dict[str, List[Dependency]] = field(default_factory=dict)
     validation_errors: List[str] = field(default_factory=list)
     is_valid: bool = False
-    created_at: float = field(default_factory=lambda: __import__("time").time())
+    created_at: float = field(
+        default_factory=lambda: __import__("time").time()
+    )
 
 
 class ModuleComposer:
@@ -104,10 +106,15 @@ class ModuleComposer:
             for dep_name in module.dependencies:
                 if dep_name not in module_set:
                     dep_metadata = self._registry.get(dep_name)
-                    if dep_metadata and dep_metadata.status == ModuleStatus.ACTIVE:
+                    if (
+                        dep_metadata
+                        and dep_metadata.status == ModuleStatus.ACTIVE
+                    ):
                         pass
                     else:
-                        errors.append(f"模块 {module.name} 缺少依赖: {dep_name}")
+                        errors.append(
+                            f"模块 {module.name} 缺少依赖: {dep_name}"
+                        )
 
         cycle_result = self._detect_cycles(combination.modules)
         if cycle_result:
@@ -119,11 +126,15 @@ class ModuleComposer:
         if combination.is_valid:
             logger.info(f"模块组合验证通过: {combination.name}")
         else:
-            logger.warning(f"模块组合验证失败: {combination.name}, 错误: {errors}")
+            logger.warning(
+                f"模块组合验证失败: {combination.name}, 错误: {errors}"
+            )
 
         return combination.is_valid
 
-    def _detect_cycles(self, modules: List[ModuleMetadata]) -> Optional[List[str]]:
+    def _detect_cycles(
+        self, modules: List[ModuleMetadata]
+    ) -> Optional[List[str]]:
         """
         检测模块循环依赖
 

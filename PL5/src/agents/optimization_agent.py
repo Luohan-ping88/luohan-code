@@ -2,10 +2,9 @@
 优化智能体 - 自动优化特征组合和模型参数
 """
 
-import asyncio
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from datetime import datetime
 from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import RandomForestClassifier
@@ -31,7 +30,10 @@ class OptimizationAgent(BaseAgent):
         self.best_config = {}
 
     async def optimize_feature_selection(
-        self, df: pd.DataFrame, feature_cols: List[str], target_col: str = "wan"
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        target_col: str = "wan",
     ) -> Dict[str, Any]:
         """优化特征选择
 
@@ -43,13 +45,17 @@ class OptimizationAgent(BaseAgent):
         Returns:
             优化结果
         """
-        logger.info(f"[OptimizationAgent] 开始优化特征选择，目标列: {target_col}")
+        logger.info(
+            f"[OptimizationAgent] 开始优化特征选择，目标列: {target_col}"
+        )
 
         X = df[feature_cols].values
         y = df[target_col].values
 
         # 使用随机森林评估特征重要性
-        rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+        rf = RandomForestClassifier(
+            n_estimators=100, random_state=42, n_jobs=-1
+        )
         rf.fit(X, y)
 
         # 获取特征重要性
@@ -69,11 +75,18 @@ class OptimizationAgent(BaseAgent):
                 X_subset = df[subset_features].values
 
                 # 交叉验证
-                scores = cross_val_score(rf, X_subset, y, cv=5, scoring="accuracy")
+                scores = cross_val_score(
+                    rf, X_subset, y, cv=5, scoring="accuracy"
+                )
                 mean_score = np.mean(scores)
 
                 results.append(
-                    {"n_features": n, "features": subset_features, "cv_score": mean_score, "cv_std": np.std(scores)}
+                    {
+                        "n_features": n,
+                        "features": subset_features,
+                        "cv_score": mean_score,
+                        "cv_std": np.std(scores),
+                    }
                 )
 
         # 选择最佳特征数量
@@ -112,7 +125,9 @@ class OptimizationAgent(BaseAgent):
         Returns:
             优化结果
         """
-        logger.info(f"[OptimizationAgent] 开始优化模型参数，模型类型: {model_type}")
+        logger.info(
+            f"[OptimizationAgent] 开始优化模型参数，模型类型: {model_type}"
+        )
 
         # 定义参数搜索空间
         param_space = self._get_param_space(model_type)
@@ -132,10 +147,17 @@ class OptimizationAgent(BaseAgent):
 
             # 交叉验证
             try:
-                scores = cross_val_score(model, X, y, cv=5, scoring="accuracy", n_jobs=-1)
+                scores = cross_val_score(
+                    model, X, y, cv=5, scoring="accuracy", n_jobs=-1
+                )
                 mean_score = np.mean(scores)
 
-                result = {"iteration": i + 1, "params": params, "cv_score": mean_score, "cv_std": np.std(scores)}
+                result = {
+                    "iteration": i + 1,
+                    "params": params,
+                    "cv_score": mean_score,
+                    "cv_std": np.std(scores),
+                }
                 all_results.append(result)
 
                 if mean_score > best_score:
@@ -162,7 +184,9 @@ class OptimizationAgent(BaseAgent):
         self.optimization_history.append(optimization_result)
         self.best_config[model_type] = best_params
 
-        logger.info(f"[OptimizationAgent] 模型参数优化完成，最佳分数: {best_score:.4f}")
+        logger.info(
+            f"[OptimizationAgent] 模型参数优化完成，最佳分数: {best_score:.4f}"
+        )
 
         return optimization_result
 
@@ -225,7 +249,9 @@ class OptimizationAgent(BaseAgent):
         else:
             raise ValueError(f"不支持的模型类型: {model_type}")
 
-    async def optimize_all_positions(self, df: pd.DataFrame, feature_cols: List[str]) -> Dict[str, Any]:
+    async def optimize_all_positions(
+        self, df: pd.DataFrame, feature_cols: List[str]
+    ) -> Dict[str, Any]:
         """优化所有位置
 
         Args:
@@ -244,14 +270,18 @@ class OptimizationAgent(BaseAgent):
             logger.info(f"[OptimizationAgent] 优化位置: {pos}")
 
             # 特征选择优化
-            feature_result = await self.optimize_feature_selection(df, feature_cols, pos)
+            feature_result = await self.optimize_feature_selection(
+                df, feature_cols, pos
+            )
 
             # 模型参数优化
             selected_features = feature_result["selected_features"]
             X = df[selected_features].values
             y = df[pos].values
 
-            model_result = await self.optimize_model_parameters(X, y, "random_forest")
+            model_result = await self.optimize_model_parameters(
+                X, y, "random_forest"
+            )
 
             all_results[pos] = {
                 "feature_optimization": feature_result,
@@ -268,11 +298,15 @@ class OptimizationAgent(BaseAgent):
             "timestamp": datetime.now().isoformat(),
         }
 
-        logger.info(f"[OptimizationAgent] 所有位置优化完成，平均CV分数: {avg_score:.4f}")
+        logger.info(
+            f"[OptimizationAgent] 所有位置优化完成，平均CV分数: {avg_score:.4f}"
+        )
 
         return final_result
 
-    async def generate_optimization_report(self, optimization_result: Dict[str, Any]) -> str:
+    async def generate_optimization_report(
+        self, optimization_result: Dict[str, Any]
+    ) -> str:
         """生成优化报告
 
         Args:
@@ -283,7 +317,9 @@ class OptimizationAgent(BaseAgent):
         """
         report_parts = []
         report_parts.append("# 排列五优化分析报告")
-        report_parts.append(f"生成时间: {optimization_result.get('timestamp', datetime.now().isoformat())}")
+        report_parts.append(
+            f"生成时间: {optimization_result.get('timestamp', datetime.now().isoformat())}"
+        )
         report_parts.append("")
 
         if "positions" in optimization_result:
@@ -293,17 +329,27 @@ class OptimizationAgent(BaseAgent):
 
                 # 特征优化
                 feature_opt = result.get("feature_optimization", {})
-                report_parts.append(f"- 选择特征数: {feature_opt.get('n_selected', 0)}")
-                report_parts.append(f"- 特征CV分数: {feature_opt.get('cv_score', 0):.4f}")
+                report_parts.append(
+                    f"- 选择特征数: {feature_opt.get('n_selected', 0)}"
+                )
+                report_parts.append(
+                    f"- 特征CV分数: {feature_opt.get('cv_score', 0):.4f}"
+                )
 
                 # 模型优化
                 model_opt = result.get("model_optimization", {})
-                report_parts.append(f"- 模型CV分数: {model_opt.get('best_score', 0):.4f}")
-                report_parts.append(f"- 最佳参数: {model_opt.get('best_params', {})}")
+                report_parts.append(
+                    f"- 模型CV分数: {model_opt.get('best_score', 0):.4f}"
+                )
+                report_parts.append(
+                    f"- 最佳参数: {model_opt.get('best_params', {})}"
+                )
                 report_parts.append("")
 
             report_parts.append(f"## 整体性能")
-            report_parts.append(f"- 平均CV分数: {optimization_result.get('average_cv_score', 0):.4f}")
+            report_parts.append(
+                f"- 平均CV分数: {optimization_result.get('average_cv_score', 0):.4f}"
+            )
 
         return "\n".join(report_parts)
 
@@ -347,38 +393,53 @@ class OptimizationAgent(BaseAgent):
         try:
             if task.task_type == "optimize_features":
                 result = await self.optimize_feature_selection(
-                    task.params.get("data"), task.params.get("feature_cols", []), task.params.get("target_col", "wan")
+                    task.params.get("data"),
+                    task.params.get("feature_cols", []),
+                    task.params.get("target_col", "wan"),
                 )
                 return AgentResult(
                     task_id=task.task_id,
                     success=True,
                     data=result,
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                 )
             elif task.task_type == "optimize_parameters":
                 result = await self.optimize_model_parameters(
-                    task.params.get("X"), task.params.get("y"), task.params.get("model_type", "random_forest")
+                    task.params.get("X"),
+                    task.params.get("y"),
+                    task.params.get("model_type", "random_forest"),
                 )
                 return AgentResult(
                     task_id=task.task_id,
                     success=True,
                     data=result,
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                 )
             elif task.task_type == "optimize_all":
-                result = await self.optimize_all_positions(task.params.get("data"), task.params.get("feature_cols", []))
+                result = await self.optimize_all_positions(
+                    task.params.get("data"),
+                    task.params.get("feature_cols", []),
+                )
                 return AgentResult(
                     task_id=task.task_id,
                     success=True,
                     data=result,
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                 )
             else:
                 return AgentResult(
                     task_id=task.task_id,
                     success=False,
                     data={},
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                     error_message=f"Unknown task type: {task.task_type}",
                 )
         except Exception as e:
@@ -414,7 +475,11 @@ class OptimizationAgent(BaseAgent):
         return {
             "name": self.name,
             "description": "特征选择优化、模型参数调优、系统优化建议",
-            "supported_tasks": ["optimize_features", "optimize_parameters", "optimize_all"],
+            "supported_tasks": [
+                "optimize_features",
+                "optimize_parameters",
+                "optimize_all",
+            ],
             "optimization_support": True,
             "param_tuning_support": True,
         }
@@ -463,7 +528,11 @@ class OptimizationAgent(BaseAgent):
             strategy = {
                 "prediction_method": "ensemble",
                 "confidence_threshold": 0.6,
-                "model_weights": {"random_forest": 0.4, "gradient_boosting": 0.4, "knn": 0.2},
+                "model_weights": {
+                    "random_forest": 0.4,
+                    "gradient_boosting": 0.4,
+                    "knn": 0.2,
+                },
                 "feature_selection_strategy": "dynamic",
                 "retraining_frequency": "daily",
             }
@@ -472,7 +541,11 @@ class OptimizationAgent(BaseAgent):
             if current_accuracy < 0.2:
                 strategy["prediction_method"] = "conservative"
                 strategy["confidence_threshold"] = 0.7
-                strategy["model_weights"] = {"random_forest": 0.6, "gradient_boosting": 0.4, "knn": 0.0}
+                strategy["model_weights"] = {
+                    "random_forest": 0.6,
+                    "gradient_boosting": 0.4,
+                    "knn": 0.0,
+                }
             elif current_accuracy > 0.3:
                 strategy["prediction_method"] = "aggressive"
                 strategy["confidence_threshold"] = 0.5
@@ -484,7 +557,9 @@ class OptimizationAgent(BaseAgent):
                 }
 
             # 基于模式分析调整
-            if patterns.get("anomaly_detection", {}).get("anomalies_detected", False):
+            if patterns.get("anomaly_detection", {}).get(
+                "anomalies_detected", False
+            ):
                 strategy["retraining_frequency"] = "weekly"
 
             return {

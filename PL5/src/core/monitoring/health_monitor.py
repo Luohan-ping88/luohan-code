@@ -6,11 +6,10 @@
 """
 
 import json
-import time
 import psutil
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 
@@ -35,7 +34,9 @@ class AlertThreshold:
 
     cpu_warning: float = 70.0
     cpu_critical: float = 85.0
-    memory_warning: float = 87.0  # V10.3+: 机器7.9GB，ML常态82-84%，调高阈值减少噪声
+    memory_warning: float = (
+        87.0  # V10.3+: 机器7.9GB，ML常态82-84%，调高阈值减少噪声
+    )
     memory_critical: float = 95.0  # V10.3+: 真正危险时才触发 CRITICAL
     task_time_warning: float = 3600.0  # 1小时
     task_time_critical: float = 7200.0  # 2小时
@@ -87,7 +88,7 @@ class SystemHealthMonitor:
         try:
             with open(self.metrics_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
 
     def _save_metrics(self, metrics: List[Dict]):
@@ -102,7 +103,7 @@ class SystemHealthMonitor:
         try:
             with open(self.alerts_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
 
     def _save_alerts(self, alerts: List[Dict]):
@@ -119,7 +120,7 @@ class SystemHealthMonitor:
             try:
                 with open(task_file, "r", encoding="utf-8") as f:
                     self.task_executions = json.load(f)
-            except:
+            except Exception:
                 self.task_executions = []
 
     def _save_task_executions(self):
@@ -150,9 +151,14 @@ class SystemHealthMonitor:
         # 任务统计
         task_count = len(self.task_executions)
         if task_count > 0:
-            success_count = sum(1 for t in self.task_executions if t.get("success"))
+            success_count = sum(
+                1 for t in self.task_executions if t.get("success")
+            )
             task_success_rate = success_count / task_count
-            avg_task_time = sum(t.get("duration", 0) for t in self.task_executions) / task_count
+            avg_task_time = (
+                sum(t.get("duration", 0) for t in self.task_executions)
+                / task_count
+            )
         else:
             task_success_rate = 1.0
             avg_task_time = 0.0
@@ -182,7 +188,12 @@ class SystemHealthMonitor:
         return metrics
 
     def record_task_execution(
-        self, task_name: str, start_time: datetime, end_time: datetime, success: bool, error_msg: Optional[str] = None
+        self,
+        task_name: str,
+        start_time: datetime,
+        end_time: datetime,
+        success: bool,
+        error_msg: Optional[str] = None,
     ):
         """记录任务执行"""
         duration = (end_time - start_time).total_seconds()
@@ -202,7 +213,11 @@ class SystemHealthMonitor:
         # 检查任务时间预警
         if duration > self.thresholds.task_time_warning:
             self._add_alert(
-                level=AlertLevel.WARNING if duration < self.thresholds.task_time_critical else AlertLevel.CRITICAL,
+                level=(
+                    AlertLevel.WARNING
+                    if duration < self.thresholds.task_time_critical
+                    else AlertLevel.CRITICAL
+                ),
                 category="task_duration",
                 message=f"任务 {task_name} 执行时间过长: {round(duration/60, 1)} 分钟",
                 details={"task_name": task_name, "duration_sec": duration},
@@ -258,7 +273,13 @@ class SystemHealthMonitor:
                 details={"disk_percent": metrics.disk_usage_percent},
             )
 
-    def _add_alert(self, level: AlertLevel, category: str, message: str, details: Optional[Dict] = None):
+    def _add_alert(
+        self,
+        level: AlertLevel,
+        category: str,
+        message: str,
+        details: Optional[Dict] = None,
+    ):
         """添加预警"""
         alert = {
             "timestamp": datetime.now().isoformat(),
@@ -274,7 +295,11 @@ class SystemHealthMonitor:
 
         duplicate = False
         for a in alerts[-20:]:  # 只检查最近20条
-            if a.get("category") == category and a.get("level") == level.value and a.get("timestamp") > ten_minutes_ago:
+            if (
+                a.get("category") == category
+                and a.get("level") == level.value
+                and a.get("timestamp") > ten_minutes_ago
+            ):
                 duplicate = True
                 break
 
@@ -283,7 +308,9 @@ class SystemHealthMonitor:
             self._save_alerts(alerts)
 
             # 记录日志
-            log_method = logger.warning if level == AlertLevel.WARNING else logger.error
+            log_method = (
+                logger.warning if level == AlertLevel.WARNING else logger.error
+            )
             log_method(f"[系统预警][{level.value.upper()}] {message}")
 
     def get_health_summary(self, hours: int = 24) -> Dict:
@@ -293,21 +320,33 @@ class SystemHealthMonitor:
 
         # 过滤时间范围内的数据
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
-        recent_metrics = [m for m in metrics if m.get("timestamp", "") > cutoff]
+        recent_metrics = [
+            m for m in metrics if m.get("timestamp", "") > cutoff
+        ]
         recent_alerts = [a for a in alerts if a.get("timestamp", "") > cutoff]
 
         # 统计预警
         alert_counts = {
             "info": sum(1 for a in recent_alerts if a.get("level") == "info"),
-            "warning": sum(1 for a in recent_alerts if a.get("level") == "warning"),
-            "critical": sum(1 for a in recent_alerts if a.get("level") == "critical"),
-            "alert": sum(1 for a in recent_alerts if a.get("level") == "alert"),
+            "warning": sum(
+                1 for a in recent_alerts if a.get("level") == "warning"
+            ),
+            "critical": sum(
+                1 for a in recent_alerts if a.get("level") == "critical"
+            ),
+            "alert": sum(
+                1 for a in recent_alerts if a.get("level") == "alert"
+            ),
         }
 
         # 指标统计
         if recent_metrics:
-            avg_cpu = sum(m.get("cpu_percent", 0) for m in recent_metrics) / len(recent_metrics)
-            avg_memory = sum(m.get("memory_percent", 0) for m in recent_metrics) / len(recent_metrics)
+            avg_cpu = sum(
+                m.get("cpu_percent", 0) for m in recent_metrics
+            ) / len(recent_metrics)
+            avg_memory = sum(
+                m.get("memory_percent", 0) for m in recent_metrics
+            ) / len(recent_metrics)
             latest = recent_metrics[-1]
         else:
             avg_cpu = 0
@@ -331,7 +370,9 @@ class SystemHealthMonitor:
 
         # 最近5分钟的预警
         five_minutes_ago = (datetime.now() - timedelta(minutes=5)).isoformat()
-        recent_alerts = [a for a in alerts if a.get("timestamp", "") > five_minutes_ago]
+        recent_alerts = [
+            a for a in alerts if a.get("timestamp", "") > five_minutes_ago
+        ]
 
         # 健康评分（简化版）
         score = 100
@@ -361,7 +402,11 @@ class SystemHealthMonitor:
 
         return {
             "health_score": score,
-            "status": "healthy" if score >= 80 else "warning" if score >= 50 else "critical",
+            "status": (
+                "healthy"
+                if score >= 80
+                else "warning" if score >= 50 else "critical"
+            ),
             "current_metrics": asdict(metrics),
             "recent_alerts": recent_alerts,
         }

@@ -7,11 +7,14 @@ import time
 import threading
 import psutil
 import logging
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, Callable
 from enum import Enum
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +82,9 @@ class SystemMonitor:
         self._thread = None
         self._health_checks = {}
 
-    def register_service(self, service_name: str, health_check: Callable[[], HealthCheckResult]):
+    def register_service(
+        self, service_name: str, health_check: Callable[[], HealthCheckResult]
+    ):
         """注册服务
 
         Args:
@@ -93,7 +98,9 @@ class SystemMonitor:
         """启动监控"""
         if not self._running:
             self._running = True
-            self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self._thread = threading.Thread(
+                target=self._monitor_loop, daemon=True
+            )
             self._thread.start()
             logger.info("System monitor started")
 
@@ -130,21 +137,33 @@ class SystemMonitor:
 
                     # 记录服务状态
                     if result.status == ServiceStatus.HEALTHY:
-                        logger.info(f"Service {service_name} is {result.status.value}: {result.message}")
+                        logger.info(
+                            f"Service {service_name} is {result.status.value}: {result.message}"
+                        )
                     elif result.status == ServiceStatus.DEGRADED:
-                        logger.warning(f"Service {service_name} is {result.status.value}: {result.message}")
+                        logger.warning(
+                            f"Service {service_name} is {result.status.value}: {result.message}"
+                        )
                     else:
-                        logger.error(f"Service {service_name} is {result.status.value}: {result.message}")
+                        logger.error(
+                            f"Service {service_name} is {result.status.value}: {result.message}"
+                        )
                 except Exception as e:
                     error_result = HealthCheckResult(
-                        service=service_name, status=ServiceStatus.UNHEALTHY, message=f"Health check failed: {str(e)}"
+                        service=service_name,
+                        status=ServiceStatus.UNHEALTHY,
+                        message=f"Health check failed: {str(e)}",
                     )
                     results[service_name] = error_result
                     self.services[service_name] = error_result
-                    logger.error(f"Health check for {service_name} failed: {e}")
+                    logger.error(
+                        f"Health check for {service_name} failed: {e}"
+                    )
         return results
 
-    def get_service_status(self, service_name: str) -> Optional[HealthCheckResult]:
+    def get_service_status(
+        self, service_name: str
+    ) -> Optional[HealthCheckResult]:
         """获取服务状态
 
         Args:
@@ -193,7 +212,9 @@ class SelfDiagnosis:
         self.diagnostics = {}
         self._lock = threading.RLock()
 
-    def register_diagnostic(self, name: str, diagnostic: Callable[[], Dict[str, Any]]):
+    def register_diagnostic(
+        self, name: str, diagnostic: Callable[[], Dict[str, Any]]
+    ):
         """注册诊断函数
 
         Args:
@@ -240,14 +261,22 @@ class SelfDiagnosis:
             net_io = psutil.net_io_counters()
 
             return {
-                "cpu": {"usage_percent": cpu_usage, "count": psutil.cpu_count()},
+                "cpu": {
+                    "usage_percent": cpu_usage,
+                    "count": psutil.cpu_count(),
+                },
                 "memory": {
                     "total": memory.total,
                     "used": memory.used,
                     "available": memory.available,
                     "percent": memory.percent,
                 },
-                "disk": {"total": disk.total, "used": disk.used, "free": disk.free, "percent": disk.percent},
+                "disk": {
+                    "total": disk.total,
+                    "used": disk.used,
+                    "free": disk.free,
+                    "percent": disk.percent,
+                },
                 "network": {
                     "bytes_sent": net_io.bytes_sent,
                     "bytes_recv": net_io.bytes_recv,
@@ -301,12 +330,18 @@ class ServiceDegrader:
                     current_status = config["status"]
 
                     # 检查是否需要降级
-                    if status == ServiceStatus.UNHEALTHY and current_status != ServiceStatus.DEGRADED:
+                    if (
+                        status == ServiceStatus.UNHEALTHY
+                        and current_status != ServiceStatus.DEGRADED
+                    ):
                         logger.warning(f"Degrading service {service_name}")
                         config["degrade_strategy"]()
                         config["status"] = ServiceStatus.DEGRADED
                     # 检查是否需要恢复
-                    elif status == ServiceStatus.HEALTHY and current_status == ServiceStatus.DEGRADED:
+                    elif (
+                        status == ServiceStatus.HEALTHY
+                        and current_status == ServiceStatus.DEGRADED
+                    ):
                         logger.info(f"Recovering service {service_name}")
                         config["recover_strategy"]()
                         config["status"] = ServiceStatus.HEALTHY
@@ -333,7 +368,10 @@ class ServiceDegrader:
             所有服务状态
         """
         with self._lock:
-            return {service_name: config["status"] for service_name, config in self.services.items()}
+            return {
+                service_name: config["status"]
+                for service_name, config in self.services.items()
+            }
 
 
 class SystemHealthManager:
@@ -356,7 +394,9 @@ class SystemHealthManager:
         if not self._running:
             self._running = True
             self.monitor.start()
-            self._thread = threading.Thread(target=self._management_loop, daemon=True)
+            self._thread = threading.Thread(
+                target=self._management_loop, daemon=True
+            )
             self._thread.start()
             logger.info("System health manager started")
 
@@ -404,9 +444,13 @@ class SystemHealthManager:
                 result = health_check()
                 return result.status
 
-            self.degrader.register_service(service_name, status_check, degrade_strategy, recover_strategy)
+            self.degrader.register_service(
+                service_name, status_check, degrade_strategy, recover_strategy
+            )
 
-    def register_diagnostic(self, name: str, diagnostic: Callable[[], Dict[str, Any]]):
+    def register_diagnostic(
+        self, name: str, diagnostic: Callable[[], Dict[str, Any]]
+    ):
         """注册诊断函数
 
         Args:
@@ -415,7 +459,9 @@ class SystemHealthManager:
         """
         self.diagnosis.register_diagnostic(name, diagnostic)
 
-    def get_service_status(self, service_name: str) -> Optional[HealthCheckResult]:
+    def get_service_status(
+        self, service_name: str
+    ) -> Optional[HealthCheckResult]:
         """获取服务状态
 
         Args:
@@ -496,7 +542,9 @@ def register_service(
         degrade_strategy: 降级策略
         recover_strategy: 恢复策略
     """
-    _global_health_manager.register_service(service_name, health_check, degrade_strategy, recover_strategy)
+    _global_health_manager.register_service(
+        service_name, health_check, degrade_strategy, recover_strategy
+    )
 
 
 def register_diagnostic(name: str, diagnostic: Callable[[], Dict[str, Any]]):

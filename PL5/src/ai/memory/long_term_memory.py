@@ -3,11 +3,10 @@
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 
 from .base import BaseMemory
-from ..ai_types import MemoryConfig, MemoryType
+from ..ai_types import MemoryConfig
 
 
 class LongTermMemory(BaseMemory):
@@ -18,7 +17,9 @@ class LongTermMemory(BaseMemory):
 
     def __init__(self, config: MemoryConfig):
         super().__init__(config)
-        self._storage_path = Path(config.storage_path or "./long_term_memory.json")
+        self._storage_path = Path(
+            config.storage_path or "./long_term_memory.json"
+        )
         self._store = self._load_from_disk()
 
     def _load_from_disk(self) -> List[Dict]:
@@ -88,7 +89,9 @@ class LongTermMemory(BaseMemory):
             for item in reversed(self._store):
                 if item.get("id") == key:
                     return item
-                if isinstance(key, str) and key in str(item.get("content", "")):
+                if isinstance(key, str) and key in str(
+                    item.get("content", "")
+                ):
                     return item
             return None
         except Exception:
@@ -150,11 +153,16 @@ class LongTermMemory(BaseMemory):
             # 检查content字段或整个字典
             content = str(item.get("content", ""))
             item_str = str(item)
-            if query.lower() in content.lower() or query.lower() in item_str.lower():
+            if (
+                query.lower() in content.lower()
+                or query.lower() in item_str.lower()
+            ):
                 results.append(item)
         return results[-top_k:]
 
-    def get_by_time_range(self, start_time: float, end_time: float) -> List[Dict]:
+    def get_by_time_range(
+        self, start_time: float, end_time: float
+    ) -> List[Dict]:
         """按时间范围获取记忆项
 
         Args:

@@ -4,11 +4,8 @@
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Union
-import warnings
-import logging
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import (
@@ -16,14 +13,10 @@ from sklearn.feature_selection import (
     chi2,
     f_classif,
     RFE,
-    SelectKBest,
-    VarianceThreshold,
 )
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import cross_val_score
-from sklearn.linear_model import LogisticRegression
 
-from .config import setup_logging, MODELS_DIR
+from .config import setup_logging
 
 logger = setup_logging(__name__)
 
@@ -75,8 +68,12 @@ class MultiMethodFeatureSelector:
         self._elbow_curve: Optional[Dict[int, float]] = None
         self._selected_features: List[str] = []
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "MultiMethodFeatureSelector":
-        logger.info(f"开始多方法特征选择，共 {X.shape[1]} 个特征，使用方法: {self.methods}")
+    def fit(
+        self, X: pd.DataFrame, y: pd.Series
+    ) -> "MultiMethodFeatureSelector":
+        logger.info(
+            f"开始多方法特征选择，共 {X.shape[1]} 个特征，使用方法: {self.methods}"
+        )
 
         feature_cols = self._get_feature_columns(X)
         X_features = X[feature_cols].fillna(0).copy()
@@ -86,20 +83,28 @@ class MultiMethodFeatureSelector:
 
         for method in self.methods:
             logger.info(f"  计算方法 [{method}] 的特征重要性...")
-            scores = self._compute_method_scores(method, X_features, y, feature_cols)
+            scores = self._compute_method_scores(
+                method, X_features, y, feature_cols
+            )
             self._method_scores[method] = scores
-            ranking = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
+            ranking = sorted(
+                scores.keys(), key=lambda k: scores[k], reverse=True
+            )
             self._method_rankings[method] = ranking
             logger.info(f"    方法 [{method}] 完成，Top-5: {ranking[:5]}")
 
         self._compute_vote_scores()
-        self._correlation_matrix = self._compute_correlation_matrix(X_features, feature_cols)
+        self._correlation_matrix = self._compute_correlation_matrix(
+            X_features, feature_cols
+        )
         self._remove_highly_correlated()
         self._determine_optimal_n_features(X_features, y)
 
         self._feature_names = list(self._vote_scores.keys())
         self._fitted = True
-        logger.info(f"特征选择拟合完成，最终候选特征数: {len(self._selected_features)}")
+        logger.info(
+            f"特征选择拟合完成，最终候选特征数: {len(self._selected_features)}"
+        )
         return self
 
     def transform(
@@ -109,7 +114,11 @@ class MultiMethodFeatureSelector:
     ) -> pd.DataFrame:
         if not self._fitted:
             raise RuntimeError("请先调用 fit() 拟合选择器")
-        target_n = n_features or self._optimal_n_features or min(100, len(self._selected_features))
+        target_n = (
+            n_features
+            or self._optimal_n_features
+            or min(100, len(self._selected_features))
+        )
         target_n = min(target_n, len(self._selected_features))
         selected = sorted(
             self._selected_features,
@@ -118,7 +127,9 @@ class MultiMethodFeatureSelector:
         )[:target_n]
         keep_cols = [c for c in X.columns if c in self.exclude_cols] + selected
         result = X[[c for c in keep_cols if c in X.columns]].copy()
-        logger.info(f"transform 完成: 从 {len(self._feature_names)} 个原始特征中选择 {len(selected)} 个")
+        logger.info(
+            f"transform 完成: 从 {len(self._feature_names)} 个原始特征中选择 {len(selected)} 个"
+        )
         return result
 
     def fit_transform(
@@ -146,9 +157,13 @@ class MultiMethodFeatureSelector:
         }
         for method, ranking in self._method_rankings.items():
             report["method_rankings"][method] = ranking[:50]
-        vote_sorted = sorted(self._vote_scores.items(), key=lambda x: x[1], reverse=True)
+        vote_sorted = sorted(
+            self._vote_scores.items(), key=lambda x: x[1], reverse=True
+        )
         report["vote_ranking"] = [(f, round(s, 6)) for f, s in vote_sorted]
-        report["top_50_features"] = [(f, round(s, 6)) for f, s in vote_sorted[:50]]
+        report["top_50_features"] = [
+            (f, round(s, 6)) for f, s in vote_sorted[:50]
+        ]
         if self._elbow_curve is not None:
             report["elbow_curve"] = dict(sorted(self._elbow_curve.items()))
         return report
@@ -175,8 +190,13 @@ class MultiMethodFeatureSelector:
             "_fitted": self._fitted,
             "_feature_names": self._feature_names,
             "_method_rankings": self._method_rankings,
-            "_method_scores": {k: {kk: float(vv) for kk, vv in v.items()} for k, v in self._method_scores.items()},
-            "_vote_scores": {k: float(v) for k, v in self._vote_scores.items()},
+            "_method_scores": {
+                k: {kk: float(vv) for kk, vv in v.items()}
+                for k, v in self._method_scores.items()
+            },
+            "_vote_scores": {
+                k: float(v) for k, v in self._vote_scores.items()
+            },
             "_selected_features": self._selected_features,
             "_removed_correlated": self._removed_correlated,
             "_optimal_n_features": self._optimal_n_features,
@@ -245,7 +265,9 @@ class MultiMethodFeatureSelector:
         else:
             raise ValueError(f"未知方法: {method}")
 
-    def _rf_importance(self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]) -> Dict[str, float]:
+    def _rf_importance(
+        self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]
+    ) -> Dict[str, float]:
         model = RandomForestClassifier(
             n_estimators=50,
             max_depth=10,
@@ -255,11 +277,17 @@ class MultiMethodFeatureSelector:
         model.fit(X.values, y.values)
         return dict(zip(feature_cols, model.feature_importances_))
 
-    def _mi_importance(self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]) -> Dict[str, float]:
-        mi_scores = mutual_info_classif(X.values, y.values, random_state=self.random_state)
+    def _mi_importance(
+        self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]
+    ) -> Dict[str, float]:
+        mi_scores = mutual_info_classif(
+            X.values, y.values, random_state=self.random_state
+        )
         return dict(zip(feature_cols, mi_scores))
 
-    def _rfe_importance(self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]) -> Dict[str, float]:
+    def _rfe_importance(
+        self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]
+    ) -> Dict[str, float]:
         estimator = RandomForestClassifier(
             n_estimators=30,
             max_depth=8,
@@ -267,14 +295,23 @@ class MultiMethodFeatureSelector:
             n_jobs=-1,
         )
         step = max(1, len(feature_cols) // 20)
-        rfe = RFE(estimator=estimator, n_features_to_select=max(1, len(feature_cols) // 2), step=step)
+        rfe = RFE(
+            estimator=estimator,
+            n_features_to_select=max(1, len(feature_cols) // 2),
+            step=step,
+        )
         rfe.fit(X.values, y.values)
         rankings = rfe.ranking_
         max_rank = rankings.max()
-        scores = {col: (max_rank - rank + 1) / max_rank for col, rank in zip(feature_cols, rankings)}
+        scores = {
+            col: (max_rank - rank + 1) / max_rank
+            for col, rank in zip(feature_cols, rankings)
+        }
         return scores
 
-    def _chi2_importance(self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]) -> Dict[str, float]:
+    def _chi2_importance(
+        self, X: pd.DataFrame, y: pd.Series, feature_cols: List[str]
+    ) -> Dict[str, float]:
         X_shifted = X.copy()
         for col in X_shifted.columns:
             min_val = X_shifted[col].min()
@@ -298,13 +335,19 @@ class MultiMethodFeatureSelector:
             for method in self.methods:
                 if feature in self._method_scores[method]:
                     w = self.weights.get(method, 1.0)
-                    norm_score = self._normalize_scores(self._method_scores[method])
+                    norm_score = self._normalize_scores(
+                        self._method_scores[method]
+                    )
                     weighted_sum += w * norm_score[feature]
                     total_weight += w
-            self._vote_scores[feature] = weighted_sum / total_weight if total_weight > 0 else 0.0
+            self._vote_scores[feature] = (
+                weighted_sum / total_weight if total_weight > 0 else 0.0
+            )
         logger.info(f"投票得分计算完成，涉及 {len(self._vote_scores)} 个特征")
 
-    def _compute_correlation_matrix(self, X: pd.DataFrame, feature_cols: List[str]) -> pd.DataFrame:
+    def _compute_correlation_matrix(
+        self, X: pd.DataFrame, feature_cols: List[str]
+    ) -> pd.DataFrame:
         logger.info("计算特征间相关系数矩阵...")
         corr_matrix = X[feature_cols].corr(method="pearson").abs()
         return corr_matrix
@@ -330,10 +373,15 @@ class MultiMethodFeatureSelector:
                             corr_val = 0.0
                     except (KeyError, IndexError):
                         corr_val = 0.0
-                    if isinstance(corr_val, (int, float)) and corr_val >= self.correlation_threshold:
+                    if (
+                        isinstance(corr_val, (int, float))
+                        and corr_val >= self.correlation_threshold
+                    ):
                         features_to_remove.add(feat_b)
                         self._removed_correlated.append((feat_a, feat_b))
-        self._selected_features = [f for f in features_by_vote if f not in features_to_remove]
+        self._selected_features = [
+            f for f in features_by_vote if f not in features_to_remove
+        ]
         logger.info(
             f"相关性过滤完成: 阈值={self.correlation_threshold}, "
             f"移除 {len(self._removed_correlated)} 对高相关性特征, "
@@ -362,11 +410,21 @@ class MultiMethodFeatureSelector:
             score_sum = sum(self._vote_scores.get(f, 0) for f in top_n)
             cumulative_scores.append(score_sum)
         self._elbow_curve = dict(zip(test_points, cumulative_scores))
-        elbow_idx = self._find_elbow_point(list(cumulative_scores), test_points)
-        self._optimal_n_features = test_points[elbow_idx] if elbow_idx is not None else min(100, n_total)
-        logger.info(f"肘部法则分析完成，建议最优特征数量: {self._optimal_n_features}")
+        elbow_idx = self._find_elbow_point(
+            list(cumulative_scores), test_points
+        )
+        self._optimal_n_features = (
+            test_points[elbow_idx]
+            if elbow_idx is not None
+            else min(100, n_total)
+        )
+        logger.info(
+            f"肘部法则分析完成，建议最优特征数量: {self._optimal_n_features}"
+        )
 
-    def _find_elbow_point(self, scores: List[float], points: List[int]) -> Optional[int]:
+    def _find_elbow_point(
+        self, scores: List[float], points: List[int]
+    ) -> Optional[int]:
         if len(scores) < 4:
             return len(scores) - 1
         coords = np.array(list(zip(points, scores)))

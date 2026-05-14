@@ -5,14 +5,22 @@
 import numpy as np
 import time
 import psutil
-from typing import Dict, List, Optional, Any, Callable, Tuple, Union
+from typing import Dict, List, Optional, Any, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from collections import deque
 
-from .lr_scheduler import BaseLRScheduler, LRSchedulerType, create_lr_scheduler, LRSchedulerConfig
-from .early_stopping import EarlyStopping, EarlyStoppingConfig, EarlyStoppingMode, AdaptiveEarlyStopping
+from .lr_scheduler import (
+    BaseLRScheduler,
+    LRSchedulerType,
+    create_lr_scheduler,
+)
+from .early_stopping import (
+    EarlyStopping,
+    EarlyStoppingConfig,
+    AdaptiveEarlyStopping,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +112,16 @@ class TrainingOptimizer:
         self._epoch_start_time: Optional[float] = None
         self._resource_monitor_start_time: Optional[float] = None
 
-        self._progress_queue: deque = deque(maxlen=self.config.progress_window_size)
+        self._progress_queue: deque = deque(
+            maxlen=self.config.progress_window_size
+        )
 
     def _init_components(self) -> None:
         """初始化各组件"""
         if self.config.use_early_stopping:
-            es_config = self.config.early_stopping_config or EarlyStoppingConfig()
+            es_config = (
+                self.config.early_stopping_config or EarlyStoppingConfig()
+            )
             if self.config.use_adaptive_early_stopping:
                 self.early_stopping = AdaptiveEarlyStopping(es_config)
             else:
@@ -117,7 +129,9 @@ class TrainingOptimizer:
 
         if self.config.use_lr_scheduler:
             lr_config = self.config.lr_scheduler_config or {}
-            self.lr_scheduler = create_lr_scheduler(self.config.lr_scheduler_type, lr_config)
+            self.lr_scheduler = create_lr_scheduler(
+                self.config.lr_scheduler_type, lr_config
+            )
 
     def start_training(self) -> None:
         """开始训练"""
@@ -163,7 +177,11 @@ class TrainingOptimizer:
         Returns:
             (是否应该停止, 训练指标)
         """
-        epoch_duration = time.time() - self._epoch_start_time if self._epoch_start_time else 0
+        epoch_duration = (
+            time.time() - self._epoch_start_time
+            if self._epoch_start_time
+            else 0
+        )
 
         current_lr = self.lr_scheduler.get_lr() if self.lr_scheduler else None
 
@@ -186,7 +204,9 @@ class TrainingOptimizer:
         if val_score is not None:
             if self.early_stopping:
                 es_metrics = {"loss": val_loss} if val_loss else {}
-                should_stop = self.early_stopping.step(self.current_epoch, val_score, es_metrics)
+                should_stop = self.early_stopping.step(
+                    self.current_epoch, val_score, es_metrics
+                )
 
                 if self.early_stopping.get_best_score() is not None:
                     self.best_val_score = self.early_stopping.get_best_score()
@@ -199,7 +219,10 @@ class TrainingOptimizer:
         if self.config.track_resources:
             self._record_resource_usage()
 
-        if self.config.verbose and self.current_epoch % self.config.log_interval == 0:
+        if (
+            self.config.verbose
+            and self.current_epoch % self.config.log_interval == 0
+        ):
             self._log_epoch_metrics(metrics)
 
         if should_stop:
@@ -283,7 +306,11 @@ class TrainingOptimizer:
     def get_statistics(self) -> Dict[str, Any]:
         """获取统计信息"""
         total_time = time.time() - self._start_time if self._start_time else 0
-        avg_epoch_time = np.mean([m.duration_seconds for m in self.training_history]) if self.training_history else 0
+        avg_epoch_time = (
+            np.mean([m.duration_seconds for m in self.training_history])
+            if self.training_history
+            else 0
+        )
 
         stats = {
             "status": self.status.value,
@@ -336,8 +363,15 @@ class TrainingOptimizer:
 
     def fit(
         self,
-        train_fn: Callable[[int, float], Tuple[Optional[float], Optional[float], Dict[str, Any]]],
-        val_fn: Optional[Callable[[], Tuple[Optional[float], Optional[float], Dict[str, Any]]]] = None,
+        train_fn: Callable[
+            [int, float],
+            Tuple[Optional[float], Optional[float], Dict[str, Any]],
+        ],
+        val_fn: Optional[
+            Callable[
+                [], Tuple[Optional[float], Optional[float], Dict[str, Any]]
+            ]
+        ] = None,
     ) -> Dict[str, Any]:
         """
         完整训练循环
@@ -356,7 +390,9 @@ class TrainingOptimizer:
                 self.start_epoch()
 
                 current_lr = self.get_current_lr() or 0.001
-                train_loss, train_score, train_metrics = train_fn(self.current_epoch, current_lr)
+                train_loss, train_score, train_metrics = train_fn(
+                    self.current_epoch, current_lr
+                )
 
                 val_loss, val_score, val_metrics = None, None, {}
                 if val_fn:

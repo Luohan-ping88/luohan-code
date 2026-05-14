@@ -68,9 +68,13 @@ class CurriculumAdapter:
             progress_tracker: 进度追踪器
             storage_path: 持久化存储路径
         """
-        self.difficulty_evaluator = difficulty_evaluator or DifficultyEvaluator()
+        self.difficulty_evaluator = (
+            difficulty_evaluator or DifficultyEvaluator()
+        )
         self.progress_tracker = progress_tracker or ProgressTracker()
-        self.storage_path = storage_path or Path("models/curriculum_adapter.json")
+        self.storage_path = storage_path or Path(
+            "models/curriculum_adapter.json"
+        )
         self.learning_paths: Dict[str, LearningPath] = {}
         self.adjustment_history: List[AdjustmentRecommendation] = []
         self._load()
@@ -100,14 +104,20 @@ class CurriculumAdapter:
         avg_accuracy = sum(s.accuracy for s in skills) / len(skills)
         total_practice = sum(s.practice_count for s in skills)
 
-        recommendation = self._analyze_performance(avg_mastery, avg_accuracy, total_practice)
+        recommendation = self._analyze_performance(
+            avg_mastery, avg_accuracy, total_practice
+        )
 
-        target_level = self._get_target_difficulty(recommendation.action, avg_mastery)
+        target_level = self._get_target_difficulty(
+            recommendation.action, avg_mastery
+        )
         recommendation.target_difficulty = target_level
 
         return target_level, recommendation
 
-    def _get_relevant_skills(self, skill_ids: Optional[List[str]]) -> List[SkillMastery]:
+    def _get_relevant_skills(
+        self, skill_ids: Optional[List[str]]
+    ) -> List[SkillMastery]:
         """获取相关技能
 
         Args:
@@ -136,28 +146,46 @@ class CurriculumAdapter:
         Returns:
             调整建议
         """
-        if avg_mastery >= 0.85 and avg_accuracy >= 0.9 and total_practice >= 10:
+        if (
+            avg_mastery >= 0.85
+            and avg_accuracy >= 0.9
+            and total_practice >= 10
+        ):
             return AdjustmentRecommendation(
-                action=AdjustmentAction.INCREASE_DIFFICULTY, confidence=0.9, reason="表现优秀，可以提升难度"
+                action=AdjustmentAction.INCREASE_DIFFICULTY,
+                confidence=0.9,
+                reason="表现优秀，可以提升难度",
             )
-        elif avg_mastery >= 0.7 and avg_accuracy >= 0.8 and total_practice >= 5:
+        elif (
+            avg_mastery >= 0.7 and avg_accuracy >= 0.8 and total_practice >= 5
+        ):
             return AdjustmentRecommendation(
-                action=AdjustmentAction.MAINTAIN_DIFFICULTY, confidence=0.7, reason="表现稳定，保持当前难度"
+                action=AdjustmentAction.MAINTAIN_DIFFICULTY,
+                confidence=0.7,
+                reason="表现稳定，保持当前难度",
             )
         elif avg_mastery < 0.4 or avg_accuracy < 0.5:
             return AdjustmentRecommendation(
-                action=AdjustmentAction.DECREASE_DIFFICULTY, confidence=0.85, reason="表现不佳，需要降低难度"
+                action=AdjustmentAction.DECREASE_DIFFICULTY,
+                confidence=0.85,
+                reason="表现不佳，需要降低难度",
             )
         elif avg_mastery < 0.6 and total_practice > 15:
             return AdjustmentRecommendation(
-                action=AdjustmentAction.REVIEW_PREVIOUS, confidence=0.75, reason="进步缓慢，建议复习"
+                action=AdjustmentAction.REVIEW_PREVIOUS,
+                confidence=0.75,
+                reason="进步缓慢，建议复习",
             )
         else:
             return AdjustmentRecommendation(
-                action=AdjustmentAction.MAINTAIN_DIFFICULTY, confidence=0.6, reason="表现正常，继续当前节奏"
+                action=AdjustmentAction.MAINTAIN_DIFFICULTY,
+                confidence=0.6,
+                reason="表现正常，继续当前节奏",
             )
 
-    def _get_target_difficulty(self, action: AdjustmentAction, avg_mastery: float) -> DifficultyLevel:
+    def _get_target_difficulty(
+        self, action: AdjustmentAction, avg_mastery: float
+    ) -> DifficultyLevel:
         """根据调整动作获取目标难度
 
         Args:
@@ -197,8 +225,12 @@ class CurriculumAdapter:
                 "reason": "没有历史记录，使用默认设置",
             }
 
-        avg_session_time = sum(s.total_time for s in recent_sessions) / len(recent_sessions)
-        avg_accuracy = sum(s.session_accuracy for s in recent_sessions) / len(recent_sessions)
+        avg_session_time = sum(s.total_time for s in recent_sessions) / len(
+            recent_sessions
+        )
+        avg_accuracy = sum(s.session_accuracy for s in recent_sessions) / len(
+            recent_sessions
+        )
 
         if avg_accuracy > 0.9 and avg_session_time > 60:
             return {
@@ -223,7 +255,9 @@ class CurriculumAdapter:
             }
 
     def plan_learning_path(
-        self, target_skills: List[str], prerequisites: Optional[Dict[str, List[str]]] = None
+        self,
+        target_skills: List[str],
+        prerequisites: Optional[Dict[str, List[str]]] = None,
     ) -> LearningPath:
         """规划学习路径
 
@@ -264,7 +298,9 @@ class CurriculumAdapter:
 
         return path
 
-    def _topological_sort(self, skills: List[str], prerequisites: Dict[str, List[str]]) -> List[str]:
+    def _topological_sort(
+        self, skills: List[str], prerequisites: Dict[str, List[str]]
+    ) -> List[str]:
         """拓扑排序确定学习顺序
 
         Args:
@@ -292,7 +328,9 @@ class CurriculumAdapter:
 
         return result
 
-    def record_adjustment(self, recommendation: AdjustmentRecommendation) -> None:
+    def record_adjustment(
+        self, recommendation: AdjustmentRecommendation
+    ) -> None:
         """记录调整历史
 
         Args:
@@ -301,7 +339,9 @@ class CurriculumAdapter:
         self.adjustment_history.append(recommendation)
         self._save()
 
-    def get_adjustment_history(self, limit: int = 10) -> List[AdjustmentRecommendation]:
+    def get_adjustment_history(
+        self, limit: int = 10
+    ) -> List[AdjustmentRecommendation]:
         """获取调整历史
 
         Args:
@@ -332,16 +372,25 @@ class CurriculumAdapter:
 
                 for path_data in data.get("learning_paths", []):
                     path_data["difficulty_progression"] = [
-                        DifficultyLevel(d) for d in path_data["difficulty_progression"]
+                        DifficultyLevel(d)
+                        for d in path_data["difficulty_progression"]
                     ]
-                    path_data["created_at"] = datetime.fromisoformat(path_data["created_at"])
-                    self.learning_paths[path_data["path_id"]] = LearningPath(**path_data)
+                    path_data["created_at"] = datetime.fromisoformat(
+                        path_data["created_at"]
+                    )
+                    self.learning_paths[path_data["path_id"]] = LearningPath(
+                        **path_data
+                    )
 
                 for rec_data in data.get("adjustment_history", []):
                     rec_data["action"] = AdjustmentAction(rec_data["action"])
                     if rec_data.get("target_difficulty"):
-                        rec_data["target_difficulty"] = DifficultyLevel(rec_data["target_difficulty"])
-                    self.adjustment_history.append(AdjustmentRecommendation(**rec_data))
+                        rec_data["target_difficulty"] = DifficultyLevel(
+                            rec_data["target_difficulty"]
+                        )
+                    self.adjustment_history.append(
+                        AdjustmentRecommendation(**rec_data)
+                    )
 
             except Exception as e:
                 print(f"加载调整器数据失败: {e}")
@@ -355,7 +404,9 @@ class CurriculumAdapter:
         for path in self.learning_paths.values():
             path_dict = {
                 **path.__dict__,
-                "difficulty_progression": [d.value for d in path.difficulty_progression],
+                "difficulty_progression": [
+                    d.value for d in path.difficulty_progression
+                ],
                 "created_at": path.created_at.isoformat(),
             }
             data["learning_paths"].append(path_dict)
@@ -364,7 +415,11 @@ class CurriculumAdapter:
             rec_dict = {
                 **rec.__dict__,
                 "action": rec.action.value,
-                "target_difficulty": rec.target_difficulty.value if rec.target_difficulty else None,
+                "target_difficulty": (
+                    rec.target_difficulty.value
+                    if rec.target_difficulty
+                    else None
+                ),
             }
             data["adjustment_history"].append(rec_dict)
 

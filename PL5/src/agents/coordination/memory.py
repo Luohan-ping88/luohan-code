@@ -64,8 +64,12 @@ class MemoryItem:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "access_count": self.access_count,
-            "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "last_accessed": (
+                self.last_accessed.isoformat() if self.last_accessed else None
+            ),
+            "expires_at": (
+                self.expires_at.isoformat() if self.expires_at else None
+            ),
             "agent_id": self.agent_id,
             "metadata": self.metadata,
         }
@@ -82,8 +86,16 @@ class MemoryItem:
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             access_count=data.get("access_count", 0),
-            last_accessed=datetime.fromisoformat(data["last_accessed"]) if data.get("last_accessed") else None,
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            last_accessed=(
+                datetime.fromisoformat(data["last_accessed"])
+                if data.get("last_accessed")
+                else None
+            ),
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"])
+                if data.get("expires_at")
+                else None
+            ),
             agent_id=data.get("agent_id"),
             metadata=data.get("metadata", {}),
         )
@@ -118,7 +130,9 @@ class ShortTermMemory:
 
     async def _cleanup(self) -> None:
         """清理过期记忆"""
-        to_remove = [mid for mid, item in self.memories.items() if item.is_expired()]
+        to_remove = [
+            mid for mid, item in self.memories.items() if item.is_expired()
+        ]
         for mid in to_remove:
             del self.memories[mid]
 
@@ -127,7 +141,10 @@ class ShortTermMemory:
             del self.memories[oldest.memory_id]
 
     async def search(
-        self, tags: Optional[Set[str]] = None, query: Optional[str] = None, limit: int = 10
+        self,
+        tags: Optional[Set[str]] = None,
+        query: Optional[str] = None,
+        limit: int = 10,
     ) -> List[MemoryItem]:
         """搜索记忆"""
         async with self._lock:
@@ -139,7 +156,11 @@ class ShortTermMemory:
 
             if query:
                 query_lower = query.lower()
-                items = [item for item in items if query_lower in str(item.content).lower()]
+                items = [
+                    item
+                    for item in items
+                    if query_lower in str(item.content).lower()
+                ]
 
             items.sort(key=lambda x: (-x.importance, -x.access_count))
             return items[:limit]
@@ -210,19 +231,32 @@ class LongTermMemory:
             return None
 
     async def search(
-        self, tags: Optional[Set[str]] = None, query: Optional[str] = None, limit: int = 20
+        self,
+        tags: Optional[Set[str]] = None,
+        query: Optional[str] = None,
+        limit: int = 20,
     ) -> List[MemoryItem]:
         """搜索记忆"""
         async with self._lock:
             items = list(self.memories.values())
 
             if tags:
-                matching_ids = set.intersection(*[self._index.get(tag, set()) for tag in tags])
-                items = [self.memories[mid] for mid in matching_ids if mid in self.memories]
+                matching_ids = set.intersection(
+                    *[self._index.get(tag, set()) for tag in tags]
+                )
+                items = [
+                    self.memories[mid]
+                    for mid in matching_ids
+                    if mid in self.memories
+                ]
 
             if query:
                 query_lower = query.lower()
-                items = [item for item in items if query_lower in str(item.content).lower()]
+                items = [
+                    item
+                    for item in items
+                    if query_lower in str(item.content).lower()
+                ]
 
             items.sort(key=lambda x: (-x.importance, -x.access_count))
             return items[:limit]
@@ -313,7 +347,9 @@ class SharedMemorySystem:
 
         return item.memory_id
 
-    async def retrieve(self, memory_id: str, memory_type: Optional[MemoryType] = None) -> Optional[MemoryItem]:
+    async def retrieve(
+        self, memory_id: str, memory_type: Optional[MemoryType] = None
+    ) -> Optional[MemoryItem]:
         """检索记忆"""
         if memory_type in (None, MemoryType.SHORT_TERM):
             item = await self.short_term.get(memory_id)
@@ -346,9 +382,19 @@ class SharedMemorySystem:
         results.sort(key=lambda x: (-x.importance, -x.access_count))
         return results[:limit]
 
-    async def push_working(self, agent_id: str, content: Dict[str, Any], tags: Optional[Set[str]] = None) -> str:
+    async def push_working(
+        self,
+        agent_id: str,
+        content: Dict[str, Any],
+        tags: Optional[Set[str]] = None,
+    ) -> str:
         """推送工作记忆"""
-        item = MemoryItem(memory_type=MemoryType.WORKING, content=content, tags=tags or set(), agent_id=agent_id)
+        item = MemoryItem(
+            memory_type=MemoryType.WORKING,
+            content=content,
+            tags=tags or set(),
+            agent_id=agent_id,
+        )
         working = await self._get_working_memory(agent_id)
         await working.push(item)
         return item.memory_id

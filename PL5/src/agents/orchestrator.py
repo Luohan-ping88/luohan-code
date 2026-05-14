@@ -2,12 +2,10 @@
 智能体编排器 - 协调多个智能体的协作，实现完整的研发流程
 """
 
-import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 import logging
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
 
 from .base_agent import AgentTask
 from .data_agent import DataProcessingAgent
@@ -63,7 +61,9 @@ class AgentOrchestrator:
         self.immune_system = ImmuneSystem(self)
         logger.info("[Orchestrator] 免疫系统已初始化")
 
-    async def execute_full_pipeline(self, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute_full_pipeline(
+        self, params: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """
         执行完整的研发流程流水线
 
@@ -99,12 +99,16 @@ class AgentOrchestrator:
 
             # Stage 2: 特征工程
             logger.info("\n[Stage 2/6] 特征工程")
-            stage2_result = await self._stage_feature_engineering(stage1_result)
+            stage2_result = await self._stage_feature_engineering(
+                stage1_result
+            )
             results["feature_engineering"] = stage2_result
 
             # Stage 3: 研究分析
             logger.info("\n[Stage 3/7] 研究分析")
-            stage3_result = await self._stage_research_analysis(stage1_result, stage2_result)
+            stage3_result = await self._stage_research_analysis(
+                stage1_result, stage2_result
+            )
             results["research_analysis"] = stage3_result
 
             # Stage 4: 模型训练
@@ -114,16 +118,23 @@ class AgentOrchestrator:
 
             # Stage 5: 模型评估
             logger.info("\n[Stage 5/7] 模型评估")
-            stage5_result = await self._stage_model_evaluation(stage4_result, stage2_result)
+            stage5_result = await self._stage_model_evaluation(
+                stage4_result, stage2_result
+            )
             results["model_evaluation"] = stage5_result
 
             if not stage5_result.get("success"):
                 logger.warning("[Orchestrator] 模型评估阶段失败，跳过反馈优化")
-                stage6_result = {"success": False, "error": "Skipped due to evaluation failure"}
+                stage6_result = {
+                    "success": False,
+                    "error": "Skipped due to evaluation failure",
+                }
             else:
                 # Stage 6: 反馈优化
                 logger.info("\n[Stage 6/7] 反馈优化")
-                stage6_result = await self._stage_feedback_optimization(stage5_result)
+                stage6_result = await self._stage_feedback_optimization(
+                    stage5_result
+                )
 
             results["feedback_optimization"] = stage6_result
 
@@ -135,7 +146,9 @@ class AgentOrchestrator:
             execution_time = (datetime.now() - start_time).total_seconds()
 
             logger.info("=" * 80)
-            logger.info(f"[Orchestrator] 完整流程执行完成，总耗时: {execution_time:.2f}s")
+            logger.info(
+                f"[Orchestrator] 完整流程执行完成，总耗时: {execution_time:.2f}s"
+            )
             logger.info("=" * 80)
 
             return {
@@ -161,7 +174,9 @@ class AgentOrchestrator:
                 await self.immune_system.stop()
             self.is_running = False
 
-    async def _stage_data_processing(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_data_processing(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段1: 数据采集与处理"""
         data_agent = self.agents["data"]
 
@@ -205,7 +220,9 @@ class AgentOrchestrator:
             "record_count": result2.data["record_count"],
         }
 
-    async def _stage_feature_engineering(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_feature_engineering(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段2: 特征工程"""
         data_agent = self.agents["data"]
 
@@ -238,13 +255,20 @@ class AgentOrchestrator:
             feature_cols = feature_result.get("feature_cols", [])
 
             # 分析历史模式
-            analysis_result = await research_agent.analyze_historical_patterns(df, feature_cols)
+            analysis_result = await research_agent.analyze_historical_patterns(
+                df, feature_cols
+            )
 
             # 生成研究报告
-            research_report = await research_agent.generate_research_report(analysis_result)
+            research_report = await research_agent.generate_research_report(
+                analysis_result
+            )
 
             # 保存研究报告
-            report_path = Path("results") / f"research_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            report_path = (
+                Path("results")
+                / f"research_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            )
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(research_report, encoding="utf-8")
 
@@ -255,16 +279,24 @@ class AgentOrchestrator:
                 "analysis": analysis_result,
                 "report_path": str(report_path),
                 "report_summary": {
-                    "basic_statistics": analysis_result.get("basic_statistics", {}),
-                    "pattern_analysis": analysis_result.get("pattern_analysis", {}),
-                    "anomaly_detection": analysis_result.get("anomaly_detection", {}),
+                    "basic_statistics": analysis_result.get(
+                        "basic_statistics", {}
+                    ),
+                    "pattern_analysis": analysis_result.get(
+                        "pattern_analysis", {}
+                    ),
+                    "anomaly_detection": analysis_result.get(
+                        "anomaly_detection", {}
+                    ),
                 },
             }
         except Exception as e:
             logger.error("研究分析失败", exception=e)
             return {"success": False, "error": str(e)}
 
-    async def _stage_model_training(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_model_training(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段3: 模型训练"""
         training_agent = self.agents["training"]
 
@@ -283,7 +315,11 @@ class AgentOrchestrator:
         if not result.success:
             return {"success": False, "error": result.error_message}
 
-        return {"success": True, "models": result.data["models"], "positions_trained": result.data["positions_trained"]}
+        return {
+            "success": True,
+            "models": result.data["models"],
+            "positions_trained": result.data["positions_trained"],
+        }
 
     async def _stage_model_evaluation(
         self, train_result: Dict[str, Any], feature_result: Dict[str, Any]
@@ -293,12 +329,18 @@ class AgentOrchestrator:
             eval_agent = self.agents["evaluation"]
         except KeyError:
             logger.error("[Orchestrator] Evaluation agent not found")
-            return {"success": False, "error": "Evaluation agent not initialized"}
+            return {
+                "success": False,
+                "error": "Evaluation agent not initialized",
+            }
 
         # 检查训练结果
         if "models" not in train_result:
             logger.error("[Orchestrator] No models found in training result")
-            return {"success": False, "error": "No models available for evaluation"}
+            return {
+                "success": False,
+                "error": "No models available for evaluation",
+            }
 
         # 4.1 模型评估
         task1 = AgentTask(
@@ -306,7 +348,9 @@ class AgentOrchestrator:
             task_type="model_evaluation",
             params={
                 "models": train_result["models"],
-                "test_data": feature_result["features"].iloc[-100:],  # 最近100条作为测试集
+                "test_data": feature_result["features"].iloc[
+                    -100:
+                ],  # 最近100条作为测试集
                 "feature_cols": feature_result["feature_cols"],
             },
             priority=2,
@@ -314,7 +358,9 @@ class AgentOrchestrator:
         result1 = await eval_agent.run_task(task1)
 
         if not result1.success:
-            logger.warning(f"[Orchestrator] Model evaluation failed: {result1.error_message}")
+            logger.warning(
+                f"[Orchestrator] Model evaluation failed: {result1.error_message}"
+            )
             return {"success": False, "error": result1.error_message}
 
         # 4.2 性能监控
@@ -330,18 +376,24 @@ class AgentOrchestrator:
         performance_metrics = eval_agent.get_performance_metrics()
 
         # 4.4 获取评估统计信息
-        evaluation_statistics = eval_agent.evaluator.get_evaluation_statistics()
+        evaluation_statistics = (
+            eval_agent.evaluator.get_evaluation_statistics()
+        )
 
         return {
             "success": True,
             "evaluation": result1.data,
             "monitoring": result2.data,
             "performance": performance_metrics,
-            "evaluation_history": eval_agent.evaluator.get_evaluation_history(limit=5),
+            "evaluation_history": eval_agent.evaluator.get_evaluation_history(
+                limit=5
+            ),
             "evaluation_statistics": evaluation_statistics,
         }
 
-    async def _stage_feedback_optimization(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_feedback_optimization(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段5: 反馈优化"""
         eval_agent = self.agents["evaluation"]
 
@@ -367,11 +419,16 @@ class AgentOrchestrator:
         return {
             "success": True,
             "feedback": result.data,
-            "need_optimization": len(result.data.get("recommended_actions", [])) > 0,
+            "need_optimization": len(
+                result.data.get("recommended_actions", [])
+            )
+            > 0,
             "performance_metrics": prev_result.get("performance", {}),
         }
 
-    async def _stage_report_generation(self, all_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_report_generation(
+        self, all_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段6: 报告生成"""
         eval_agent = self.agents["evaluation"]
 
@@ -380,12 +437,24 @@ class AgentOrchestrator:
             "overall_accuracy": all_results.get("model_evaluation", {})
             .get("evaluation", {})
             .get("overall_accuracy", 0),
-            "full_match_rate": all_results.get("model_evaluation", {}).get("evaluation", {}).get("full_match_rate", 0),
-            "position_accuracy": all_results.get("model_evaluation", {}).get("evaluation", {}),
-            "feedback": all_results.get("feedback_optimization", {}).get("feedback", {}),
-            "monitoring": all_results.get("model_evaluation", {}).get("monitoring", {}),
-            "performance": all_results.get("model_evaluation", {}).get("performance", {}),
-            "history": all_results.get("model_evaluation", {}).get("evaluation_history", []),
+            "full_match_rate": all_results.get("model_evaluation", {})
+            .get("evaluation", {})
+            .get("full_match_rate", 0),
+            "position_accuracy": all_results.get("model_evaluation", {}).get(
+                "evaluation", {}
+            ),
+            "feedback": all_results.get("feedback_optimization", {}).get(
+                "feedback", {}
+            ),
+            "monitoring": all_results.get("model_evaluation", {}).get(
+                "monitoring", {}
+            ),
+            "performance": all_results.get("model_evaluation", {}).get(
+                "performance", {}
+            ),
+            "history": all_results.get("model_evaluation", {}).get(
+                "evaluation_history", []
+            ),
             "data_processing": all_results.get("data_processing", {}),
             "feature_engineering": all_results.get("feature_engineering", {}),
             "model_training": all_results.get("model_training", {}),
@@ -409,12 +478,18 @@ class AgentOrchestrator:
             "summary": {
                 "overall_accuracy": eval_results["overall_accuracy"],
                 "full_match_rate": eval_results["full_match_rate"],
-                "monitoring_status": eval_results["monitoring"].get("status", "unknown"),
-                "performance_trend": eval_results["performance"].get("accuracy_trend", "N/A"),
+                "monitoring_status": eval_results["monitoring"].get(
+                    "status", "unknown"
+                ),
+                "performance_trend": eval_results["performance"].get(
+                    "accuracy_trend", "N/A"
+                ),
             },
         }
 
-    async def execute_prediction_pipeline(self, latest_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_prediction_pipeline(
+        self, latest_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         执行预测流程
 
@@ -441,34 +516,53 @@ class AgentOrchestrator:
                 predictions = {}
                 for position in ["wan", "qian", "bai", "shi", "ge"]:
                     if position in prediction_data.get("predictions", {}):
-                        top_k = prediction_data["predictions"][position].get("top_k", [])
+                        top_k = prediction_data["predictions"][position].get(
+                            "top_k", []
+                        )
                         if top_k:
-                            predictions[position] = top_k[0]  # 取第一个推荐号码
+                            predictions[position] = top_k[
+                                0
+                            ]  # 取第一个推荐号码
 
                 # 尝试获取评估代理，用于后续可能的评估
                 eval_agent = self.agents.get("evaluation")
                 if eval_agent:
                     # 记录预测结果到评估历史
-                    logger.info("[Orchestrator] 预测结果已生成，准备记录到评估历史")
+                    logger.info(
+                        "[Orchestrator] 预测结果已生成，准备记录到评估历史"
+                    )
 
                 return {
                     "success": True,
                     "predictions": predictions,
                     "timestamp": datetime.now().isoformat(),
-                    "prediction_detail": prediction_data.get("predictions", {}),
+                    "prediction_detail": prediction_data.get(
+                        "predictions", {}
+                    ),
                 }
             else:
                 logger.warning("[Orchestrator] 预测文件不存在")
-                return {"success": True, "predictions": {}, "timestamp": datetime.now().isoformat()}
+                return {
+                    "success": True,
+                    "predictions": {},
+                    "timestamp": datetime.now().isoformat(),
+                }
         except Exception as e:
             logger.error(f"[Orchestrator] 执行预测流程时出错: {e}")
-            return {"success": False, "error": str(e), "timestamp": datetime.now().isoformat()}
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat(),
+            }
 
     def get_status(self) -> Dict[str, Any]:
         """获取编排器状态"""
         return {
             "is_running": self.is_running,
-            "agents": {name: agent.get_metrics() for name, agent in self.agents.items()},
+            "agents": {
+                name: agent.get_metrics()
+                for name, agent in self.agents.items()
+            },
             "pipeline_history": len(self.execution_history),
         }
 
@@ -483,7 +577,9 @@ class AgentOrchestrator:
 
         logger.info("[Orchestrator] 所有智能体已关闭")
 
-    async def collaborative_decision(self, decision_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def collaborative_decision(
+        self, decision_type: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         多Agent协同决策
 
@@ -506,7 +602,9 @@ class AgentOrchestrator:
         opinions = await self._gather_agent_opinions(decision_type, context)
 
         # 综合决策
-        decision = await self._synthesize_decision(decision_type, opinions, context)
+        decision = await self._synthesize_decision(
+            decision_type, opinions, context
+        )
 
         # 缓存决策结果
         self.decision_cache[cache_key] = decision
@@ -524,7 +622,9 @@ class AgentOrchestrator:
         logger.info(f"[Orchestrator] 协同决策完成: {decision_type}")
         return decision
 
-    async def _gather_agent_opinions(self, decision_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _gather_agent_opinions(
+        self, decision_type: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         收集各Agent的意见
         """
@@ -537,7 +637,9 @@ class AgentOrchestrator:
             try:
                 if agent_name == "data":
                     # 数据Agent提供数据质量和特征相关意见
-                    return await agent.analyze_data_quality(context.get("data", {}))
+                    return await agent.analyze_data_quality(
+                        context.get("data", {})
+                    )
                 elif agent_name == "research":
                     # 研究Agent提供模式分析意见
                     # 模拟分析结果，避免实际数据处理错误
@@ -556,19 +658,35 @@ class AgentOrchestrator:
                         "agent": agent_name,
                         "confidence": 0.85,
                         "recommendation": "optimize_features",
-                        "selected_features": context.get("feature_cols", [])[:10],
+                        "selected_features": context.get("feature_cols", [])[
+                            :10
+                        ],
                         "cv_score": 0.65,
                     }
                 elif agent_name == "evaluation":
                     # 评估Agent提供模型性能意见
-                    return {"agent": agent_name, "confidence": 0.8, "recommendation": "evaluate_models"}
+                    return {
+                        "agent": agent_name,
+                        "confidence": 0.8,
+                        "recommendation": "evaluate_models",
+                    }
                 elif agent_name == "training":
                     # 训练Agent提供模型选择意见
-                    return {"agent": agent_name, "confidence": 0.7, "recommendation": "ensemble_models"}
+                    return {
+                        "agent": agent_name,
+                        "confidence": 0.7,
+                        "recommendation": "ensemble_models",
+                    }
                 else:
-                    return {"agent": agent_name, "confidence": 0.5, "recommendation": "default"}
+                    return {
+                        "agent": agent_name,
+                        "confidence": 0.5,
+                        "recommendation": "default",
+                    }
             except Exception as e:
-                logger.error(f"[Orchestrator] 获取{agent_name}意见失败: {str(e)}")
+                logger.error(
+                    f"[Orchestrator] 获取{agent_name}意见失败: {str(e)}"
+                )
                 return {"agent": agent_name, "error": str(e)}
 
         # 并行收集意见
@@ -583,7 +701,9 @@ class AgentOrchestrator:
                 result = await task
                 opinions[agent_name] = result
             except Exception as e:
-                logger.error(f"[Orchestrator] 处理{agent_name}意见失败: {str(e)}")
+                logger.error(
+                    f"[Orchestrator] 处理{agent_name}意见失败: {str(e)}"
+                )
                 opinions[agent_name] = {"error": str(e)}
 
         return opinions
@@ -603,7 +723,10 @@ class AgentOrchestrator:
         return agent_mapping.get(decision_type, agent_mapping["all"])
 
     async def _synthesize_decision(
-        self, decision_type: str, opinions: Dict[str, Any], context: Dict[str, Any]
+        self,
+        decision_type: str,
+        opinions: Dict[str, Any],
+        context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         综合各Agent的意见，做出最终决策
@@ -646,7 +769,9 @@ class AgentOrchestrator:
             "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_collaborative_task(self, task_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_collaborative_task(
+        self, task_type: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         执行协作任务
         """
@@ -660,7 +785,10 @@ class AgentOrchestrator:
             # 预测改进任务
             return await self._improve_prediction(params)
         else:
-            return {"success": False, "error": f"Unknown task type: {task_type}"}
+            return {
+                "success": False,
+                "error": f"Unknown task type: {task_type}",
+            }
 
     async def _optimize_system(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -675,19 +803,27 @@ class AgentOrchestrator:
         # 数据Agent优化建议
         if "data" in self.agents:
             try:
-                data_suggestions = await self.agents["data"].suggest_optimizations()
+                data_suggestions = await self.agents[
+                    "data"
+                ].suggest_optimizations()
                 optimization_suggestions["data"] = data_suggestions
             except Exception as e:
-                logger.error(f"[Orchestrator] 获取数据Agent优化建议失败: {str(e)}")
+                logger.error(
+                    f"[Orchestrator] 获取数据Agent优化建议失败: {str(e)}"
+                )
                 optimization_suggestions["data"] = {"error": str(e)}
 
         # 优化Agent优化建议
         if "optimization" in self.agents:
             try:
-                opt_suggestions = await self.agents["optimization"].suggest_system_optimizations()
+                opt_suggestions = await self.agents[
+                    "optimization"
+                ].suggest_system_optimizations()
                 optimization_suggestions["optimization"] = opt_suggestions
             except Exception as e:
-                logger.error(f"[Orchestrator] 获取优化Agent优化建议失败: {str(e)}")
+                logger.error(
+                    f"[Orchestrator] 获取优化Agent优化建议失败: {str(e)}"
+                )
                 optimization_suggestions["optimization"] = {"error": str(e)}
 
         # 3. 执行优化
@@ -704,7 +840,9 @@ class AgentOrchestrator:
                 }
             except Exception as e:
                 logger.error(f"[Orchestrator] 执行特征优化失败: {str(e)}")
-                optimization_results["feature_optimization"] = {"error": str(e)}
+                optimization_results["feature_optimization"] = {
+                    "error": str(e)
+                }
 
         return {
             "success": True,
@@ -713,14 +851,18 @@ class AgentOrchestrator:
             "results": optimization_results,
         }
 
-    async def _improve_prediction(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _improve_prediction(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         预测改进任务
         """
         # 1. 分析当前预测性能
         if "evaluation" in self.agents:
             try:
-                performance = self.agents["evaluation"].get_performance_metrics()
+                performance = self.agents[
+                    "evaluation"
+                ].get_performance_metrics()
             except Exception as e:
                 logger.error(f"[Orchestrator] 获取性能指标失败: {str(e)}")
                 performance = {}
@@ -745,14 +887,21 @@ class AgentOrchestrator:
         # 3. 优化预测策略
         if "optimization" in self.agents:
             try:
-                strategy = await self.agents["optimization"].optimize_prediction_strategy(performance, patterns)
+                strategy = await self.agents[
+                    "optimization"
+                ].optimize_prediction_strategy(performance, patterns)
             except Exception as e:
                 logger.error(f"[Orchestrator] 优化预测策略失败: {str(e)}")
                 strategy = {}
         else:
             strategy = {}
 
-        return {"success": True, "performance": performance, "patterns": patterns, "strategy": strategy}
+        return {
+            "success": True,
+            "performance": performance,
+            "patterns": patterns,
+            "strategy": strategy,
+        }
 
     def get_collaboration_status(self) -> Dict[str, Any]:
         """
@@ -762,5 +911,9 @@ class AgentOrchestrator:
             "collaboration_history_count": len(self.collaboration_history),
             "decision_cache_size": len(self.decision_cache),
             "agents_available": list(self.agents.keys()),
-            "last_collaboration": self.collaboration_history[-1] if self.collaboration_history else None,
+            "last_collaboration": (
+                self.collaboration_history[-1]
+                if self.collaboration_history
+                else None
+            ),
         }

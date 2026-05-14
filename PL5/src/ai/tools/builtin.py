@@ -1,8 +1,7 @@
 """内置工具"""
 
-import subprocess
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from .base import BaseTool
 from ..ai_types import ToolResult, ToolCategory, ToolParameter
@@ -19,8 +18,16 @@ class SearchTool(BaseTool):
     category = ToolCategory.BUILTIN
     tags = ["search", "web"]
     parameters = [
-        ToolParameter(name="query", type="str", description="搜索查询词", required=True),
-        ToolParameter(name="max_results", type="int", description="最大结果数量", required=False, default=5),
+        ToolParameter(
+            name="query", type="str", description="搜索查询词", required=True
+        ),
+        ToolParameter(
+            name="max_results",
+            type="int",
+            description="最大结果数量",
+            required=False,
+            default=5,
+        ),
     ]
 
     def run(self, parameters: Dict[str, Any]) -> ToolResult:
@@ -31,9 +38,19 @@ class SearchTool(BaseTool):
         try:
             # 这里使用一个简单的模拟实现
             # 实际应用中可以集成Google Search API或其他搜索引擎
-            results = [f"搜索结果 {i+1}: 关于 '{query}' 的信息" for i in range(max_results)]
+            results = [
+                f"搜索结果 {i+1}: 关于 '{query}' 的信息"
+                for i in range(max_results)
+            ]
 
-            return ToolResult(success=True, data={"query": query, "results": results, "total": len(results)})
+            return ToolResult(
+                success=True,
+                data={
+                    "query": query,
+                    "results": results,
+                    "total": len(results),
+                },
+            )
         except Exception as e:
             return ToolResult(success=False, error=f"搜索失败: {str(e)}")
 
@@ -48,7 +65,14 @@ class CalculatorTool(BaseTool):
     description = "执行数学计算"
     category = ToolCategory.BUILTIN
     tags = ["calculator", "math"]
-    parameters = [ToolParameter(name="expression", type="str", description="数学表达式", required=True)]
+    parameters = [
+        ToolParameter(
+            name="expression",
+            type="str",
+            description="数学表达式",
+            required=True,
+        )
+    ]
 
     def run(self, parameters: Dict[str, Any]) -> ToolResult:
         """执行计算"""
@@ -60,12 +84,16 @@ class CalculatorTool(BaseTool):
             allowed_chars = "0123456789.+-*/() "
             for char in expression:
                 if char not in allowed_chars:
-                    return ToolResult(success=False, error="表达式包含不允许的字符")
+                    return ToolResult(
+                        success=False, error="表达式包含不允许的字符"
+                    )
 
             # 计算结果
             result = eval(expression)
 
-            return ToolResult(success=True, data={"expression": expression, "result": result})
+            return ToolResult(
+                success=True, data={"expression": expression, "result": result}
+            )
         except Exception as e:
             return ToolResult(success=False, error=f"计算失败: {str(e)}")
 
@@ -88,10 +116,21 @@ class FileTool(BaseTool):
             required=True,
             enum=["read", "write", "list"],
         ),
-        ToolParameter(name="path", type="str", description="文件路径", required=True),
-        ToolParameter(name="content", type="str", description="文件内容（仅write操作需要）", required=False),
         ToolParameter(
-            name="max_lines", type="int", description="最大读取行数（仅read操作需要）", required=False, default=100
+            name="path", type="str", description="文件路径", required=True
+        ),
+        ToolParameter(
+            name="content",
+            type="str",
+            description="文件内容（仅write操作需要）",
+            required=False,
+        ),
+        ToolParameter(
+            name="max_lines",
+            type="int",
+            description="最大读取行数（仅read操作需要）",
+            required=False,
+            default=100,
         ),
     ]
 
@@ -109,12 +148,22 @@ class FileTool(BaseTool):
                     lines = f.readlines()[:max_lines]
                     file_content = "".join(lines)
 
-                return ToolResult(success=True, data={"path": path, "content": file_content, "lines": len(lines)})
+                return ToolResult(
+                    success=True,
+                    data={
+                        "path": path,
+                        "content": file_content,
+                        "lines": len(lines),
+                    },
+                )
 
             elif action == "write":
                 # 写入文件
                 if content is None:
-                    return ToolResult(success=False, error="Write operation requires content parameter")
+                    return ToolResult(
+                        success=False,
+                        error="Write operation requires content parameter",
+                    )
 
                 # 确保目录存在
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -122,18 +171,32 @@ class FileTool(BaseTool):
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(content)
 
-                return ToolResult(success=True, data={"path": path, "written": True})
+                return ToolResult(
+                    success=True, data={"path": path, "written": True}
+                )
 
             elif action == "list":
                 # 列出目录内容
                 if os.path.isdir(path):
                     files = os.listdir(path)
-                    return ToolResult(success=True, data={"path": path, "files": files, "count": len(files)})
+                    return ToolResult(
+                        success=True,
+                        data={
+                            "path": path,
+                            "files": files,
+                            "count": len(files),
+                        },
+                    )
                 else:
-                    return ToolResult(success=False, error="Path is not a directory")
+                    return ToolResult(
+                        success=False, error="Path is not a directory"
+                    )
 
             else:
-                return ToolResult(success=False, error="Invalid action. Must be one of: read, write, list")
+                return ToolResult(
+                    success=False,
+                    error="Invalid action. Must be one of: read, write, list",
+                )
 
         except Exception as e:
             return ToolResult(success=False, error=f"文件操作失败: {str(e)}")

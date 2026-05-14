@@ -8,11 +8,10 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 from imblearn.over_sampling import SMOTE
 from sklearn.utils import resample
 import warnings
-from pathlib import Path
 from ..utils.logger import logger
 
 warnings.filterwarnings("ignore")
@@ -25,7 +24,11 @@ class DataAugmenter:
         self.augmented_data = []
 
     def smote_augmentation(
-        self, X: np.ndarray, y: np.ndarray, sampling_strategy: str = "auto", k_neighbors: int = 5
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sampling_strategy: str = "auto",
+        k_neighbors: int = 5,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """使用SMOTE技术进行数据增强"""
         try:
@@ -33,9 +36,15 @@ class DataAugmenter:
             if len(y.shape) > 1:
                 y = y.flatten()
 
-            smote = SMOTE(sampling_strategy=sampling_strategy, k_neighbors=k_neighbors, random_state=42)
+            smote = SMOTE(
+                sampling_strategy=sampling_strategy,
+                k_neighbors=k_neighbors,
+                random_state=42,
+            )
             X_resampled, y_resampled = smote.fit_resample(X, y)
-            logger.info(f"SMOTE增强完成，原始样本数: {len(X)}, 增强后样本数: {len(X_resampled)}")
+            logger.info(
+                f"SMOTE增强完成，原始样本数: {len(X)}, 增强后样本数: {len(X_resampled)}"
+            )
             return X_resampled, y_resampled
         except ImportError:
             logger.warning("imbalanced-learn库未安装，跳过SMOTE增强")
@@ -71,7 +80,11 @@ class DataAugmenter:
                 n_samples = target_count - len(X_cls)
                 # 过采样
                 X_cls_resampled, y_cls_resampled = resample(
-                    X_cls, y_cls, replace=True, n_samples=n_samples, random_state=42
+                    X_cls,
+                    y_cls,
+                    replace=True,
+                    n_samples=n_samples,
+                    random_state=42,
                 )
                 # 合并原始样本和过采样样本
                 X_resampled.extend(X_cls)
@@ -90,10 +103,16 @@ class DataAugmenter:
         return X_resampled, y_resampled
 
     def feature_perturbation(
-        self, X: np.ndarray, y: np.ndarray, perturbation_rate: float = 0.1, perturbation_std: float = 0.05
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        perturbation_rate: float = 0.1,
+        perturbation_std: float = 0.05,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """特征扰动增强"""
-        logger.info(f"特征扰动增强，扰动率: {perturbation_rate}, 扰动标准差: {perturbation_std}")
+        logger.info(
+            f"特征扰动增强，扰动率: {perturbation_rate}, 扰动标准差: {perturbation_std}"
+        )
 
         # 复制原始数据
         X_perturbed = X.copy()
@@ -104,7 +123,9 @@ class DataAugmenter:
             # 随机选择要扰动的特征
             n_features = X_perturbed.shape[1]
             n_perturb = int(n_features * perturbation_rate)
-            perturb_indices = np.random.choice(n_features, n_perturb, replace=False)
+            perturb_indices = np.random.choice(
+                n_features, n_perturb, replace=False
+            )
 
             # 对选中的特征添加高斯噪声
             for j in perturb_indices:
@@ -115,9 +136,13 @@ class DataAugmenter:
         logger.info(f"特征扰动增强完成，样本数: {len(X_perturbed)}")
         return X_perturbed, y_perturbed
 
-    def time_series_augmentation(self, df: pd.DataFrame, position: str, n_augment: int = 100) -> pd.DataFrame:
+    def time_series_augmentation(
+        self, df: pd.DataFrame, position: str, n_augment: int = 100
+    ) -> pd.DataFrame:
         """时间序列数据增强"""
-        logger.info(f"时间序列数据增强，位置: {position}, 增强样本数: {n_augment}")
+        logger.info(
+            f"时间序列数据增强，位置: {position}, 增强样本数: {n_augment}"
+        )
 
         # 获取原始时间序列数据
         original_series = df[position].values
@@ -157,7 +182,11 @@ class DataAugmenter:
         return augmented_df
 
     def augment_data(
-        self, df: pd.DataFrame, feature_cols: List[str], target_cols: List[str], augmentation_config: Dict = None
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        target_cols: List[str],
+        augmentation_config: Dict = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """综合数据增强"""
         logger.info("开始综合数据增强...")
@@ -193,7 +222,9 @@ class DataAugmenter:
 
             # 应用时间序列数据增强
             if augmentation_config.get("time_series_augmentation", False):
-                augmented_df = self.time_series_augmentation(df, target_col, augmentation_config.get("n_augment", 500))
+                augmented_df = self.time_series_augmentation(
+                    df, target_col, augmentation_config.get("n_augment", 500)
+                )
                 # 提取特征
                 augmented_X = augmented_df[feature_cols].values
                 augmented_y = augmented_df[target_col].values
@@ -203,5 +234,7 @@ class DataAugmenter:
 
             y_list.append(y)
 
-        logger.info(f"综合数据增强完成，特征维度: {X.shape}, 目标维度: {[len(y) for y in y_list]}")
+        logger.info(
+            f"综合数据增强完成，特征维度: {X.shape}, 目标维度: {[len(y) for y in y_list]}"
+        )
         return X, y_list

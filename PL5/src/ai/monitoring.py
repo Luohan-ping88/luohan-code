@@ -35,7 +35,9 @@ class Logger:
         console_handler.setLevel(self.log_level)
 
         # 配置日志格式
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         console_handler.setFormatter(formatter)
 
         # 添加处理器
@@ -139,10 +141,14 @@ class MetricsCollector:
             **tags: 标签
         """
         with self._lock:
-            metric = Metric(name=name, value=value, timestamp=time.time(), tags=tags)
+            metric = Metric(
+                name=name, value=value, timestamp=time.time(), tags=tags
+            )
             self.metrics.append(metric)
 
-    def get_metrics(self, name: Optional[str] = None, limit: int = 100) -> List[Metric]:
+    def get_metrics(
+        self, name: Optional[str] = None, limit: int = 100
+    ) -> List[Metric]:
         """获取指标
 
         Args:
@@ -230,7 +236,11 @@ class HealthChecker:
                 results[name] = {"status": "error", "message": str(e)}
                 overall_status = "unhealthy"
 
-        return {"status": overall_status, "checks": results, "timestamp": time.time()}
+        return {
+            "status": overall_status,
+            "checks": results,
+            "timestamp": time.time(),
+        }
 
     def is_healthy(self) -> bool:
         """检查系统是否健康
@@ -280,7 +290,9 @@ class AlertManager:
             else:
                 logger.info(message, **details)
 
-    def get_alerts(self, level: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_alerts(
+        self, level: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
         """获取告警
 
         Args:
@@ -365,7 +377,9 @@ class MonitoringSystem:
         """
         self.alert_manager.create_alert(level, message, **details)
 
-    def get_metrics(self, name: Optional[str] = None, limit: int = 100) -> List[Metric]:
+    def get_metrics(
+        self, name: Optional[str] = None, limit: int = 100
+    ) -> List[Metric]:
         """获取指标
 
         Args:
@@ -377,7 +391,9 @@ class MonitoringSystem:
         """
         return self.metrics_collector.get_metrics(name, limit)
 
-    def get_alerts(self, level: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_alerts(
+        self, level: Optional[str] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
         """获取告警
 
         Args:
@@ -435,11 +451,18 @@ def monitored_function(func):
             execution_time = time.time() - start_time
 
             # 记录执行时间
-            monitoring.collect_metric("function_execution_time", execution_time, function=func.__name__)
+            monitoring.collect_metric(
+                "function_execution_time",
+                execution_time,
+                function=func.__name__,
+            )
 
             # 记录成功
             monitoring.log(
-                "info", f"Function executed successfully", function=func.__name__, execution_time=execution_time
+                "info",
+                f"Function executed successfully",
+                function=func.__name__,
+                execution_time=execution_time,
             )
 
             return result
@@ -458,7 +481,10 @@ def monitored_function(func):
 
             # 创建告警
             monitoring.create_alert(
-                "error", f"Function execution failed: {func.__name__}", error=str(e), function=func.__name__
+                "error",
+                f"Function execution failed: {func.__name__}",
+                error=str(e),
+                function=func.__name__,
             )
 
             raise
@@ -472,7 +498,9 @@ class LogRotator:
     管理日志文件的轮转。
     """
 
-    def __init__(self, log_dir: str = "logs", max_size: int = 10 * 1024 * 1024):
+    def __init__(
+        self, log_dir: str = "logs", max_size: int = 10 * 1024 * 1024
+    ):
         """初始化日志轮转器
 
         Args:
@@ -539,7 +567,10 @@ def init_monitoring():
         try:
             registry = get_registry()
             tool_count = len(registry.list_tools())
-            return "healthy", f"Tool registry is healthy with {tool_count} tools"
+            return (
+                "healthy",
+                f"Tool registry is healthy with {tool_count} tools",
+            )
         except Exception as e:
             return "unhealthy", f"Tool registry check failed: {str(e)}"
 
@@ -599,7 +630,15 @@ def register_monitoring_routes(app):
         """获取指标"""
         monitoring = get_monitoring()
         metrics = monitoring.get_metrics(name, limit)
-        return [{"name": m.name, "value": m.value, "timestamp": m.timestamp, "tags": m.tags} for m in metrics]
+        return [
+            {
+                "name": m.name,
+                "value": m.value,
+                "timestamp": m.timestamp,
+                "tags": m.tags,
+            }
+            for m in metrics
+        ]
 
     @router.get("/alerts")
     def get_alerts(level: Optional[str] = None, limit: int = 100):

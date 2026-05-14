@@ -4,10 +4,8 @@
 """
 
 import numpy as np
-import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from typing import Dict, List, Any
 from sklearn.model_selection import cross_val_score, TimeSeriesSplit
 
 from src.core.utils.logger import logger
@@ -37,7 +35,9 @@ class ModelEvaluator:
         self.evaluation_window = evaluation_window
         self.evaluation_history = []
 
-    def evaluate_prediction(self, prediction: Dict[str, List[int]], actual: Dict[str, int]) -> Dict[str, Any]:
+    def evaluate_prediction(
+        self, prediction: Dict[str, List[int]], actual: Dict[str, int]
+    ) -> Dict[str, Any]:
         """评估单个预测结果
 
         Args:
@@ -47,7 +47,11 @@ class ModelEvaluator:
         Returns:
             Dict: 评估结果
         """
-        evaluation = {"timestamp": datetime.now().isoformat(), "positions": {}, "overall": {}}
+        evaluation = {
+            "timestamp": datetime.now().isoformat(),
+            "positions": {},
+            "overall": {},
+        }
 
         total_correct_8 = 0
         total_correct_5 = 0
@@ -94,11 +98,15 @@ class ModelEvaluator:
 
         self.evaluation_history.append(evaluation)
         if len(self.evaluation_history) > self.evaluation_window:
-            self.evaluation_history = self.evaluation_history[-self.evaluation_window :]
+            self.evaluation_history = self.evaluation_history[
+                -self.evaluation_window :
+            ]
 
         return evaluation
 
-    def evaluate_model(self, model, X: np.ndarray, y: np.ndarray, cv: int = 5) -> Dict[str, Any]:
+    def evaluate_model(
+        self, model, X: np.ndarray, y: np.ndarray, cv: int = 5
+    ) -> Dict[str, Any]:
         """评估模型性能
 
         Args:
@@ -113,11 +121,17 @@ class ModelEvaluator:
         tscv = TimeSeriesSplit(n_splits=cv)
 
         # 计算准确率
-        accuracy_scores = cross_val_score(model, X, y, cv=tscv, scoring="accuracy")
+        accuracy_scores = cross_val_score(
+            model, X, y, cv=tscv, scoring="accuracy"
+        )
 
         # 计算精确率、召回率和F1分数
-        precision_scores = cross_val_score(model, X, y, cv=tscv, scoring="precision_macro")
-        recall_scores = cross_val_score(model, X, y, cv=tscv, scoring="recall_macro")
+        precision_scores = cross_val_score(
+            model, X, y, cv=tscv, scoring="precision_macro"
+        )
+        recall_scores = cross_val_score(
+            model, X, y, cv=tscv, scoring="recall_macro"
+        )
         f1_scores = cross_val_score(model, X, y, cv=tscv, scoring="f1_macro")
 
         return {
@@ -131,8 +145,16 @@ class ModelEvaluator:
                 "std": np.std(precision_scores),
                 "scores": precision_scores.tolist(),
             },
-            "recall": {"mean": np.mean(recall_scores), "std": np.std(recall_scores), "scores": recall_scores.tolist()},
-            "f1": {"mean": np.mean(f1_scores), "std": np.std(f1_scores), "scores": f1_scores.tolist()},
+            "recall": {
+                "mean": np.mean(recall_scores),
+                "std": np.std(recall_scores),
+                "scores": recall_scores.tolist(),
+            },
+            "f1": {
+                "mean": np.mean(f1_scores),
+                "std": np.std(f1_scores),
+                "scores": f1_scores.tolist(),
+            },
         }
 
     def get_evaluation_summary(self) -> Dict[str, Any]:
@@ -152,30 +174,50 @@ class ModelEvaluator:
 
         for eval_result in recent_evaluations:
             if "overall" in eval_result:
-                overall_accuracies_8.append(eval_result["overall"].get("accuracy_8", 0))
-                overall_accuracies_5.append(eval_result["overall"].get("accuracy_5", 0))
-                overall_accuracies_3.append(eval_result["overall"].get("accuracy_3", 0))
+                overall_accuracies_8.append(
+                    eval_result["overall"].get("accuracy_8", 0)
+                )
+                overall_accuracies_5.append(
+                    eval_result["overall"].get("accuracy_5", 0)
+                )
+                overall_accuracies_3.append(
+                    eval_result["overall"].get("accuracy_3", 0)
+                )
 
         return {
             "evaluation_count": len(recent_evaluations),
-            "average_accuracy_8": np.mean(overall_accuracies_8) if overall_accuracies_8 else 0,
-            "average_accuracy_5": np.mean(overall_accuracies_5) if overall_accuracies_5 else 0,
-            "average_accuracy_3": np.mean(overall_accuracies_3) if overall_accuracies_3 else 0,
+            "average_accuracy_8": (
+                np.mean(overall_accuracies_8) if overall_accuracies_8 else 0
+            ),
+            "average_accuracy_5": (
+                np.mean(overall_accuracies_5) if overall_accuracies_5 else 0
+            ),
+            "average_accuracy_3": (
+                np.mean(overall_accuracies_3) if overall_accuracies_3 else 0
+            ),
             "target_accuracy_8": self.target_accuracy_8,
             "target_accuracy_5": self.target_accuracy_5,
             "target_accuracy_3": self.target_accuracy_3,
             "meets_target_8": (
-                np.mean(overall_accuracies_8) >= self.target_accuracy_8 if overall_accuracies_8 else False
+                np.mean(overall_accuracies_8) >= self.target_accuracy_8
+                if overall_accuracies_8
+                else False
             ),
             "meets_target_5": (
-                np.mean(overall_accuracies_5) >= self.target_accuracy_5 if overall_accuracies_5 else False
+                np.mean(overall_accuracies_5) >= self.target_accuracy_5
+                if overall_accuracies_5
+                else False
             ),
             "meets_target_3": (
-                np.mean(overall_accuracies_3) >= self.target_accuracy_3 if overall_accuracies_3 else False
+                np.mean(overall_accuracies_3) >= self.target_accuracy_3
+                if overall_accuracies_3
+                else False
             ),
         }
 
-    def suggest_hyperparameters(self, current_params: Dict[str, Any], performance: Dict[str, Any]) -> Dict[str, Any]:
+    def suggest_hyperparameters(
+        self, current_params: Dict[str, Any], performance: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """根据性能建议超参数调整
 
         Args:
@@ -193,19 +235,38 @@ class ModelEvaluator:
         if accuracy < 0.5:
             # 准确率较低，增加模型复杂度
             if "n_layers" in suggested_params:
-                suggested_params["n_layers"] = min(suggested_params["n_layers"] + 1, 6)
+                suggested_params["n_layers"] = min(
+                    suggested_params["n_layers"] + 1, 6
+                )
             if "d_model" in suggested_params:
-                suggested_params["d_model"] = min(suggested_params["d_model"] * 2, 128)
+                suggested_params["d_model"] = min(
+                    suggested_params["d_model"] * 2, 128
+                )
             if "epochs" in suggested_params:
-                suggested_params["epochs"] = min(suggested_params["epochs"] * 2, 200)
+                suggested_params["epochs"] = min(
+                    suggested_params["epochs"] * 2, 200
+                )
         elif accuracy > 0.8:
             # 准确率较高，可以减小模型复杂度以提高速度
-            if "n_layers" in suggested_params and suggested_params["n_layers"] > 2:
+            if (
+                "n_layers" in suggested_params
+                and suggested_params["n_layers"] > 2
+            ):
                 suggested_params["n_layers"] -= 1
-            if "d_model" in suggested_params and suggested_params["d_model"] > 16:
-                suggested_params["d_model"] = max(suggested_params["d_model"] // 2, 16)
-            if "epochs" in suggested_params and suggested_params["epochs"] > 20:
-                suggested_params["epochs"] = max(suggested_params["epochs"] // 2, 20)
+            if (
+                "d_model" in suggested_params
+                and suggested_params["d_model"] > 16
+            ):
+                suggested_params["d_model"] = max(
+                    suggested_params["d_model"] // 2, 16
+                )
+            if (
+                "epochs" in suggested_params
+                and suggested_params["epochs"] > 20
+            ):
+                suggested_params["epochs"] = max(
+                    suggested_params["epochs"] // 2, 20
+                )
 
         return suggested_params
 
@@ -231,7 +292,13 @@ class AutoTuner:
         self.improvement_threshold = improvement_threshold
         self.tuning_history = []
 
-    def tune_model(self, model, X: np.ndarray, y: np.ndarray, param_grid: Dict[str, List[Any]]) -> Dict[str, Any]:
+    def tune_model(
+        self,
+        model,
+        X: np.ndarray,
+        y: np.ndarray,
+        param_grid: Dict[str, List[Any]],
+    ) -> Dict[str, Any]:
         """调优模型参数
 
         Args:
@@ -268,16 +335,24 @@ class AutoTuner:
             accuracy = performance.get("accuracy", {}).get("mean", 0)
 
             # 记录结果
-            self.tuning_history.append({"params": param_dict, "performance": performance})
+            self.tuning_history.append(
+                {"params": param_dict, "performance": performance}
+            )
 
             # 更新最佳参数
             if accuracy > best_score:
                 best_score = accuracy
                 best_params = param_dict
 
-                logger.info(f"找到更好的参数: {param_dict}, 准确率: {accuracy:.4f}")
+                logger.info(
+                    f"找到更好的参数: {param_dict}, 准确率: {accuracy:.4f}"
+                )
 
-        return {"best_params": best_params, "best_score": best_score, "tuning_history": self.tuning_history}
+        return {
+            "best_params": best_params,
+            "best_score": best_score,
+            "tuning_history": self.tuning_history,
+        }
 
     def get_tuning_summary(self) -> Dict[str, Any]:
         """获取调优摘要
@@ -288,12 +363,17 @@ class AutoTuner:
         if not self.tuning_history:
             return {"message": "No tuning history available"}
 
-        best_entry = max(self.tuning_history, key=lambda x: x["performance"].get("accuracy", {}).get("mean", 0))
+        best_entry = max(
+            self.tuning_history,
+            key=lambda x: x["performance"].get("accuracy", {}).get("mean", 0),
+        )
 
         return {
             "tuning_iterations": len(self.tuning_history),
             "best_params": best_entry["params"],
-            "best_accuracy": best_entry["performance"].get("accuracy", {}).get("mean", 0),
+            "best_accuracy": best_entry["performance"]
+            .get("accuracy", {})
+            .get("mean", 0),
             "improvement_threshold": self.improvement_threshold,
         }
 
@@ -321,7 +401,9 @@ def get_auto_tuner() -> AutoTuner:
     return auto_tuner
 
 
-def evaluate_prediction(prediction: Dict[str, List[int]], actual: Dict[str, int]) -> Dict[str, Any]:
+def evaluate_prediction(
+    prediction: Dict[str, List[int]], actual: Dict[str, int]
+) -> Dict[str, Any]:
     """评估单个预测结果
 
     Args:
@@ -334,7 +416,9 @@ def evaluate_prediction(prediction: Dict[str, List[int]], actual: Dict[str, int]
     return model_evaluator.evaluate_prediction(prediction, actual)
 
 
-def evaluate_model(model, X: np.ndarray, y: np.ndarray, cv: int = 5) -> Dict[str, Any]:
+def evaluate_model(
+    model, X: np.ndarray, y: np.ndarray, cv: int = 5
+) -> Dict[str, Any]:
     """评估模型性能
 
     Args:
@@ -358,7 +442,9 @@ def get_evaluation_summary() -> Dict[str, Any]:
     return model_evaluator.get_evaluation_summary()
 
 
-def tune_model(model, X: np.ndarray, y: np.ndarray, param_grid: Dict[str, List[Any]]) -> Dict[str, Any]:
+def tune_model(
+    model, X: np.ndarray, y: np.ndarray, param_grid: Dict[str, List[Any]]
+) -> Dict[str, Any]:
     """调优模型参数
 
     Args:

@@ -3,7 +3,6 @@
 """
 
 import json
-import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -50,16 +49,24 @@ class FeatureConfigManager:
         # 默认配置目录
         if config_dirs is None:
             base_dir = Path(__file__).parent.parent.parent
-            config_dirs = [base_dir / "logs", base_dir / "models", base_dir / "config"]
+            config_dirs = [
+                base_dir / "logs",
+                base_dir / "models",
+                base_dir / "config",
+            ]
 
         self.config_dirs = [Path(d) for d in config_dirs]
         self._cached_config: Optional[FeatureConfig] = None
         self._cached_config_path: Optional[Path] = None
         self._initialized = True
 
-        logger.info(f"[FeatureConfigManager] 初始化完成，配置目录: {self.config_dirs}")
+        logger.info(
+            f"[FeatureConfigManager] 初始化完成，配置目录: {self.config_dirs}"
+        )
 
-    def find_config_file(self, filename: str = "best_feature_config.json") -> Optional[Path]:
+    def find_config_file(
+        self, filename: str = "best_feature_config.json"
+    ) -> Optional[Path]:
         """查找配置文件
 
         Args:
@@ -71,13 +78,17 @@ class FeatureConfigManager:
         for config_dir in self.config_dirs:
             config_path = config_dir / filename
             if config_path.exists():
-                logger.info(f"[FeatureConfigManager] 找到配置文件: {config_path}")
+                logger.info(
+                    f"[FeatureConfigManager] 找到配置文件: {config_path}"
+                )
                 return config_path
 
         logger.warning(f"[FeatureConfigManager] 未找到配置文件: {filename}")
         return None
 
-    def load_config(self, config_path: Optional[Path] = None) -> Optional[FeatureConfig]:
+    def load_config(
+        self, config_path: Optional[Path] = None
+    ) -> Optional[FeatureConfig]:
         """加载特征配置
 
         Args:
@@ -90,7 +101,9 @@ class FeatureConfigManager:
             config_path = self.find_config_file()
 
         if config_path is None or not config_path.exists():
-            logger.warning("[FeatureConfigManager] 配置文件不存在，使用默认配置")
+            logger.warning(
+                "[FeatureConfigManager] 配置文件不存在，使用默认配置"
+            )
             return None
 
         try:
@@ -144,7 +157,9 @@ class FeatureConfigManager:
         if self._cached_config is None:
             self.load_config()
 
-        return self._cached_config.feature_columns if self._cached_config else []
+        return (
+            self._cached_config.feature_columns if self._cached_config else []
+        )
 
     def get_config(self) -> Optional[FeatureConfig]:
         """获取完整配置
@@ -157,7 +172,9 @@ class FeatureConfigManager:
 
         return self._cached_config
 
-    def save_config(self, config: FeatureConfig, config_path: Optional[Path] = None) -> bool:
+    def save_config(
+        self, config: FeatureConfig, config_path: Optional[Path] = None
+    ) -> bool:
         """保存特征配置
 
         Args:
@@ -233,7 +250,12 @@ class FeatureConfigManager:
         config = self.get_config()
 
         if config is None:
-            return {"is_valid": True, "missing_columns": [], "extra_columns": [], "valid_columns": available_columns}
+            return {
+                "is_valid": True,
+                "missing_columns": [],
+                "extra_columns": [],
+                "valid_columns": available_columns,
+            }
 
         config_columns = set(config.feature_columns)
         available_set = set(available_columns)
@@ -255,7 +277,9 @@ class FeatureConfigManager:
         }
 
         if not is_valid:
-            logger.warning(f"[FeatureConfigManager] 配置验证失败: {len(missing)} 个特征列缺失")
+            logger.warning(
+                f"[FeatureConfigManager] 配置验证失败: {len(missing)} 个特征列缺失"
+            )
 
         return result
 
@@ -274,7 +298,11 @@ class FeatureConfigManager:
             "config_source": config.config_source if config else None,
             "validation_score": config.validation_score if config else 0.0,
             "cached": self._cached_config is not None,
-            "cache_path": str(self._cached_config_path) if self._cached_config_path else None,
+            "cache_path": (
+                str(self._cached_config_path)
+                if self._cached_config_path
+                else None
+            ),
         }
 
     def reset(self) -> None:

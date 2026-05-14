@@ -1,11 +1,11 @@
 """向量记忆实现"""
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import List, Any, Optional, Tuple
 from datetime import datetime
 import numpy as np
 
 from .base import BaseMemory
-from ..ai_types import MemoryConfig, MemoryType
+from ..ai_types import MemoryConfig
 
 
 class VectorMemory(BaseMemory):
@@ -120,7 +120,9 @@ class VectorMemory(BaseMemory):
         """获取记忆大小"""
         return len(self._items)
 
-    def search_by_vector(self, query_vector: np.ndarray, top_k: int = 5) -> List[Tuple[Any, float]]:
+    def search_by_vector(
+        self, query_vector: np.ndarray, top_k: int = 5
+    ) -> List[Tuple[Any, float]]:
         """按向量搜索
 
         Args:
@@ -154,7 +156,9 @@ class VectorMemory(BaseMemory):
         except Exception:
             return []
 
-    def search_by_text(self, query: str, top_k: int = 5) -> List[Tuple[Any, float]]:
+    def search_by_text(
+        self, query: str, top_k: int = 5
+    ) -> List[Tuple[Any, float]]:
         """按文本搜索
 
         Args:

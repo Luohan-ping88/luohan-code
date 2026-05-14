@@ -3,7 +3,7 @@
 定义系统中使用的基础类型、数据结构和常量。
 """
 
-from typing import Dict, List, Any, Optional, Callable, TypeVar, Generic, Tuple
+from typing import Dict, List, Any, Optional, Callable, TypeVar
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime

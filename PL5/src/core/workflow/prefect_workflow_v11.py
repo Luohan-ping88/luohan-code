@@ -11,10 +11,10 @@ from prefect import flow, task, get_run_logger
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
-
 # ================================================================
 # Task 1: 数据采集
 # ================================================================
+
 
 @task(
     name="数据采集",
@@ -23,7 +23,7 @@ from typing import Dict, List, Any
     retries=2,
     retry_delay_seconds=30,
     cache_key_fn=None,  # Prefect 3.x不支持cache_policy，使用cache_key_fn
-    cache_expiration=timedelta(hours=1)
+    cache_expiration=timedelta(hours=1),
 )
 def data_fetch() -> Dict[str, Any]:
     """数据采集任务"""
@@ -32,6 +32,7 @@ def data_fetch() -> Dict[str, Any]:
 
     try:
         from src.core.data.collector import PL5DataCollector
+
         collector = PL5DataCollector()
         df = collector.update_data()
 
@@ -40,7 +41,7 @@ def data_fetch() -> Dict[str, Any]:
             "record_count": len(df),
             "latest_period": df["period"].iloc[-1] if not df.empty else None,
             "data_hash": str(hash(df.to_csv())),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"数据采集成功: {result['record_count']} 条记录")
@@ -55,12 +56,13 @@ def data_fetch() -> Dict[str, Any]:
 # Task 2: 评估
 # ================================================================
 
+
 @task(
     name="模型评估",
     description="评估当前模型性能",
     tags=["evaluation", "pl5"],
     retries=1,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 def evaluation(data_result: Dict[str, Any]) -> Dict[str, Any]:
     """模型评估任务"""
@@ -69,6 +71,7 @@ def evaluation(data_result: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         from src.core.evaluation.evaluator import PredictionEvaluator
+
         evaluator = PredictionEvaluator()
         metrics = evaluator.get_evaluation_statistics()
 
@@ -76,7 +79,7 @@ def evaluation(data_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "metrics": metrics,
             "data_result": data_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"模型评估完成: {metrics}")
@@ -91,12 +94,13 @@ def evaluation(data_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 3: 优化
 # ================================================================
 
+
 @task(
     name="策略优化",
     description="优化预测策略",
     tags=["optimization", "pl5"],
     retries=1,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 def optimization(eval_result: Dict[str, Any]) -> Dict[str, Any]:
     """策略优化任务"""
@@ -106,6 +110,7 @@ def optimization(eval_result: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import asyncio
         from src.agents.optimization_agent import OptimizationAgent
+
         agent = OptimizationAgent()
         optimization_result = asyncio.run(agent.suggest_system_optimizations())
 
@@ -113,7 +118,7 @@ def optimization(eval_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "optimization_result": optimization_result,
             "eval_result": eval_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("策略优化完成")
@@ -128,12 +133,13 @@ def optimization(eval_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 4: 训练
 # ================================================================
 
+
 @task(
     name="模型训练",
     description="训练预测模型",
     tags=["training", "pl5"],
     retries=2,
-    retry_delay_seconds=120
+    retry_delay_seconds=120,
 )
 def training(optimization_result: Dict[str, Any]) -> Dict[str, Any]:
     """模型训练任务"""
@@ -143,6 +149,7 @@ def training(optimization_result: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import asyncio
         from src.agents.training_agent import TrainingOptimizationAgent
+
         agent = TrainingOptimizationAgent()
         model_result = asyncio.run(agent._train_all_models({}))
 
@@ -150,10 +157,12 @@ def training(optimization_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "model_result": model_result,
             "optimization_result": optimization_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-        logger.info(f"模型训练完成: {model_result.get('model_count', 0)} 个模型")
+        logger.info(
+            f"模型训练完成: {model_result.get('model_count', 0)} 个模型"
+        )
         return result
 
     except Exception as e:
@@ -165,12 +174,13 @@ def training(optimization_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 5: 增量训练
 # ================================================================
 
+
 @task(
     name="增量训练",
     description="基于新数据进行增量训练",
     tags=["training", "incremental", "pl5"],
     retries=1,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 def incremental_training(training_result: Dict[str, Any]) -> Dict[str, Any]:
     """增量训练任务"""
@@ -179,6 +189,7 @@ def incremental_training(training_result: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         from src.core.models.incremental_learning import IncrementalLearning
+
         incremental = IncrementalLearning()
         incremental_result = incremental.train_incremental()
 
@@ -186,7 +197,7 @@ def incremental_training(training_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "incremental_result": incremental_result,
             "training_result": training_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("增量训练完成")
@@ -201,19 +212,23 @@ def incremental_training(training_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 6-8: 预测验证（并行）
 # ================================================================
 
+
 @task(
     name="第一次预测验证",
     description="验证预测结果一致性",
     tags=["verification", "pl5"],
-    retries=1
+    retries=1,
 )
-def first_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[str, Any]:
+def first_prediction_verification(
+    incremental_result: Dict[str, Any],
+) -> Dict[str, Any]:
     """第一次预测验证任务"""
     logger = get_run_logger()
     logger.info("执行第一次预测验证")
 
     try:
         from src.core.models.predictor import PL5Predictor
+
         predictor = PL5Predictor()
         prediction1 = predictor.predict()
 
@@ -221,7 +236,7 @@ def first_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[st
             "success": True,
             "prediction": prediction1,
             "verification_round": 1,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"第一次验证完成: {prediction1.get('period')}")
@@ -236,15 +251,18 @@ def first_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[st
     name="第二次预测验证",
     description="验证预测结果一致性",
     tags=["verification", "pl5"],
-    retries=1
+    retries=1,
 )
-def second_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[str, Any]:
+def second_prediction_verification(
+    incremental_result: Dict[str, Any],
+) -> Dict[str, Any]:
     """第二次预测验证任务"""
     logger = get_run_logger()
     logger.info("执行第二次预测验证")
 
     try:
         from src.core.models.predictor import PL5Predictor
+
         predictor = PL5Predictor()
         prediction2 = predictor.predict()
 
@@ -252,7 +270,7 @@ def second_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[s
             "success": True,
             "prediction": prediction2,
             "verification_round": 2,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"第二次验证完成: {prediction2.get('period')}")
@@ -267,15 +285,18 @@ def second_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[s
     name="第三次预测验证",
     description="验证预测结果一致性",
     tags=["verification", "pl5"],
-    retries=1
+    retries=1,
 )
-def third_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[str, Any]:
+def third_prediction_verification(
+    incremental_result: Dict[str, Any],
+) -> Dict[str, Any]:
     """第三次预测验证任务"""
     logger = get_run_logger()
     logger.info("执行第三次预测验证")
 
     try:
         from src.core.models.predictor import PL5Predictor
+
         predictor = PL5Predictor()
         prediction3 = predictor.predict()
 
@@ -283,7 +304,7 @@ def third_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[st
             "success": True,
             "prediction": prediction3,
             "verification_round": 3,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"第三次验证完成: {prediction3.get('period')}")
@@ -298,14 +319,15 @@ def third_prediction_verification(incremental_result: Dict[str, Any]) -> Dict[st
 # Task 9: 深度策略优化
 # ================================================================
 
+
 @task(
     name="深度策略优化",
     description="基于多次验证进行深度策略优化",
     tags=["optimization", "deep", "pl5"],
-    retries=1
+    retries=1,
 )
 def deep_strategy_optimization(
-    verifications: List[Dict[str, Any]]
+    verifications: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """深度策略优化任务"""
     logger = get_run_logger()
@@ -313,11 +335,13 @@ def deep_strategy_optimization(
 
     try:
         from src.agents.optimization_agent import OptimizationAgent
+
         agent = OptimizationAgent()
 
         # 汇总三次验证结果
         verification_summary = {
-            f"verification_{i+1}": v["prediction"] for i, v in enumerate(verifications)
+            f"verification_{i+1}": v["prediction"]
+            for i, v in enumerate(verifications)
         }
 
         deep_result = agent.deep_optimize(verification_summary)
@@ -326,7 +350,7 @@ def deep_strategy_optimization(
             "success": True,
             "deep_result": deep_result,
             "verifications": verifications,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("深度策略优化完成")
@@ -341,11 +365,12 @@ def deep_strategy_optimization(
 # Task 10: 预测预览
 # ================================================================
 
+
 @task(
     name="预测预览",
     description="生成最终预测预览",
     tags=["prediction", "preview", "pl5"],
-    retries=1
+    retries=1,
 )
 def prediction_preview(deep_result: Dict[str, Any]) -> Dict[str, Any]:
     """预测预览任务"""
@@ -354,6 +379,7 @@ def prediction_preview(deep_result: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         from src.core.models.predictor import PL5Predictor
+
         predictor = PL5Predictor()
         preview = predictor.predict_preview()
 
@@ -361,7 +387,7 @@ def prediction_preview(deep_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "preview": preview,
             "deep_result": deep_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("预测预览完成")
@@ -376,12 +402,13 @@ def prediction_preview(deep_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 11: 最终预测
 # ================================================================
 
+
 @task(
     name="最终预测",
     description="生成最终预测结果",
     tags=["prediction", "final", "pl5"],
     retries=2,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 def final_prediction(preview_result: Dict[str, Any]) -> Dict[str, Any]:
     """最终预测任务"""
@@ -394,7 +421,7 @@ def final_prediction(preview_result: Dict[str, Any]) -> Dict[str, Any]:
 
         predictor = PL5Predictor()
         predictor.load_models()
-        
+
         features = np.zeros(100)
         prediction = predictor.predict(features)
 
@@ -402,7 +429,7 @@ def final_prediction(preview_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "prediction": prediction,
             "preview_result": preview_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"最终预测完成")
@@ -417,13 +444,16 @@ def final_prediction(preview_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 12: 最终预测验证
 # ================================================================
 
+
 @task(
     name="最终预测验证",
     description="验证最终预测结果",
     tags=["verification", "final", "pl5"],
-    retries=1
+    retries=1,
 )
-def final_prediction_verification(final_result: Dict[str, Any]) -> Dict[str, Any]:
+def final_prediction_verification(
+    final_result: Dict[str, Any],
+) -> Dict[str, Any]:
     """最终预测验证任务"""
     logger = get_run_logger()
     logger.info("执行最终预测验证")
@@ -434,14 +464,16 @@ def final_prediction_verification(final_result: Dict[str, Any]) -> Dict[str, Any
             "has_prediction": "prediction" in final_result,
             "has_fusion": "fusion_result" in final_result,
             "period": final_result.get("prediction", {}).get("period"),
-            "confidence": final_result.get("prediction", {}).get("confidence", 0)
+            "confidence": final_result.get("prediction", {}).get(
+                "confidence", 0
+            ),
         }
 
         result = {
             "success": True,
             "verification": verification,
             "final_result": final_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"最终验证完成: {verification}")
@@ -456,11 +488,12 @@ def final_prediction_verification(final_result: Dict[str, Any]) -> Dict[str, Any
 # Task 13: 售前预测
 # ================================================================
 
+
 @task(
     name="售前预测",
     description="生成售前预测报告",
     tags=["prediction", "pre-sale", "pl5"],
-    retries=1
+    retries=1,
 )
 def pre_sale_prediction(verification_result: Dict[str, Any]) -> Dict[str, Any]:
     """售前预测任务"""
@@ -479,7 +512,7 @@ def pre_sale_prediction(verification_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "pre_sale_report": pre_sale_report,
             "verification_result": verification_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("售前预测完成")
@@ -494,12 +527,13 @@ def pre_sale_prediction(verification_result: Dict[str, Any]) -> Dict[str, Any]:
 # Task 14: 发送报告
 # ================================================================
 
+
 @task(
     name="发送报告",
     description="发送最终预测报告",
     tags=["report", "email", "pl5"],
     retries=3,
-    retry_delay_seconds=60
+    retry_delay_seconds=60,
 )
 def send_report(pre_sale_result: Dict[str, Any]) -> Dict[str, Any]:
     """发送报告任务"""
@@ -518,7 +552,7 @@ def send_report(pre_sale_result: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "email_result": email_result,
             "pre_sale_result": pre_sale_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("报告发送完成")
@@ -533,11 +567,12 @@ def send_report(pre_sale_result: Dict[str, Any]) -> Dict[str, Any]:
 # Main Flow: PL5日循环工作流
 # ================================================================
 
+
 @flow(
     name="PL5日循环工作流",
     description="排列五智能分析系统的日循环预测工作流",
     version="11.0",
-    log_prints=True
+    log_prints=True,
     # schedule将在部署时配置
 )
 def pl5_daily_workflow() -> Dict[str, Any]:
@@ -630,10 +665,11 @@ def pl5_daily_workflow() -> Dict[str, Any]:
 # Sub-Flow: 快速预测工作流（仅核心步骤）
 # ================================================================
 
+
 @flow(
     name="PL5快速预测工作流",
     description="轻量级预测工作流，用于快速预测",
-    version="11.0"
+    version="11.0",
 )
 def pl5_quick_workflow() -> Dict[str, Any]:
     """快速预测工作流 - 仅执行核心预测步骤"""
@@ -647,13 +683,15 @@ def pl5_quick_workflow() -> Dict[str, Any]:
         eval_result = evaluation(data_result)
         optimization_result = optimization(eval_result)
         training_result = training(optimization_result)
-        final_result = final_prediction({"optimization_result": optimization_result})
+        final_result = final_prediction(
+            {"optimization_result": optimization_result}
+        )
 
         result = {
             "success": True,
             "data_result": data_result,
             "final_result": final_result,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("快速预测工作流执行成功")
@@ -679,4 +717,6 @@ if __name__ == "__main__":
 
     print(f"\n✅ 工作流执行完成!")
     print(f"执行时间: {result.get('execution_time', 0):.2f} 秒")
-    print(f"数据记录: {result.get('data_result', {}).get('record_count', 0)} 条")
+    print(
+        f"数据记录: {result.get('data_result', {}).get('record_count', 0)} 条"
+    )

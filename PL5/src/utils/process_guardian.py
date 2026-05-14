@@ -4,7 +4,6 @@
 【修复】精确匹配PL5系统进程，避免误杀外部Python进程
 """
 
-import os
 import sys
 import time
 import psutil
@@ -16,7 +15,10 @@ from datetime import datetime, timedelta
 from threading import Thread, Event
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger("ProcessGuardian")
 
 # PL5系统进程标识关键字（用于精确匹配）
@@ -46,7 +48,9 @@ def _is_in_pl5_project(cmdline_str: str) -> bool:
     """检查命令行是否在PL5项目目录下（避免误杀其他项目）"""
     if not cmdline_str:
         return False
-    return any(path.lower() in cmdline_str.lower() for path in PL5_PROJECT_PATHS)
+    return any(
+        path.lower() in cmdline_str.lower() for path in PL5_PROJECT_PATHS
+    )
 
 
 def _check_module_mode(cmdline_str: str) -> bool:
@@ -55,7 +59,10 @@ def _check_module_mode(cmdline_str: str) -> bool:
         return False
     cmdline_lower = cmdline_str.lower()
     # 模块方式启动：pythonw.exe -m src.app.auto_scheduler_v8
-    if "src.app.auto_scheduler_v8" in cmdline_lower and "python" in cmdline_lower:
+    if (
+        "src.app.auto_scheduler_v8" in cmdline_lower
+        and "python" in cmdline_lower
+    ):
         return True
     return False
 
@@ -86,7 +93,9 @@ def _is_pl5_process_strict(cmdline: list) -> bool:
         return False
 
     # 规则2：必须包含至少一个PL5特定标识符
-    has_pl5_identifier = any(pid in cmdline_str for pid in PL5_PROCESS_IDENTIFIERS)
+    has_pl5_identifier = any(
+        pid in cmdline_str for pid in PL5_PROCESS_IDENTIFIERS
+    )
     if not has_pl5_identifier:
         return False
 
@@ -112,7 +121,12 @@ class ProcessGuardian:
     """
 
     def __init__(self, config_path: str = None):
-        self.config_path = config_path or Path(__file__).parent.parent.parent / "config" / "guardian_config.json"
+        self.config_path = (
+            config_path
+            or Path(__file__).parent.parent.parent
+            / "config"
+            / "guardian_config.json"
+        )
         self.config = self._load_config()
         self.stop_event = Event()
         self.main_process = None
@@ -131,7 +145,12 @@ class ProcessGuardian:
             "main_script": "pl5_intelligent_system.py",
             "service_script": "scripts/service.py",
             "auto_start": True,
-            "health_check": {"enabled": True, "cpu_threshold": 90, "memory_threshold": 90, "disk_threshold": 95},
+            "health_check": {
+                "enabled": True,
+                "cpu_threshold": 90,
+                "memory_threshold": 90,
+                "disk_threshold": 95,
+            },
         }
 
         if Path(self.config_path).exists():
@@ -166,7 +185,9 @@ class ProcessGuardian:
 
     def is_process_running(self, process_name: str = None) -> bool:
         """检查PL5主进程是否运行（精确匹配）"""
-        process_name = process_name or self.config.get("main_script", "pl5_intelligent_system.py")
+        process_name = process_name or self.config.get(
+            "main_script", "pl5_intelligent_system.py"
+        )
 
         for proc in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
@@ -182,9 +203,13 @@ class ProcessGuardian:
 
     def get_process_info(self) -> dict:
         """获取PL5主进程信息（精确匹配）"""
-        process_name = self.config.get("main_script", "pl5_intelligent_system.py")
+        process_name = self.config.get(
+            "main_script", "pl5_intelligent_system.py"
+        )
 
-        for proc in psutil.process_iter(["pid", "name", "cmdline", "cpu_percent", "memory_percent"]):
+        for proc in psutil.process_iter(
+            ["pid", "name", "cmdline", "cpu_percent", "memory_percent"]
+        ):
             try:
                 cmdline = proc.info["cmdline"] or []
                 if self._is_pl5_process(cmdline):
@@ -208,7 +233,12 @@ class ProcessGuardian:
             try:
                 cmdline = proc.info["cmdline"] or []
                 if self._is_pl5_process(cmdline):
-                    pl5_processes.append({"pid": proc.info["pid"], "cmdline": " ".join(cmdline)[:200]})
+                    pl5_processes.append(
+                        {
+                            "pid": proc.info["pid"],
+                            "cmdline": " ".join(cmdline)[:200],
+                        }
+                    )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return pl5_processes
@@ -217,10 +247,16 @@ class ProcessGuardian:
         """检查是否允许重启（防止无限重启）"""
         now = datetime.now()
         # 清理过期的重启记录
-        self.restart_history = [t for t in self.restart_history if now - t < timedelta(seconds=self.restart_window)]
+        self.restart_history = [
+            t
+            for t in self.restart_history
+            if now - t < timedelta(seconds=self.restart_window)
+        ]
 
         if len(self.restart_history) >= self.max_restarts:
-            logger.error(f"重启次数过多 ({len(self.restart_history)}次/{self.restart_window}秒)，停止重启")
+            logger.error(
+                f"重启次数过多 ({len(self.restart_history)}次/{self.restart_window}秒)，停止重启"
+            )
             return False
 
         return True
@@ -232,7 +268,9 @@ class ProcessGuardian:
             return None
 
         try:
-            main_script = self.config.get("main_script", "pl5_intelligent_system.py")
+            main_script = self.config.get(
+                "main_script", "pl5_intelligent_system.py"
+            )
             base_dir = Path(__file__).parent.parent.parent
             script_path = base_dir / main_script
 
@@ -283,7 +321,9 @@ class ProcessGuardian:
             try:
                 pid = proc_info["pid"]
                 proc = psutil.Process(pid)
-                logger.info(f"  终止PL5进程 PID={pid}: {proc_info['cmdline'][:80]}...")
+                logger.info(
+                    f"  终止PL5进程 PID={pid}: {proc_info['cmdline'][:80]}..."
+                )
                 proc.terminate()
 
                 # 等待进程终止
@@ -302,7 +342,11 @@ class ProcessGuardian:
 
     def health_check(self) -> dict:
         """健康检查"""
-        result = {"timestamp": datetime.now().isoformat(), "status": "healthy", "issues": []}
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "status": "healthy",
+            "issues": [],
+        }
 
         # 检查进程状态
         if not self.is_process_running():
@@ -321,10 +365,14 @@ class ProcessGuardian:
             memory_threshold = health_config.get("memory_threshold", 90)
 
             if proc_info.get("cpu_percent", 0) > cpu_threshold:
-                result["issues"].append(f"CPU使用率过高: {proc_info['cpu_percent']:.1f}%")
+                result["issues"].append(
+                    f"CPU使用率过高: {proc_info['cpu_percent']:.1f}%"
+                )
 
             if proc_info.get("memory_percent", 0) > memory_threshold:
-                result["issues"].append(f"内存使用率过高: {proc_info['memory_percent']:.1f}%")
+                result["issues"].append(
+                    f"内存使用率过高: {proc_info['memory_percent']:.1f}%"
+                )
 
         if result["issues"]:
             result["status"] = "warning"
@@ -345,7 +393,10 @@ class ProcessGuardian:
         check_interval = self.config.get("check_interval", 30)
 
         # 启动时如果配置了自动启动，则启动主进程
-        if self.config.get("auto_start", True) and not self.is_process_running():
+        if (
+            self.config.get("auto_start", True)
+            and not self.is_process_running()
+        ):
             logger.info("自动启动主进程")
             self.main_process = self.start_main_process()
 

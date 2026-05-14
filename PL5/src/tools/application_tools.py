@@ -13,12 +13,10 @@ PL5 应用工具层 (Layer 3 - APPLICATION)
 import os
 import json
 import time
-import csv
 import io
 import math
-import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
 import numpy as np
@@ -29,7 +27,6 @@ from .base import (
     ToolResult,
     ToolContext,
     ToolLayer,
-    ErrorInfo,
     register_tool,
     get_registry,
 )
@@ -72,7 +69,9 @@ class DailyReportTool(BaseTool):
     """
 
     name = "daily_report"
-    description = "每日完整分析报告：数据加载→特征工程→预测→诊断→优化建议→格式化输出"
+    description = (
+        "每日完整分析报告：数据加载→特征工程→预测→诊断→优化建议→格式化输出"
+    )
     layer = ToolLayer.APPLICATION
     tags = ["report", "application", "orchestration", "daily"]
 
@@ -130,7 +129,8 @@ class DailyReportTool(BaseTool):
             dl_tool_cls = registry.get("data_loader")
             if dl_tool_cls is None:
                 return ToolResult.error_result(
-                    "未找到 data_loader 工具，请确认 infrastructure 层已注册", code="TOOL_NOT_FOUND_DATA_LOADER"
+                    "未找到 data_loader 工具，请确认 infrastructure 层已注册",
+                    code="TOOL_NOT_FOUND_DATA_LOADER",
                 )
             dl_tool = dl_tool_cls()
 
@@ -146,7 +146,10 @@ class DailyReportTool(BaseTool):
                         break
 
             if data_source is None:
-                return ToolResult.error_result("未指定 data_source 且未找到默认数据文件", code="DATA_SOURCE_MISSING")
+                return ToolResult.error_result(
+                    "未指定 data_source 且未找到默认数据文件",
+                    code="DATA_SOURCE_MISSING",
+                )
 
             dl_result = dl_tool.execute(ctx, path_or_data=data_source)
             if not dl_result.success:
@@ -158,7 +161,9 @@ class DailyReportTool(BaseTool):
 
             raw_data = dl_result.data.get("data")
             if not isinstance(raw_data, pd.DataFrame) or raw_data.empty:
-                return ToolResult.error_result("加载的数据为空或格式不正确", code="EMPTY_RAW_DATA")
+                return ToolResult.error_result(
+                    "加载的数据为空或格式不正确", code="EMPTY_RAW_DATA"
+                )
 
             report_sections["data_loading"] = {
                 "status": "success",
@@ -170,12 +175,17 @@ class DailyReportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[daily_report] 数据加载阶段异常")
-            return ToolResult.error_result(f"数据加载阶段异常: {str(e)}", code="DATA_LOADING_EXCEPTION")
+            return ToolResult.error_result(
+                f"数据加载阶段异常: {str(e)}", code="DATA_LOADING_EXCEPTION"
+            )
 
         try:
             fe_tool_cls = registry.get("feature_engineer")
             if fe_tool_cls is None:
-                return ToolResult.error_result("未找到 feature_engineer 工具", code="TOOL_NOT_FOUND_FEATURE_ENGINEER")
+                return ToolResult.error_result(
+                    "未找到 feature_engineer 工具",
+                    code="TOOL_NOT_FOUND_FEATURE_ENGINEER",
+                )
             fe_tool = fe_tool_cls()
 
             fe_result = fe_tool.execute(ctx, raw_data=raw_data)
@@ -194,7 +204,10 @@ class DailyReportTool(BaseTool):
             }
 
             if not X_list or len(X_list) == 0:
-                return ToolResult.error_result("特征矩阵为空，无法继续预测流程", code="EMPTY_FEATURE_MATRIX")
+                return ToolResult.error_result(
+                    "特征矩阵为空，无法继续预测流程",
+                    code="EMPTY_FEATURE_MATRIX",
+                )
 
             latest_features = (
                 np.array(X_list[-1], dtype=np.float64)
@@ -209,17 +222,26 @@ class DailyReportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[daily_report] 特征工程阶段异常")
-            return ToolResult.error_result(f"特征工程阶段异常: {str(e)}", code="FEATURE_ENGINEERING_EXCEPTION")
+            return ToolResult.error_result(
+                f"特征工程阶段异常: {str(e)}",
+                code="FEATURE_ENGINEERING_EXCEPTION",
+            )
 
         try:
             pred_tool_cls = registry.get("predictor")
             if pred_tool_cls is None:
-                return ToolResult.error_result("未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR")
+                return ToolResult.error_result(
+                    "未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR"
+                )
             pred_tool = pred_tool_cls()
 
             pred_result = pred_tool.execute(
                 ctx,
-                features=latest_features.tolist() if isinstance(latest_features, np.ndarray) else latest_features,
+                features=(
+                    latest_features.tolist()
+                    if isinstance(latest_features, np.ndarray)
+                    else latest_features
+                ),
                 recent_original_data=recent_original,
                 top_k=top_k,
             )
@@ -251,12 +273,17 @@ class DailyReportTool(BaseTool):
                     ma_result = ma_tool.execute(ctx, load_model=True)
                     report_sections["model_analysis"] = {
                         "status": "success" if ma_result.success else "failed",
-                        "health_report": ma_result.data if ma_result.success else None,
+                        "health_report": (
+                            ma_result.data if ma_result.success else None
+                        ),
                     }
 
             except Exception as e:
                 ctx.log.warning(f"[daily_report] 模型诊断跳过: {e}")
-                report_sections["model_analysis"] = {"status": "skipped", "reason": str(e)}
+                report_sections["model_analysis"] = {
+                    "status": "skipped",
+                    "reason": str(e),
+                }
 
         if include_optimization:
             try:
@@ -266,12 +293,17 @@ class DailyReportTool(BaseTool):
                     oa_result = oa_tool.execute(ctx)
                     report_sections["optimization"] = {
                         "status": "success" if oa_result.success else "failed",
-                        "suggestions": oa_result.data if oa_result.success else None,
+                        "suggestions": (
+                            oa_result.data if oa_result.success else None
+                        ),
                     }
 
             except Exception as e:
                 ctx.log.warning(f"[daily_report] 优化建议跳过: {e}")
-                report_sections["optimization"] = {"status": "skipped", "reason": str(e)}
+                report_sections["optimization"] = {
+                    "status": "skipped",
+                    "reason": str(e),
+                }
 
         elapsed_ms = (time.time() - start_time) * 1000
 
@@ -279,7 +311,8 @@ class DailyReportTool(BaseTool):
         risk_alerts = self._generate_risk_alerts(report_sections)
 
         final_report = {
-            "period": period or f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "period": period
+            or f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "generated_at": datetime.now().isoformat(),
             "sections": report_sections,
             "confidence_analysis": confidence_analysis,
@@ -292,7 +325,9 @@ class DailyReportTool(BaseTool):
         ctx.set("last_daily_report", final_report)
         ctx.record_metric("daily_report.elapsed_ms", elapsed_ms)
         ctx.record_metric("daily_report.sections_count", len(report_sections))
-        ctx.record_metric("daily_report.has_errors", int(len(pipeline_errors) > 0))
+        ctx.record_metric(
+            "daily_report.has_errors", int(len(pipeline_errors) > 0)
+        )
 
         return ToolResult.success_result(
             data={
@@ -322,7 +357,11 @@ class DailyReportTool(BaseTool):
     @staticmethod
     def _build_confidence_analysis(sections: Dict) -> Dict:
         pred_section = sections.get("prediction", {})
-        summary = pred_section.get("summary") if isinstance(pred_section.get("summary"), dict) else {}
+        summary = (
+            pred_section.get("summary")
+            if isinstance(pred_section.get("summary"), dict)
+            else {}
+        )
         avg_uncertainty = summary.get("avg_uncertainty", 0.5)
 
         if avg_uncertainty < 0.2:
@@ -338,16 +377,28 @@ class DailyReportTool(BaseTool):
             level = "very_low"
             description = "模型置信度很低，强烈建议人工复核后决策"
 
-        model_status = sections.get("model_analysis", {}).get("status", "unknown")
+        model_status = sections.get("model_analysis", {}).get(
+            "status", "unknown"
+        )
         has_urgent_suggestions = False
         opt_section = sections.get("optimization", {})
         if isinstance(opt_section.get("suggestions"), dict):
-            has_urgent_suggestions = opt_section["suggestions"].get("summary", {}).get("has_urgent", False)
+            has_urgent_suggestions = (
+                opt_section["suggestions"]
+                .get("summary", {})
+                .get("has_urgent", False)
+            )
 
         overall_confidence = level
         if model_status in ("failed", "error"):
             overall_confidence = (
-                min(level, "low", key=lambda x: ["high", "medium", "low", "very_low"].index(x))
+                min(
+                    level,
+                    "low",
+                    key=lambda x: ["high", "medium", "low", "very_low"].index(
+                        x
+                    ),
+                )
                 if level != "very_low"
                 else "very_low"
             )
@@ -376,7 +427,11 @@ class DailyReportTool(BaseTool):
                 }
             )
 
-        summary = pred_section.get("summary") if isinstance(pred_section.get("summary"), dict) else {}
+        summary = (
+            pred_section.get("summary")
+            if isinstance(pred_section.get("summary"), dict)
+            else {}
+        )
         avg_unc = summary.get("avg_uncertainty", 0)
         if avg_unc > 0.6:
             alerts.append(
@@ -388,7 +443,11 @@ class DailyReportTool(BaseTool):
             )
 
         ma_section = sections.get("model_analysis", {})
-        health = ma_section.get("health_report") if isinstance(ma_section.get("health_report"), dict) else {}
+        health = (
+            ma_section.get("health_report")
+            if isinstance(ma_section.get("health_report"), dict)
+            else {}
+        )
         integrity = health.get("integrity_check", {})
         if isinstance(integrity, dict) and not integrity.get("valid", True):
             alerts.append(
@@ -402,7 +461,9 @@ class DailyReportTool(BaseTool):
         components = health.get("components", {})
         if isinstance(components, dict):
             unloaded = [
-                name for name, info in components.items() if isinstance(info, dict) and not info.get("loaded", True)
+                name
+                for name, info in components.items()
+                if isinstance(info, dict) and not info.get("loaded", True)
             ]
             if unloaded:
                 alerts.append(
@@ -414,8 +475,14 @@ class DailyReportTool(BaseTool):
                 )
 
         opt_section = sections.get("optimization", {})
-        suggestions = opt_section.get("suggestions") if isinstance(opt_section.get("suggestions"), dict) else {}
-        if isinstance(suggestions.get("summary", dict), dict) and suggestions["summary"].get("has_urgent"):
+        suggestions = (
+            opt_section.get("suggestions")
+            if isinstance(opt_section.get("suggestions"), dict)
+            else {}
+        )
+        if isinstance(suggestions.get("summary", dict), dict) and suggestions[
+            "summary"
+        ].get("has_urgent"):
             alerts.append(
                 {
                     "level": "important",
@@ -439,25 +506,47 @@ class DailyReportTool(BaseTool):
     def _build_report_summary(report: Dict) -> Dict:
         sections = report.get("sections", {})
         pred_sec = sections.get("prediction", {})
-        summary = pred_sec.get("summary") if isinstance(pred_sec.get("summary"), dict) else {}
-        positions_detail = summary.get("positions", {}) if isinstance(summary.get("positions"), dict) else {}
+        summary = (
+            pred_sec.get("summary")
+            if isinstance(pred_sec.get("summary"), dict)
+            else {}
+        )
+        positions_detail = (
+            summary.get("positions", {})
+            if isinstance(summary.get("positions"), dict)
+            else {}
+        )
 
         top_recommendations = {}
         for pos, detail in positions_detail.items():
             if isinstance(detail, dict):
-                top_recommendations[pos] = detail.get("top_k_recommendations", [])
+                top_recommendations[pos] = detail.get(
+                    "top_k_recommendations", []
+                )
 
         conf = report.get("confidence_analysis", {})
-        alert_count = sum(1 for a in report.get("risk_alerts", []) if a.get("level") in ("urgent", "warning"))
+        alert_count = sum(
+            1
+            for a in report.get("risk_alerts", [])
+            if a.get("level") in ("urgent", "warning")
+        )
 
         return {
             "period": report.get("period"),
-            "overall_status": "healthy" if alert_count == 0 else "attention_required",
+            "overall_status": (
+                "healthy" if alert_count == 0 else "attention_required"
+            ),
             "alert_count": alert_count,
             "confidence_level": conf.get("overall_confidence", "unknown"),
             "top_recommendations": top_recommendations,
-            "sections_completed": [k for k, v in sections.items() if v.get("status") == "success"],
-            "sections_failed_or_skipped": [k for k, v in sections.items() if v.get("status") not in ("success",)],
+            "sections_completed": [
+                k for k, v in sections.items() if v.get("status") == "success"
+            ],
+            "sections_failed_or_skipped": [
+                k
+                for k, v in sections.items()
+                if v.get("status") not in ("success",)
+            ],
         }
 
 
@@ -489,7 +578,9 @@ class QuickPredictTool(BaseTool):
     """
 
     name = "quick_predict"
-    description = "快速简化预测：输入期号或最近号码→自动构建特征→输出Top-N推荐+置信度"
+    description = (
+        "快速简化预测：输入期号或最近号码→自动构建特征→输出Top-N推荐+置信度"
+    )
     layer = ToolLayer.APPLICATION
     tags = ["prediction", "application", "quick", "user_friendly"]
 
@@ -535,7 +626,10 @@ class QuickPredictTool(BaseTool):
         auto_load = kwargs.get("auto_load", True)
 
         if not period and not recent_numbers:
-            return ToolResult.error_result("必须提供 period 或 recent_numbers 中的至少一个参数", code="MISSING_INPUT")
+            return ToolResult.error_result(
+                "必须提供 period 或 recent_numbers 中的至少一个参数",
+                code="MISSING_INPUT",
+            )
 
         if recent_numbers is not None:
             if not isinstance(recent_numbers, (list, tuple)):
@@ -551,25 +645,41 @@ class QuickPredictTool(BaseTool):
             for i, num in enumerate(recent_numbers):
                 if not isinstance(num, int) or num < 0 or num > 9:
                     return ToolResult.error_result(
-                        f"recent_numbers[{i}]={num} 无效，每个元素必须是 0-9 的整数", code="INVALID_NUMBER_VALUE"
+                        f"recent_numbers[{i}]={num} 无效，每个元素必须是 0-9 的整数",
+                        code="INVALID_NUMBER_VALUE",
                     )
 
         registry = get_registry()
 
         try:
-            features = self._resolve_features(ctx, registry, period, recent_numbers, auto_load)
+            features = self._resolve_features(
+                ctx, registry, period, recent_numbers, auto_load
+            )
             if features is None:
-                return ToolResult.error_result("特征构建失败，无法进行预测", code="FEATURE_RESOLUTION_FAILED")
+                return ToolResult.error_result(
+                    "特征构建失败，无法进行预测",
+                    code="FEATURE_RESOLUTION_FAILED",
+                )
 
             pred_tool_cls = registry.get("predictor")
             if pred_tool_cls is None:
-                return ToolResult.error_result("未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR")
+                return ToolResult.error_result(
+                    "未找到 predictor 工具", code="TOOL_NOT_FOUND_PREDICTOR"
+                )
             pred_tool = pred_tool_cls()
 
-            recent_original = self._build_recent_from_numbers(recent_numbers) if recent_numbers else None
+            recent_original = (
+                self._build_recent_from_numbers(recent_numbers)
+                if recent_numbers
+                else None
+            )
             pred_result = pred_tool.execute(
                 ctx,
-                features=features.tolist() if isinstance(features, np.ndarray) else features,
+                features=(
+                    features.tolist()
+                    if isinstance(features, np.ndarray)
+                    else features
+                ),
                 recent_original_data=recent_original,
                 top_k=top_k,
             )
@@ -583,7 +693,9 @@ class QuickPredictTool(BaseTool):
             predictions = pred_result.data.get("predictions", {})
             summary = pred_result.data.get("summary", {})
 
-            recommendations, best_pick, confidence = self._format_quick_output(predictions, summary, top_k)
+            recommendations, best_pick, confidence = self._format_quick_output(
+                predictions, summary, top_k
+            )
             quick_summary = self._generate_quick_summary(best_pick, confidence)
 
             ctx.set(
@@ -595,7 +707,10 @@ class QuickPredictTool(BaseTool):
                 },
             )
             ctx.record_metric("quick_predict.top_k", top_k)
-            ctx.record_metric("quick_predict.confidence_level", confidence.get("level", "unknown"))
+            ctx.record_metric(
+                "quick_predict.confidence_level",
+                confidence.get("level", "unknown"),
+            )
 
             return ToolResult.success_result(
                 data={
@@ -604,17 +719,26 @@ class QuickPredictTool(BaseTool):
                     "confidence": confidence,
                     "quick_summary": quick_summary,
                     "period": period,
-                    "input_mode": "numbers" if recent_numbers else "period_auto",
+                    "input_mode": (
+                        "numbers" if recent_numbers else "period_auto"
+                    ),
                 },
                 tool_name=self.name,
             )
 
         except Exception as e:
             ctx.log.exception("[quick_predict] 执行异常")
-            return ToolResult.error_result(f"快速预测执行异常: {str(e)}", code="QUICK_PREDICT_EXCEPTION")
+            return ToolResult.error_result(
+                f"快速预测执行异常: {str(e)}", code="QUICK_PREDICT_EXCEPTION"
+            )
 
     def _resolve_features(
-        self, ctx: ToolContext, registry, period: Optional[str], recent_numbers: Optional[List[int]], auto_load: bool
+        self,
+        ctx: ToolContext,
+        registry,
+        period: Optional[str],
+        recent_numbers: Optional[List[int]],
+        auto_load: bool,
     ) -> Optional[np.ndarray]:
         if recent_numbers is not None:
             return self._features_from_numbers(ctx, registry, recent_numbers)
@@ -622,7 +746,9 @@ class QuickPredictTool(BaseTool):
             return self._features_from_period(ctx, registry, period)
         return None
 
-    def _features_from_numbers(self, ctx: ToolContext, registry, numbers: List[int]) -> Optional[np.ndarray]:
+    def _features_from_numbers(
+        self, ctx: ToolContext, registry, numbers: List[int]
+    ) -> Optional[np.ndarray]:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         row = {"period": "manual_input"}
         for i, pos in enumerate(POSITIONS):
@@ -632,7 +758,9 @@ class QuickPredictTool(BaseTool):
 
         fe_tool_cls = registry.get("feature_engineer")
         if fe_tool_cls is None:
-            ctx.log.warning("[quick_predict] feature_engineer 未注册，使用零向量作为特征")
+            ctx.log.warning(
+                "[quick_predict] feature_engineer 未注册，使用零向量作为特征"
+            )
             return np.zeros(100, dtype=np.float64)
 
         fe_tool = fe_tool_cls()
@@ -651,7 +779,9 @@ class QuickPredictTool(BaseTool):
             else np.zeros(100, dtype=np.float64)
         )
 
-    def _features_from_period(self, ctx: ToolContext, registry, period: str) -> Optional[np.ndarray]:
+    def _features_from_period(
+        self, ctx: ToolContext, registry, period: str
+    ) -> Optional[np.ndarray]:
         dl_tool_cls = registry.get("data_loader")
         if dl_tool_cls is None:
             return None
@@ -702,12 +832,18 @@ class QuickPredictTool(BaseTool):
         return result
 
     @staticmethod
-    def _format_quick_output(predictions: Dict, summary: Dict, top_k: int) -> Tuple[Dict, Dict, Dict]:
+    def _format_quick_output(
+        predictions: Dict, summary: Dict, top_k: int
+    ) -> Tuple[Dict, Dict, Dict]:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         recommendations = {}
         best_pick = {}
 
-        positions_detail = summary.get("positions", {}) if isinstance(summary.get("positions"), dict) else {}
+        positions_detail = (
+            summary.get("positions", {})
+            if isinstance(summary.get("positions"), dict)
+            else {}
+        )
         avg_uncertainty = summary.get("avg_uncertainty", 0.5)
 
         for pos in POSITIONS:
@@ -715,7 +851,9 @@ class QuickPredictTool(BaseTool):
                 top_k_list = predictions[pos].get("top_k", [])
                 recommendations[pos] = {
                     "top_k": top_k_list[:top_k],
-                    "uncertainty": round(predictions[pos].get("uncertainty", 0.0), 4),
+                    "uncertainty": round(
+                        predictions[pos].get("uncertainty", 0.0), 4
+                    ),
                 }
                 if top_k_list:
                     best_pick[pos] = top_k_list[0]
@@ -808,7 +946,9 @@ class BacktestTool(BaseTool):
     """
 
     name = "backtest"
-    description = "策略历史回测：逐期预测+实际对比→命中率/TopN准确率/趋势图/最优参数建议"
+    description = (
+        "策略历史回测：逐期预测+实际对比→命中率/TopN准确率/趋势图/最优参数建议"
+    )
     layer = ToolLayer.APPLICATION
     tags = ["backtest", "application", "evaluation", "history"]
 
@@ -838,7 +978,10 @@ class BacktestTool(BaseTool):
     output_schema = {
         "type": "object",
         "properties": {
-            "backtest_report": {"type": "object", "description": "完整回测报告"},
+            "backtest_report": {
+                "type": "object",
+                "description": "完整回测报告",
+            },
             "summary": {"type": "object", "description": "回测摘要"},
         },
     }
@@ -850,7 +993,10 @@ class BacktestTool(BaseTool):
         data_source = kwargs.get("data_source")
 
         if not start_period or not end_period:
-            return ToolResult.error_result("start_period 和 end_period 为必填参数", code="MISSING_PERIOD_RANGE")
+            return ToolResult.error_result(
+                "start_period 和 end_period 为必填参数",
+                code="MISSING_PERIOD_RANGE",
+            )
 
         top_k = strategy_config.get("top_k", 8)
         window_size = strategy_config.get("window_size", 50)
@@ -862,16 +1008,25 @@ class BacktestTool(BaseTool):
         try:
             dl_tool_cls = registry.get("data_loader")
             if dl_tool_cls is None:
-                return ToolResult.error_result("未找到 data_loader 工具", code="TOOL_NOT_FOUND_DATA_LOADER")
+                return ToolResult.error_result(
+                    "未找到 data_loader 工具",
+                    code="TOOL_NOT_FOUND_DATA_LOADER",
+                )
             dl_tool = dl_tool_cls()
 
             if data_source is None:
-                for p in ["data/pl5_history.csv", "data/latest.csv", "pl5_data.csv"]:
+                for p in [
+                    "data/pl5_history.csv",
+                    "data/latest.csv",
+                    "pl5_data.csv",
+                ]:
                     if os.path.exists(p):
                         data_source = p
                         break
             if data_source is None:
-                return ToolResult.error_result("未找到数据源文件", code="DATA_SOURCE_NOT_FOUND")
+                return ToolResult.error_result(
+                    "未找到数据源文件", code="DATA_SOURCE_NOT_FOUND"
+                )
 
             dl_result = dl_tool.execute(ctx, path_or_data=data_source)
             if not dl_result.success:
@@ -882,24 +1037,35 @@ class BacktestTool(BaseTool):
 
             full_data = dl_result.data.get("data")
             if not isinstance(full_data, pd.DataFrame) or full_data.empty:
-                return ToolResult.error_result("数据为空或格式错误", code="EMPTY_DATA")
+                return ToolResult.error_result(
+                    "数据为空或格式错误", code="EMPTY_DATA"
+                )
 
         except Exception as e:
             ctx.log.exception("[backtest] 数据加载异常")
-            return ToolResult.error_result(f"数据加载异常: {str(e)}", code="DATA_LOAD_EXCEPTION")
+            return ToolResult.error_result(
+                f"数据加载异常: {str(e)}", code="DATA_LOAD_EXCEPTION"
+            )
 
         try:
-            filtered_data = self._filter_by_period_range(full_data, start_period, end_period)
+            filtered_data = self._filter_by_period_range(
+                full_data, start_period, end_period
+            )
             if filtered_data.empty:
                 return ToolResult.error_result(
-                    f"在 [{start_period}, {end_period}] 范围内未找到有效数据", code="NO_DATA_IN_RANGE"
+                    f"在 [{start_period}, {end_period}] 范围内未找到有效数据",
+                    code="NO_DATA_IN_RANGE",
                 )
 
             total_periods = len(filtered_data)
-            ctx.log.info(f"[backtest] 回测范围: {total_periods} 期 ({start_period} ~ {end_period})")
+            ctx.log.info(
+                f"[backtest] 回测范围: {total_periods} 期 ({start_period} ~ {end_period})"
+            )
 
         except Exception as e:
-            return ToolResult.error_result(f"期间筛选失败: {str(e)}", code="PERIOD_FILTER_FAILED")
+            return ToolResult.error_result(
+                f"期间筛选失败: {str(e)}", code="PERIOD_FILTER_FAILED"
+            )
 
         backtest_results = []
         prediction_records = []
@@ -909,7 +1075,10 @@ class BacktestTool(BaseTool):
             pred_tool_cls = registry.get("predictor")
             fe_tool_cls = registry.get("feature_engineer")
             if pred_tool_cls is None or fe_tool_cls is None:
-                return ToolResult.error_result("predictor 或 feature_engineer 工具未注册", code="CORE_TOOLS_NOT_FOUND")
+                return ToolResult.error_result(
+                    "predictor 或 feature_engineer 工具未注册",
+                    code="CORE_TOOLS_NOT_FOUND",
+                )
             pred_tool = pred_tool_cls()
             fe_tool = fe_tool_cls()
 
@@ -918,14 +1087,19 @@ class BacktestTool(BaseTool):
 
             for idx in predict_indices:
                 current_period = periods_list[idx]
-                train_slice = filtered_data.iloc[max(0, idx - window_size) : idx]
+                train_slice = filtered_data.iloc[
+                    max(0, idx - window_size) : idx
+                ]
 
                 if train_slice.empty:
                     continue
 
                 try:
                     fe_result = fe_tool.execute(ctx, raw_data=train_slice)
-                    if not fe_result.success or fe_result.data.get("X") is None:
+                    if (
+                        not fe_result.success
+                        or fe_result.data.get("X") is None
+                    ):
                         continue
 
                     X_list = fe_result.data["X"]
@@ -936,7 +1110,9 @@ class BacktestTool(BaseTool):
                     if latest_features.ndim == 2:
                         latest_features = latest_features.flatten()
 
-                    recent_original = self._extract_backtest_recent(train_slice)
+                    recent_original = self._extract_backtest_recent(
+                        train_slice
+                    )
 
                     pred_result = pred_tool.execute(
                         ctx,
@@ -956,19 +1132,25 @@ class BacktestTool(BaseTool):
                             "ge": int(actual_row.get("ge", -1)),
                         }
 
-                        period_metrics = self._compute_period_metrics(pred_data, actual_dict, top_k)
+                        period_metrics = self._compute_period_metrics(
+                            pred_data, actual_dict, top_k
+                        )
                         period_metrics["period"] = str(current_period)
                         backtest_results.append(period_metrics)
                         prediction_records.append(pred_data)
                         actual_records.append(actual_dict)
 
                 except Exception as loop_e:
-                    ctx.log.debug(f"[backtest] 期号 {current_period} 回测跳过: {loop_e}")
+                    ctx.log.debug(
+                        f"[backtest] 期号 {current_period} 回测跳过: {loop_e}"
+                    )
                     continue
 
         except Exception as e:
             ctx.log.exception("[backtest] 回测循环异常")
-            return ToolResult.error_result(f"回测过程异常: {str(e)}", code="BACKTEST_LOOP_EXCEPTION")
+            return ToolResult.error_result(
+                f"回测过程异常: {str(e)}", code="BACKTEST_LOOP_EXCEPTION"
+            )
 
         if not backtest_results:
             return ToolResult.success_result(
@@ -998,7 +1180,9 @@ class BacktestTool(BaseTool):
         ctx.set("last_backtest_report", report)
         ctx.record_metric("backtest.total_periods", total_periods)
         ctx.record_metric("backtest.valid_predictions", len(backtest_results))
-        ctx.record_metric("backtest.overall_hit_rate", report["summary"]["overall_hit_rate"])
+        ctx.record_metric(
+            "backtest.overall_hit_rate", report["summary"]["overall_hit_rate"]
+        )
 
         return ToolResult.success_result(
             data={
@@ -1009,7 +1193,9 @@ class BacktestTool(BaseTool):
         )
 
     @staticmethod
-    def _filter_by_period_range(df: pd.DataFrame, start_p: str, end_p: str) -> pd.DataFrame:
+    def _filter_by_period_range(
+        df: pd.DataFrame, start_p: str, end_p: str
+    ) -> pd.DataFrame:
         if "period" not in df.columns:
             return df.head(0)
         period_col = df["period"].astype(str)
@@ -1026,7 +1212,9 @@ class BacktestTool(BaseTool):
         return recent
 
     @staticmethod
-    def _compute_period_metrics(prediction: Dict, actual: Dict, top_k: int) -> Dict:
+    def _compute_period_metrics(
+        prediction: Dict, actual: Dict, top_k: int
+    ) -> Dict:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         position_hits = {}
         position_top3_hits = {}
@@ -1093,7 +1281,11 @@ class BacktestTool(BaseTool):
         position_stats = {}
         for pos in POSITIONS:
             pos_hits = [r["position_hits"].get(pos, 0) for r in results]
-            pos_total = sum(1 for r in results if r["valid_positions"] > 0 and pos in r["position_hits"])
+            pos_total = sum(
+                1
+                for r in results
+                if r["valid_positions"] > 0 and pos in r["position_hits"]
+            )
             position_stats[pos] = {
                 "hits": sum(pos_hits),
                 "total": pos_total,
@@ -1115,7 +1307,10 @@ class BacktestTool(BaseTool):
         for i, t in enumerate(trend_data):
             entry = dict(t)
             if i >= moving_avg_window - 1:
-                ma_vals = [trend_data[j]["hit_rate"] for j in range(i - moving_avg_window + 1, i + 1)]
+                ma_vals = [
+                    trend_data[j]["hit_rate"]
+                    for j in range(i - moving_avg_window + 1, i + 1)
+                ]
                 entry["ma_hit_rate"] = round(np.mean(ma_vals), 6)
             else:
                 entry["ma_hit_rate"] = None
@@ -1139,7 +1334,9 @@ class BacktestTool(BaseTool):
                 "overall_top5_rate": round(float(np.mean(top5_rates)), 6),
                 "max_hit_rate": round(float(np.max(hit_rates)), 6),
                 "min_hit_rate": round(float(np.min(hit_rates)), 6),
-                "std_hit_rate": round(float(np.std(hit_rates)), 6) if n > 1 else 0.0,
+                "std_hit_rate": (
+                    round(float(np.std(hit_rates)), 6) if n > 1 else 0.0
+                ),
                 "median_hit_rate": round(float(np.median(hit_rates)), 6),
             },
             "position_breakdown": position_stats,
@@ -1154,18 +1351,26 @@ class BacktestTool(BaseTool):
             "overall_top3_rate": report["metrics"]["overall_top3_rate"],
             "overall_top5_rate": report["metrics"]["overall_top5_rate"],
             "best_position": (
-                max(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A"
+                max(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0]
+                if position_stats
+                else "N/A"
             ),
             "worst_position": (
-                min(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0] if position_stats else "N/A"
+                min(position_stats.items(), key=lambda x: x[1]["hit_rate"])[0]
+                if position_stats
+                else "N/A"
             ),
-            "recommended_top_k": optimal_params.get("recommended_top_k", strategy.get("top_k", 8)),
+            "recommended_top_k": optimal_params.get(
+                "recommended_top_k", strategy.get("top_k", 8)
+            ),
         }
 
         return report
 
     @staticmethod
-    def _suggest_optimal_params(results: List[Dict], current_strategy: Dict) -> Dict:
+    def _suggest_optimal_params(
+        results: List[Dict], current_strategy: Dict
+    ) -> Dict:
         suggestions = {
             "current_top_k": current_strategy.get("top_k", 8),
             "current_window_size": current_strategy.get("window_size", 50),
@@ -1183,31 +1388,47 @@ class BacktestTool(BaseTool):
             suggestions["analysis"]["hit_rate_assessment"] = "good"
             suggested_tk = min(current_strategy.get("top_k", 8) + 2, 10)
             suggestions["recommended_top_k"] = suggested_tk
-            suggestions["note"] = f"表现良好，可尝试增大 top_k 到 {suggested_tk} 以提升覆盖率"
+            suggestions["note"] = (
+                f"表现良好，可尝试增大 top_k 到 {suggested_tk} 以提升覆盖率"
+            )
         elif avg_hr >= 0.15:
             suggestions["analysis"]["hit_rate_assessment"] = "moderate"
             suggested_tk = min(current_strategy.get("top_k", 8) + 3, 10)
             suggestions["recommended_top_k"] = suggested_tk
-            suggestions["recommended_window_size"] = max(current_strategy.get("window_size", 50) + 20, 80)
-            suggestions["note"] = "表现一般，建议增大窗口和 top_k 以获得更多参考信息"
+            suggestions["recommended_window_size"] = max(
+                current_strategy.get("window_size", 50) + 20, 80
+            )
+            suggestions["note"] = (
+                "表现一般，建议增大窗口和 top_k 以获得更多参考信息"
+            )
         else:
-            suggestions["analysis"]["hit_rate_assessment"] = "needs_improvement"
+            suggestions["analysis"][
+                "hit_rate_assessment"
+            ] = "needs_improvement"
             suggestions["recommended_top_k"] = 10
             suggestions["recommended_window_size"] = 100
             suggestions["note"] = "表现较低，建议全面审查数据和模型配置"
 
         std_hr = float(np.std(hit_rates)) if len(hit_rates) > 1 else 0.0
         if std_hr > 0.2:
-            suggestions["stability_note"] = f"命中率波动较大(std={std_hr:.4f})，建议关注数据稳定性"
+            suggestions["stability_note"] = (
+                f"命中率波动较大(std={std_hr:.4f})，建议关注数据稳定性"
+            )
 
         half_point = len(results) // 2
         if half_point > 5:
             first_half = np.mean([r["hit_rate"] for r in results[:half_point]])
-            second_half = np.mean([r["hit_rate"] for r in results[half_point:]])
+            second_half = np.mean(
+                [r["hit_rate"] for r in results[half_point:]]
+            )
             if second_half > first_half + 0.05:
-                suggestions["trend_observation"] = "后半段表现优于前半段，模型可能正在改善"
+                suggestions["trend_observation"] = (
+                    "后半段表现优于前半段，模型可能正在改善"
+                )
             elif second_half < first_half - 0.05:
-                suggestions["trend_observation"] = "后半段表现下降，可能存在数据漂移"
+                suggestions["trend_observation"] = (
+                    "后半段表现下降，可能存在数据漂移"
+                )
 
         return suggestions
 
@@ -1269,7 +1490,10 @@ class ComparisonTool(BaseTool):
     output_schema = {
         "type": "object",
         "properties": {
-            "comparison_report": {"type": "object", "description": "完整对比报告"},
+            "comparison_report": {
+                "type": "object",
+                "description": "完整对比报告",
+            },
             "conclusion": {"type": "string", "description": "文字结论"},
         },
     }
@@ -1282,7 +1506,8 @@ class ComparisonTool(BaseTool):
 
         if not predictions_a or not predictions_b or not actuals:
             return ToolResult.error_result(
-                "predictions_a, predictions_b 和 actuals 均为必填且不能为空", code="MISSING_COMPARISON_DATA"
+                "predictions_a, predictions_b 和 actuals 均为必填且不能为空",
+                code="MISSING_COMPARISON_DATA",
             )
 
         n_a = len(predictions_a)
@@ -1291,7 +1516,8 @@ class ComparisonTool(BaseTool):
 
         if n_a != n_b or n_a != n_actual:
             return ToolResult.error_result(
-                f"数据长度不一致: A={n_a}, B={n_b}, actual={n_actual}，三者必须相等", code="LENGTH_MISMATCH"
+                f"数据长度不一致: A={n_a}, B={n_b}, actual={n_actual}，三者必须相等",
+                code="LENGTH_MISMATCH",
             )
 
         label_a = labels.get("label_a", "Model_A")
@@ -1301,18 +1527,29 @@ class ComparisonTool(BaseTool):
         start_time = time.time()
 
         try:
-            metrics_a = self._compute_group_metrics(predictions_a, actuals, top_n)
-            metrics_b = self._compute_group_metrics(predictions_b, actuals, top_n)
-
-            position_comparison = self._compare_positions(predictions_a, predictions_b, actuals, top_n)
-
-            significance = self._significance_test(
-                metrics_a["per_period_accuracies"], metrics_b["per_period_accuracies"]
+            metrics_a = self._compute_group_metrics(
+                predictions_a, actuals, top_n
+            )
+            metrics_b = self._compute_group_metrics(
+                predictions_b, actuals, top_n
             )
 
-            win_loss = self._compute_win_loss(predictions_a, predictions_b, actuals, top_n)
+            position_comparison = self._compare_positions(
+                predictions_a, predictions_b, actuals, top_n
+            )
 
-            conclusion_text = self._generate_conclusion(label_a, label_b, metrics_a, metrics_b, win_loss, significance)
+            significance = self._significance_test(
+                metrics_a["per_period_accuracies"],
+                metrics_b["per_period_accuracies"],
+            )
+
+            win_loss = self._compute_win_loss(
+                predictions_a, predictions_b, actuals, top_n
+            )
+
+            conclusion_text = self._generate_conclusion(
+                label_a, label_b, metrics_a, metrics_b, win_loss, significance
+            )
 
             elapsed = time.time() - start_time
 
@@ -1338,21 +1575,35 @@ class ComparisonTool(BaseTool):
                         "avg_position_hits": metrics_b["avg_position_hits"],
                         "std_accuracy": metrics_b["std_accuracy"],
                     },
-                    "diff": round(metrics_a["overall_accuracy"] - metrics_b["overall_accuracy"], 6),
-                    "diff_pct": self._safe_pct_diff(metrics_a["overall_accuracy"], metrics_b["overall_accuracy"]),
+                    "diff": round(
+                        metrics_a["overall_accuracy"]
+                        - metrics_b["overall_accuracy"],
+                        6,
+                    ),
+                    "diff_pct": self._safe_pct_diff(
+                        metrics_a["overall_accuracy"],
+                        metrics_b["overall_accuracy"],
+                    ),
                 },
                 "position_comparison": position_comparison,
                 "significance_test": significance,
                 "win_loss_statistics": win_loss,
                 "conclusion": conclusion_text,
                 "recommendation": self._make_recommendation(
-                    label_a, label_b, metrics_a, metrics_b, win_loss, significance
+                    label_a,
+                    label_b,
+                    metrics_a,
+                    metrics_b,
+                    win_loss,
+                    significance,
                 ),
             }
 
             ctx.set("last_comparison_report", report)
             ctx.record_metric("comparison.sample_size", n_a)
-            ctx.record_metric("comparison.winner", win_loss.get("winner", "tie"))
+            ctx.record_metric(
+                "comparison.winner", win_loss.get("winner", "tie")
+            )
 
             return ToolResult.success_result(
                 data={
@@ -1364,10 +1615,14 @@ class ComparisonTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception("[comparison] 对比分析异常")
-            return ToolResult.error_result(f"对比分析异常: {str(e)}", code="COMPARISON_EXCEPTION")
+            return ToolResult.error_result(
+                f"对比分析异常: {str(e)}", code="COMPARISON_EXCEPTION"
+            )
 
     @staticmethod
-    def _compute_group_metrics(predictions: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
+    def _compute_group_metrics(
+        predictions: List[Dict], actuals: List[Dict], top_n: int
+    ) -> Dict:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         per_period_acc = []
         per_period_pos_hits = []
@@ -1398,14 +1653,29 @@ class ComparisonTool(BaseTool):
         arr = np.array(per_period_acc) if per_period_acc else np.array([0.0])
         return {
             "overall_accuracy": round(float(np.mean(arr)), 6),
-            "top_n_accuracy": round(float(np.mean(per_period_pos_hits)) / 5.0, 6) if per_period_pos_hits else 0.0,
-            "avg_position_hits": round(float(np.mean(per_period_pos_hits)), 4) if per_period_pos_hits else 0.0,
-            "std_accuracy": round(float(np.std(arr)), 6) if len(arr) > 1 else 0.0,
+            "top_n_accuracy": (
+                round(float(np.mean(per_period_pos_hits)) / 5.0, 6)
+                if per_period_pos_hits
+                else 0.0
+            ),
+            "avg_position_hits": (
+                round(float(np.mean(per_period_pos_hits)), 4)
+                if per_period_pos_hits
+                else 0.0
+            ),
+            "std_accuracy": (
+                round(float(np.std(arr)), 6) if len(arr) > 1 else 0.0
+            ),
             "per_period_accuracies": per_period_acc,
         }
 
     @staticmethod
-    def _compare_positions(preds_a: List[Dict], preds_b: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
+    def _compare_positions(
+        preds_a: List[Dict],
+        preds_b: List[Dict],
+        actuals: List[Dict],
+        top_n: int,
+    ) -> Dict:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         comparison = {}
         for pos in POSITIONS:
@@ -1432,8 +1702,14 @@ class ComparisonTool(BaseTool):
                 "total": total,
                 "a_rate": round(hits_a / max(total, 1), 6),
                 "b_rate": round(hits_b / max(total, 1), 6),
-                "diff": round(hits_a / max(total, 1) - hits_b / max(total, 1), 6),
-                "better": "A" if hits_a > hits_b else ("B" if hits_b > hits_a else "tie"),
+                "diff": round(
+                    hits_a / max(total, 1) - hits_b / max(total, 1), 6
+                ),
+                "better": (
+                    "A"
+                    if hits_a > hits_b
+                    else ("B" if hits_b > hits_a else "tie")
+                ),
             }
         return comparison
 
@@ -1490,12 +1766,18 @@ class ComparisonTool(BaseTool):
             "significant": significant,
             "effect_strength": strength,
             "interpretation": (
-                f"{'有' if significant else '无'}统计学显著差异 (p={p_value:.4f}, " f"t={t_stat:.2f}, 强度={strength})"
+                f"{'有' if significant else '无'}统计学显著差异 (p={p_value:.4f}, "
+                f"t={t_stat:.2f}, 强度={strength})"
             ),
         }
 
     @staticmethod
-    def _compute_win_loss(preds_a: List[Dict], preds_b: List[Dict], actuals: List[Dict], top_n: int) -> Dict:
+    def _compute_win_loss(
+        preds_a: List[Dict],
+        preds_b: List[Dict],
+        actuals: List[Dict],
+        top_n: int,
+    ) -> Dict:
         POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
         wins_a = 0
         wins_b = 0
@@ -1513,8 +1795,12 @@ class ComparisonTool(BaseTool):
                 topka = info_a.get("top_k", [])
                 topkb = info_b.get("top_k", [])
 
-                rank_a = topka.index(actual_val) if actual_val in topka else 999
-                rank_b = topkb.index(actual_val) if actual_val in topkb else 999
+                rank_a = (
+                    topka.index(actual_val) if actual_val in topka else 999
+                )
+                rank_b = (
+                    topkb.index(actual_val) if actual_val in topkb else 999
+                )
                 score_a += top_n - min(rank_a, top_n)
                 score_b += top_n - min(rank_b, top_n)
 
@@ -1526,7 +1812,9 @@ class ComparisonTool(BaseTool):
                 ties += 1
 
         total = wins_a + wins_b + ties
-        winner = "A" if wins_a > wins_b else ("B" if wins_b > wins_a else "tie")
+        winner = (
+            "A" if wins_a > wins_b else ("B" if wins_b > wins_a else "tie")
+        )
 
         return {
             "wins_a": wins_a,
@@ -1540,7 +1828,9 @@ class ComparisonTool(BaseTool):
         }
 
     @staticmethod
-    def _generate_conclusion(label_a: str, label_b: str, m_a: Dict, m_b: Dict, wl: Dict, sig: Dict) -> str:
+    def _generate_conclusion(
+        label_a: str, label_b: str, m_a: Dict, m_b: Dict, wl: Dict, sig: Dict
+    ) -> str:
         parts = []
         acc_diff = m_a["overall_accuracy"] - m_b["overall_accuracy"]
 
@@ -1559,7 +1849,9 @@ class ComparisonTool(BaseTool):
                 f"  逐期胜率: {label_a}胜 {wl['wins_a']}期 ({wl['win_rate_a']:.1%}), {label_b}胜 {wl['wins_b']}期 ({wl['win_rate_b']:.1%}), 平局{wl['ties']}期 → {label_b}更优"
             )
         else:
-            parts.append(f"  逐期胜率: 双方势均力敌 (平局{wl['ties']}/{wl['total']}期)")
+            parts.append(
+                f"  逐期胜率: 双方势均力敌 (平局{wl['ties']}/{wl['total']}期)"
+            )
 
         sig_msg = sig.get("interpretation", "")
         if sig_msg:
@@ -1568,7 +1860,9 @@ class ComparisonTool(BaseTool):
         return "\n".join(parts)
 
     @staticmethod
-    def _make_recommendation(label_a: str, label_b: str, m_a: Dict, m_b: Dict, wl: Dict, sig: Dict) -> Dict:
+    def _make_recommendation(
+        label_a: str, label_b: str, m_a: Dict, m_b: Dict, wl: Dict, sig: Dict
+    ) -> Dict:
         winner = wl.get("winner", "tie")
         acc_diff = m_a["overall_accuracy"] - m_b["overall_accuracy"]
         significant = sig.get("significant", False)
@@ -1628,7 +1922,9 @@ class PL5FixTool(BaseTool):
     """
 
     name = "pl5_fix_tool"
-    description = "PL5错误分析与修复：识别错误类型→分析原因→提供修复步骤和预防措施"
+    description = (
+        "PL5错误分析与修复：识别错误类型→分析原因→提供修复步骤和预防措施"
+    )
     layer = ToolLayer.APPLICATION
     tags = ["fix", "error_handling", "application", "diagnostic"]
 
@@ -1640,13 +1936,27 @@ class PL5FixTool(BaseTool):
                 "properties": {
                     "code": {"type": "string", "description": "错误代码"},
                     "message": {"type": "string", "description": "错误消息"},
-                    "details": {"type": "object", "description": "错误详细信息"},
+                    "details": {
+                        "type": "object",
+                        "description": "错误详细信息",
+                    },
                 },
                 "required": ["code", "message"],
             },
-            "context": {"type": "object", "description": "错误发生的上下文信息"},
-            "include_prevention": {"type": "boolean", "description": "是否包含预防措施建议", "default": True},
-            "include_related_tools": {"type": "boolean", "description": "是否包含相关工具推荐", "default": True},
+            "context": {
+                "type": "object",
+                "description": "错误发生的上下文信息",
+            },
+            "include_prevention": {
+                "type": "boolean",
+                "description": "是否包含预防措施建议",
+                "default": True,
+            },
+            "include_related_tools": {
+                "type": "boolean",
+                "description": "是否包含相关工具推荐",
+                "default": True,
+            },
         },
         "required": ["error_info"],
     }
@@ -1661,13 +1971,25 @@ class PL5FixTool(BaseTool):
                     "type": "object",
                     "properties": {
                         "step": {"type": "integer", "description": "步骤编号"},
-                        "description": {"type": "string", "description": "步骤描述"},
-                        "action": {"type": "string", "description": "具体操作"},
+                        "description": {
+                            "type": "string",
+                            "description": "步骤描述",
+                        },
+                        "action": {
+                            "type": "string",
+                            "description": "具体操作",
+                        },
                     },
                 },
             },
-            "prevention": {"type": "array", "items": {"type": "string", "description": "预防措施"}},
-            "related_tools": {"type": "array", "items": {"type": "string", "description": "相关工具名称"}},
+            "prevention": {
+                "type": "array",
+                "items": {"type": "string", "description": "预防措施"},
+            },
+            "related_tools": {
+                "type": "array",
+                "items": {"type": "string", "description": "相关工具名称"},
+            },
             "severity": {"type": "string", "description": "错误严重程度"},
         },
     }
@@ -1679,17 +2001,29 @@ class PL5FixTool(BaseTool):
         include_related_tools = kwargs.get("include_related_tools", True)
 
         if not error_info:
-            return ToolResult.error_result("缺少 error_info 参数", code="MISSING_ERROR_INFO")
+            return ToolResult.error_result(
+                "缺少 error_info 参数", code="MISSING_ERROR_INFO"
+            )
 
         error_code = error_info.get("code", "UNKNOWN_ERROR")
         error_message = error_info.get("message", "未知错误")
         error_details = error_info.get("details", {})
 
         try:
-            analysis = self._analyze_error(error_code, error_message, error_details, context)
+            analysis = self._analyze_error(
+                error_code, error_message, error_details, context
+            )
             fix_steps = self._generate_fix_steps(analysis)
-            prevention = self._generate_prevention(analysis) if include_prevention else []
-            related_tools = self._get_related_tools(analysis) if include_related_tools else []
+            prevention = (
+                self._generate_prevention(analysis)
+                if include_prevention
+                else []
+            )
+            related_tools = (
+                self._get_related_tools(analysis)
+                if include_related_tools
+                else []
+            )
 
             result_data = {
                 "analysis": analysis,
@@ -1701,15 +2035,27 @@ class PL5FixTool(BaseTool):
 
             ctx.set("last_error_analysis", analysis)
             ctx.record_metric("pl5_fix_tool.error_code", error_code)
-            ctx.record_metric("pl5_fix_tool.severity", analysis.get("severity", "medium"))
+            ctx.record_metric(
+                "pl5_fix_tool.severity", analysis.get("severity", "medium")
+            )
 
-            return ToolResult.success_result(data=result_data, tool_name=self.name)
+            return ToolResult.success_result(
+                data=result_data, tool_name=self.name
+            )
 
         except Exception as e:
             ctx.log.exception("[pl5_fix_tool] 执行异常")
-            return ToolResult.error_result(f"错误分析工具执行异常: {str(e)}", code="FIX_TOOL_EXCEPTION")
+            return ToolResult.error_result(
+                f"错误分析工具执行异常: {str(e)}", code="FIX_TOOL_EXCEPTION"
+            )
 
-    def _analyze_error(self, error_code: str, error_message: str, error_details: dict, context: dict) -> dict:
+    def _analyze_error(
+        self,
+        error_code: str,
+        error_message: str,
+        error_details: dict,
+        context: dict,
+    ) -> dict:
         """分析错误类型和原因"""
         analysis = {
             "error_code": error_code,
@@ -1791,13 +2137,21 @@ class PL5FixTool(BaseTool):
         if category == "data":
             if "MISSING" in error_code or "EMPTY" in error_code:
                 fix_steps = [
-                    {"step": 1, "description": "检查数据源路径", "action": "确认数据文件是否存在，路径是否正确"},
+                    {
+                        "step": 1,
+                        "description": "检查数据源路径",
+                        "action": "确认数据文件是否存在，路径是否正确",
+                    },
                     {
                         "step": 2,
                         "description": "验证数据文件格式",
                         "action": "检查CSV/JSON文件格式是否正确，是否包含必要的列",
                     },
-                    {"step": 3, "description": "查看数据内容", "action": "打开数据文件，确认数据是否为空或格式错误"},
+                    {
+                        "step": 3,
+                        "description": "查看数据内容",
+                        "action": "打开数据文件，确认数据是否为空或格式错误",
+                    },
                     {
                         "step": 4,
                         "description": "使用默认数据",
@@ -1806,49 +2160,137 @@ class PL5FixTool(BaseTool):
                 ]
             elif "LOAD" in error_code:
                 fix_steps = [
-                    {"step": 1, "description": "检查文件权限", "action": "确认应用程序有读取数据文件的权限"},
-                    {"step": 2, "description": "验证文件格式", "action": "使用文本编辑器打开文件，确认格式正确"},
-                    {"step": 3, "description": "尝试其他数据源", "action": "使用不同的数据源或文件格式"},
+                    {
+                        "step": 1,
+                        "description": "检查文件权限",
+                        "action": "确认应用程序有读取数据文件的权限",
+                    },
+                    {
+                        "step": 2,
+                        "description": "验证文件格式",
+                        "action": "使用文本编辑器打开文件，确认格式正确",
+                    },
+                    {
+                        "step": 3,
+                        "description": "尝试其他数据源",
+                        "action": "使用不同的数据源或文件格式",
+                    },
                 ]
 
         elif category == "prediction":
             fix_steps = [
-                {"step": 1, "description": "检查特征向量", "action": "确认输入特征向量的长度和格式正确"},
-                {"step": 2, "description": "验证模型状态", "action": "使用 model_analyzer 工具检查模型健康状态"},
-                {"step": 3, "description": "检查数据质量", "action": "确保输入数据干净，没有异常值"},
-                {"step": 4, "description": "调整参数", "action": "尝试调整预测参数，如 top_k 值"},
+                {
+                    "step": 1,
+                    "description": "检查特征向量",
+                    "action": "确认输入特征向量的长度和格式正确",
+                },
+                {
+                    "step": 2,
+                    "description": "验证模型状态",
+                    "action": "使用 model_analyzer 工具检查模型健康状态",
+                },
+                {
+                    "step": 3,
+                    "description": "检查数据质量",
+                    "action": "确保输入数据干净，没有异常值",
+                },
+                {
+                    "step": 4,
+                    "description": "调整参数",
+                    "action": "尝试调整预测参数，如 top_k 值",
+                },
             ]
 
         elif category == "model":
             fix_steps = [
-                {"step": 1, "description": "检查模型文件", "action": "确认模型文件是否存在且完整"},
-                {"step": 2, "description": "验证模型版本", "action": "确保使用的是兼容的模型版本"},
-                {"step": 3, "description": "重新加载模型", "action": "使用 model_analyzer 工具重新加载模型"},
-                {"step": 4, "description": "检查依赖项", "action": "确认所有必要的依赖项都已安装"},
+                {
+                    "step": 1,
+                    "description": "检查模型文件",
+                    "action": "确认模型文件是否存在且完整",
+                },
+                {
+                    "step": 2,
+                    "description": "验证模型版本",
+                    "action": "确保使用的是兼容的模型版本",
+                },
+                {
+                    "step": 3,
+                    "description": "重新加载模型",
+                    "action": "使用 model_analyzer 工具重新加载模型",
+                },
+                {
+                    "step": 4,
+                    "description": "检查依赖项",
+                    "action": "确认所有必要的依赖项都已安装",
+                },
             ]
 
         elif category == "validation":
             fix_steps = [
-                {"step": 1, "description": "检查输入参数", "action": "确认所有必填参数都已提供且格式正确"},
-                {"step": 2, "description": "验证参数类型", "action": "确保参数类型符合工具要求"},
-                {"step": 3, "description": "查看工具文档", "action": "参考工具的 input_schema 了解正确的参数格式"},
+                {
+                    "step": 1,
+                    "description": "检查输入参数",
+                    "action": "确认所有必填参数都已提供且格式正确",
+                },
+                {
+                    "step": 2,
+                    "description": "验证参数类型",
+                    "action": "确保参数类型符合工具要求",
+                },
+                {
+                    "step": 3,
+                    "description": "查看工具文档",
+                    "action": "参考工具的 input_schema 了解正确的参数格式",
+                },
             ]
 
         elif category == "tool":
             fix_steps = [
-                {"step": 1, "description": "检查工具注册", "action": "确认所需工具已正确注册到 ToolRegistry"},
-                {"step": 2, "description": "验证工具依赖", "action": "确保工具的所有依赖项都已满足"},
-                {"step": 3, "description": "检查工具版本", "action": "确保使用的是兼容的工具版本"},
+                {
+                    "step": 1,
+                    "description": "检查工具注册",
+                    "action": "确认所需工具已正确注册到 ToolRegistry",
+                },
+                {
+                    "step": 2,
+                    "description": "验证工具依赖",
+                    "action": "确保工具的所有依赖项都已满足",
+                },
+                {
+                    "step": 3,
+                    "description": "检查工具版本",
+                    "action": "确保使用的是兼容的工具版本",
+                },
             ]
 
         else:
             # 通用修复步骤
             fix_steps = [
-                {"step": 1, "description": "查看错误详情", "action": "仔细阅读错误消息和详细信息"},
-                {"step": 2, "description": "检查日志", "action": "查看系统日志以获取更多上下文信息"},
-                {"step": 3, "description": "验证输入", "action": "确认所有输入参数都正确无误"},
-                {"step": 4, "description": "重启服务", "action": "尝试重启应用程序或服务"},
-                {"step": 5, "description": "寻求帮助", "action": "如果问题持续存在，联系技术支持"},
+                {
+                    "step": 1,
+                    "description": "查看错误详情",
+                    "action": "仔细阅读错误消息和详细信息",
+                },
+                {
+                    "step": 2,
+                    "description": "检查日志",
+                    "action": "查看系统日志以获取更多上下文信息",
+                },
+                {
+                    "step": 3,
+                    "description": "验证输入",
+                    "action": "确认所有输入参数都正确无误",
+                },
+                {
+                    "step": 4,
+                    "description": "重启服务",
+                    "action": "尝试重启应用程序或服务",
+                },
+                {
+                    "step": 5,
+                    "description": "寻求帮助",
+                    "action": "如果问题持续存在，联系技术支持",
+                },
             ]
 
         return fix_steps
@@ -1920,13 +2362,25 @@ class PL5FixTool(BaseTool):
         category = analysis.get("category", "general")
 
         if category == "data":
-            related_tools = ["data_loader", "validation_tool", "feature_engineer"]
+            related_tools = [
+                "data_loader",
+                "validation_tool",
+                "feature_engineer",
+            ]
 
         elif category == "prediction":
-            related_tools = ["predictor", "model_analyzer", "optimization_advisor"]
+            related_tools = [
+                "predictor",
+                "model_analyzer",
+                "optimization_advisor",
+            ]
 
         elif category == "model":
-            related_tools = ["model_analyzer", "weight_analyzer", "optimization_advisor"]
+            related_tools = [
+                "model_analyzer",
+                "weight_analyzer",
+                "optimization_advisor",
+            ]
 
         elif category == "validation":
             related_tools = ["validation_tool", "config_tool"]
@@ -2003,7 +2457,10 @@ class AlertTool(BaseTool):
     output_schema = {
         "type": "object",
         "properties": {
-            "status": {"type": "string", "enum": ["normal", "warning", "urgent"]},
+            "status": {
+                "type": "string",
+                "enum": ["normal", "warning", "urgent"],
+            },
             "alerts": {"type": "array", "description": "告警条目列表"},
             "summary": {"type": "object", "description": "告警摘要"},
             "actions": {"type": "array", "description": "建议操作列表"},
@@ -2026,35 +2483,65 @@ class AlertTool(BaseTool):
         history_window = kwargs.get("history_window", 20)
 
         if not current_metrics or not isinstance(current_metrics, dict):
-            return ToolResult.error_result("current_metrics 必须是非空字典", code="INVALID_METRICS")
+            return ToolResult.error_result(
+                "current_metrics 必须是非空字典", code="INVALID_METRICS"
+            )
 
         effective_thresholds = {**self._DEFAULT_THRESHOLDS, **thresholds}
 
         triggered_alerts = []
         alert_scores = {"accuracy": 0, "model": 0, "drift": 0, "custom": 0}
 
-        accuracy_alerts = self._check_accuracy_drop(current_metrics, effective_thresholds, ctx)
+        accuracy_alerts = self._check_accuracy_drop(
+            current_metrics, effective_thresholds, ctx
+        )
         triggered_alerts.extend(accuracy_alerts)
-        alert_scores["accuracy"] = sum(1 for a in accuracy_alerts if a.get("severity") in ("warning", "urgent"))
+        alert_scores["accuracy"] = sum(
+            1
+            for a in accuracy_alerts
+            if a.get("severity") in ("warning", "urgent")
+        )
 
-        model_alerts = self._check_model_health(current_metrics, effective_thresholds)
+        model_alerts = self._check_model_health(
+            current_metrics, effective_thresholds
+        )
         triggered_alerts.extend(model_alerts)
-        alert_scores["model"] = sum(1 for a in model_alerts if a.get("severity") in ("warning", "urgent"))
+        alert_scores["model"] = sum(
+            1
+            for a in model_alerts
+            if a.get("severity") in ("warning", "urgent")
+        )
 
-        drift_alerts = self._check_data_drift(current_metrics, effective_thresholds)
+        drift_alerts = self._check_data_drift(
+            current_metrics, effective_thresholds
+        )
         triggered_alerts.extend(drift_alerts)
-        alert_scores["drift"] = sum(1 for a in drift_alerts if a.get("severity") in ("warning", "urgent"))
+        alert_scores["drift"] = sum(
+            1
+            for a in drift_alerts
+            if a.get("severity") in ("warning", "urgent")
+        )
 
-        custom_alerts = self._check_custom_metrics(current_metrics, effective_thresholds)
+        custom_alerts = self._check_custom_metrics(
+            current_metrics, effective_thresholds
+        )
         triggered_alerts.extend(custom_alerts)
-        alert_scores["custom"] = sum(1 for a in custom_alerts if a.get("severity") in ("warning", "urgent"))
+        alert_scores["custom"] = sum(
+            1
+            for a in custom_alerts
+            if a.get("severity") in ("warning", "urgent")
+        )
 
         total_score = sum(alert_scores.values())
         urgent_min = effective_thresholds.get("urgent_score_min", 3)
         warning_min = effective_thresholds.get("warning_score_min", 1)
 
-        urgent_count = sum(1 for a in triggered_alerts if a.get("severity") == "urgent")
-        warning_count = sum(1 for a in triggered_alerts if a.get("severity") == "warning")
+        urgent_count = sum(
+            1 for a in triggered_alerts if a.get("severity") == "urgent"
+        )
+        warning_count = sum(
+            1 for a in triggered_alerts if a.get("severity") == "warning"
+        )
 
         if urgent_count >= 1 or total_score >= urgent_min:
             status = "urgent"
@@ -2063,7 +2550,9 @@ class AlertTool(BaseTool):
         else:
             status = "normal"
 
-        actions = self._generate_actions(triggered_alerts, status, effective_thresholds)
+        actions = self._generate_actions(
+            triggered_alerts, status, effective_thresholds
+        )
 
         alert_history = ctx.get("alert_history") or []
         alert_history.append(
@@ -2086,7 +2575,9 @@ class AlertTool(BaseTool):
                 "breakdown": alert_scores,
                 "urgent_count": urgent_count,
                 "warning_count": warning_count,
-                "info_count": len(triggered_alerts) - urgent_count - warning_count,
+                "info_count": len(triggered_alerts)
+                - urgent_count
+                - warning_count,
             },
             "thresholds_used": effective_thresholds,
             "actions": actions,
@@ -2108,7 +2599,9 @@ class AlertTool(BaseTool):
         return ToolResult.success_result(data=result, tool_name=self.name)
 
     @staticmethod
-    def _check_accuracy_drop(metrics: Dict, thresh: Dict, ctx: ToolContext) -> List[Dict]:
+    def _check_accuracy_drop(
+        metrics: Dict, thresh: Dict, ctx: ToolContext
+    ) -> List[Dict]:
         alerts = []
         accuracy = metrics.get("accuracy")
         historical_accuracies = ctx.get("historical_accuracies") or []
@@ -2121,7 +2614,9 @@ class AlertTool(BaseTool):
                     alerts.append(
                         {
                             "detector": "accuracy_drop",
-                            "severity": "urgent" if drop_ratio > 0.5 else "warning",
+                            "severity": (
+                                "urgent" if drop_ratio > 0.5 else "warning"
+                            ),
                             "metric": "accuracy",
                             "current": round(accuracy, 6),
                             "historical_mean": round(hist_mean, 6),
@@ -2163,7 +2658,13 @@ class AlertTool(BaseTool):
         model_status = metrics.get("model_status")
 
         if model_status is not None:
-            error_statuses = ["error", "failed", "corrupted", "not_loaded", "integrity_failed"]
+            error_statuses = [
+                "error",
+                "failed",
+                "corrupted",
+                "not_loaded",
+                "integrity_failed",
+            ]
             warn_statuses = ["degraded", "partial", "stale", "warning"]
 
             if any(s in str(model_status).lower() for s in error_statuses):
@@ -2192,7 +2693,9 @@ class AlertTool(BaseTool):
             alerts.append(
                 {
                     "detector": "consecutive_failures",
-                    "severity": "urgent" if consecutive_failures > 5 else "warning",
+                    "severity": (
+                        "urgent" if consecutive_failures > 5 else "warning"
+                    ),
                     "metric": "consecutive_failures",
                     "value": consecutive_failures,
                     "threshold": thresh["consecutive_failures_max"],
@@ -2264,7 +2767,9 @@ class AlertTool(BaseTool):
         return alerts
 
     @staticmethod
-    def _generate_actions(alerts: List[Dict], status: str, thresh: Dict) -> List[Dict]:
+    def _generate_actions(
+        alerts: List[Dict], status: str, thresh: Dict
+    ) -> List[Dict]:
         actions = []
         detectors_seen = set()
 
@@ -2276,7 +2781,11 @@ class AlertTool(BaseTool):
 
             action_map = {
                 "accuracy_drop": {
-                    "priority": "high" if alert.get("severity") == "urgent" else "medium",
+                    "priority": (
+                        "high"
+                        if alert.get("severity") == "urgent"
+                        else "medium"
+                    ),
                     "action": "检查近期数据质量，确认是否输入数据存在异常；考虑增加训练样本或触发重训练",
                     "related_detector": det,
                 },
@@ -2334,7 +2843,10 @@ class AlertTool(BaseTool):
     @staticmethod
     def _summarize_trend(history: List[Dict]) -> Dict:
         if len(history) < 3:
-            return {"status": "insufficient_data", "message": f"历史记录不足({len(history)}条)"}
+            return {
+                "status": "insufficient_data",
+                "message": f"历史记录不足({len(history)}条)",
+            }
 
         recent = history[-10:]
         statuses = [h.get("status", "normal") for h in recent]
@@ -2436,7 +2948,10 @@ class ExportTool(BaseTool):
             "output": {"description": "导出结果（文件路径或内容字符串)"},
             "format": {"type": "string"},
             "size_bytes": {"type": "integer"},
-            "path": {"type": "string", "description": "实际写入路径（如果写了文件）"},
+            "path": {
+                "type": "string",
+                "description": "实际写入路径（如果写了文件）",
+            },
         },
     }
 
@@ -2447,11 +2962,14 @@ class ExportTool(BaseTool):
         options = kwargs.get("options") or {}
 
         if data is None:
-            return ToolResult.error_result("data 参数不能为 None", code="EXPORT_NO_DATA")
+            return ToolResult.error_result(
+                "data 参数不能为 None", code="EXPORT_NO_DATA"
+            )
 
         if fmt not in self._SUPPORTED_FORMATS:
             return ToolResult.error_result(
-                f"不支持的导出格式: '{fmt}'，支持: {self._SUPPORTED_FORMATS}", code="UNSUPPORTED_FORMAT"
+                f"不支持的导出格式: '{fmt}'，支持: {self._SUPPORTED_FORMATS}",
+                code="UNSUPPORTED_FORMAT",
             )
 
         try:
@@ -2471,12 +2989,20 @@ class ExportTool(BaseTool):
                         mode = "wb"
                     else:
                         mode = "w"
-                    with open(path, mode, encoding=encoding if mode == "w" else None) as f:
+                    with open(
+                        path, mode, encoding=encoding if mode == "w" else None
+                    ) as f:
                         f.write(content)
                     written_path = str(path.resolve())
-                    size = path.stat().st_size if path.exists() else len(content.encode(encoding))
+                    size = (
+                        path.stat().st_size
+                        if path.exists()
+                        else len(content.encode(encoding))
+                    )
 
-                ctx.log.info(f"[export] 已导出到 {written_path} ({size} bytes, format={fmt})")
+                ctx.log.info(
+                    f"[export] 已导出到 {written_path} ({size} bytes, format={fmt})"
+                )
 
                 result_data = {
                     "output": written_path,
@@ -2487,7 +3013,9 @@ class ExportTool(BaseTool):
                 }
             else:
                 size = (
-                    len(content.encode(options.get("encoding", "utf-8"))) if isinstance(content, str) else len(content)
+                    len(content.encode(options.get("encoding", "utf-8")))
+                    if isinstance(content, str)
+                    else len(content)
                 )
                 result_data = {
                     "output": content,
@@ -2508,7 +3036,9 @@ class ExportTool(BaseTool):
 
         except Exception as e:
             ctx.log.exception(f"[export] 导出异常 (format={fmt})")
-            return ToolResult.error_result(f"导出失败(format={fmt}): {str(e)}", code="EXPORT_ERROR")
+            return ToolResult.error_result(
+                f"导出失败(format={fmt}): {str(e)}", code="EXPORT_ERROR"
+            )
 
     def _serialize(self, data: Any, fmt: str, options: Dict) -> Any:
         serializers = {
@@ -2528,7 +3058,9 @@ class ExportTool(BaseTool):
         indent = options.get("indent", 2)
         ensure_ascii = options.get("ensure_ascii", False)
         serializable = ToolResult._serialize_data(data)
-        return json.dumps(serializable, indent=indent, ensure_ascii=ensure_ascii, default=str)
+        return json.dumps(
+            serializable, indent=indent, ensure_ascii=ensure_ascii, default=str
+        )
 
     @staticmethod
     def _to_csv(data: Any, options: Dict) -> str:
@@ -2546,12 +3078,16 @@ class ExportTool(BaseTool):
     @staticmethod
     def _write_excel(df: pd.DataFrame, path: Path, options: Dict):
         try:
-            import openpyxl
+            pass
         except ImportError:
-            raise ImportError("Excel 导出需要 openpyxl 库，请执行: pip install openpyxl")
+            raise ImportError(
+                "Excel 导出需要 openpyxl 库，请执行: pip install openpyxl"
+            )
 
         sheet_name = options.get("sheet_name", "Sheet1")
-        df.to_excel(path, index=False, sheet_name=sheet_name, engine="openpyxl")
+        df.to_excel(
+            path, index=False, sheet_name=sheet_name, engine="openpyxl"
+        )
 
     @staticmethod
     def _to_markdown(data: Any, options: Dict) -> str:
@@ -2567,7 +3103,11 @@ class ExportTool(BaseTool):
             lines.append("*（无数据）*")
             return "\n".join(lines)
 
-        lines.append(df.to_markdown(index=False, tablefmt="pipe", numalign="right", stralign="left"))
+        lines.append(
+            df.to_markdown(
+                index=False, tablefmt="pipe", numalign="right", stralign="left"
+            )
+        )
         return "\n".join(lines)
 
     @staticmethod
@@ -2596,7 +3136,9 @@ tr:nth-child(even) { background-color: #fafafa; }
         if df.empty:
             html_parts.append("<p>（无数据）</p>")
         else:
-            html_parts.append(df.to_html(index=False, escape=False, table_id="data_table"))
+            html_parts.append(
+                df.to_html(index=False, escape=False, table_id="data_table")
+            )
         html_parts.append("</body></html>")
 
         return "\n".join(html_parts)
@@ -2609,7 +3151,9 @@ tr:nth-child(even) { background-color: #fafafa; }
             return data.to_frame().reset_index()
 
         if isinstance(data, dict):
-            flat_records = ExportTool._flatten_dict(data) if flatten else [data]
+            flat_records = (
+                ExportTool._flatten_dict(data) if flatten else [data]
+            )
             if flat_records and isinstance(flat_records[0], dict):
                 return pd.DataFrame(flat_records)
             return pd.DataFrame([data])
@@ -2622,7 +3166,9 @@ tr:nth-child(even) { background-color: #fafafa; }
                 records = []
                 for item in data:
                     if isinstance(item, dict):
-                        records.append(ExportTool._flatten_dict(item) if flatten else item)
+                        records.append(
+                            ExportTool._flatten_dict(item) if flatten else item
+                        )
                     else:
                         records.append({"value": item})
                 return pd.DataFrame(records)
@@ -2637,10 +3183,18 @@ tr:nth-child(even) { background-color: #fafafa; }
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict) and v:
                 items.extend(ExportTool._flatten_dict(v, new_key, sep).items())
-            elif isinstance(v, (list, tuple)) and v and isinstance(v[0], (dict,)):
+            elif (
+                isinstance(v, (list, tuple))
+                and v
+                and isinstance(v[0], (dict,))
+            ):
                 for i, item in enumerate(v):
                     if isinstance(item, dict):
-                        items.extend(ExportTool._flatten_dict(item, f"{new_key}[{i}]", sep).items())
+                        items.extend(
+                            ExportTool._flatten_dict(
+                                item, f"{new_key}[{i}]", sep
+                            ).items()
+                        )
                     else:
                         items.append((f"{new_key}[{i}]", item))
             else:

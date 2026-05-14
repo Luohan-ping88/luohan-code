@@ -11,18 +11,21 @@ PL5 异步与并发支持模块
 import asyncio
 import time
 import logging
-from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    Awaitable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 from queue import PriorityQueue as SyncPriorityQueue
-from concurrent.futures import ThreadPoolExecutor
 
 from .base import (
     BaseTool,
     ToolResult,
     ToolContext,
-    ToolRegistry,
-    ErrorInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +56,9 @@ class AsyncToolMixin:
                 return ToolResult.success_result(data={"async": True})
     """
 
-    async def execute_async_core(self, ctx: ToolContext, **kwargs) -> ToolResult:
+    async def execute_async_core(
+        self, ctx: ToolContext, **kwargs
+    ) -> ToolResult:
         """核心异步执行方法，子类应覆写此方法以提供原生异步实现
 
         默认行为: 回退到线程池包装同步 execute()
@@ -64,7 +69,9 @@ class AsyncToolMixin:
             lambda: self.execute(ctx, **kwargs),
         )
 
-    async def execute_async_with_timeout(self, ctx: ToolContext, timeout: float, **kwargs) -> ToolResult:
+    async def execute_async_with_timeout(
+        self, ctx: ToolContext, timeout: float, **kwargs
+    ) -> ToolResult:
         """带超时控制的异步执行
 
         Args:
@@ -88,7 +95,11 @@ class AsyncToolMixin:
             )
 
     async def execute_async_with_retry(
-        self, ctx: ToolContext, max_retries: int = 3, retry_delay: float = 1.0, **kwargs
+        self,
+        ctx: ToolContext,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        **kwargs,
     ) -> ToolResult:
         """带重试机制的异步执行
 
@@ -112,7 +123,9 @@ class AsyncToolMixin:
                 if attempt < max_retries:
                     delay = retry_delay * (2 ** (attempt - 1))
                     logger.debug(
-                        f"[{getattr(self, 'name', '?')}] " f"异步重试 {attempt}/{max_retries}, " f"等待 {delay:.1f}s"
+                        f"[{getattr(self, 'name', '?')}] "
+                        f"异步重试 {attempt}/{max_retries}, "
+                        f"等待 {delay:.1f}s"
                     )
                     await asyncio.sleep(delay)
 
@@ -122,7 +135,9 @@ class AsyncToolMixin:
             attempts=max_retries,
         )
 
-    async def execute_async_bounded(self, ctx: ToolContext, semaphore: asyncio.Semaphore, **kwargs) -> ToolResult:
+    async def execute_async_bounded(
+        self, ctx: ToolContext, semaphore: asyncio.Semaphore, **kwargs
+    ) -> ToolResult:
         """在信号量限制下的异步执行
 
         Args:
@@ -187,7 +202,9 @@ class AsyncPredictorMixin(AsyncToolMixin):
             )
 
             positions = list(result.keys())
-            avg_uncertainty = sum(result[p].get("uncertainty", 0.0) for p in positions) / max(len(positions), 1)
+            avg_uncertainty = sum(
+                result[p].get("uncertainty", 0.0) for p in positions
+            ) / max(len(positions), 1)
 
             summary = {
                 "total_positions": len(positions),
@@ -196,7 +213,9 @@ class AsyncPredictorMixin(AsyncToolMixin):
                 "positions": {
                     p: {
                         "top_k": result[p].get("top_k", []),
-                        "uncertainty": round(result[p].get("uncertainty", 0.0), 4),
+                        "uncertainty": round(
+                            result[p].get("uncertainty", 0.0), 4
+                        ),
                     }
                     for p in positions
                     if isinstance(result.get(p), dict)
@@ -269,7 +288,11 @@ class AsyncPredictorMixin(AsyncToolMixin):
                         for p in single_result
                         if isinstance(single_result.get(p), dict)
                     ]
-                    avg_unc = float(sum(pos_uncertainties) / len(pos_uncertainties)) if pos_uncertainties else 0.0
+                    avg_unc = (
+                        float(sum(pos_uncertainties) / len(pos_uncertainties))
+                        if pos_uncertainties
+                        else 0.0
+                    )
                     return idx, single_result, avg_unc
                 except Exception as e:
                     return idx, None, 0.0
@@ -302,7 +325,9 @@ class AsyncPredictorMixin(AsyncToolMixin):
         )
 
     @staticmethod
-    def _compute_batch_summary(results: List[Dict], uncertainties: List[float]) -> Dict:
+    def _compute_batch_summary(
+        results: List[Dict], uncertainties: List[float]
+    ) -> Dict:
         import numpy as np
 
         all_top_ks = []
@@ -315,16 +340,26 @@ class AsyncPredictorMixin(AsyncToolMixin):
         for num in all_top_ks:
             freq_map[num] = freq_map.get(num, 0) + 1
 
-        sorted_freq = sorted(freq_map.items(), key=lambda x: x[1], reverse=True)
+        sorted_freq = sorted(
+            freq_map.items(), key=lambda x: x[1], reverse=True
+        )
         most_common = [(int(k), v) for k, v in sorted_freq[:15]]
 
         unc_arr = np.array(uncertainties) if uncertainties else np.array([0.0])
         return {
             "count": len(results),
-            "avg_uncertainty": round(float(np.mean(unc_arr)), 4) if len(unc_arr) > 0 else 0.0,
-            "min_uncertainty": round(float(np.min(unc_arr)), 4) if len(unc_arr) > 0 else 0.0,
-            "max_uncertainty": round(float(np.max(unc_arr)), 4) if len(unc_arr) > 0 else 0.0,
-            "std_uncertainty": round(float(np.std(unc_arr)), 4) if len(unc_arr) > 1 else 0.0,
+            "avg_uncertainty": (
+                round(float(np.mean(unc_arr)), 4) if len(unc_arr) > 0 else 0.0
+            ),
+            "min_uncertainty": (
+                round(float(np.min(unc_arr)), 4) if len(unc_arr) > 0 else 0.0
+            ),
+            "max_uncertainty": (
+                round(float(np.max(unc_arr)), 4) if len(unc_arr) > 0 else 0.0
+            ),
+            "std_uncertainty": (
+                round(float(np.std(unc_arr)), 4) if len(unc_arr) > 1 else 0.0
+            ),
             "most_recommended_numbers": most_common,
         }
 
@@ -404,7 +439,9 @@ class ConcurrencyManager:
             if diff > 0:
                 for _ in range(diff):
                     self._semaphore.release()
-            logger.info(f"[ConcurrencyManager] max_workers: {old_value} -> {self._max_workers}")
+            logger.info(
+                f"[ConcurrencyManager] max_workers: {old_value} -> {self._max_workers}"
+            )
 
     async def acquire(self, priority: int = 0) -> None:
         """获取并发许可（阻塞等待）
@@ -541,8 +578,14 @@ class ConcurrencyManager:
         """
         active_count = len(self._active_tasks)
         max_w = self._max_workers
-        available = max(0, max_w - active_count) if self._initialized else max_w
-        utilization = round(active_count / max(max_w, 1), 4) if self._initialized else 0.0
+        available = (
+            max(0, max_w - active_count) if self._initialized else max_w
+        )
+        utilization = (
+            round(active_count / max(max_w, 1), 4)
+            if self._initialized
+            else 0.0
+        )
 
         return {
             "max_workers": max_w,
@@ -571,14 +614,18 @@ class ConcurrencyManager:
         if timeout is not None:
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*self._active_tasks.values(), return_exceptions=True),
+                    asyncio.gather(
+                        *self._active_tasks.values(), return_exceptions=True
+                    ),
                     timeout=timeout,
                 )
                 return True
             except asyncio.TimeoutError:
                 return False
         else:
-            await asyncio.gather(*self._active_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self._active_tasks.values(), return_exceptions=True
+            )
             return True
 
 
@@ -674,7 +721,9 @@ class AsyncBatchExecutor:
         results: Dict[str, ToolResult] = {}
         semaphore = asyncio.Semaphore(cfg.max_concurrency)
 
-        async def _run_one(tool: BaseTool, args: Dict) -> Tuple[str, ToolResult]:
+        async def _run_one(
+            tool: BaseTool, args: Dict
+        ) -> Tuple[str, ToolResult]:
             tool_name = getattr(tool, "name", f"unnamed_{id(tool)}")
             async with semaphore:
                 try:
@@ -797,8 +846,12 @@ class AsyncBatchExecutor:
                         resolved_args[k] = last_output
 
             try:
-                if hasattr(tool, "execute_async") and isinstance(tool, AsyncToolMixin):
-                    result = await tool.execute_async_core(ctx, **resolved_args)
+                if hasattr(tool, "execute_async") and isinstance(
+                    tool, AsyncToolMixin
+                ):
+                    result = await tool.execute_async_core(
+                        ctx, **resolved_args
+                    )
                 elif hasattr(tool, "execute_async"):
                     result = await tool.execute_async(ctx, **resolved_args)
                 else:
@@ -871,7 +924,9 @@ class BatchStopError(Exception):
 # ================================================================
 
 
-def create_default_concurrency_manager(max_workers: int = 4) -> ConcurrencyManager:
+def create_default_concurrency_manager(
+    max_workers: int = 4,
+) -> ConcurrencyManager:
     """创建默认配置的并发管理器
 
     Args:

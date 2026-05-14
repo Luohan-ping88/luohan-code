@@ -42,7 +42,9 @@ class EmailSender:
             "subject": "PL5 预测模型训练报告",
         }
 
-    def send_email(self, report: Dict[str, Any], attachment_path: Optional[Path] = None) -> bool:
+    def send_email(
+        self, report: Dict[str, Any], attachment_path: Optional[Path] = None
+    ) -> bool:
         """发送邮件
 
         Args:
@@ -76,11 +78,17 @@ class EmailSender:
             if attachment_path and attachment_path.exists():
                 with open(attachment_path, "rb") as f:
                     attachment = MIMEApplication(f.read())
-                    attachment.add_header("Content-Disposition", "attachment", filename=attachment_path.name)
+                    attachment.add_header(
+                        "Content-Disposition",
+                        "attachment",
+                        filename=attachment_path.name,
+                    )
                     msg.attach(attachment)
 
             # 发送邮件
-            with smtplib.SMTP(self.config["smtp_server"], self.config["smtp_port"]) as server:
+            with smtplib.SMTP(
+                self.config["smtp_server"], self.config["smtp_port"]
+            ) as server:
                 server.starttls()
                 server.login(self.config["username"], self.config["password"])
                 server.send_message(msg)
@@ -233,7 +241,9 @@ class EmailSender:
 
         return html
 
-    def _generate_predictions_table(self, predictions: Dict[str, Dict[str, Any]]) -> str:
+    def _generate_predictions_table(
+        self, predictions: Dict[str, Dict[str, Any]]
+    ) -> str:
         """生成预测结果表格
 
         Args:
@@ -244,13 +254,21 @@ class EmailSender:
         """
         rows = []
         positions = ["wan", "qian", "bai", "shi", "ge"]
-        pos_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+        pos_names = {
+            "wan": "万位",
+            "qian": "千位",
+            "bai": "百位",
+            "shi": "十位",
+            "ge": "个位",
+        }
 
         for pos in positions:
             if pos in predictions:
                 top_k = predictions[pos].get("top_k", [])
                 top_k_str = ", ".join(map(str, top_k))
-                rows.append(f"<tr><td>{pos_names.get(pos, pos)}</td><td>{top_k_str}</td></tr>")
+                rows.append(
+                    f"<tr><td>{pos_names.get(pos, pos)}</td><td>{top_k_str}</td></tr>"
+                )
 
         return "\n".join(rows)
 

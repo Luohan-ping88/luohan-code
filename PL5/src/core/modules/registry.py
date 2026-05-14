@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Dict, List, Optional, Any, Set
 from enum import Enum
 from datetime import datetime
 import logging
@@ -116,7 +116,9 @@ class ModuleRegistry:
         logger.info(f"模块 {name} 注销成功")
         return True
 
-    def get(self, name: str, version: Optional[str] = None) -> Optional[ModuleMetadata]:
+    def get(
+        self, name: str, version: Optional[str] = None
+    ) -> Optional[ModuleMetadata]:
         """
         获取模块
 
@@ -135,7 +137,9 @@ class ModuleRegistry:
 
         return self._modules[name]
 
-    def list_modules(self, tag: Optional[str] = None, status: Optional[ModuleStatus] = None) -> List[ModuleMetadata]:
+    def list_modules(
+        self, tag: Optional[str] = None, status: Optional[ModuleStatus] = None
+    ) -> List[ModuleMetadata]:
         """
         列出所有模块
 

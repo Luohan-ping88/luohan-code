@@ -1,6 +1,6 @@
 """本地模型适配器"""
 
-from typing import Dict, List, Any, Generator, Optional
+from typing import Dict, List, Any, Generator
 import os
 
 from .base import BaseLLM, LLMFactory
@@ -39,7 +39,9 @@ class LocalLLM(BaseLLM):
 
                 # 检查模型文件是否存在
                 if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found: {model_path}")
+                    raise FileNotFoundError(
+                        f"Model file not found: {model_path}"
+                    )
 
                 # 初始化llama-cpp模型
                 self._llm = Llama(
@@ -93,7 +95,9 @@ class LocalLLM(BaseLLM):
             # 模拟实现
             return f"[Local Model] {prompt} - This is a mock response"
 
-    def generate_stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+    def generate_stream(
+        self, prompt: str, **kwargs
+    ) -> Generator[str, None, None]:
         """流式生成文本"""
         if self._model == "llama_cpp":
             try:
@@ -130,7 +134,10 @@ class LocalLLM(BaseLLM):
                 )
                 return response["choices"][0]["message"]
             except Exception as e:
-                return {"role": "assistant", "content": f"Llama.cpp chat failed: {str(e)}"}
+                return {
+                    "role": "assistant",
+                    "content": f"Llama.cpp chat failed: {str(e)}",
+                }
         else:
             # 构建对话历史
             prompt = ""
@@ -144,7 +151,9 @@ class LocalLLM(BaseLLM):
             response = self.generate(prompt, **kwargs)
             return {"role": "assistant", "content": response}
 
-    def chat_stream(self, messages: List[Dict], **kwargs) -> Generator[Dict, None, None]:
+    def chat_stream(
+        self, messages: List[Dict], **kwargs
+    ) -> Generator[Dict, None, None]:
         """流式对话"""
         if self._model == "llama_cpp":
             try:
@@ -159,9 +168,15 @@ class LocalLLM(BaseLLM):
                     if "choices" in chunk and chunk["choices"]:
                         delta = chunk["choices"][0].get("delta", {})
                         if "content" in delta and delta["content"]:
-                            yield {"role": delta.get("role", "assistant"), "content": delta["content"]}
+                            yield {
+                                "role": delta.get("role", "assistant"),
+                                "content": delta["content"],
+                            }
             except Exception as e:
-                yield {"role": "assistant", "content": f"Llama.cpp streaming chat failed: {str(e)}"}
+                yield {
+                    "role": "assistant",
+                    "content": f"Llama.cpp streaming chat failed: {str(e)}",
+                }
         else:
             # 对于其他模型，使用模拟的流式对话
             response = self.chat(messages, **kwargs)

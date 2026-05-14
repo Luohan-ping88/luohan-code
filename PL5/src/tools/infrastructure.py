@@ -17,7 +17,7 @@ import time
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from collections import OrderedDict
 
 import pandas as pd
@@ -140,16 +140,25 @@ class DataLoaderTool(BaseTool):
                 if result[col].isnull().any():
                     median_val = result[col].median()
                     result[col] = result[col].fillna(median_val)
-            report["actions"].append(f"数值列缺失值用中位数填充 ({len(numeric_cols)} 列)")
+            report["actions"].append(
+                f"数值列缺失值用中位数填充 ({len(numeric_cols)} 列)"
+            )
 
         non_numeric_cols = result.select_dtypes(exclude=[np.number]).columns
-        if len(non_numeric_cols) > 0 and result[non_numeric_cols].isnull().any().any():
+        if (
+            len(non_numeric_cols) > 0
+            and result[non_numeric_cols].isnull().any().any()
+        ):
             for col in non_numeric_cols:
                 if result[col].isnull().any():
                     mode_val = result[col].mode()
-                    fill_value = mode_val.iloc[0] if len(mode_val) > 0 else "unknown"
+                    fill_value = (
+                        mode_val.iloc[0] if len(mode_val) > 0 else "unknown"
+                    )
                     result[col] = result[col].fillna(fill_value)
-            report["actions"].append(f"非数值列缺失值用众数填充 ({len(non_numeric_cols)} 列)")
+            report["actions"].append(
+                f"非数值列缺失值用众数填充 ({len(non_numeric_cols)} 列)"
+            )
 
         dup_count = result.duplicated().sum()
         if dup_count > 0:
@@ -229,7 +238,10 @@ class DataLoaderTool(BaseTool):
 
         ctx.record_metric("data_loader.rows_loaded", len(df_cleaned))
         ctx.record_metric("data_loader.cols_loaded", len(df_cleaned.columns))
-        ctx.set("last_loaded_data_shape", (len(df_cleaned), len(df_cleaned.columns)))
+        ctx.set(
+            "last_loaded_data_shape",
+            (len(df_cleaned), len(df_cleaned.columns)),
+        )
 
         return ToolResult.success_result(
             data={
@@ -297,7 +309,9 @@ class CacheTool(BaseTool):
     """
 
     name = "cache"
-    description = "缓存管理工具：set/get/delete/clear/keys/stats，支持 TTL 和 LRU 淘汰"
+    description = (
+        "缓存管理工具：set/get/delete/clear/keys/stats，支持 TTL 和 LRU 淘汰"
+    )
     layer = ToolLayer.INFRASTRUCTURE
     tags = ["cache", "infrastructure", "memory"]
 
@@ -341,7 +355,9 @@ class CacheTool(BaseTool):
         },
     }
 
-    def _ensure_cache_store(self, ctx: ToolContext, max_size: int = None) -> Dict:
+    def _ensure_cache_store(
+        self, ctx: ToolContext, max_size: int = None
+    ) -> Dict:
         if ctx.cache is None:
             ctx.cache = {}
         cache_meta_key = "__cache_metadata__"
@@ -419,7 +435,12 @@ class CacheTool(BaseTool):
                 )
             if key not in entries:
                 return ToolResult.success_result(
-                    data={"operation": "get", "key": key, "found": False, "value": None},
+                    data={
+                        "operation": "get",
+                        "key": key,
+                        "found": False,
+                        "value": None,
+                    },
                     tool="cache",
                     hit=False,
                 )
@@ -430,7 +451,13 @@ class CacheTool(BaseTool):
                     del store[key]
                 ctx.log.debug(f"[cache] GET {key} => 已过期")
                 return ToolResult.success_result(
-                    data={"operation": "get", "key": key, "found": False, "expired": True, "value": None},
+                    data={
+                        "operation": "get",
+                        "key": key,
+                        "found": False,
+                        "expired": True,
+                        "value": None,
+                    },
                     tool="cache",
                     hit=False,
                 )
@@ -439,7 +466,12 @@ class CacheTool(BaseTool):
                 store.move_to_end(key)
             ctx.log.debug(f"[cache] GET {key} => 命中")
             return ToolResult.success_result(
-                data={"operation": "get", "key": key, "found": True, "value": entry["value"]},
+                data={
+                    "operation": "get",
+                    "key": key,
+                    "found": True,
+                    "value": entry["value"],
+                },
                 tool="cache",
                 hit=True,
             )
@@ -497,20 +529,34 @@ class CacheTool(BaseTool):
 
         elif operation == "stats":
             total_entries = len(entries)
-            expired_count = sum(1 for e in entries.values() if self._is_expired(e))
+            expired_count = sum(
+                1 for e in entries.values() if self._is_expired(e)
+            )
             valid_count = total_entries - expired_count
-            total_access = sum(e.get("access_count", 0) for e in entries.values())
+            total_access = sum(
+                e.get("access_count", 0) for e in entries.values()
+            )
             stats_data = {
                 "operation": "stats",
                 "total_entries": total_entries,
                 "valid_entries": valid_count,
                 "expired_entries": expired_count,
                 "lru_max_size": store.maxsize,
-                "lru_utilization": round(len(store) / store.maxsize, 4) if store.maxsize > 0 else 0,
+                "lru_utilization": (
+                    round(len(store) / store.maxsize, 4)
+                    if store.maxsize > 0
+                    else 0
+                ),
                 "total_access_count": total_access,
-                "keys_with_ttl": sum(1 for e in entries.values() if e.get("ttl") is not None and e["ttl"] > 0),
+                "keys_with_ttl": sum(
+                    1
+                    for e in entries.values()
+                    if e.get("ttl") is not None and e["ttl"] > 0
+                ),
             }
-            return ToolResult.success_result(data=stats_data, tool="cache", op="stats")
+            return ToolResult.success_result(
+                data=stats_data, tool="cache", op="stats"
+            )
 
         return ToolResult.error_result(
             f"未处理的操作: {operation}",
@@ -549,7 +595,9 @@ class ConfigTool(BaseTool):
     """
 
     name = "config"
-    description = "配置读取工具：嵌套键访问、环境变量覆盖、配置验证与默认值回退"
+    description = (
+        "配置读取工具：嵌套键访问、环境变量覆盖、配置验证与默认值回退"
+    )
     layer = ToolLayer.INFRASTRUCTURE
     tags = ["config", "infrastructure", "settings"]
 
@@ -583,11 +631,16 @@ class ConfigTool(BaseTool):
             "value": {"description": "查询到的配置值"},
             "key_path": {"type": "string"},
             "found": {"type": "boolean"},
-            "source": {"type": "string", "description": "值来源 (config/env/default)"},
+            "source": {
+                "type": "string",
+                "description": "值来源 (config/env/default)",
+            },
         },
     }
 
-    def _resolve_env_override(self, key_path: str) -> Tuple[Optional[str], Any]:
+    def _resolve_env_override(
+        self, key_path: str
+    ) -> Tuple[Optional[str], Any]:
         parts = key_path.split(".")
         env_var_name = self._ENV_PREFIX + "__".join(p.upper() for p in parts)
         env_value = os.environ.get(env_var_name)
@@ -612,7 +665,9 @@ class ConfigTool(BaseTool):
             pass
         return value
 
-    def _navigate_config(self, config: Any, keys: List[str]) -> Tuple[Any, bool]:
+    def _navigate_config(
+        self, config: Any, keys: List[str]
+    ) -> Tuple[Any, bool]:
         current = config
         for k in keys:
             if current is None:
@@ -661,13 +716,17 @@ class ConfigTool(BaseTool):
             )
 
         if key_path and section:
-            ctx.log.warning("[config] 同时指定了 key_path 和 section，优先使用 key_path")
+            ctx.log.warning(
+                "[config] 同时指定了 key_path 和 section，优先使用 key_path"
+            )
 
         if key_path:
             keys = key_path.split(".")
             env_name, env_val = self._resolve_env_override(key_path)
             if env_val is not None:
-                ctx.log.debug(f"[config] 环境变量覆盖: {env_name} => {key_path}")
+                ctx.log.debug(
+                    f"[config] 环境变量覆盖: {env_name} => {key_path}"
+                )
                 return ToolResult.success_result(
                     data={
                         "value": env_val,
@@ -815,7 +874,9 @@ class LoggerTool(BaseTool):
         },
     }
 
-    def _build_log_message(self, message: str, extra: Dict, ctx: ToolContext) -> str:
+    def _build_log_message(
+        self, message: str, extra: Dict, ctx: ToolContext
+    ) -> str:
         parts = [message]
         context_parts = []
         if ctx.user_id:
@@ -827,8 +888,12 @@ class LoggerTool(BaseTool):
             parts.append(" {" + ", ".join(context_parts) + "}")
         return "".join(parts)
 
-    def _persist_to_file(self, message: str, level: str, extra: Dict, ctx: ToolContext):
-        log_dir = getattr(ctx, "log_dir", None) or os.path.join(os.getcwd(), "logs")
+    def _persist_to_file(
+        self, message: str, level: str, extra: Dict, ctx: ToolContext
+    ):
+        log_dir = getattr(ctx, "log_dir", None) or os.path.join(
+            os.getcwd(), "logs"
+        )
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, "tool_logs.jsonl")
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
@@ -975,7 +1040,9 @@ class ValidationTool(BaseTool):
         },
     }
 
-    def _check_required_columns(self, df: pd.DataFrame, required: List[str]) -> Dict:
+    def _check_required_columns(
+        self, df: pd.DataFrame, required: List[str]
+    ) -> Dict:
         missing = [col for col in required if col not in df.columns]
         return {
             "checked": True,
@@ -1034,10 +1101,20 @@ class ValidationTool(BaseTool):
                 col_min = col_rules.get("min")
                 col_max = col_rules.get("max")
                 if col_min is not None or col_max is not None:
-                    series = df[col].replace([np.inf, -np.inf], np.nan).dropna()
+                    series = (
+                        df[col].replace([np.inf, -np.inf], np.nan).dropna()
+                    )
                     if len(series) > 0:
-                        oor_low = int((series < col_min).sum()) if col_min is not None else 0
-                        oor_high = int((series > col_max).sum()) if col_max is not None else 0
+                        oor_low = (
+                            int((series < col_min).sum())
+                            if col_min is not None
+                            else 0
+                        )
+                        oor_high = (
+                            int((series > col_max).sum())
+                            if col_max is not None
+                            else 0
+                        )
                         if oor_low > 0 or oor_high > 0:
                             anomaly_report["out_of_range"][col] = {
                                 "below_min": oor_low,
@@ -1049,11 +1126,16 @@ class ValidationTool(BaseTool):
         anomaly_report["total_anomalies"] = (
             sum(anomaly_report["nan_counts"].values())
             + sum(anomaly_report["inf_counts"].values())
-            + sum(v.get("below_min", 0) + v.get("above_max", 0) for v in anomaly_report["out_of_range"].values())
+            + sum(
+                v.get("below_min", 0) + v.get("above_max", 0)
+                for v in anomaly_report["out_of_range"].values()
+            )
         )
         return anomaly_report
 
-    def _clean_data(self, df: pd.DataFrame, rules: Dict, anomaly_report: Dict) -> pd.DataFrame:
+    def _clean_data(
+        self, df: pd.DataFrame, rules: Dict, anomaly_report: Dict
+    ) -> pd.DataFrame:
         cleaned = df.copy()
         cleaning_log = []
 
@@ -1063,14 +1145,18 @@ class ValidationTool(BaseTool):
             if col_rules.get("drop_na") and cleaned[col].isna().any():
                 before = len(cleaned)
                 cleaned = cleaned.dropna(subset=[col])
-                cleaning_log.append(f"删除 {col} 含 NA 行: {before} -> {len(cleaned)}")
+                cleaning_log.append(
+                    f"删除 {col} 含 NA 行: {before} -> {len(cleaned)}"
+                )
                 continue
 
             fillna_val = col_rules.get("fillna")
             if fillna_val is not None and cleaned[col].isna().any():
                 na_count = int(cleaned[col].isna().sum())
                 cleaned[col] = cleaned[col].fillna(fillna_val)
-                cleaning_log.append(f"{col}: 用 {fillna_val} 填充 {na_count} 个 NA")
+                cleaning_log.append(
+                    f"{col}: 用 {fillna_val} 填充 {na_count} 个 NA"
+                )
 
             if pd.api.types.is_numeric_dtype(cleaned[col]):
                 inf_mask = np.isinf(cleaned[col])
@@ -1078,17 +1164,25 @@ class ValidationTool(BaseTool):
                     inf_count = int(inf_mask.sum())
                     replacement = col_rules.get("fillna", 0)
                     cleaned.loc[inf_mask, col] = replacement
-                    cleaning_log.append(f"{col}: 替换 {inf_count} 个 Inf 值为 {replacement}")
+                    cleaning_log.append(
+                        f"{col}: 替换 {inf_count} 个 Inf 值为 {replacement}"
+                    )
 
                 clip_enabled = col_rules.get("clip_outliers", False)
                 col_min = col_rules.get("min")
                 col_max = col_rules.get("max")
-                if clip_enabled and (col_min is not None or col_max is not None):
+                if clip_enabled and (
+                    col_min is not None or col_max is not None
+                ):
                     before_clip = cleaned[col].copy()
-                    cleaned[col] = cleaned[col].clip(lower=col_min, upper=col_max)
+                    cleaned[col] = cleaned[col].clip(
+                        lower=col_min, upper=col_max
+                    )
                     clipped_count = int((before_clip != cleaned[col]).sum())
                     if clipped_count > 0:
-                        cleaning_log.append(f"{col}: 截断 {clipped_count} 个越界值到 [{col_min}, {col_max}]")
+                        cleaning_log.append(
+                            f"{col}: 截断 {clipped_count} 个越界值到 [{col_min}, {col_max}]"
+                        )
 
         ctx_local = getattr(self, "_clean_ctx", None)
         if ctx_local:
@@ -1118,9 +1212,16 @@ class ValidationTool(BaseTool):
             report = {
                 "row_count": 0,
                 "col_count": len(data.columns),
-                "columns_check": self._check_required_columns(data, required_columns),
+                "columns_check": self._check_required_columns(
+                    data, required_columns
+                ),
                 "type_check": {},
-                "anomalies": {"nan_counts": {}, "inf_counts": {}, "out_of_range": {}, "total_anomalies": 0},
+                "anomalies": {
+                    "nan_counts": {},
+                    "inf_counts": {},
+                    "out_of_range": {},
+                    "total_anomalies": 0,
+                },
                 "cleaning_applied": False,
                 "is_valid": len(required_columns) == 0,
                 "warnings": ["输入 DataFrame 为空"],
@@ -1147,7 +1248,11 @@ class ValidationTool(BaseTool):
         )
 
         should_clean = rules and has_errors
-        cleaned_data = self._clean_data(data, rules, anomalies) if should_clean else data.copy()
+        cleaned_data = (
+            self._clean_data(data, rules, anomalies)
+            if should_clean
+            else data.copy()
+        )
 
         cleaning_log = ctx.get("validation_cleaning_log", [])
 
@@ -1165,7 +1270,9 @@ class ValidationTool(BaseTool):
 
         ctx.record_metric("validation.row_count", len(data))
         ctx.record_metric("validation.is_valid", report["is_valid"])
-        ctx.record_metric("validation.anomaly_count", anomalies["total_anomalies"])
+        ctx.record_metric(
+            "validation.anomaly_count", anomalies["total_anomalies"]
+        )
 
         if strict and has_errors:
             errors = []

@@ -4,9 +4,8 @@
 充分利用时间窗口：22:00-次日20:30（22.5小时）
 """
 
-import asyncio
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
@@ -16,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskSlot:
     """任务时间槽"""
+
     task_name: str
     start_time: datetime
     end_time: datetime
@@ -29,6 +29,7 @@ class TaskSlot:
 @dataclass
 class TimeWindow:
     """时间窗口"""
+
     start: datetime
     end: datetime
     available_minutes: int
@@ -41,7 +42,7 @@ class TimeCoordinatorV2:
         self,
         window_start_hour: int = 22,
         window_end_hour: int = 20,
-        window_end_next_day: bool = True
+        window_end_next_day: bool = True,
     ):
         """
         初始化时间协调器
@@ -72,11 +73,17 @@ class TimeCoordinatorV2:
         # 计算结束时间
         if self.window_end_next_day:
             end_time = (now + timedelta(days=1)).replace(
-                hour=self.window_end_hour, minute=self.window_end_minute, second=0, microsecond=0
+                hour=self.window_end_hour,
+                minute=self.window_end_minute,
+                second=0,
+                microsecond=0,
             )
         else:
             end_time = now.replace(
-                hour=self.window_end_hour, minute=self.window_end_minute, second=0, microsecond=0
+                hour=self.window_end_hour,
+                minute=self.window_end_minute,
+                second=0,
+                microsecond=0,
             )
 
         # 如果开始时间已过，使用下一个周期
@@ -88,9 +95,7 @@ class TimeCoordinatorV2:
         total_minutes = int((end_time - start_time).total_seconds() / 60)
 
         return TimeWindow(
-            start=start_time,
-            end=end_time,
-            available_minutes=total_minutes
+            start=start_time, end=end_time, available_minutes=total_minutes
         )
 
     def register_task(
@@ -99,7 +104,7 @@ class TimeCoordinatorV2:
         estimated_duration_minutes: int,
         priority: int = 1,
         dependencies: List[str] = None,
-        is_core_task: bool = True
+        is_core_task: bool = True,
     ):
         """
         注册任务
@@ -118,10 +123,12 @@ class TimeCoordinatorV2:
             duration_minutes=estimated_duration_minutes,
             priority=priority,
             dependencies=dependencies or [],
-            is_core_task=is_core_task
+            is_core_task=is_core_task,
         )
         self.task_dependencies[task_name] = dependencies or []
-        logger.info(f"任务已注册: {task_name} (预计耗时: {estimated_duration_minutes}分钟, 优先级: {priority}, 核心:{is_core_task})")
+        logger.info(
+            f"任务已注册: {task_name} (预计耗时: {estimated_duration_minutes}分钟, 优先级: {priority}, 核心:{is_core_task})"
+        )
 
     def register_agent(self, agent_id: str, capabilities: List[str]):
         """注册智能体能力"""
@@ -132,12 +139,13 @@ class TimeCoordinatorV2:
         """智能计算任务调度表 V2.0 - 充分利用时间窗口"""
 
         window = self.get_time_window()
-        logger.info(f"时间窗口: {window.start} -> {window.end} (可用: {window.available_minutes}分钟)")
+        logger.info(
+            f"时间窗口: {window.start} -> {window.end} (可用: {window.available_minutes}分钟)"
+        )
 
         # 1. 按优先级排序任务
         tasks_by_priority = sorted(
-            self.task_slots.values(),
-            key=lambda x: (-x.priority, x.task_name)
+            self.task_slots.values(), key=lambda x: (-x.priority, x.task_name)
         )
 
         # 2. 构建依赖图
@@ -151,7 +159,9 @@ class TimeCoordinatorV2:
             schedulable = []
             for task in tasks_by_priority:
                 if task.task_name not in completed_tasks:
-                    deps_ok = all(dep in completed_tasks for dep in task.dependencies)
+                    deps_ok = all(
+                        dep in completed_tasks for dep in task.dependencies
+                    )
                     if deps_ok:
                         schedulable.append(task)
 
@@ -163,11 +173,12 @@ class TimeCoordinatorV2:
             task_slot = TaskSlot(
                 task_name=next_task.task_name,
                 start_time=current_time,
-                end_time=current_time + timedelta(minutes=next_task.duration_minutes),
+                end_time=current_time
+                + timedelta(minutes=next_task.duration_minutes),
                 duration_minutes=next_task.duration_minutes,
                 priority=next_task.priority,
                 dependencies=next_task.dependencies,
-                is_core_task=next_task.is_core_task
+                is_core_task=next_task.is_core_task,
             )
 
             task_slot.agent_assigned = self._assign_agent(next_task.task_name)
@@ -185,11 +196,15 @@ class TimeCoordinatorV2:
 
         # 4. 持续优化阶段 - 充分利用剩余时间
         core_end_time = current_time
-        remaining_minutes = window.available_minutes - int((core_end_time - window.start).total_seconds() / 60)
+        remaining_minutes = window.available_minutes - int(
+            (core_end_time - window.start).total_seconds() / 60
+        )
 
         if remaining_minutes > 60:  # 如果剩余时间超过1小时
             logger.info(f"\n=== 持续优化阶段 ===")
-            logger.info(f"剩余时间: {remaining_minutes}分钟 ({remaining_minutes/60:.1f}小时)")
+            logger.info(
+                f"剩余时间: {remaining_minutes}分钟 ({remaining_minutes/60:.1f}小时)"
+            )
 
             optimization_rounds = remaining_minutes // 90  # 每轮约90分钟
             optimization_task_names = [
@@ -198,7 +213,7 @@ class TimeCoordinatorV2:
                 "预测验证",
                 "结果分析",
                 "参数优化",
-                "特征更新"
+                "特征更新",
             ]
 
             for round_num in range(min(optimization_rounds, 10)):  # 最多10轮
@@ -206,18 +221,22 @@ class TimeCoordinatorV2:
                     if current_time >= window.end:
                         break
 
-                    task_duration = min(15, int((window.end - current_time).total_seconds() / 60))
+                    task_duration = min(
+                        15,
+                        int((window.end - current_time).total_seconds() / 60),
+                    )
                     if task_duration < 5:
                         break
 
                     optimization_slot = TaskSlot(
                         task_name=f"{task_name} (优化轮次 {round_num + 1})",
                         start_time=current_time,
-                        end_time=current_time + timedelta(minutes=task_duration),
+                        end_time=current_time
+                        + timedelta(minutes=task_duration),
                         duration_minutes=task_duration,
                         priority=1,
                         agent_assigned=self._get_round_agent(round_num, i),
-                        is_core_task=False
+                        is_core_task=False,
                     )
 
                     schedule.append(optimization_slot)
@@ -242,10 +261,12 @@ class TimeCoordinatorV2:
                 duration_minutes=final_remaining,
                 priority=0,
                 agent_assigned="monitor_agent",
-                is_core_task=False
+                is_core_task=False,
             )
             schedule.append(standby_slot)
-            logger.info(f"\n系统待命: {current_time.strftime('%H:%M')} -> {window.end.strftime('%H:%M')} ({final_remaining}分钟)")
+            logger.info(
+                f"\n系统待命: {current_time.strftime('%H:%M')} -> {window.end.strftime('%H:%M')} ({final_remaining}分钟)"
+            )
 
         return schedule
 
@@ -274,15 +295,21 @@ class TimeCoordinatorV2:
         print("=" * 100)
 
         window = self.get_time_window()
-        print(f"📅 时间窗口: {window.start.strftime('%Y-%m-%d %H:%M')} -> {window.end.strftime('%Y-%m-%d %H:%M')}")
-        print(f"⏱️  总可用时间: {window.available_minutes}分钟 ({window.available_minutes/60:.1f}小时)")
+        print(
+            f"📅 时间窗口: {window.start.strftime('%Y-%m-%d %H:%M')} -> {window.end.strftime('%Y-%m-%d %H:%M')}"
+        )
+        print(
+            f"⏱️  总可用时间: {window.available_minutes}分钟 ({window.available_minutes/60:.1f}小时)"
+        )
         print("=" * 100)
 
         # 核心任务
         core_tasks = [s for s in schedule if s.is_core_task]
         if core_tasks:
             print("\n🔷 核心任务阶段")
-            print(f"{'#':<3} {'任务':<40} {'开始':<10} {'结束':<10} {'耗时':<6} {'优先级':<6} {'Agent':<15}")
+            print(
+                f"{'#':<3} {'任务':<40} {'开始':<10} {'结束':<10} {'耗时':<6} {'优先级':<6} {'Agent':<15}"
+            )
             print("-" * 100)
 
             for i, slot in enumerate(core_tasks, 1):
@@ -296,10 +323,16 @@ class TimeCoordinatorV2:
                 )
 
         # 优化任务
-        opt_tasks = [s for s in schedule if not s.is_core_task and "待命" not in s.task_name]
+        opt_tasks = [
+            s
+            for s in schedule
+            if not s.is_core_task and "待命" not in s.task_name
+        ]
         if opt_tasks:
             total_opt_minutes = sum(s.duration_minutes for s in opt_tasks)
-            print(f"\n🔶 持续优化阶段 (共 {len(opt_tasks)} 个任务, {total_opt_minutes}分钟)")
+            print(
+                f"\n🔶 持续优化阶段 (共 {len(opt_tasks)} 个任务, {total_opt_minutes}分钟)"
+            )
             print("-" * 100)
 
             for slot in opt_tasks[:5]:  # 只显示前5个
@@ -317,21 +350,37 @@ class TimeCoordinatorV2:
         standby_tasks = [s for s in schedule if "待命" in s.task_name]
         if standby_tasks:
             for slot in standby_tasks:
-                print(f"\n🔴 待命阶段: {slot.start_time.strftime('%H:%M')} -> {slot.end_time.strftime('%H:%M')} ({slot.duration_minutes}分钟)")
+                print(
+                    f"\n🔴 待命阶段: {slot.start_time.strftime('%H:%M')} -> {slot.end_time.strftime('%H:%M')} ({slot.duration_minutes}分钟)"
+                )
 
         # 统计
         total_duration = sum(s.duration_minutes for s in schedule)
-        core_duration = sum(s.duration_minutes for s in schedule if s.is_core_task)
-        opt_duration = sum(s.duration_minutes for s in schedule if not s.is_core_task)
+        core_duration = sum(
+            s.duration_minutes for s in schedule if s.is_core_task
+        )
+        opt_duration = sum(
+            s.duration_minutes for s in schedule if not s.is_core_task
+        )
 
         print("\n" + "=" * 100)
         print("📊 统计信息")
         print("=" * 100)
-        print(f"✅ 核心任务: {len(core_tasks)} 个, {core_duration}分钟 ({core_duration/60:.1f}小时)")
-        print(f"🔄 优化任务: {len(opt_tasks)} 个, {opt_duration}分钟 ({opt_duration/60:.1f}小时)")
-        print(f"⏸️  待命阶段: {standby_tasks[0].duration_minutes if standby_tasks else 0}分钟")
-        print(f"📈 总执行时间: {total_duration}分钟 ({total_duration/60:.1f}小时)")
-        print(f"📊 时间利用率: {total_duration/window.available_minutes*100:.1f}%")
+        print(
+            f"✅ 核心任务: {len(core_tasks)} 个, {core_duration}分钟 ({core_duration/60:.1f}小时)"
+        )
+        print(
+            f"🔄 优化任务: {len(opt_tasks)} 个, {opt_duration}分钟 ({opt_duration/60:.1f}小时)"
+        )
+        print(
+            f"⏸️  待命阶段: {standby_tasks[0].duration_minutes if standby_tasks else 0}分钟"
+        )
+        print(
+            f"📈 总执行时间: {total_duration}分钟 ({total_duration/60:.1f}小时)"
+        )
+        print(
+            f"📊 时间利用率: {total_duration/window.available_minutes*100:.1f}%"
+        )
         print("=" * 100)
 
 
@@ -342,10 +391,14 @@ class DynamicTimeCoordinator(TimeCoordinatorV2):
         super().__init__(*args, **kwargs)
         self.actual_execution_times: Dict[str, timedelta] = {}
 
-    def update_actual_duration(self, task_name: str, actual_duration: timedelta):
+    def update_actual_duration(
+        self, task_name: str, actual_duration: timedelta
+    ):
         """更新任务实际执行时间"""
         self.actual_execution_times[task_name] = actual_duration
-        logger.info(f"任务 {task_name} 实际耗时: {actual_duration.total_seconds()/60:.1f}分钟")
+        logger.info(
+            f"任务 {task_name} 实际耗时: {actual_duration.total_seconds()/60:.1f}分钟"
+        )
 
     def recalculate_schedule(self) -> List[TaskSlot]:
         """重新计算调度表（考虑实际执行时间）"""

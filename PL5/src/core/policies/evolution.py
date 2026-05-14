@@ -10,8 +10,6 @@ from enum import Enum
 import logging
 import random
 import numpy as np
-from sklearn.base import BaseEstimator
-from sklearn.model_selection import cross_val_score
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +93,19 @@ class GeneticAlgorithm:
 
         self.population: List[Individual] = []
         self.fitness_history: List[float] = []
-        self._fitness_function: Optional[Callable[[Dict[str, Any]], float]] = None
+        self._fitness_function: Optional[Callable[[Dict[str, Any]], float]] = (
+            None
+        )
 
-    def set_fitness_function(self, fitness_function: Callable[[Dict[str, Any]], float]) -> None:
+    def set_fitness_function(
+        self, fitness_function: Callable[[Dict[str, Any]], float]
+    ) -> None:
         """设置适应度函数"""
         self._fitness_function = fitness_function
 
-    def initialize_population(self, genotype_template: Dict[str, Dict[str, Any]]) -> List[Individual]:
+    def initialize_population(
+        self, genotype_template: Dict[str, Dict[str, Any]]
+    ) -> List[Individual]:
         """
         初始化种群
 
@@ -114,13 +118,17 @@ class GeneticAlgorithm:
         self.population = []
         for i in range(self.population_size):
             genotype = self._generate_genotype(genotype_template)
-            individual = Individual(id=f"ind_{i}_{np.random.randint(10000)}", genotype=genotype)
+            individual = Individual(
+                id=f"ind_{i}_{np.random.randint(10000)}", genotype=genotype
+            )
             self.population.append(individual)
 
         logger.info(f"初始化种群完成，大小: {len(self.population)}")
         return self.population
 
-    def _generate_genotype(self, genotype_template: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generate_genotype(
+        self, genotype_template: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """生成随机基因型"""
         genotype = {}
         for param_name, param_spec in genotype_template.items():
@@ -145,7 +153,11 @@ class GeneticAlgorithm:
                 min_len = param_spec.get("min_len", 1)
                 max_len = param_spec.get("max_len", 5)
                 length = random.randint(min_len, max_len)
-                genotype[param_name] = random.sample(options, min(length, len(options))) if options else []
+                genotype[param_name] = (
+                    random.sample(options, min(length, len(options)))
+                    if options
+                    else []
+                )
 
         return genotype
 
@@ -188,7 +200,9 @@ class GeneticAlgorithm:
         else:
             return self._tournament_selection(num_parents)
 
-    def _tournament_selection(self, num_parents: int, tournament_size: int = 3) -> List[Individual]:
+    def _tournament_selection(
+        self, num_parents: int, tournament_size: int = 3
+    ) -> List[Individual]:
         """锦标赛选择"""
         parents = []
         for _ in range(num_parents):
@@ -203,8 +217,12 @@ class GeneticAlgorithm:
         if total_fitness == 0:
             return random.sample(self.population, num_parents)
 
-        selection_probs = [ind.fitness / total_fitness for ind in self.population]
-        parents = random.choices(self.population, weights=selection_probs, k=num_parents)
+        selection_probs = [
+            ind.fitness / total_fitness for ind in self.population
+        ]
+        parents = random.choices(
+            self.population, weights=selection_probs, k=num_parents
+        )
         return parents
 
     def _rank_based_selection(self, num_parents: int) -> List[Individual]:
@@ -213,15 +231,21 @@ class GeneticAlgorithm:
         ranks = list(range(1, len(sorted_pop) + 1))
         total_rank = sum(ranks)
         selection_probs = [rank / total_rank for rank in ranks]
-        parents = random.choices(sorted_pop, weights=selection_probs, k=num_parents)
+        parents = random.choices(
+            sorted_pop, weights=selection_probs, k=num_parents
+        )
         return parents
 
     def _elitist_selection(self, num_parents: int) -> List[Individual]:
         """精英选择"""
-        sorted_pop = sorted(self.population, key=lambda x: x.fitness, reverse=True)
+        sorted_pop = sorted(
+            self.population, key=lambda x: x.fitness, reverse=True
+        )
         return sorted_pop[:num_parents]
 
-    def crossover(self, parent1: Individual, parent2: Individual) -> Tuple[Individual, Individual]:
+    def crossover(
+        self, parent1: Individual, parent2: Individual
+    ) -> Tuple[Individual, Individual]:
         """
         交叉操作
 
@@ -243,7 +267,9 @@ class GeneticAlgorithm:
         else:
             return self._one_point_crossover(parent1, parent2)
 
-    def _one_point_crossover(self, parent1: Individual, parent2: Individual) -> Tuple[Individual, Individual]:
+    def _one_point_crossover(
+        self, parent1: Individual, parent2: Individual
+    ) -> Tuple[Individual, Individual]:
         """单点交叉"""
         keys = list(parent1.genotype.keys())
         if len(keys) < 2:
@@ -262,12 +288,18 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
-        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
+        child1 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child1_genotype
+        )
+        child2 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child2_genotype
+        )
 
         return child1, child2
 
-    def _two_point_crossover(self, parent1: Individual, parent2: Individual) -> Tuple[Individual, Individual]:
+    def _two_point_crossover(
+        self, parent1: Individual, parent2: Individual
+    ) -> Tuple[Individual, Individual]:
         """两点交叉"""
         keys = list(parent1.genotype.keys())
         if len(keys) < 3:
@@ -287,12 +319,18 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
-        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
+        child1 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child1_genotype
+        )
+        child2 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child2_genotype
+        )
 
         return child1, child2
 
-    def _uniform_crossover(self, parent1: Individual, parent2: Individual) -> Tuple[Individual, Individual]:
+    def _uniform_crossover(
+        self, parent1: Individual, parent2: Individual
+    ) -> Tuple[Individual, Individual]:
         """均匀交叉"""
         child1_genotype = {}
         child2_genotype = {}
@@ -305,8 +343,12 @@ class GeneticAlgorithm:
                 child1_genotype[key] = parent2.genotype[key]
                 child2_genotype[key] = parent1.genotype[key]
 
-        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
-        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
+        child1 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child1_genotype
+        )
+        child2 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child2_genotype
+        )
 
         return child1, child2
 
@@ -321,7 +363,9 @@ class GeneticAlgorithm:
             val1 = parent1.genotype[key]
             val2 = parent2.genotype[key]
 
-            if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+            if isinstance(val1, (int, float)) and isinstance(
+                val2, (int, float)
+            ):
                 d = abs(val2 - val1)
                 lower = min(val1, val2) - alpha * d
                 upper = max(val1, val2) + alpha * d
@@ -336,12 +380,20 @@ class GeneticAlgorithm:
                     child1_genotype[key] = val2
                     child2_genotype[key] = val1
 
-        child1 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child1_genotype)
-        child2 = Individual(id=f"child_{np.random.randint(10000)}", genotype=child2_genotype)
+        child1 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child1_genotype
+        )
+        child2 = Individual(
+            id=f"child_{np.random.randint(10000)}", genotype=child2_genotype
+        )
 
         return child1, child2
 
-    def mutate(self, individual: Individual, genotype_template: Dict[str, Dict[str, Any]]) -> Individual:
+    def mutate(
+        self,
+        individual: Individual,
+        genotype_template: Dict[str, Dict[str, Any]],
+    ) -> Individual:
         """
         变异操作
 
@@ -359,17 +411,34 @@ class GeneticAlgorithm:
                 param_type = param_spec.get("type", "float")
 
                 if self.mutation_method == MutationMethod.GAUSSIAN:
-                    mutated_genotype = self._gaussian_mutate(mutated_genotype, param_name, param_spec)
+                    mutated_genotype = self._gaussian_mutate(
+                        mutated_genotype, param_name, param_spec
+                    )
                 elif self.mutation_method == MutationMethod.UNIFORM:
-                    mutated_genotype = self._uniform_mutate(mutated_genotype, param_name, param_spec)
+                    mutated_genotype = self._uniform_mutate(
+                        mutated_genotype, param_name, param_spec
+                    )
                 elif self.mutation_method == MutationMethod.BIT_FLIP:
-                    mutated_genotype = self._bit_flip_mutate(mutated_genotype, param_name, param_spec)
+                    mutated_genotype = self._bit_flip_mutate(
+                        mutated_genotype, param_name, param_spec
+                    )
                 elif self.mutation_method == MutationMethod.POLYNOMIAL:
-                    mutated_genotype = self._polynomial_mutate(mutated_genotype, param_name, param_spec)
+                    mutated_genotype = self._polynomial_mutate(
+                        mutated_genotype, param_name, param_spec
+                    )
 
-        return Individual(id=individual.id, genotype=mutated_genotype, metadata=individual.metadata)
+        return Individual(
+            id=individual.id,
+            genotype=mutated_genotype,
+            metadata=individual.metadata,
+        )
 
-    def _gaussian_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def _gaussian_mutate(
+        self,
+        genotype: Dict[str, Any],
+        param_name: str,
+        param_spec: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """高斯变异"""
         param_type = param_spec.get("type", "float")
 
@@ -392,7 +461,12 @@ class GeneticAlgorithm:
 
         return genotype
 
-    def _uniform_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def _uniform_mutate(
+        self,
+        genotype: Dict[str, Any],
+        param_name: str,
+        param_spec: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """均匀变异"""
         param_type = param_spec.get("type", "float")
 
@@ -413,27 +487,44 @@ class GeneticAlgorithm:
 
         return genotype
 
-    def _bit_flip_mutate(self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def _bit_flip_mutate(
+        self,
+        genotype: Dict[str, Any],
+        param_name: str,
+        param_spec: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """位翻转变异"""
         param_type = param_spec.get("type", "float")
 
         if param_type == "bool":
             genotype[param_name] = not genotype[param_name]
         elif param_type == "int":
-            genotype[param_name] = 1 - genotype[param_name] if genotype[param_name] in [0, 1] else genotype[param_name]
+            genotype[param_name] = (
+                1 - genotype[param_name]
+                if genotype[param_name] in [0, 1]
+                else genotype[param_name]
+            )
 
         return genotype
 
     def _polynomial_mutate(
-        self, genotype: Dict[str, Any], param_name: str, param_spec: Dict[str, Any], eta: float = 20.0
+        self,
+        genotype: Dict[str, Any],
+        param_name: str,
+        param_spec: Dict[str, Any],
+        eta: float = 20.0,
     ) -> Dict[str, Any]:
         """多项式变异"""
         param_type = param_spec.get("type", "float")
 
         if param_type in ["float", "int"]:
             current = genotype[param_name]
-            min_val = param_spec.get("min", 0.0 if param_type == "float" else 0)
-            max_val = param_spec.get("max", 1.0 if param_type == "float" else 100)
+            min_val = param_spec.get(
+                "min", 0.0 if param_type == "float" else 0
+            )
+            max_val = param_spec.get(
+                "max", 1.0 if param_type == "float" else 100
+            )
 
             delta1 = (current - min_val) / (max_val - min_val)
             delta2 = (max_val - current) / (max_val - min_val)
@@ -447,7 +538,9 @@ class GeneticAlgorithm:
                 deltaq = (val**mut_pow) - 1.0
             else:
                 xy = 1.0 - delta2
-                val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta + 1.0))
+                val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (
+                    xy ** (eta + 1.0)
+                )
                 deltaq = 1.0 - (val**mut_pow)
 
             new_val = current + deltaq * (max_val - min_val)
@@ -460,7 +553,9 @@ class GeneticAlgorithm:
 
         return genotype
 
-    def evolve(self, genotype_template: Dict[str, Dict[str, Any]]) -> EvolutionResult:
+    def evolve(
+        self, genotype_template: Dict[str, Dict[str, Any]]
+    ) -> EvolutionResult:
         """
         执行演化过程
 
@@ -480,13 +575,17 @@ class GeneticAlgorithm:
 
             best_fitness = max(ind.fitness for ind in self.population)
             self.fitness_history.append(best_fitness)
-            logger.info(f"Generation {generation}: Best fitness = {best_fitness}")
+            logger.info(
+                f"Generation {generation}: Best fitness = {best_fitness}"
+            )
 
             new_population = []
 
             num_elite = int(self.elitism_rate * self.population_size)
             if num_elite > 0:
-                sorted_pop = sorted(self.population, key=lambda x: x.fitness, reverse=True)
+                sorted_pop = sorted(
+                    self.population, key=lambda x: x.fitness, reverse=True
+                )
                 new_population.extend(sorted_pop[:num_elite])
 
             while len(new_population) < self.population_size:

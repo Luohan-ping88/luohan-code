@@ -2,12 +2,10 @@
 评测反馈智能体 - 负责模型评估、性能监控、反馈优化建议
 """
 
-import asyncio
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any
+from datetime import datetime
 import logging
 import numpy as np
-import pandas as pd
 from pathlib import Path
 
 from .base_agent import BaseAgent, AgentTask, AgentResult
@@ -108,30 +106,49 @@ class EvaluationFeedbackAgent(BaseAgent):
 
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            return AgentResult(task_id=task.task_id, success=True, data=result_data, execution_time=execution_time)
+            return AgentResult(
+                task_id=task.task_id,
+                success=True,
+                data=result_data,
+                execution_time=execution_time,
+            )
 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.error(f"[{self.name}] 任务执行失败: {str(e)}")
 
             return AgentResult(
-                task_id=task.task_id, success=False, data={}, execution_time=execution_time, error_message=str(e)
+                task_id=task.task_id,
+                success=False,
+                data={},
+                execution_time=execution_time,
+                error_message=str(e),
             )
 
-    async def _evaluate_prediction(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_prediction(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """评估单次预测结果"""
         prediction = params.get("prediction")
         actual = params.get("actual")
 
         # 使用PredictionEvaluator执行评估
-        evaluation_result = self.evaluator.evaluate_predictions(actual, prediction)
+        evaluation_result = self.evaluator.evaluate_predictions(
+            actual, prediction
+        )
 
         # 提取需要的结果格式
         result = {
             "position_accuracy": evaluation_result.get("detailed_metrics", {}),
-            "overall_accuracy": evaluation_result.get("metrics", {}).get("accuracy_top_3", 0),
-            "full_match": self._calculate_full_match(evaluation_result.get("detailed_metrics", {})),
-            "timestamp": evaluation_result.get("timestamp", datetime.now().isoformat()),
+            "overall_accuracy": evaluation_result.get("metrics", {}).get(
+                "accuracy_top_3", 0
+            ),
+            "full_match": self._calculate_full_match(
+                evaluation_result.get("detailed_metrics", {})
+            ),
+            "timestamp": evaluation_result.get(
+                "timestamp", datetime.now().isoformat()
+            ),
             "metrics": evaluation_result.get("metrics", {}),
             "summary": evaluation_result.get("summary", {}),
         }
@@ -145,7 +162,9 @@ class EvaluationFeedbackAgent(BaseAgent):
                 return False
         return len(detailed_metrics) == 5
 
-    async def _model_evaluation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _model_evaluation(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """模型评估"""
         models = params.get("models")
         test_data = params.get("test_data")
@@ -164,7 +183,10 @@ class EvaluationFeedbackAgent(BaseAgent):
                 unique, counts = np.unique(values, return_counts=True)
 
                 # 计算频率分布
-                freq_dist = {int(k): float(v) for k, v in zip(unique, counts / len(values))}
+                freq_dist = {
+                    int(k): float(v)
+                    for k, v in zip(unique, counts / len(values))
+                }
 
                 # 计算基于分布的准确率估计
                 max_freq = max(freq_dist.values()) if freq_dist else 0
@@ -194,8 +216,16 @@ class EvaluationFeedbackAgent(BaseAgent):
                 }
 
         # 计算整体指标
-        overall_accuracy = np.mean([r["accuracy"] for r in results.values()]) if results else 0
-        full_match_rate = np.prod([r["accuracy"] for r in results.values()]) if results else 0
+        overall_accuracy = (
+            np.mean([r["accuracy"] for r in results.values()])
+            if results
+            else 0
+        )
+        full_match_rate = (
+            np.prod([r["accuracy"] for r in results.values()])
+            if results
+            else 0
+        )
 
         return {
             "position_accuracy": results,
@@ -205,7 +235,9 @@ class EvaluationFeedbackAgent(BaseAgent):
             "timestamp": datetime.now().isoformat(),
         }
 
-    async def _rolling_backtest(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _rolling_backtest(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """滚动回测"""
         models = params.get("models")
         data = params.get("data")
@@ -213,7 +245,9 @@ class EvaluationFeedbackAgent(BaseAgent):
         window_size = params.get("window_size", 100)
         step_size = params.get("step_size", 10)
 
-        logger.info(f"[{self.name}] 开始滚动回测: window={window_size}, step={step_size}")
+        logger.info(
+            f"[{self.name}] 开始滚动回测: window={window_size}, step={step_size}"
+        )
 
         results = []
         n_samples = len(data)
@@ -234,16 +268,25 @@ class EvaluationFeedbackAgent(BaseAgent):
 
             # 记录结果
             results.append(
-                {"window_start": start, "window_end": end, "train_size": len(train_data), "test_size": len(test_data)}
+                {
+                    "window_start": start,
+                    "window_end": end,
+                    "train_size": len(train_data),
+                    "test_size": len(test_data),
+                }
             )
 
         return {
             "backtest_results": results,
             "window_count": len(results),
-            "avg_window_accuracy": np.mean([r.get("accuracy", 0) for r in results]),
+            "avg_window_accuracy": np.mean(
+                [r.get("accuracy", 0) for r in results]
+            ),
         }
 
-    async def _performance_monitoring(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _performance_monitoring(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """性能监控"""
         window = params.get("window", 10)
 
@@ -256,14 +299,20 @@ class EvaluationFeedbackAgent(BaseAgent):
         recent = history[-window:]
 
         # 计算近期指标
-        recent_accuracies = [h.get("metrics", {}).get("accuracy_top_3", 0) for h in recent]
+        recent_accuracies = [
+            h.get("metrics", {}).get("accuracy_top_3", 0) for h in recent
+        ]
 
         metrics = {
             "mean_accuracy": np.mean(recent_accuracies),
             "std_accuracy": np.std(recent_accuracies),
             "min_accuracy": np.min(recent_accuracies),
             "max_accuracy": np.max(recent_accuracies),
-            "trend": "up" if recent_accuracies[-1] > recent_accuracies[0] else "down",
+            "trend": (
+                "up"
+                if recent_accuracies[-1] > recent_accuracies[0]
+                else "down"
+            ),
         }
 
         # 判断性能状态
@@ -290,7 +339,10 @@ class EvaluationFeedbackAgent(BaseAgent):
             return {"trend": "unknown", "confidence": 0}
 
         # 提取准确率数据
-        accuracies = [h.get("metrics", {}).get("accuracy_top_3", 0) for h in metrics_history]
+        accuracies = [
+            h.get("metrics", {}).get("accuracy_top_3", 0)
+            for h in metrics_history
+        ]
 
         # 简单线性回归计算趋势
         x = np.arange(len(accuracies))
@@ -327,7 +379,9 @@ class EvaluationFeedbackAgent(BaseAgent):
         else:
             return "性能稳定，继续监控"
 
-    async def _generate_feedback(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_feedback(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """生成优化建议"""
         eval_results = params.get("eval_results", {})
 
@@ -348,7 +402,9 @@ class EvaluationFeedbackAgent(BaseAgent):
         # 2. 检查各位置表现
         position_acc = eval_results.get("position_accuracy", {})
         weak_positions = [
-            pos for pos, acc in position_acc.items() if isinstance(acc, dict) and not acc.get("hit", True)
+            pos
+            for pos, acc in position_acc.items()
+            if isinstance(acc, dict) and not acc.get("hit", True)
         ]
 
         if len(weak_positions) >= 3:
@@ -388,10 +444,14 @@ class EvaluationFeedbackAgent(BaseAgent):
             "feedback_items": feedback,
             "priority_count": {
                 "high": sum(1 for f in feedback if f["priority"] == "high"),
-                "medium": sum(1 for f in feedback if f["priority"] == "medium"),
+                "medium": sum(
+                    1 for f in feedback if f["priority"] == "medium"
+                ),
                 "low": sum(1 for f in feedback if f["priority"] == "low"),
             },
-            "recommended_actions": [f["action"] for f in feedback if f["action"] != "none"],
+            "recommended_actions": [
+                f["action"] for f in feedback if f["action"] != "none"
+            ],
         }
 
     async def _ab_test(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -427,12 +487,16 @@ class EvaluationFeedbackAgent(BaseAgent):
             },
             "position_performance": eval_results.get("position_accuracy", {}),
             "trends": eval_results.get("trends", {}),
-            "recommendations": eval_results.get("feedback", {}).get("recommended_actions", []),
+            "recommendations": eval_results.get("feedback", {}).get(
+                "recommended_actions", []
+            ),
         }
 
         # 保存报告
         report_path = (
-            Path(__file__).parent.parent / "results" / f'eval_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            Path(__file__).parent.parent
+            / "results"
+            / f'eval_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
         )
         report_path.parent.mkdir(exist_ok=True)
 
@@ -457,19 +521,32 @@ class EvaluationFeedbackAgent(BaseAgent):
             stats = self.evaluator.get_evaluation_statistics()
 
             # 获取近期评估
-            recent_evaluations = self.evaluator.get_evaluation_history(limit=10)
+            recent_evaluations = self.evaluator.get_evaluation_history(
+                limit=10
+            )
 
             # 计算全中率
             full_matches = [
-                1 if self._calculate_full_match(e.get("detailed_metrics", {})) else 0 for e in recent_evaluations
+                (
+                    1
+                    if self._calculate_full_match(
+                        e.get("detailed_metrics", {})
+                    )
+                    else 0
+                )
+                for e in recent_evaluations
             ]
 
             return {
                 "overall_accuracy": stats.get("average_accuracy", 0.1),
-                "full_match_rate": np.mean(full_matches) if full_matches else 0.0,
+                "full_match_rate": (
+                    np.mean(full_matches) if full_matches else 0.0
+                ),
                 "evaluation_count": stats.get("total_evaluations", 0),
                 "recent_evaluations": len(recent_evaluations),
-                "last_evaluation": recent_evaluations[-1] if recent_evaluations else None,
+                "last_evaluation": (
+                    recent_evaluations[-1] if recent_evaluations else None
+                ),
                 "accuracy_std": 0.0,  # PredictionEvaluator暂未提供标准差
                 "best_accuracy": stats.get("best_accuracy", 0.0),
                 "worst_accuracy": stats.get("worst_accuracy", 0.0),
@@ -477,4 +554,8 @@ class EvaluationFeedbackAgent(BaseAgent):
             }
         except Exception as e:
             logger.error(f"[EvaluationAgent] 获取性能指标失败: {str(e)}")
-            return {"overall_accuracy": 0.1, "full_match_rate": 0.0, "error": str(e)}
+            return {
+                "overall_accuracy": 0.1,
+                "full_match_rate": 0.0,
+                "error": str(e),
+            }

@@ -3,7 +3,6 @@
 """
 
 import numpy as np
-from typing import Optional
 
 
 class EpsilonGreedyBandit:
@@ -11,7 +10,9 @@ class EpsilonGreedyBandit:
     Epsilon-Greedy多臂老虎机算法
     """
 
-    def __init__(self, n_arms: int, epsilon: float = 0.1, decay_rate: float = 0.995):
+    def __init__(
+        self, n_arms: int, epsilon: float = 0.1, decay_rate: float = 0.995
+    ):
         self.n_arms = n_arms
         self.epsilon = epsilon
         self.decay_rate = decay_rate
@@ -65,7 +66,9 @@ class UCBBandit:
             if self.counts[arm] == 0:
                 return arm
 
-        ucb_values = self.values + self.c * np.sqrt(np.log(self.total_counts) / self.counts)
+        ucb_values = self.values + self.c * np.sqrt(
+            np.log(self.total_counts) / self.counts
+        )
         return np.argmax(ucb_values)
 
     def update(self, arm: int, reward: float) -> None:

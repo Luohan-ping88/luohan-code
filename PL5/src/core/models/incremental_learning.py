@@ -4,12 +4,10 @@
 """
 
 import numpy as np
-import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from sklearn.base import BaseEstimator, ClassifierMixin
 
-from src.core.utils.logger import logger
 
 
 class IncrementalLearningManager:
@@ -44,7 +42,9 @@ class IncrementalLearningManager:
             return True
 
         current_time = datetime.now()
-        time_diff = (current_time - self.last_update_time).total_seconds() / 3600
+        time_diff = (
+            current_time - self.last_update_time
+        ).total_seconds() / 3600
         return time_diff >= self.min_update_interval
 
     def add_data(self, position: str, data: np.ndarray, target: np.ndarray):
@@ -63,8 +63,12 @@ class IncrementalLearningManager:
 
         # 限制内存大小
         if len(self.memory[position]["data"]) > self.max_memory_size:
-            self.memory[position]["data"] = self.memory[position]["data"][-self.max_memory_size :]
-            self.memory[position]["target"] = self.memory[position]["target"][-self.max_memory_size :]
+            self.memory[position]["data"] = self.memory[position]["data"][
+                -self.max_memory_size :
+            ]
+            self.memory[position]["target"] = self.memory[position]["target"][
+                -self.max_memory_size :
+            ]
 
     def get_batch(self, position: str) -> Optional[tuple]:
         """获取批量数据
@@ -206,7 +210,12 @@ class HierarchicalTrainingManager:
 class IncrementalModelWrapper(BaseEstimator, ClassifierMixin):
     """增量模型包装器"""
 
-    def __init__(self, base_model: BaseEstimator, learning_rate: float = 0.1, update_threshold: float = 0.01):
+    def __init__(
+        self,
+        base_model: BaseEstimator,
+        learning_rate: float = 0.1,
+        update_threshold: float = 0.01,
+    ):
         """初始化增量模型包装器
 
         Args:
@@ -233,7 +242,9 @@ class IncrementalModelWrapper(BaseEstimator, ClassifierMixin):
         self.is_fitted = True
         return self
 
-    def partial_fit(self, X: np.ndarray, y: np.ndarray) -> "IncrementalModelWrapper":
+    def partial_fit(
+        self, X: np.ndarray, y: np.ndarray
+    ) -> "IncrementalModelWrapper":
         """部分拟合模型
 
         Args:

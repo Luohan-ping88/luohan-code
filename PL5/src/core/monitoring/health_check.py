@@ -5,13 +5,10 @@
 实现系统的全面健康状态检测和诊断功能
 """
 
-import os
-import time
-import logging
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from src.core.utils.logger import setup_logging
 from src.core.backup.backup_manager import get_latest_backup
@@ -66,14 +63,23 @@ class HealthChecker:
                 # 更新整体状态
                 if check_result["status"] == "critical":
                     health_result["overall_status"] = "critical"
-                elif check_result["status"] == "unhealthy" and health_result["overall_status"] != "critical":
+                elif (
+                    check_result["status"] == "unhealthy"
+                    and health_result["overall_status"] != "critical"
+                ):
                     health_result["overall_status"] = "unhealthy"
-                elif check_result["status"] == "warning" and health_result["overall_status"] == "healthy":
+                elif (
+                    check_result["status"] == "warning"
+                    and health_result["overall_status"] == "healthy"
+                ):
                     health_result["overall_status"] = "warning"
 
             except Exception as e:
                 logger.error(f"执行健康检查 {check_name} 失败: {str(e)}")
-                health_result["checks"][check_name] = {"status": "error", "message": f"检查失败: {str(e)}"}
+                health_result["checks"][check_name] = {
+                    "status": "error",
+                    "message": f"检查失败: {str(e)}",
+                }
                 health_result["overall_status"] = "unhealthy"
 
         # 收集系统整体信息
@@ -92,7 +98,9 @@ class HealthChecker:
 
         self.last_health_check = datetime.now()
 
-        logger.info(f"[健康检查] 健康检查完成，状态: {health_result['overall_status']}")
+        logger.info(
+            f"[健康检查] 健康检查完成，状态: {health_result['overall_status']}"
+        )
         return health_result
 
     def _check_system_resources(self) -> Dict[str, Any]:
@@ -142,13 +150,24 @@ class HealthChecker:
                 "status": overall_status,
                 "message": f"系统资源状态: {overall_status}",
                 "details": {
-                    "cpu": {"status": cpu_status, "message": cpu_message, "value": cpu_percent},
-                    "memory": {"status": memory_status, "message": memory_message, "value": memory_percent},
+                    "cpu": {
+                        "status": cpu_status,
+                        "message": cpu_message,
+                        "value": cpu_percent,
+                    },
+                    "memory": {
+                        "status": memory_status,
+                        "message": memory_message,
+                        "value": memory_percent,
+                    },
                 },
             }
 
         except Exception as e:
-            return {"status": "error", "message": f"检查系统资源失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查系统资源失败: {str(e)}",
+            }
 
     def _check_disk_space(self) -> Dict[str, Any]:
         """检查磁盘空间"""
@@ -162,7 +181,11 @@ class HealthChecker:
                 try:
                     import subprocess
 
-                    result = subprocess.run(["fsutil", "volume", "diskfree", "C:"], capture_output=True, text=True)
+                    result = subprocess.run(
+                        ["fsutil", "volume", "diskfree", "C:"],
+                        capture_output=True,
+                        text=True,
+                    )
                     if result.returncode == 0:
                         output = result.stdout
                         # 解析fsutil输出
@@ -172,13 +195,25 @@ class HealthChecker:
 
                         for line in lines:
                             if "总字节数" in line:
-                                total_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
+                                total_bytes = int(
+                                    line.split(":")[1]
+                                    .strip()
+                                    .split(" ")[0]
+                                    .replace(",", "")
+                                )
                             elif "可用字节总数" in line:
-                                free_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
+                                free_bytes = int(
+                                    line.split(":")[1]
+                                    .strip()
+                                    .split(" ")[0]
+                                    .replace(",", "")
+                                )
 
                         if total_bytes > 0:
                             disk_percent = (1 - free_bytes / total_bytes) * 100
-                            disk_used_gb = (total_bytes - free_bytes) / 1024 / 1024 / 1024
+                            disk_used_gb = (
+                                (total_bytes - free_bytes) / 1024 / 1024 / 1024
+                            )
                             disk_total_gb = total_bytes / 1024 / 1024 / 1024
                             disk_path = "C:"
 
@@ -203,7 +238,9 @@ class HealthChecker:
                                 },
                             }
                 except Exception as subprocess_error:
-                    logger.error(f"使用subprocess获取磁盘信息失败: {subprocess_error}")
+                    logger.error(
+                        f"使用subprocess获取磁盘信息失败: {subprocess_error}"
+                    )
 
             # 尝试使用psutil获取磁盘信息
             try:
@@ -245,7 +282,10 @@ class HealthChecker:
             return {"status": "error", "message": "无法获取磁盘空间信息"}
 
         except Exception as e:
-            return {"status": "error", "message": f"检查磁盘空间失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查磁盘空间失败: {str(e)}",
+            }
 
     def _check_backup_status(self) -> Dict[str, Any]:
         """检查备份状态"""
@@ -256,7 +296,9 @@ class HealthChecker:
                 return {"status": "critical", "message": "未找到备份"}
 
             backup_time = datetime.fromisoformat(latest_backup["timestamp"])
-            time_since_backup = (datetime.now() - backup_time).total_seconds() / 3600  # 小时
+            time_since_backup = (
+                datetime.now() - backup_time
+            ).total_seconds() / 3600  # 小时
 
             if time_since_backup > 24:
                 status = "warning"
@@ -276,13 +318,21 @@ class HealthChecker:
             }
 
         except Exception as e:
-            return {"status": "error", "message": f"检查备份状态失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查备份状态失败: {str(e)}",
+            }
 
     def _check_component_health(self) -> Dict[str, Any]:
         """检查组件健康状态"""
         try:
             # 检查关键目录是否存在
-            critical_dirs = [Path("models"), Path("data"), Path("config"), Path("logs")]
+            critical_dirs = [
+                Path("models"),
+                Path("data"),
+                Path("config"),
+                Path("logs"),
+            ]
 
             missing_dirs = []
             for directory in critical_dirs:
@@ -290,7 +340,10 @@ class HealthChecker:
                     missing_dirs.append(str(directory))
 
             if missing_dirs:
-                return {"status": "critical", "message": f"缺少关键目录: {', '.join(missing_dirs)}"}
+                return {
+                    "status": "critical",
+                    "message": f"缺少关键目录: {', '.join(missing_dirs)}",
+                }
 
             # 检查模型文件是否存在
             model_files = list(Path("models").glob("*.pkl"))
@@ -300,11 +353,17 @@ class HealthChecker:
             return {
                 "status": "healthy",
                 "message": "组件状态正常",
-                "details": {"model_files_count": len(model_files), "critical_dirs_exist": len(missing_dirs) == 0},
+                "details": {
+                    "model_files_count": len(model_files),
+                    "critical_dirs_exist": len(missing_dirs) == 0,
+                },
             }
 
         except Exception as e:
-            return {"status": "error", "message": f"检查组件健康状态失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查组件健康状态失败: {str(e)}",
+            }
 
     def _check_error_status(self) -> Dict[str, Any]:
         """检查错误状态"""
@@ -315,7 +374,9 @@ class HealthChecker:
             # 检查最近的错误
             failure_count = failure_stats.get("failure_count", 0)
             active_alerts = alert_stats.get("active_alerts", 0)
-            critical_alerts = alert_stats.get("alerts_by_level", {}).get("critical", 0)
+            critical_alerts = alert_stats.get("alerts_by_level", {}).get(
+                "critical", 0
+            )
 
             if critical_alerts > 0:
                 status = "critical"
@@ -341,7 +402,10 @@ class HealthChecker:
             }
 
         except Exception as e:
-            return {"status": "error", "message": f"检查错误状态失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查错误状态失败: {str(e)}",
+            }
 
     def _check_performance_status(self) -> Dict[str, Any]:
         """检查性能状态"""
@@ -365,7 +429,10 @@ class HealthChecker:
             return {"status": status, "message": message, "details": summary}
 
         except Exception as e:
-            return {"status": "error", "message": f"检查性能状态失败: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"检查性能状态失败: {str(e)}",
+            }
 
     def _get_system_info(self) -> Dict[str, Any]:
         """获取系统信息"""
@@ -396,7 +463,12 @@ class HealthChecker:
             resource_usage = {
                 "cpu_percent": 0,
                 "memory": {"percent": 0, "used_mb": 0, "total_mb": 0},
-                "disk": {"percent": 0, "used_gb": 0, "total_gb": 0, "path": ""},
+                "disk": {
+                    "percent": 0,
+                    "used_gb": 0,
+                    "total_gb": 0,
+                    "path": "",
+                },
             }
 
             # 尝试使用psutil获取资源使用情况
@@ -409,20 +481,30 @@ class HealthChecker:
                 else:
                     disk_path = "/"
 
-                resource_usage["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+                resource_usage["cpu_percent"] = psutil.cpu_percent(
+                    interval=0.1
+                )
                 memory = psutil.virtual_memory()
                 resource_usage["memory"]["percent"] = memory.percent
                 resource_usage["memory"]["used_mb"] = memory.used / 1024 / 1024
-                resource_usage["memory"]["total_mb"] = memory.total / 1024 / 1024
+                resource_usage["memory"]["total_mb"] = (
+                    memory.total / 1024 / 1024
+                )
 
                 disk = psutil.disk_usage(disk_path)
                 resource_usage["disk"]["percent"] = disk.percent
-                resource_usage["disk"]["used_gb"] = disk.used / 1024 / 1024 / 1024
-                resource_usage["disk"]["total_gb"] = disk.total / 1024 / 1024 / 1024
+                resource_usage["disk"]["used_gb"] = (
+                    disk.used / 1024 / 1024 / 1024
+                )
+                resource_usage["disk"]["total_gb"] = (
+                    disk.total / 1024 / 1024 / 1024
+                )
                 resource_usage["disk"]["path"] = disk_path
 
             except Exception as psutil_error:
-                logger.warning(f"使用psutil获取资源使用情况失败，尝试备用方法: {psutil_error}")
+                logger.warning(
+                    f"使用psutil获取资源使用情况失败，尝试备用方法: {psutil_error}"
+                )
 
                 # 备用方法：使用ctypes和subprocess
                 if system == "Windows":
@@ -440,27 +522,47 @@ class HealthChecker:
                                 ("ullAvailPageFile", ctypes.c_ulonglong),
                                 ("ullTotalVirtual", ctypes.c_ulonglong),
                                 ("ullAvailVirtual", ctypes.c_ulonglong),
-                                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                                (
+                                    "sullAvailExtendedVirtual",
+                                    ctypes.c_ulonglong,
+                                ),
                             ]
 
                         memory_status = MEMORYSTATUSEX()
                         memory_status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-                        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory_status))
-
-                        resource_usage["memory"]["percent"] = memory_status.dwMemoryLoad
-                        resource_usage["memory"]["used_mb"] = (
-                            (memory_status.ullTotalPhys - memory_status.ullAvailPhys) / 1024 / 1024
+                        ctypes.windll.kernel32.GlobalMemoryStatusEx(
+                            ctypes.byref(memory_status)
                         )
-                        resource_usage["memory"]["total_mb"] = memory_status.ullTotalPhys / 1024 / 1024
+
+                        resource_usage["memory"][
+                            "percent"
+                        ] = memory_status.dwMemoryLoad
+                        resource_usage["memory"]["used_mb"] = (
+                            (
+                                memory_status.ullTotalPhys
+                                - memory_status.ullAvailPhys
+                            )
+                            / 1024
+                            / 1024
+                        )
+                        resource_usage["memory"]["total_mb"] = (
+                            memory_status.ullTotalPhys / 1024 / 1024
+                        )
 
                     except Exception as ctypes_error:
-                        logger.error(f"使用ctypes获取内存信息失败: {ctypes_error}")
+                        logger.error(
+                            f"使用ctypes获取内存信息失败: {ctypes_error}"
+                        )
 
                     # 使用subprocess获取磁盘信息
                     try:
                         import subprocess
 
-                        result = subprocess.run(["fsutil", "volume", "diskfree", "C:"], capture_output=True, text=True)
+                        result = subprocess.run(
+                            ["fsutil", "volume", "diskfree", "C:"],
+                            capture_output=True,
+                            text=True,
+                        )
                         if result.returncode == 0:
                             output = result.stdout
                             # 解析fsutil输出
@@ -470,17 +572,38 @@ class HealthChecker:
 
                             for line in lines:
                                 if "总字节数" in line:
-                                    total_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
+                                    total_bytes = int(
+                                        line.split(":")[1]
+                                        .strip()
+                                        .split(" ")[0]
+                                        .replace(",", "")
+                                    )
                                 elif "可用字节总数" in line:
-                                    free_bytes = int(line.split(":")[1].strip().split(" ")[0].replace(",", ""))
+                                    free_bytes = int(
+                                        line.split(":")[1]
+                                        .strip()
+                                        .split(" ")[0]
+                                        .replace(",", "")
+                                    )
 
                             if total_bytes > 0:
-                                resource_usage["disk"]["percent"] = (1 - free_bytes / total_bytes) * 100
-                                resource_usage["disk"]["used_gb"] = (total_bytes - free_bytes) / 1024 / 1024 / 1024
-                                resource_usage["disk"]["total_gb"] = total_bytes / 1024 / 1024 / 1024
+                                resource_usage["disk"]["percent"] = (
+                                    1 - free_bytes / total_bytes
+                                ) * 100
+                                resource_usage["disk"]["used_gb"] = (
+                                    (total_bytes - free_bytes)
+                                    / 1024
+                                    / 1024
+                                    / 1024
+                                )
+                                resource_usage["disk"]["total_gb"] = (
+                                    total_bytes / 1024 / 1024 / 1024
+                                )
                                 resource_usage["disk"]["path"] = "C:"
                     except Exception as subprocess_error:
-                        logger.error(f"使用subprocess获取磁盘信息失败: {subprocess_error}")
+                        logger.error(
+                            f"使用subprocess获取磁盘信息失败: {subprocess_error}"
+                        )
 
             return resource_usage
         except Exception as e:
@@ -492,7 +615,10 @@ class HealthChecker:
             health_dir = Path("health")
             health_dir.mkdir(parents=True, exist_ok=True)
 
-            filename = health_dir / f"health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            filename = (
+                health_dir
+                / f"health_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(health_result, f, ensure_ascii=False, indent=2)
 
@@ -513,7 +639,9 @@ class HealthChecker:
             "status": latest_health["overall_status"],
             "last_check": latest_health["timestamp"],
             "message": f"系统状态: {latest_health['overall_status']}",
-            "checks": {k: v["status"] for k, v in latest_health["checks"].items()},
+            "checks": {
+                k: v["status"] for k, v in latest_health["checks"].items()
+            },
         }
 
 

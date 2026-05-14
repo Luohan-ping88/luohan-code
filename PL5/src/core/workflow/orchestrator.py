@@ -65,7 +65,11 @@ class IntelligentWorkflowOrchestrator:
         "email_send_time": "send_report",
     }
 
-    def __init__(self, state_file_path: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        state_file_path: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ):
         if state_file_path is None:
             state_file_path = os.path.join("logs", "workflow_state.pkl")
 
@@ -76,7 +80,9 @@ class IntelligentWorkflowOrchestrator:
 
         # 【动态时间表】从配置文件加载任务预定时间，取代硬编码常量
         # 确保与 setup_schedule() 注册的定时器时间完全一致
-        self._task_scheduled_times: Dict[str, time] = self._build_scheduled_times(config)
+        self._task_scheduled_times: Dict[str, time] = (
+            self._build_scheduled_times(config)
+        )
 
         # 基础任务顺序（与 auto_scheduler_v8._build_task_map 的 custom_tasks 保持一致，共14步）
         self.task_order = [
@@ -106,8 +112,12 @@ class IntelligentWorkflowOrchestrator:
             "extra_training": ["training"],
             # 预测佐证链
             "first_prediction_verification": ["incremental_training"],
-            "second_prediction_verification": ["first_prediction_verification"],
-            "third_prediction_verification": ["second_prediction_verification"],
+            "second_prediction_verification": [
+                "first_prediction_verification"
+            ],
+            "third_prediction_verification": [
+                "second_prediction_verification"
+            ],
             # 深度优化链
             "deep_strategy_optimization": ["third_prediction_verification"],
             "prediction_preview": ["deep_strategy_optimization"],
@@ -156,7 +166,9 @@ class IntelligentWorkflowOrchestrator:
             }
 
     @staticmethod
-    def _build_scheduled_times(config: Optional[Dict[str, Any]]) -> Dict[str, time]:
+    def _build_scheduled_times(
+        config: Optional[Dict[str, Any]],
+    ) -> Dict[str, time]:
         """从配置文件动态构建任务时间表。
 
         优先使用传入的 config 字典；若为 None，则尝试读取 config/scheduler_config.json。
@@ -173,26 +185,37 @@ class IntelligentWorkflowOrchestrator:
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         config_data = json.load(f)
-                    logger.info(f"[WorkflowOrchestrator] 从 {config_path} 加载任务时间配置")
+                    logger.info(
+                        f"[WorkflowOrchestrator] 从 {config_path} 加载任务时间配置"
+                    )
                 except Exception as e:
-                    logger.warning(f"[WorkflowOrchestrator] 加载配置文件失败: {e}")
+                    logger.warning(
+                        f"[WorkflowOrchestrator] 加载配置文件失败: {e}"
+                    )
 
         if config_data:
-            for config_key, task_name in IntelligentWorkflowOrchestrator._CONFIG_KEY_TO_TASK.items():
+            for (
+                config_key,
+                task_name,
+            ) in IntelligentWorkflowOrchestrator._CONFIG_KEY_TO_TASK.items():
                 time_str = config_data.get(config_key)
                 if time_str:
                     try:
                         h, m = time_str.split(":")
                         result[task_name] = time(int(h), int(m))
                     except (ValueError, AttributeError):
-                        logger.warning(f"[WorkflowOrchestrator] 配置键 {config_key}={time_str} 格式错误")
+                        logger.warning(
+                            f"[WorkflowOrchestrator] 配置键 {config_key}={time_str} 格式错误"
+                        )
 
         # 对未在配置中找到的任务，使用硬编码默认值作为兜底
         for task_name, default_t in TASK_SCHEDULED_TIMES.items():
             if task_name not in result:
                 result[task_name] = default_t
 
-        logger.info(f"[WorkflowOrchestrator] 任务时间表已构建: {len(result)} 个任务")
+        logger.info(
+            f"[WorkflowOrchestrator] 任务时间表已构建: {len(result)} 个任务"
+        )
         for task, t in sorted(result.items(), key=lambda x: x[1]):
             logger.info(f"  {task}: {t}")
         return result
@@ -216,17 +239,25 @@ class IntelligentWorkflowOrchestrator:
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     loaded_state = json.load(f)
-                logger.info(f"[WorkflowOrchestrator] 从 JSON 加载工作流状态: {json_path}")
+                logger.info(
+                    f"[WorkflowOrchestrator] 从 JSON 加载工作流状态: {json_path}"
+                )
             except Exception as e:
-                logger.warning(f"[WorkflowOrchestrator] 从 JSON 加载失败，尝试 PKL: {str(e)}")
+                logger.warning(
+                    f"[WorkflowOrchestrator] 从 JSON 加载失败，尝试 PKL: {str(e)}"
+                )
 
         if not loaded_state and os.path.exists(self.state_file_path):
             try:
                 with open(self.state_file_path, "rb") as f:
                     loaded_state = pickle.load(f)
-                logger.info(f"[WorkflowOrchestrator] 从 PKL 加载工作流状态: {self.state_file_path}")
+                logger.info(
+                    f"[WorkflowOrchestrator] 从 PKL 加载工作流状态: {self.state_file_path}"
+                )
             except Exception as e:
-                logger.warning(f"[WorkflowOrchestrator] 从 PKL 加载失败，使用初始状态: {str(e)}")
+                logger.warning(
+                    f"[WorkflowOrchestrator] 从 PKL 加载失败，使用初始状态: {str(e)}"
+                )
 
         if not loaded_state:
             self._init_state()
@@ -236,7 +267,9 @@ class IntelligentWorkflowOrchestrator:
 
         loaded_cycle_date_str = loaded_state.get("cycle_date")
         if loaded_cycle_date_str:
-            loaded_cycle_date = datetime.fromisoformat(loaded_cycle_date_str).date()
+            loaded_cycle_date = datetime.fromisoformat(
+                loaded_cycle_date_str
+            ).date()
 
             if loaded_cycle_date != current_cycle_date:
                 logger.info(
@@ -248,7 +281,9 @@ class IntelligentWorkflowOrchestrator:
             updated_at_str = loaded_state.get("updated_at")
             if updated_at_str:
                 updated_at = datetime.fromisoformat(updated_at_str)
-                updated_cycle_date = self._get_cycle_date_from_datetime(updated_at)
+                updated_cycle_date = self._get_cycle_date_from_datetime(
+                    updated_at
+                )
 
                 if updated_cycle_date != current_cycle_date:
                     logger.info(
@@ -315,10 +350,16 @@ class IntelligentWorkflowOrchestrator:
             with open(self.state_file_path, "wb") as f:
                 pickle.dump(self.state, f)
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(self.state, f, ensure_ascii=False, indent=2, default=str)
-            logger.debug(f"[WorkflowOrchestrator] 工作流状态已保存: {self.state_file_path} + {json_path}")
+                json.dump(
+                    self.state, f, ensure_ascii=False, indent=2, default=str
+                )
+            logger.debug(
+                f"[WorkflowOrchestrator] 工作流状态已保存: {self.state_file_path} + {json_path}"
+            )
         except Exception as e:
-            logger.error(f"[WorkflowOrchestrator] 保存工作流状态失败: {str(e)}")
+            logger.error(
+                f"[WorkflowOrchestrator] 保存工作流状态失败: {str(e)}"
+            )
 
     def get_workflow_status(self) -> str:
         return self.state["workflow_status"]
@@ -354,7 +395,9 @@ class IntelligentWorkflowOrchestrator:
             return False
 
         if not self.can_start_task(task_name):
-            logger.warning(f"[WorkflowOrchestrator] 任务依赖未满足: {task_name}")
+            logger.warning(
+                f"[WorkflowOrchestrator] 任务依赖未满足: {task_name}"
+            )
             return False
 
         if self.get_workflow_status() == WorkflowStatus.IDLE.value:
@@ -363,7 +406,9 @@ class IntelligentWorkflowOrchestrator:
 
         self.state["current_task"] = task_name
         self.state["tasks"][task_name]["status"] = TaskStatus.IN_PROGRESS.value
-        self.state["tasks"][task_name]["start_time"] = datetime.now().isoformat()
+        self.state["tasks"][task_name][
+            "start_time"
+        ] = datetime.now().isoformat()
 
         logger.info(f"[WorkflowOrchestrator] 任务已启动: {task_name}")
         self._save_state()
@@ -376,16 +421,22 @@ class IntelligentWorkflowOrchestrator:
 
         current_status = self.get_task_status(task_name)
         if current_status == TaskStatus.COMPLETED.value:
-            logger.debug(f"[WorkflowOrchestrator] 任务已完成，跳过重复完成: {task_name}")
+            logger.debug(
+                f"[WorkflowOrchestrator] 任务已完成，跳过重复完成: {task_name}"
+            )
             return True
 
         if current_status != TaskStatus.IN_PROGRESS.value:
-            logger.info(f"[WorkflowOrchestrator] 任务状态为 {current_status}，强制标记完成: {task_name}")
+            logger.info(
+                f"[WorkflowOrchestrator] 任务状态为 {current_status}，强制标记完成: {task_name}"
+            )
 
         self.state["tasks"][task_name]["status"] = TaskStatus.COMPLETED.value
         self.state["tasks"][task_name]["end_time"] = datetime.now().isoformat()
         self.state["tasks"][task_name]["result"] = result
-        self.state["tasks"][task_name]["last_executed_time"] = datetime.now().isoformat()
+        self.state["tasks"][task_name][
+            "last_executed_time"
+        ] = datetime.now().isoformat()
 
         self.reset_retry_count(task_name)
 
@@ -397,7 +448,8 @@ class IntelligentWorkflowOrchestrator:
         next_task = self.get_next_pending_task()
         if next_task is None:
             all_completed = all(
-                self.state["tasks"].get(t, {}).get("status") == TaskStatus.COMPLETED.value
+                self.state["tasks"].get(t, {}).get("status")
+                == TaskStatus.COMPLETED.value
                 for t in self.task_order
                 if t in self.state["tasks"]
             )
@@ -428,13 +480,17 @@ class IntelligentWorkflowOrchestrator:
             return True
         else:
             self.state["tasks"][task_name]["status"] = TaskStatus.FAILED.value
-            self.state["tasks"][task_name]["end_time"] = datetime.now().isoformat()
+            self.state["tasks"][task_name][
+                "end_time"
+            ] = datetime.now().isoformat()
             self.state["tasks"][task_name]["error"] = error
             self.state["workflow_status"] = WorkflowStatus.FAILED.value
             self.state["end_time"] = datetime.now().isoformat()
             self.state["current_task"] = None
 
-            logger.error(f"[WorkflowOrchestrator] 任务失败，已达最大重试次数: {task_name}, 错误: {error}")
+            logger.error(
+                f"[WorkflowOrchestrator] 任务失败，已达最大重试次数: {task_name}, 错误: {error}"
+            )
             self._save_state()
             return False
 
@@ -521,7 +577,9 @@ class IntelligentWorkflowOrchestrator:
         if task_name in self.state["tasks"]:
             self.state["tasks"][task_name]["retry_count"] = 0
             self._save_state()
-            logger.info(f"[WorkflowOrchestrator] 任务重试次数已重置: {task_name}")
+            logger.info(
+                f"[WorkflowOrchestrator] 任务重试次数已重置: {task_name}"
+            )
             return True
         return False
 
@@ -531,7 +589,9 @@ class IntelligentWorkflowOrchestrator:
             self._save_state()
             return []
 
-        last_check_time = datetime.fromisoformat(self.state["last_scheduled_time"])
+        last_check_time = datetime.fromisoformat(
+            self.state["last_scheduled_time"]
+        )
 
         if current_time <= last_check_time:
             return []
@@ -557,10 +617,14 @@ class IntelligentWorkflowOrchestrator:
             if last_executed is None:
                 task["is_missed"] = True
                 missed_tasks.append(task_name)
-                logger.info(f"[WorkflowOrchestrator] 检测到从未执行的任务（且已到预定时间）: {task_name}")
+                logger.info(
+                    f"[WorkflowOrchestrator] 检测到从未执行的任务（且已到预定时间）: {task_name}"
+                )
             else:
                 last_executed_dt = datetime.fromisoformat(last_executed)
-                is_in_current_cycle = cycle_start <= last_executed_dt <= cycle_end
+                is_in_current_cycle = (
+                    cycle_start <= last_executed_dt <= cycle_end
+                )
 
                 if not is_in_current_cycle:
                     task["is_missed"] = True
@@ -582,9 +646,13 @@ class IntelligentWorkflowOrchestrator:
 
         if now_time >= DATA_FETCH_TIME:
             cycle_start = datetime.combine(today, DATA_FETCH_TIME)
-            cycle_end = datetime.combine(today + timedelta(days=1), SEND_REPORT_TIME)
+            cycle_end = datetime.combine(
+                today + timedelta(days=1), SEND_REPORT_TIME
+            )
         else:
-            cycle_start = datetime.combine(today - timedelta(days=1), DATA_FETCH_TIME)
+            cycle_start = datetime.combine(
+                today - timedelta(days=1), DATA_FETCH_TIME
+            )
             cycle_end = datetime.combine(today, SEND_REPORT_TIME)
 
         return cycle_start, cycle_end
@@ -638,11 +706,15 @@ class IntelligentWorkflowOrchestrator:
     def mark_task_catchup_started(self, task_name: str) -> bool:
         if task_name in self.state["tasks"]:
             self.state["tasks"][task_name]["is_missed"] = False
-            self.state["tasks"][task_name]["last_executed_time"] = datetime.now().isoformat()
+            self.state["tasks"][task_name][
+                "last_executed_time"
+            ] = datetime.now().isoformat()
             if task_name in self.state["missed_tasks"]:
                 self.state["missed_tasks"].remove(task_name)
             self._save_state()
-            logger.info(f"[WorkflowOrchestrator] 补执行任务已启动: {task_name}")
+            logger.info(
+                f"[WorkflowOrchestrator] 补执行任务已启动: {task_name}"
+            )
             return True
         return False
 

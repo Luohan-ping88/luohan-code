@@ -13,7 +13,9 @@ class ToolCallingAgent(BaseAgent):
     专注于工具调用的Agent实现，更适合结构化的工具使用场景。
     """
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def run(
+        self, task: str, context: Optional[Dict[str, Any]] = None
+    ) -> ToolResult:
         """执行任务
 
         Args:
@@ -65,12 +67,23 @@ class ToolCallingAgent(BaseAgent):
                     {
                         "tool": tool_name,
                         "params": parameters,
-                        "result": {"success": result.success, "data": result.data, "error": result.error},
+                        "result": {
+                            "success": result.success,
+                            "data": result.data,
+                            "error": result.error,
+                        },
                     }
                 )
 
                 # 记录步骤
-                steps.append({"step": i + 1, "tool": tool_name, "params": parameters, "result": result})
+                steps.append(
+                    {
+                        "step": i + 1,
+                        "tool": tool_name,
+                        "params": parameters,
+                        "result": result,
+                    }
+                )
 
             # 生成最终答案
             final_prompt = f"""根据以下工具执行结果，总结完成的任务：
@@ -85,13 +98,25 @@ Tool Execution Results:
             final_answer = self.llm.generate(final_prompt)
 
             return ToolResult(
-                success=True, data={"task": task, "results": results, "answer": final_answer, "steps": steps}
+                success=True,
+                data={
+                    "task": task,
+                    "results": results,
+                    "answer": final_answer,
+                    "steps": steps,
+                },
             )
 
         except Exception as e:
-            return ToolResult(success=False, error=f"Agent execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"Agent execution failed: {str(e)}"
+            )
 
-    def chat(self, messages: List[ConversationMessage], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def chat(
+        self,
+        messages: List[ConversationMessage],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> ToolResult:
         """对话模式
 
         Args:
@@ -120,7 +145,9 @@ Tool Execution Results:
             return self.run(user_message.content, context)
 
         except Exception as e:
-            return ToolResult(success=False, error=f"Chat execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"Chat execution failed: {str(e)}"
+            )
 
     def _build_system_prompt(self, tools_info: List[Dict]) -> str:
         """构建系统提示
@@ -171,7 +198,9 @@ Task: 计算123 + 456，然后搜索相关信息
         try:
             # 提取JSON部分
             if "[" in response and "]" in response:
-                json_str = response[response.find("[") : response.rfind("]") + 1]
+                json_str = response[
+                    response.find("[") : response.rfind("]") + 1
+                ]
                 return json.loads(json_str)
             else:
                 # 尝试直接解析

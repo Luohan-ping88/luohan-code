@@ -9,7 +9,10 @@ import time
 import logging
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -106,7 +109,9 @@ class PL5Error(Exception):
             "error_code": self.error_code,
             "timestamp": self.timestamp,
             "context": self.context,
-            "original_error": str(self.original_error) if self.original_error else None,
+            "original_error": (
+                str(self.original_error) if self.original_error else None
+            ),
         }
 
     def __str__(self):
@@ -117,39 +122,59 @@ class PL5Error(Exception):
 class DataError(PL5Error):
     """数据相关错误"""
 
-    def __init__(self, message: str, data_source: str = "unknown", record_count: int = 0, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        data_source: str = "unknown",
+        record_count: int = 0,
+        **kwargs,
+    ):
         super().__init__(message, ErrorType.DATA_ERROR, **kwargs)
         self.data_source = data_source
         self.record_count = record_count
-        self.context.update({"data_source": data_source, "record_count": record_count})
+        self.context.update(
+            {"data_source": data_source, "record_count": record_count}
+        )
 
 
 class DataLoadError(DataError):
     """数据加载失败"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.DATA_LOAD_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.DATA_LOAD_ERROR, **kwargs
+        )
 
 
 class DataValidationError(DataError):
     """数据验证失败"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.DATA_VALIDATION_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.DATA_VALIDATION_ERROR, **kwargs
+        )
 
 
 class DataParseError(DataError):
     """数据解析失败"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.DATA_PARSE_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.DATA_PARSE_ERROR, **kwargs
+        )
 
 
 # 模型相关错误
 class ModelError(PL5Error):
     """模型相关错误"""
 
-    def __init__(self, message: str, model_name: str = "unknown", operation: str = "unknown", **kwargs):
+    def __init__(
+        self,
+        message: str,
+        model_name: str = "unknown",
+        operation: str = "unknown",
+        **kwargs,
+    ):
         super().__init__(message, ErrorType.MODEL_ERROR, **kwargs)
         self.model_name = model_name
         self.operation = operation
@@ -160,14 +185,18 @@ class ModelLoadError(ModelError):
     """模型加载失败"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.MODEL_LOAD_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.MODEL_LOAD_ERROR, **kwargs
+        )
 
 
 class ModelPredictError(ModelError):
     """模型预测失败"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.MODEL_PREDICT_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.MODEL_PREDICT_ERROR, **kwargs
+        )
 
 
 # 网络相关错误
@@ -182,21 +211,27 @@ class NetworkTimeoutError(NetworkError):
     """网络超时错误"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_TIMEOUT_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.NETWORK_TIMEOUT_ERROR, **kwargs
+        )
 
 
 class NetworkConnectionError(NetworkError):
     """网络连接错误"""
 
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_CONNECTION_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.NETWORK_CONNECTION_ERROR, **kwargs
+        )
 
 
 class NetworkHTTPError(NetworkError):
     """网络HTTP错误"""
 
     def __init__(self, message: str, status_code: int = None, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK_HTTP_ERROR, **kwargs)
+        super().__init__(
+            message, error_type=ErrorType.NETWORK_HTTP_ERROR, **kwargs
+        )
         if status_code:
             self.context.update({"status_code": status_code})
 
@@ -289,7 +324,13 @@ class RetryConfig:
 class RetryResult(Generic[T]):
     """重试结果"""
 
-    def __init__(self, success: bool, result: Optional[T] = None, error: Optional[PL5Error] = None, attempts: int = 1):
+    def __init__(
+        self,
+        success: bool,
+        result: Optional[T] = None,
+        error: Optional[PL5Error] = None,
+        attempts: int = 1,
+    ):
         """初始化重试结果
 
         Args:
@@ -304,7 +345,12 @@ class RetryResult(Generic[T]):
         self.attempts = attempts
 
 
-def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = None, *args, **kwargs) -> RetryResult[T]:
+def retry_with_backoff(
+    func: Callable[..., T],
+    config: Optional[RetryConfig] = None,
+    *args,
+    **kwargs,
+) -> RetryResult[T]:
     """带退避的重试装饰器
 
     Args:
@@ -336,14 +382,20 @@ def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = N
 
             # 计算退避延迟
             if attempts <= config.max_retries:
-                delay = min(config.base_delay * (config.backoff_factor ** (attempts - 1)), config.max_delay)
+                delay = min(
+                    config.base_delay
+                    * (config.backoff_factor ** (attempts - 1)),
+                    config.max_delay,
+                )
                 logger.info(
                     f"Retrying {func.__name__} in {delay:.2f} seconds... (Attempt {attempts}/{config.max_retries})"
                 )
                 time.sleep(delay)
         except Exception as e:
             # 将普通异常转换为PL5Error
-            last_error = PL5Error(str(e), ErrorType.UNKNOWN_ERROR, original_error=e)
+            last_error = PL5Error(
+                str(e), ErrorType.UNKNOWN_ERROR, original_error=e
+            )
             break
 
     return RetryResult(success=False, error=last_error, attempts=attempts)
@@ -352,7 +404,11 @@ def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = N
 class ErrorHandler:
     """错误处理器"""
 
-    def __init__(self, log_errors: bool = True, default_retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        log_errors: bool = True,
+        default_retry_config: Optional[RetryConfig] = None,
+    ):
         """初始化错误处理器
 
         Args:
@@ -362,7 +418,9 @@ class ErrorHandler:
         self.log_errors = log_errors
         self.default_retry_config = default_retry_config or RetryConfig()
 
-    def handle_error(self, error: Exception, context: Optional[Dict] = None) -> PL5Error:
+    def handle_error(
+        self, error: Exception, context: Optional[Dict] = None
+    ) -> PL5Error:
         """处理错误
 
         Args:
@@ -384,7 +442,9 @@ class ErrorHandler:
             self._log_error(pl5_error, context)
         return pl5_error
 
-    def _convert_to_pl5_error(self, error: Exception, context: Optional[Dict] = None) -> PL5Error:
+    def _convert_to_pl5_error(
+        self, error: Exception, context: Optional[Dict] = None
+    ) -> PL5Error:
         """将普通异常转换为PL5Error
 
         Args:
@@ -407,7 +467,11 @@ class ErrorHandler:
             elif isinstance(error, requests.exceptions.ConnectionError):
                 error_type = ErrorType.NETWORK_CONNECTION_ERROR
             elif isinstance(error, requests.exceptions.HTTPError):
-                status_code = error.response.status_code if hasattr(error, "response") else None
+                status_code = (
+                    error.response.status_code
+                    if hasattr(error, "response")
+                    else None
+                )
                 error_code = status_code
                 error_type = ErrorType.NETWORK_HTTP_ERROR
                 if status_code:
@@ -455,7 +519,9 @@ class ErrorHandler:
         else:
             logger.error(log_message)
 
-    def execute_with_retry(self, func: Callable[..., T], *args, **kwargs) -> RetryResult[T]:
+    def execute_with_retry(
+        self, func: Callable[..., T], *args, **kwargs
+    ) -> RetryResult[T]:
         """执行函数并自动重试
 
         Args:
@@ -466,7 +532,9 @@ class ErrorHandler:
         Returns:
             重试结果
         """
-        return retry_with_backoff(func, self.default_retry_config, *args, **kwargs)
+        return retry_with_backoff(
+            func, self.default_retry_config, *args, **kwargs
+        )
 
 
 # 全局错误处理器实例
@@ -495,7 +563,9 @@ def handle_error(error: Exception, context: Optional[Dict] = None) -> PL5Error:
     return _global_error_handler.handle_error(error, context)
 
 
-def execute_with_retry(func: Callable[..., T], *args, **kwargs) -> RetryResult[T]:
+def execute_with_retry(
+    func: Callable[..., T], *args, **kwargs
+) -> RetryResult[T]:
     """执行函数并自动重试的便捷函数
 
     Args:
@@ -510,7 +580,9 @@ def execute_with_retry(func: Callable[..., T], *args, **kwargs) -> RetryResult[T
 
 
 # 装饰器
-def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,)):
+def retry_on_failure(
+    max_retries=3, delay=1, backoff=2, exceptions=(Exception,)
+):
     """重试装饰器
 
     Args:
@@ -539,7 +611,9 @@ def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,))
                         time.sleep(current_delay)
                         current_delay *= backoff
                     else:
-                        logger.error(f"Max retries reached for {func.__name__}")
+                        logger.error(
+                            f"Max retries reached for {func.__name__}"
+                        )
                         raise
             return last_error
 

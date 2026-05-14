@@ -7,7 +7,7 @@ import os
 import psutil
 import time
 from datetime import datetime
-from typing import Dict, Optional, Any, List
+from typing import Dict, Any, List
 
 from src.core.utils.logger import logger, log_performance_metric
 
@@ -112,10 +112,23 @@ class ResourceManager:
                 gpu_count = torch.cuda.device_count()
                 gpu_usage = []
                 for i in range(gpu_count):
-                    gpu_mem = torch.cuda.memory_allocated(i) / (1024 * 1024 * 1024)  # 转换为GB
-                    gpu_total = torch.cuda.get_device_properties(i).total_memory / (1024 * 1024 * 1024)  # 转换为GB
+                    gpu_mem = torch.cuda.memory_allocated(i) / (
+                        1024 * 1024 * 1024
+                    )  # 转换为GB
+                    gpu_total = torch.cuda.get_device_properties(
+                        i
+                    ).total_memory / (
+                        1024 * 1024 * 1024
+                    )  # 转换为GB
                     gpu_percent = (gpu_mem / gpu_total) * 100
-                    gpu_usage.append({"id": i, "percent": gpu_percent, "used": gpu_mem, "total": gpu_total})
+                    gpu_usage.append(
+                        {
+                            "id": i,
+                            "percent": gpu_percent,
+                            "used": gpu_mem,
+                            "total": gpu_total,
+                        }
+                    )
                 usage["gpu"] = {"count": gpu_count, "usage": gpu_usage}
             except Exception as e:
                 logger.warning(f"GPU监控失败: {e}")
@@ -157,7 +170,9 @@ class ResourceManager:
         # 记录GPU使用情况（如果可用）
         if "gpu" in usage:
             for gpu in usage["gpu"]["usage"]:
-                log_performance_metric(f'GPU {gpu["id"]} Usage', gpu["percent"], "%")
+                log_performance_metric(
+                    f'GPU {gpu["id"]} Usage', gpu["percent"], "%"
+                )
 
         # 自动调整阈值
         self._auto_adjust_thresholds()
@@ -165,22 +180,30 @@ class ResourceManager:
         # 检查是否有资源超过阈值
         over_threshold = False
         if usage["cpu"]["over_threshold"]:
-            logger.warning(f"CPU使用率超过阈值: {usage['cpu']['percent']}% > {self.cpu_threshold}%")
+            logger.warning(
+                f"CPU使用率超过阈值: {usage['cpu']['percent']}% > {self.cpu_threshold}%"
+            )
             over_threshold = True
 
         if usage["memory"]["over_threshold"]:
-            logger.warning(f"内存使用率超过阈值: {usage['memory']['percent']}% > {self.memory_threshold}%")
+            logger.warning(
+                f"内存使用率超过阈值: {usage['memory']['percent']}% > {self.memory_threshold}%"
+            )
             over_threshold = True
 
         if usage["disk"]["over_threshold"]:
-            logger.warning(f"磁盘使用率超过阈值: {usage['disk']['percent']}% > {self.disk_threshold}%")
+            logger.warning(
+                f"磁盘使用率超过阈值: {usage['disk']['percent']}% > {self.disk_threshold}%"
+            )
             over_threshold = True
 
         # 检查GPU使用情况（如果可用）
         if "gpu" in usage:
             for gpu in usage["gpu"]["usage"]:
                 if gpu["percent"] > 90:
-                    logger.warning(f"GPU {gpu['id']} 使用率超过90%: {gpu['percent']:.1f}%")
+                    logger.warning(
+                        f"GPU {gpu['id']} 使用率超过90%: {gpu['percent']:.1f}%"
+                    )
                     over_threshold = True
 
         return not over_threshold
@@ -244,7 +267,9 @@ class ResourceManager:
         available_memory = 1 - memory_percent / 100
 
         # 取两者的最小值，确保不会过度使用资源
-        optimal_workers = max(1, int(min(available_cpu, available_memory * cpu_count)))
+        optimal_workers = max(
+            1, int(min(available_cpu, available_memory * cpu_count))
+        )
 
         # 考虑GPU使用情况（如果可用）
         if "gpu" in usage and usage["gpu"]["count"] > 0:
@@ -253,7 +278,9 @@ class ResourceManager:
 
         return optimal_workers
 
-    def suggest_batch_size(self, base_batch_size: int = 32, model_type: str = "default") -> int:
+    def suggest_batch_size(
+        self, base_batch_size: int = 32, model_type: str = "default"
+    ) -> int:
         """根据资源使用情况建议批处理大小
 
         Args:
@@ -302,7 +329,11 @@ class ResourceManager:
         usage = self.get_resource_usage()
 
         # 检查CPU、内存、磁盘是否超过阈值
-        if usage["cpu"]["over_threshold"] or usage["memory"]["over_threshold"] or usage["disk"]["over_threshold"]:
+        if (
+            usage["cpu"]["over_threshold"]
+            or usage["memory"]["over_threshold"]
+            or usage["disk"]["over_threshold"]
+        ):
             return True
 
         # 检查GPU使用情况（如果可用）

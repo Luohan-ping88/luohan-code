@@ -7,14 +7,13 @@
 import logging
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Any
 from datetime import datetime
 
 from src.core.data.collector import PL5DataCollector
 from src.core.features.engineer import FeatureEngineer
 from src.core.models.enhanced_predictor import EnhancedPL5Predictor
-from src.core.config import MODEL_CONFIG, MODELS_DIR, LOGS_DIR
+from src.core.config import MODELS_DIR, LOGS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,12 @@ class DynamicFeatureValidator:
             List[Dict[str, Any]]: 特征组合策略列表
         """
         feature_combinations = [
-            {"name": "full_features", "description": "全量特征", "select_top": None, "feature_selection_method": "rfe"},
+            {
+                "name": "full_features",
+                "description": "全量特征",
+                "select_top": None,
+                "feature_selection_method": "rfe",
+            },
             {
                 "name": "top_50_rfe",
                 "description": "RFE选择前50个特征",
@@ -74,7 +78,9 @@ class DynamicFeatureValidator:
 
         return feature_combinations
 
-    def validate_feature_combination(self, df: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_feature_combination(
+        self, df: pd.DataFrame, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """验证单个特征组合的性能
 
         Args:
@@ -85,18 +91,32 @@ class DynamicFeatureValidator:
             Dict[str, Any]: 验证结果
         """
         try:
-            logger.info(f"验证特征组合: {config['name']} ({config['description']})")
+            logger.info(
+                f"验证特征组合: {config['name']} ({config['description']})"
+            )
 
             # 提取特征
             df_features = self.engineer.extract_all_features(
-                df, select_top=config["select_top"], feature_selection_method=config["feature_selection_method"]
+                df,
+                select_top=config["select_top"],
+                feature_selection_method=config["feature_selection_method"],
             )
 
             # 提取特征列
             feature_cols = [
                 col
                 for col in df_features.columns
-                if col not in ["period", "date", "full_number", "wan", "qian", "bai", "shi", "ge"]
+                if col
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
 
             # 划分训练集和测试集
@@ -138,7 +158,11 @@ class DynamicFeatureValidator:
                 recent_original_data = {}
                 for pos in ["wan", "qian", "bai", "shi", "ge"]:
                     if pos in df.columns:
-                        recent_data = df[pos].values[-20:] if len(df) >= 20 else df[pos].values
+                        recent_data = (
+                            df[pos].values[-20:]
+                            if len(df) >= 20
+                            else df[pos].values
+                        )
                         recent_original_data[pos] = recent_data
 
                 # 预测
@@ -174,7 +198,9 @@ class DynamicFeatureValidator:
                 "timestamp": datetime.now().isoformat(),
             }
 
-            logger.info(f"特征组合 {config['name']} 验证完成，准确率: {accuracy:.4f}")
+            logger.info(
+                f"特征组合 {config['name']} 验证完成，准确率: {accuracy:.4f}"
+            )
             return result
 
         except Exception as e:
@@ -186,7 +212,9 @@ class DynamicFeatureValidator:
                 "timestamp": datetime.now().isoformat(),
             }
 
-    def find_best_feature_combination(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def find_best_feature_combination(
+        self, df: pd.DataFrame
+    ) -> Dict[str, Any]:
         """寻找最佳特征组合
 
         Args:
@@ -210,12 +238,16 @@ class DynamicFeatureValidator:
         # 选择最佳特征组合
         if validation_results:
             best_result = max(validation_results, key=lambda x: x["accuracy"])
-            logger.info(f"最佳特征组合: {best_result['name']}，准确率: {best_result['accuracy']:.4f}")
+            logger.info(
+                f"最佳特征组合: {best_result['name']}，准确率: {best_result['accuracy']:.4f}"
+            )
 
             # 更新最佳特征配置
             self.best_feature_config = {
                 "select_top": best_result["select_top"],
-                "feature_selection_method": best_result["feature_selection_method"],
+                "feature_selection_method": best_result[
+                    "feature_selection_method"
+                ],
             }
 
             # 记录验证历史
@@ -261,7 +293,9 @@ class DynamicFeatureValidator:
         # 保存最佳特征配置（同时保存到 models 和 logs 目录，保持内容一致）
         config_data = {
             "best_config": best_config,
-            "validation_history": self.validation_history[-5:],  # 只保存最近5次验证结果
+            "validation_history": self.validation_history[
+                -5:
+            ],  # 只保存最近5次验证结果
             "last_updated": datetime.now().isoformat(),
         }
         try:
@@ -275,7 +309,11 @@ class DynamicFeatureValidator:
         except Exception as e:
             logger.error(f"保存最佳特征配置失败: {e}")
 
-        return {"success": True, "best_config": best_config, "validation_history": self.validation_history[-1:]}
+        return {
+            "success": True,
+            "best_config": best_config,
+            "validation_history": self.validation_history[-1:],
+        }
 
 
 if __name__ == "__main__":

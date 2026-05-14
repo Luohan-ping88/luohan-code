@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Dict, List, Optional, Any, Set
 from enum import Enum
 from datetime import datetime
 import logging
@@ -134,7 +134,9 @@ class PolicyLibrary:
             if name in self._type_index[policy_type]:
                 self._type_index[policy_type].remove(name)
 
-    def get_policy(self, name: str, version: Optional[str] = None) -> Optional[PolicyMetadata]:
+    def get_policy(
+        self, name: str, version: Optional[str] = None
+    ) -> Optional[PolicyMetadata]:
         """
         获取策略
 
@@ -154,7 +156,10 @@ class PolicyLibrary:
         return self._policies[name]
 
     def list_policies(
-        self, tag: Optional[str] = None, policy_type: Optional[str] = None, status: Optional[PolicyStatus] = None
+        self,
+        tag: Optional[str] = None,
+        policy_type: Optional[str] = None,
+        status: Optional[PolicyStatus] = None,
     ) -> List[PolicyMetadata]:
         """
         列出所有策略
@@ -202,7 +207,9 @@ class PolicyLibrary:
         logger.info(f"策略 {name} 状态更新为 {status.value}")
         return True
 
-    def update_performance(self, name: str, performance: Dict[str, float]) -> bool:
+    def update_performance(
+        self, name: str, performance: Dict[str, float]
+    ) -> bool:
         """
         更新策略性能指标
 

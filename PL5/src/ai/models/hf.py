@@ -1,6 +1,6 @@
 """HuggingFace模型适配器"""
 
-from typing import Dict, List, Any, Generator
+from typing import Dict, List, Generator
 
 from .base import BaseLLM, LLMFactory
 from ..ai_types import LLMConfig, LLMType
@@ -22,18 +22,33 @@ class HuggingFaceLLM(BaseLLM):
     def _initialize_model(self):
         """初始化HuggingFace模型"""
         try:
-            from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+            from transformers import (
+                pipeline,
+                AutoTokenizer,
+                AutoModelForCausalLM,
+            )
 
             # 尝试加载tokenizer和模型
             try:
-                self._tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
-                self._model = AutoModelForCausalLM.from_pretrained(self.config.model_name)
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    self.config.model_name
+                )
+                self._model = AutoModelForCausalLM.from_pretrained(
+                    self.config.model_name
+                )
                 self._pipeline = pipeline(
-                    "text-generation", model=self._model, tokenizer=self._tokenizer, device_map="auto"
+                    "text-generation",
+                    model=self._model,
+                    tokenizer=self._tokenizer,
+                    device_map="auto",
                 )
             except Exception:
                 # 如果加载完整模型失败，使用pipeline直接加载
-                self._pipeline = pipeline("text-generation", model=self.config.model_name, device_map="auto")
+                self._pipeline = pipeline(
+                    "text-generation",
+                    model=self.config.model_name,
+                    device_map="auto",
+                )
         except ImportError:
             # 如果transformers不可用，使用模拟实现
             self._pipeline = None
@@ -46,7 +61,10 @@ class HuggingFaceLLM(BaseLLM):
         if self._pipeline:
             try:
                 response = self._pipeline(
-                    prompt, max_new_tokens=self.config.max_tokens, temperature=self.config.temperature, **kwargs
+                    prompt,
+                    max_new_tokens=self.config.max_tokens,
+                    temperature=self.config.temperature,
+                    **kwargs,
                 )
                 return response[0]["generated_text"].strip()
             except Exception as e:
@@ -55,7 +73,9 @@ class HuggingFaceLLM(BaseLLM):
             # 模拟实现
             return f"[HuggingFace Model] {prompt} - This is a mock response"
 
-    def generate_stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+    def generate_stream(
+        self, prompt: str, **kwargs
+    ) -> Generator[str, None, None]:
         """流式生成文本"""
         response = self.generate(prompt, **kwargs)
         # 简单的流式模拟
@@ -76,7 +96,9 @@ class HuggingFaceLLM(BaseLLM):
         response = self.generate(prompt, **kwargs)
         return {"role": "assistant", "content": response}
 
-    def chat_stream(self, messages: List[Dict], **kwargs) -> Generator[Dict, None, None]:
+    def chat_stream(
+        self, messages: List[Dict], **kwargs
+    ) -> Generator[Dict, None, None]:
         """流式对话"""
         response = self.chat(messages, **kwargs)
         content = response["content"]

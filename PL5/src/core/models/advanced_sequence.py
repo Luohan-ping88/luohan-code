@@ -30,10 +30,22 @@ class HiddenMarkovModel:
         _mc = model_config or get_model_config()
         hmm_cfg = _mc.hmm_config()
 
-        self._n_states_input = n_states if n_states != 4 else hmm_cfg.get("n_states", 4)
-        self._n_mixtures_input = n_mixtures if n_mixtures != 2 else hmm_cfg.get("n_mixtures", 2)
-        self._auto_select = auto_select if auto_select is not False else hmm_cfg.get("auto_select", False)
-        self._criterion = (criterion.lower() if criterion != "bic" else hmm_cfg.get("criterion", "bic")).lower()
+        self._n_states_input = (
+            n_states if n_states != 4 else hmm_cfg.get("n_states", 4)
+        )
+        self._n_mixtures_input = (
+            n_mixtures if n_mixtures != 2 else hmm_cfg.get("n_mixtures", 2)
+        )
+        self._auto_select = (
+            auto_select
+            if auto_select is not False
+            else hmm_cfg.get("auto_select", False)
+        )
+        self._criterion = (
+            criterion.lower()
+            if criterion != "bic"
+            else hmm_cfg.get("criterion", "bic")
+        ).lower()
 
         self.n_states = n_states if isinstance(n_states, int) else 4
         self.n_mixtures = n_mixtures if isinstance(n_mixtures, int) else 2
@@ -56,14 +68,18 @@ class HiddenMarkovModel:
         pi_params = self.n_states - 1
         emission_params = 0
         for s in range(self.n_states):
-            if s < len(self.emission_models) and hasattr(self.emission_models[s], "n_components"):
+            if s < len(self.emission_models) and hasattr(
+                self.emission_models[s], "n_components"
+            ):
                 nc = self.emission_models[s].n_components
                 emission_params += nc - 1
                 emission_params += nc * n_feat
                 emission_params += nc * n_feat
         return k_params + pi_params + emission_params
 
-    def _compute_bic_aic(self, observations: np.ndarray) -> Tuple[float, float]:
+    def _compute_bic_aic(
+        self, observations: np.ndarray
+    ) -> Tuple[float, float]:
         """计算当前模型的BIC和AIC值"""
         n_obs = len(observations)
         n_params = self._count_free_params()
@@ -72,7 +88,9 @@ class HiddenMarkovModel:
         aic = -2 * ll + 2 * n_params
         return bic, aic
 
-    def select_optimal_states(self, data: np.ndarray, max_states: int = 8, min_states: int = 2) -> Dict:
+    def select_optimal_states(
+        self, data: np.ndarray, max_states: int = 8, min_states: int = 2
+    ) -> Dict:
         """
         使用BIC/AIC准则自动选择最优隐状态数
 
@@ -91,7 +109,12 @@ class HiddenMarkovModel:
         for n_s in range(min_states, max_states + 1):
             try:
                 candidate = HiddenMarkovModel(
-                    n_states=n_s, n_mixtures=self.n_mixtures if isinstance(self._n_mixtures_input, int) else "auto"
+                    n_states=n_s,
+                    n_mixtures=(
+                        self.n_mixtures
+                        if isinstance(self._n_mixtures_input, int)
+                        else "auto"
+                    ),
                 )
                 candidate.fit(data)
 
@@ -115,7 +138,11 @@ class HiddenMarkovModel:
 
         if not results:
             logger.warning("[HMM] 所有候选状态数均训练失败，使用默认值")
-            return {"best_n_states": 4, "criteria_scores": [], "criterion": self._criterion}
+            return {
+                "best_n_states": 4,
+                "criteria_scores": [],
+                "criterion": self._criterion,
+            }
 
         results.sort(key=lambda x: x["score"])
         best = results[0]
@@ -133,7 +160,9 @@ class HiddenMarkovModel:
             "all_results": results,
         }
 
-    def select_optimal_mixtures(self, data: np.ndarray, max_mixtures: int = 5, min_mixtures: int = 1) -> int:
+    def select_optimal_mixtures(
+        self, data: np.ndarray, max_mixtures: int = 5, min_mixtures: int = 1
+    ) -> int:
         """
         为每个隐状态选择最优GMM混合成分数
 
@@ -151,10 +180,18 @@ class HiddenMarkovModel:
 
         for n_m in range(min_mixtures, max_mixtures + 1):
             try:
-                gm = GaussianMixture(n_components=n_m, covariance_type="diag", random_state=42, n_init=1, max_iter=20)
+                gm = GaussianMixture(
+                    n_components=n_m,
+                    covariance_type="diag",
+                    random_state=42,
+                    n_init=1,
+                    max_iter=20,
+                )
                 gm.fit(data)
                 n_params = 2 * n_m + (n_m - 1)
-                bic = -2 * gm.score(data) * len(data) + n_params * np.log(len(data))
+                bic = -2 * gm.score(data) * len(data) + n_params * np.log(
+                    len(data)
+                )
                 if bic < best_score:
                     best_score = bic
                     best_n_mix = n_m
@@ -183,7 +220,9 @@ class HiddenMarkovModel:
 
         if n_obs < 10:
             logger.warning("[HMM] 数据太少，使用简化模型")
-            self.transition_matrix = np.ones((self.n_states, self.n_states)) / self.n_states
+            self.transition_matrix = (
+                np.ones((self.n_states, self.n_states)) / self.n_states
+            )
             self.initial_probs = np.ones(self.n_states) / self.n_states
             self.emission_models = []
             self.fitted = True
@@ -194,12 +233,18 @@ class HiddenMarkovModel:
             return self
 
         self.transition_matrix = np.random.rand(self.n_states, self.n_states)
-        self.transition_matrix /= self.transition_matrix.sum(axis=1, keepdims=True)
+        self.transition_matrix /= self.transition_matrix.sum(
+            axis=1, keepdims=True
+        )
 
         self.emission_models = []
         for _ in range(self.n_states):
             gm = GaussianMixture(
-                n_components=min(self.n_mixtures, 5), covariance_type="diag", random_state=42, n_init=1, max_iter=20
+                n_components=min(self.n_mixtures, 5),
+                covariance_type="diag",
+                random_state=42,
+                n_init=1,
+                max_iter=20,
             )
             self.emission_models.append(gm)
 
@@ -240,11 +285,15 @@ class HiddenMarkovModel:
             for s in range(self.n_states):
                 try:
                     emission_prob = (
-                        np.exp(self.emission_models[s].score_samples(observations[i : i + 1])[0])
+                        np.exp(
+                            self.emission_models[s].score_samples(
+                                observations[i : i + 1]
+                            )[0]
+                        )
                         if self.emission_models
                         else 0.1
                     )
-                except:
+                except Exception:
                     emission_prob = 0.1
 
                 gamma[i, s] = self.initial_probs[s] * emission_prob
@@ -269,11 +318,15 @@ class HiddenMarkovModel:
             if gamma[:, s].sum() > 1:
                 weights = gamma[:, s] / (gamma[:, s].sum() + 1e-10)
                 try:
-                    self.emission_models[s].fit(observations, sample_weight=weights)
-                except:
+                    self.emission_models[s].fit(
+                        observations, sample_weight=weights
+                    )
+                except Exception:
                     pass
 
-    def _compute_log_likelihood(self, observations: np.ndarray, gamma: np.ndarray) -> float:
+    def _compute_log_likelihood(
+        self, observations: np.ndarray, gamma: np.ndarray
+    ) -> float:
         ll = 0.0
         for i in range(len(observations)):
             state_prob = gamma[i].sum() / len(observations)
@@ -295,14 +348,20 @@ class HiddenMarkovModel:
             for s in range(self.n_states):
                 try:
                     emission = (
-                        np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                        np.exp(
+                            self.emission_models[s].score_samples(
+                                obs.reshape(1, -1)
+                            )[0]
+                        )
                         if self.emission_models
                         else 0.1
                     )
-                except:
+                except Exception:
                     emission = 0.1
 
-                new_alpha[s] = emission * np.sum(alpha.reshape(-1, 1) * self.transition_matrix[:, s])
+                new_alpha[s] = emission * np.sum(
+                    alpha.reshape(-1, 1) * self.transition_matrix[:, s]
+                )
 
             alpha = new_alpha / (new_alpha.sum() + 1e-10)
 
@@ -311,11 +370,15 @@ class HiddenMarkovModel:
             for d in range(10):
                 try:
                     emission = (
-                        np.exp(self.emission_models[s].score_samples(np.array([[d]]))[0])
+                        np.exp(
+                            self.emission_models[s].score_samples(
+                                np.array([[d]])
+                            )[0]
+                        )
                         if self.emission_models
                         else 0.1
                     )
-                except:
+                except Exception:
                     emission = 0.1
                 emission_probs[d] += alpha[s] * emission
 
@@ -333,11 +396,15 @@ class HiddenMarkovModel:
             for s in range(self.n_states):
                 try:
                     state_probs[s] = (
-                        np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                        np.exp(
+                            self.emission_models[s].score_samples(
+                                obs.reshape(1, -1)
+                            )[0]
+                        )
                         if self.emission_models
                         else 0.1
                     )
-                except:
+                except Exception:
                     state_probs[s] = 0.1
 
             if i > 0:
@@ -365,7 +432,7 @@ class HiddenMarkovModel:
             # 使用前向算法计算对数似然
             gamma = self._e_step(observations)
             return self._compute_log_likelihood(observations, gamma)
-        except:
+        except Exception:
             return float("-inf")
 
     def diagnostics(self) -> Dict:
@@ -414,16 +481,24 @@ class MultivariateCopula:
         copula_cfg = _mc.copula_config()
 
         self.copula_type = (
-            copula_type.lower() if copula_type != "gaussian" else copula_cfg.get("type", "gaussian")
+            copula_type.lower()
+            if copula_type != "gaussian"
+            else copula_cfg.get("type", "gaussian")
         ).lower()
         if self.copula_type not in self.VALID_COPULA_TYPES:
             self.copula_type = "gaussian"
         reg_value = copula_cfg.get("regularization", 1e-6)
         try:
-            self.regularization = float(regularization if regularization != 1e-6 else reg_value)
+            self.regularization = float(
+                regularization if regularization != 1e-6 else reg_value
+            )
         except (TypeError, ValueError):
             self.regularization = 1e-6
-        self.auto_select = auto_select if auto_select is not False else copula_cfg.get("auto_select", False)
+        self.auto_select = (
+            auto_select
+            if auto_select is not False
+            else copula_cfg.get("auto_select", False)
+        )
 
         self.correlation_matrix: Optional[np.ndarray] = None
         self.marginals: Dict[int, Dict] = {}
@@ -497,8 +572,12 @@ class MultivariateCopula:
                 z = stats.norm.ppf(np.clip(u, 1e-6, 1 - 1e-6))
                 n, p = z.shape
 
-                log_det = np.log(np.linalg.det(self.correlation_matrix) + 1e-10)
-                inv_corr = np.linalg.inv(self.correlation_matrix + self.regularization * np.eye(p))
+                log_det = np.log(
+                    np.linalg.det(self.correlation_matrix) + 1e-10
+                )
+                inv_corr = np.linalg.inv(
+                    self.correlation_matrix + self.regularization * np.eye(p)
+                )
 
                 mahal = np.sum(z @ inv_corr * z, axis=1)
 
@@ -511,10 +590,12 @@ class MultivariateCopula:
                 )
 
                 return -np.sum(ll)
-            except:
+            except Exception:
                 return 1e10
 
-        result = minimize_scalar(neg_log_likelihood, bounds=(2.1, 50), method="bounded")
+        result = minimize_scalar(
+            neg_log_likelihood, bounds=(2.1, 50), method="bounded"
+        )
         self._df = max(2.1, result.x)
         self._copula_params["df"] = self._df
         self._copula_params["rho"] = self.correlation_matrix.copy()
@@ -523,7 +604,11 @@ class MultivariateCopula:
         """拟合Clayton Copula (强下尾依赖)"""
         from scipy.optimize import minimize_scalar
 
-        mean_tau = np.mean(kendall_tau[kendall_tau != 1.0]) if np.any(kendall_tau != 1.0) else 0.0
+        mean_tau = (
+            np.mean(kendall_tau[kendall_tau != 1.0])
+            if np.any(kendall_tau != 1.0)
+            else 0.0
+        )
 
         def neg_log_likelihood(theta):
             if theta <= 0:
@@ -546,11 +631,17 @@ class MultivariateCopula:
                     ll += log_c
 
                 return -ll
-            except:
+            except Exception:
                 return 1e10
 
-        init_theta = max(0.1, 2 * mean_tau / (1 - mean_tau)) if abs(mean_tau) < 1 else 1.0
-        result = minimize_scalar(neg_log_likelihood, bounds=(0.01, 20), method="bounded")
+        init_theta = (
+            max(0.1, 2 * mean_tau / (1 - mean_tau))
+            if abs(mean_tau) < 1
+            else 1.0
+        )
+        result = minimize_scalar(
+            neg_log_likelihood, bounds=(0.01, 20), method="bounded"
+        )
 
         self._theta = max(0.01, result.x)
         self._copula_params["theta"] = self._theta
@@ -561,7 +652,9 @@ class MultivariateCopula:
                 if i != j and kendall_tau[i, j] != 1.0:
                     tau_ij = kendall_tau[i, j]
                     theta_ij = max(0.01, 2 * abs(tau_ij) / (1 - abs(tau_ij)))
-                    pseudo_rho[i, j] = theta_ij / (theta_ij + 2) * np.sign(tau_ij)
+                    pseudo_rho[i, j] = (
+                        theta_ij / (theta_ij + 2) * np.sign(tau_ij)
+                    )
 
         self.correlation_matrix = self._regularize_matrix(pseudo_rho)
 
@@ -569,7 +662,11 @@ class MultivariateCopula:
         """拟合Gumbel Copula (强上尾依赖)"""
         from scipy.optimize import minimize_scalar
 
-        mean_tau = np.mean(kendall_tau[kendall_tau != 1.0]) if np.any(kendall_tau != 1.0) else 0.0
+        mean_tau = (
+            np.mean(kendall_tau[kendall_tau != 1.0])
+            if np.any(kendall_tau != 1.0)
+            else 0.0
+        )
 
         def neg_log_likelihood(theta):
             if theta < 1:
@@ -596,11 +693,15 @@ class MultivariateCopula:
                     ll += log_c
 
                 return -ll
-            except:
+            except Exception:
                 return 1e10
 
-        init_theta = max(1.01, 1 / (1 - abs(mean_tau))) if abs(mean_tau) < 0.99 else 2.0
-        result = minimize_scalar(neg_log_likelihood, bounds=(1.01, 15), method="bounded")
+        init_theta = (
+            max(1.01, 1 / (1 - abs(mean_tau))) if abs(mean_tau) < 0.99 else 2.0
+        )
+        result = minimize_scalar(
+            neg_log_likelihood, bounds=(1.01, 15), method="bounded"
+        )
 
         self._theta = max(1.01, result.x)
         self._copula_params["theta"] = self._theta
@@ -611,7 +712,9 @@ class MultivariateCopula:
                 if i != j and kendall_tau[i, j] != 1.0:
                     tau_ij = kendall_tau[i, j]
                     theta_ij = max(1.01, 1 / (1 - abs(tau_ij)))
-                    pseudo_rho[i, j] = (theta_ij - 1) / theta_ij * np.sign(tau_ij)
+                    pseudo_rho[i, j] = (
+                        (theta_ij - 1) / theta_ij * np.sign(tau_ij)
+                    )
 
         self.correlation_matrix = self._regularize_matrix(pseudo_rho)
 
@@ -658,7 +761,10 @@ class MultivariateCopula:
         self.fitted = True
         self._compute_tail_dependence()
 
-        logger.info(f"[Copula] {self.copula_type} copula拟合完成, " f"{self.n_positions}维, {n_samples}样本")
+        logger.info(
+            f"[Copula] {self.copula_type} copula拟合完成, "
+            f"{self.n_positions}维, {n_samples}样本"
+        )
         return self
 
     def select_best_copula(self, data: np.ndarray) -> "MultivariateCopula":
@@ -678,7 +784,9 @@ class MultivariateCopula:
 
         for copula_type in self.VALID_COPULA_TYPES:
             try:
-                temp_copula = MultivariateCopula(copula_type=copula_type, regularization=self.regularization)
+                temp_copula = MultivariateCopula(
+                    copula_type=copula_type, regularization=self.regularization
+                )
                 temp_copula.fit(data)
 
                 if temp_copula.fitted:
@@ -692,16 +800,23 @@ class MultivariateCopula:
                             "params": temp_copula._copula_params.copy(),
                         }
                     )
-                    logger.info(f"[Copula选择] {copula_type}: AIC={aic:.2f}, BIC={bic:.2f}")
+                    logger.info(
+                        f"[Copula选择] {copula_type}: AIC={aic:.2f}, BIC={bic:.2f}"
+                    )
             except Exception as e:
                 logger.warning(f"[Copula选择] {copula_type} 拟合失败: {e}")
                 continue
 
         if not results:
-            logger.warning("[Copula选择] 所有Copula类型均失败，使用Gaussian作为默认")
+            logger.warning(
+                "[Copula选择] 所有Copula类型均失败，使用Gaussian作为默认"
+            )
             self._fit_gaussian_copula(data, self._compute_kendall_tau(data))
             self.fitted = True
-            self.selection_info = {"selected_type": "gaussian", "reason": "fallback"}
+            self.selection_info = {
+                "selected_type": "gaussian",
+                "reason": "fallback",
+            }
             return self
 
         results.sort(key=lambda x: x["bic"])
@@ -727,10 +842,14 @@ class MultivariateCopula:
 
         self._compute_tail_dependence()
 
-        logger.info(f"[Copula选择] 最优类型: {best['type']} (BIC={best['bic']:.2f})")
+        logger.info(
+            f"[Copula选择] 最优类型: {best['type']} (BIC={best['bic']:.2f})"
+        )
         return self
 
-    def _compute_criteria(self, copula: "MultivariateCopula", data: np.ndarray) -> Tuple[float, float]:
+    def _compute_criteria(
+        self, copula: "MultivariateCopula", data: np.ndarray
+    ) -> Tuple[float, float]:
         """计算AIC和BIC准则值"""
         try:
             u = np.zeros_like(data)
@@ -754,27 +873,39 @@ class MultivariateCopula:
             bic = -2 * log_likelihood + n_params * np.log(n_samples)
 
             return aic, bic
-        except:
+        except Exception:
             return float("inf"), float("inf")
 
-    def _compute_log_likelihood(self, copula: "MultivariateCopula", u: np.ndarray) -> float:
+    def _compute_log_likelihood(
+        self, copula: "MultivariateCopula", u: np.ndarray
+    ) -> float:
         """计算给定均匀数据下的对数似然"""
         try:
             if copula.copula_type == "gaussian":
                 z = stats.norm.ppf(u)
                 n, p = z.shape
-                log_det = np.log(abs(np.linalg.det(copula.correlation_matrix)) + 1e-10)
-                inv_corr = np.linalg.inv(copula.correlation_matrix + self.regularization * np.eye(p))
+                log_det = np.log(
+                    abs(np.linalg.det(copula.correlation_matrix)) + 1e-10
+                )
+                inv_corr = np.linalg.inv(
+                    copula.correlation_matrix + self.regularization * np.eye(p)
+                )
                 mahal = np.sum(z @ inv_corr * z, axis=1)
-                ll = -0.5 * (n * p * np.log(2 * np.pi) + n * log_det + np.sum(mahal))
+                ll = -0.5 * (
+                    n * p * np.log(2 * np.pi) + n * log_det + np.sum(mahal)
+                )
                 return ll
 
             elif copula.copula_type == "t":
                 z = stats.norm.ppf(u)
                 df = copula._df if copula._df else 5
                 n, p = z.shape
-                log_det = np.log(abs(np.linalg.det(copula.correlation_matrix)) + 1e-10)
-                inv_corr = np.linalg.inv(copula.correlation_matrix + self.regularization * np.eye(p))
+                log_det = np.log(
+                    abs(np.linalg.det(copula.correlation_matrix)) + 1e-10
+                )
+                inv_corr = np.linalg.inv(
+                    copula.correlation_matrix + self.regularization * np.eye(p)
+                )
                 mahal = np.sum(z @ inv_corr * z, axis=1)
                 ll = np.sum(
                     np.math.lgamma((df + p) / 2)
@@ -816,7 +947,7 @@ class MultivariateCopula:
 
             else:
                 return -1e10
-        except:
+        except Exception:
             return -1e10
 
     def _compute_tail_dependence(self):
@@ -830,13 +961,22 @@ class MultivariateCopula:
             return
 
         if self.copula_type == "gaussian":
-            self.tail_dependence = {"lower": 0.0, "upper": 0.0, "description": "Gaussian Copula无尾部依赖"}
+            self.tail_dependence = {
+                "lower": 0.0,
+                "upper": 0.0,
+                "description": "Gaussian Copula无尾部依赖",
+            }
         elif self.copula_type == "t":
             df = self._df if self._df else 5
             lambda_l = lambda_u = 2 * stats.t.sf(
                 df
                 * np.sqrt(
-                    (df + 1) / (df + self.correlation_matrix[0, 1] ** 2 * (df + 1) - self.correlation_matrix[0, 1] ** 2)
+                    (df + 1)
+                    / (
+                        df
+                        + self.correlation_matrix[0, 1] ** 2 * (df + 1)
+                        - self.correlation_matrix[0, 1] ** 2
+                    )
                 ),
                 df=df,
             )
@@ -865,7 +1005,11 @@ class MultivariateCopula:
                 "description": f"Gumbel Copula具有强上尾依赖 (λ_U={lambda_u:.4f})",
             }
         else:
-            self.tail_dependence = {"lower": 0.0, "upper": 0.0, "description": "未知Copula类型"}
+            self.tail_dependence = {
+                "lower": 0.0,
+                "upper": 0.0,
+                "description": "未知Copula类型",
+            }
 
     def get_tail_dependence_strength(self) -> str:
         """
@@ -923,7 +1067,9 @@ class MultivariateCopula:
             for i in range(self.n_positions):
                 std = self.marginals[i].get("std", 1.0)
                 mean = self.marginals[i].get("mean", 0.0)
-                result[:, i] = stats.norm.ppf(uniform_samples[:, i]) * std + mean
+                result[:, i] = (
+                    stats.norm.ppf(uniform_samples[:, i]) * std + mean
+                )
 
             return result
 
@@ -933,13 +1079,21 @@ class MultivariateCopula:
 
     def _simulate_gaussian(self, n_samples: int) -> np.ndarray:
         """Gaussian Copula模拟"""
-        z = np.random.multivariate_normal(mean=np.zeros(self.n_positions), cov=self.correlation_matrix, size=n_samples)
+        z = np.random.multivariate_normal(
+            mean=np.zeros(self.n_positions),
+            cov=self.correlation_matrix,
+            size=n_samples,
+        )
         return stats.norm.cdf(z)
 
     def _simulate_t(self, n_samples: int) -> np.ndarray:
         """Student-t Copula模拟"""
         df = self._df if self._df else 5
-        z = np.random.multivariate_normal(mean=np.zeros(self.n_positions), cov=self.correlation_matrix, size=n_samples)
+        z = np.random.multivariate_normal(
+            mean=np.zeros(self.n_positions),
+            cov=self.correlation_matrix,
+            size=n_samples,
+        )
         chi2 = np.random.chisquare(df, size=n_samples)
         t_samples = z * np.sqrt(df / chi2).reshape(-1, 1)
         return stats.t.cdf(t_samples, df=df)
@@ -970,7 +1124,9 @@ class MultivariateCopula:
         try:
             u = np.zeros(self.n_positions)
             for i in range(self.n_positions):
-                normalized = (values[0, i] - self.marginals[i]["mean"]) / (self.marginals[i]["std"] + 1e-10)
+                normalized = (values[0, i] - self.marginals[i]["mean"]) / (
+                    self.marginals[i]["std"] + 1e-10
+                )
                 u[i] = stats.norm.cdf(normalized)
 
             u = np.clip(u, 1e-6, 1 - 1e-6)
@@ -988,24 +1144,37 @@ class MultivariateCopula:
         try:
             if self.copula_type == "gaussian":
                 z = stats.norm.ppf(u)
-                cov = self.correlation_matrix + self.regularization * np.eye(self.n_positions)
+                cov = self.correlation_matrix + self.regularization * np.eye(
+                    self.n_positions
+                )
                 det = np.linalg.det(cov)
                 inv_cov = np.linalg.inv(cov)
                 mahal = z @ inv_cov @ z
-                density = (1 / np.sqrt((2 * np.pi) ** self.n_positions * abs(det) + 1e-10)) * np.exp(-0.5 * mahal)
+                density = (
+                    1
+                    / np.sqrt(
+                        (2 * np.pi) ** self.n_positions * abs(det) + 1e-10
+                    )
+                ) * np.exp(-0.5 * mahal)
                 return density
 
             elif self.copula_type == "t":
                 z = stats.norm.ppf(u)
                 df = self._df if self._df else 5
-                cov = self.correlation_matrix + self.regularization * np.eye(self.n_positions)
+                cov = self.correlation_matrix + self.regularization * np.eye(
+                    self.n_positions
+                )
                 det = np.linalg.det(cov)
                 inv_cov = np.linalg.inv(cov)
                 mahal = z @ inv_cov @ z
                 p = self.n_positions
                 density = (
                     np.math.gamma((df + p) / 2)
-                    / (np.math.gamma(df / 2) * (df * np.pi) ** (p / 2) * np.sqrt(abs(det) + 1e-10))
+                    / (
+                        np.math.gamma(df / 2)
+                        * (df * np.pi) ** (p / 2)
+                        * np.sqrt(abs(det) + 1e-10)
+                    )
                 ) * (1 + mahal / df) ** (-(df + p) / 2)
                 return density
 
@@ -1013,7 +1182,11 @@ class MultivariateCopula:
                 theta = self._theta if self._theta else 1.0
                 u_prod = np.prod(u)
                 u_theta_sum = np.sum(u ** (-theta))
-                density = (theta + 1) * (u_prod ** -(theta + 1)) * (u_theta_sum - 1) ** (-(2 * theta + 1) / theta)
+                density = (
+                    (theta + 1)
+                    * (u_prod ** -(theta + 1))
+                    * (u_theta_sum - 1) ** (-(2 * theta + 1) / theta)
+                )
                 return density
 
             elif self.copula_type == "gumbel":
@@ -1031,11 +1204,14 @@ class MultivariateCopula:
 
             else:
                 return 0.1
-        except:
+        except Exception:
             return 0.1
 
     def get_conditional_probability(
-        self, target_position: int, target_value: int, conditioning_values: Dict[int, int]
+        self,
+        target_position: int,
+        target_value: int,
+        conditioning_values: Dict[int, int],
     ) -> float:
         """计算条件概率"""
         if not self.fitted:
@@ -1064,7 +1240,11 @@ class MultivariateCopula:
             "tail_dependence": self.tail_dependence,
             "tail_strength": self.get_tail_dependence_strength(),
             "selection_info": self.selection_info,
-            "correlation_matrix_shape": self.correlation_matrix.shape if self.correlation_matrix is not None else None,
+            "correlation_matrix_shape": (
+                self.correlation_matrix.shape
+                if self.correlation_matrix is not None
+                else None
+            ),
             "regularization_used": self.regularization,
         }
 
@@ -1095,15 +1275,27 @@ class BayesianStructuralTimeSeries:
         _mc = model_config or get_model_config()
         bsts_cfg = _mc.bsts_config()
 
-        self.trend_window = trend_window if trend_window != 20 else bsts_cfg.get("trend_window", 20)
+        self.trend_window = (
+            trend_window
+            if trend_window != 20
+            else bsts_cfg.get("trend_window", 20)
+        )
         self.seasonality_period_input = seasonality_period
         self.outlier_threshold = (
-            outlier_threshold if outlier_threshold != 2.5 else bsts_cfg.get("outlier_threshold", 2.5)
+            outlier_threshold
+            if outlier_threshold != 2.5
+            else bsts_cfg.get("outlier_threshold", 2.5)
         )
         self.n_posterior_samples = (
-            n_posterior_samples if n_posterior_samples != 1000 else bsts_cfg.get("n_posterior_samples", 1000)
+            n_posterior_samples
+            if n_posterior_samples != 1000
+            else bsts_cfg.get("n_posterior_samples", 1000)
         )
-        self.confidence_level = confidence_level if confidence_level != 0.95 else bsts_cfg.get("confidence_level", 0.95)
+        self.confidence_level = (
+            confidence_level
+            if confidence_level != 0.95
+            else bsts_cfg.get("confidence_level", 0.95)
+        )
 
         self.trend_coef: Optional[np.ndarray] = None
         self.trend_coef_cov: Optional[np.ndarray] = None
@@ -1152,7 +1344,11 @@ class BayesianStructuralTimeSeries:
             optimal = min(10, max(5, n // 2))
             logger.info(f"[BSTS] 数据量少(n={n}), 选择窗口={optimal}")
             self._optimal_window = optimal
-            return {"optimal_window": optimal, "scores": [], "reason": "insufficient_data"}
+            return {
+                "optimal_window": optimal,
+                "scores": [],
+                "reason": "insufficient_data",
+            }
 
         scores = []
         data_std = np.std(data)
@@ -1197,7 +1393,10 @@ class BayesianStructuralTimeSeries:
                 improvement_ratio = full_mse / (cv_mse + 1e-10)
 
                 volatility_weight = min(1.0, data_cv * 2)
-                combined_score = volatility_weight * cv_mse + (1 - volatility_weight) * bic_score / n
+                combined_score = (
+                    volatility_weight * cv_mse
+                    + (1 - volatility_weight) * bic_score / n
+                )
 
                 scores.append(
                     {
@@ -1220,7 +1419,11 @@ class BayesianStructuralTimeSeries:
         if not scores:
             optimal = 20
             self._optimal_window = optimal
-            return {"optimal_window": optimal, "scores": [], "reason": "all_failed"}
+            return {
+                "optimal_window": optimal,
+                "scores": [],
+                "reason": "all_failed",
+            }
 
         scores.sort(key=lambda s: s["combined_score"])
         best = scores[0]
@@ -1250,7 +1453,9 @@ class BayesianStructuralTimeSeries:
             "reason": "bic_cv_combined",
         }
 
-    def _detect_seasonality_fft(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality_fft(
+        self, data: np.ndarray, max_period: Optional[int] = None
+    ) -> Tuple[bool, int, float]:
         """
         使用FFT频谱分析检测数据中的季节性模式
 
@@ -1287,12 +1492,18 @@ class BayesianStructuralTimeSeries:
         freqs = np.fft.rfftfreq(n)
 
         valid_period_range = (2, max_period)
-        valid_mask = (freqs > 1 / valid_period_range[1]) & (freqs < 1 / valid_period_range[0])
+        valid_mask = (freqs > 1 / valid_period_range[1]) & (
+            freqs < 1 / valid_period_range[0]
+        )
         if not np.any(valid_mask):
             return False, self.seasonality_period_input or 10, 0.0
 
         valid_psd = np.where(valid_mask, psd, 0)
-        noise_floor = np.median(valid_psd[valid_psd > 0]) if np.any(valid_psd > 0) else 1.0
+        noise_floor = (
+            np.median(valid_psd[valid_psd > 0])
+            if np.any(valid_psd > 0)
+            else 1.0
+        )
         snr = valid_psd / (noise_floor + 1e-10)
 
         peak_indices = []
@@ -1301,7 +1512,11 @@ class BayesianStructuralTimeSeries:
                 continue
             if snr[i] > snr[i - 1] and snr[i] > snr[i + 1] and snr[i] > 3.0:
                 period_candidate = round(1 / freqs[i]) if freqs[i] > 0 else n
-                if valid_period_range[0] <= period_candidate <= valid_period_range[1]:
+                if (
+                    valid_period_range[0]
+                    <= period_candidate
+                    <= valid_period_range[1]
+                ):
                     peak_indices.append((period_candidate, snr[i], i))
 
         if not peak_indices:
@@ -1321,9 +1536,15 @@ class BayesianStructuralTimeSeries:
             f"周期={best_period}, SNR={best_snr:.2f}, 强度={strength:.4f}"
         )
 
-        return detected, best_period if detected else (self.seasonality_period_input or 10), strength
+        return (
+            detected,
+            best_period if detected else (self.seasonality_period_input or 10),
+            strength,
+        )
 
-    def _detect_seasonality(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality(
+        self, data: np.ndarray, max_period: Optional[int] = None
+    ) -> Tuple[bool, int, float]:
         """
         联合ACF和FFT的季节性检测（融合两种方法的结果）
 
@@ -1339,8 +1560,12 @@ class BayesianStructuralTimeSeries:
         Returns:
             (是否检测到季节性, 季节性周期, 强度)
         """
-        fft_detected, fft_period, fft_strength = self._detect_seasonality_fft(data, max_period)
-        acf_detected, acf_period, acf_strength = self._detect_seasonality_acf(data, max_period)
+        fft_detected, fft_period, fft_strength = self._detect_seasonality_fft(
+            data, max_period
+        )
+        acf_detected, acf_period, acf_strength = self._detect_seasonality_acf(
+            data, max_period
+        )
 
         combined_detected = fft_detected or acf_detected
 
@@ -1365,7 +1590,9 @@ class BayesianStructuralTimeSeries:
 
         self._seasonality_detected = combined_detected
         self._seasonality_strength = best_strength
-        self.detected_seasonality_period = best_period if combined_detected else None
+        self.detected_seasonality_period = (
+            best_period if combined_detected else None
+        )
 
         logger.info(
             f"[BSTS] 融合季节性检测: {'检测到' if combined_detected else '未检测到'}, "
@@ -1374,7 +1601,9 @@ class BayesianStructuralTimeSeries:
 
         return combined_detected, best_period, best_strength
 
-    def _detect_seasonality_acf(self, data: np.ndarray, max_period: Optional[int] = None) -> Tuple[bool, int, float]:
+    def _detect_seasonality_acf(
+        self, data: np.ndarray, max_period: Optional[int] = None
+    ) -> Tuple[bool, int, float]:
         """
         使用自相关分析检测数据中的季节性模式
 
@@ -1408,7 +1637,9 @@ class BayesianStructuralTimeSeries:
         for lag in range(1, max_period + 1):
             if lag >= n:
                 break
-            acf[lag - 1] = np.sum(data_centered[: n - lag] * data_centered[lag:]) / ((n - lag) * variance)
+            acf[lag - 1] = np.sum(
+                data_centered[: n - lag] * data_centered[lag:]
+            ) / ((n - lag) * variance)
 
         significant_peaks = []
         for period in range(2, max_period):
@@ -1417,8 +1648,14 @@ class BayesianStructuralTimeSeries:
             acf_val = acf[period]
             if acf_val > 0.3:
                 is_peak = True
-                for neighbor in range(max(1, period - 2), min(len(acf), period + 3)):
-                    if neighbor != period and neighbor < len(acf) and acf[neighbor] > acf_val:
+                for neighbor in range(
+                    max(1, period - 2), min(len(acf), period + 3)
+                ):
+                    if (
+                        neighbor != period
+                        and neighbor < len(acf)
+                        and acf[neighbor] > acf_val
+                    ):
                         is_peak = False
                         break
                 if is_peak:
@@ -1439,10 +1676,15 @@ class BayesianStructuralTimeSeries:
             if shuf_var < 1e-10:
                 continue
             shuf_acf_max = 0
-            for lag in range(best_period - 1, min(best_period + 2, max_period)):
+            for lag in range(
+                best_period - 1, min(best_period + 2, max_period)
+            ):
                 if lag >= n - 1:
                     continue
-                val = abs(np.sum(shuffled[: n - lag - 1] * shuffled[lag + 1 :]) / ((n - lag - 1) * shuf_var))
+                val = abs(
+                    np.sum(shuffled[: n - lag - 1] * shuffled[lag + 1 :])
+                    / ((n - lag - 1) * shuf_var)
+                )
                 shuf_acf_max = max(shuf_acf_max, val)
             if shuf_acf_max >= best_acf:
                 count_extreme += 1
@@ -1451,7 +1693,9 @@ class BayesianStructuralTimeSeries:
         detected = p_value < 0.05 and best_acf > 0.2
         strength = float(best_acf) if detected else 0.0
 
-        seasonality_period = best_period if detected else (self.seasonality_period_input or 10)
+        seasonality_period = (
+            best_period if detected else (self.seasonality_period_input or 10)
+        )
 
         logger.info(
             f"[BSTS-ACF] 季节性检测结果: {'检测到' if detected else '未检测到'}, "
@@ -1460,7 +1704,9 @@ class BayesianStructuralTimeSeries:
 
         return detected, seasonality_period, strength
 
-    def _identify_outliers(self, data: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _identify_outliers(
+        self, data: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         使用多策略鲁棒统计方法识别异常值并计算贝叶斯权重
 
@@ -1502,13 +1748,21 @@ class BayesianStructuralTimeSeries:
         elif abs(data_skewness) < 0.3 and data_kurtosis < 0:
             adaptive_threshold *= 0.85
 
-        mad_scaled = mad * 1.4826 if mad > 1e-10 else (iqr / 1.349 if iqr > 1e-10 else np.std(data))
+        mad_scaled = (
+            mad * 1.4826
+            if mad > 1e-10
+            else (iqr / 1.349 if iqr > 1e-10 else np.std(data))
+        )
         iqr_lower = q1 - adaptive_threshold * iqr
         iqr_upper = q3 + adaptive_threshold * iqr
 
         mad_z = np.abs(data - median_val) / (mad_scaled + 1e-10)
 
-        global_outliers = (mad_z > adaptive_threshold) | (data < iqr_lower) | (data > iqr_upper)
+        global_outliers = (
+            (mad_z > adaptive_threshold)
+            | (data < iqr_lower)
+            | (data > iqr_upper)
+        )
 
         local_window = max(5, min(n // 10, 15))
         local_scores = np.zeros(n)
@@ -1519,24 +1773,42 @@ class BayesianStructuralTimeSeries:
             if len(local_data) >= 3:
                 local_median = np.median(local_data)
                 local_mad = np.median(np.abs(local_data - local_median))
-                local_scaled = local_mad * 1.4826 if local_mad > 1e-10 else np.std(local_data)
-                local_scores[i] = abs(data[i] - local_median) / (local_scaled + 1e-10)
+                local_scaled = (
+                    local_mad * 1.4826
+                    if local_mad > 1e-10
+                    else np.std(local_data)
+                )
+                local_scores[i] = abs(data[i] - local_median) / (
+                    local_scaled + 1e-10
+                )
 
         local_threshold = adaptive_threshold * 1.2
         local_outliers = local_scores > local_threshold
 
-        outlier_votes = global_outliers.astype(int) + local_outliers.astype(int)
+        outlier_votes = global_outliers.astype(int) + local_outliers.astype(
+            int
+        )
         outlier_mask = outlier_votes >= 1
 
         for i in range(n):
             if outlier_mask[i]:
                 combined_z = max(mad_z[i], local_scores[i])
                 if combined_z <= adaptive_threshold * 1.5:
-                    weight = np.exp(-0.5 * (combined_z**2) / (adaptive_threshold**2))
+                    weight = np.exp(
+                        -0.5 * (combined_z**2) / (adaptive_threshold**2)
+                    )
                 elif combined_z <= adaptive_threshold * 2.5:
-                    weight = np.exp(-0.5 * (combined_z**2) / ((adaptive_threshold * 1.5) ** 2))
+                    weight = np.exp(
+                        -0.5
+                        * (combined_z**2)
+                        / ((adaptive_threshold * 1.5) ** 2)
+                    )
                 else:
-                    weight = np.exp(-0.5 * (combined_z**2) / ((adaptive_threshold * 2.0) ** 2))
+                    weight = np.exp(
+                        -0.5
+                        * (combined_z**2)
+                        / ((adaptive_threshold * 2.0) ** 2)
+                    )
                 weights[i] = max(weight, 0.02)
 
         self._outlier_mask = outlier_mask
@@ -1552,7 +1824,12 @@ class BayesianStructuralTimeSeries:
 
         return outlier_mask, weights
 
-    def _compute_bayesian_posterior(self, data: np.ndarray, x: np.ndarray, weights: Optional[np.ndarray] = None):
+    def _compute_bayesian_posterior(
+        self,
+        data: np.ndarray,
+        x: np.ndarray,
+        weights: Optional[np.ndarray] = None,
+    ):
         """
         计算贝叶斯后验分布用于预测区间估计
 
@@ -1582,7 +1859,9 @@ class BayesianStructuralTimeSeries:
         prior_df = 2.0
         prior_scale = 1.0
         post_df = prior_df + effective_n / 2.0
-        post_scale = (prior_scale * prior_df / 2.0 + weighted_ss / 2.0) / post_df
+        post_scale = (
+            prior_scale * prior_df / 2.0 + weighted_ss / 2.0
+        ) / post_df
 
         rng = np.random.default_rng(42)
         trend_samples = np.zeros((self.n_posterior_samples, 2))
@@ -1590,12 +1869,20 @@ class BayesianStructuralTimeSeries:
 
         for i in range(self.n_posterior_samples):
             sampled_var = inv_gamma_sample(rng, post_df, post_scale)
-            trend_samples[i] = rng.multivariate_normal(posterior_mean, sampled_var * posterior_cov)
-            residual_samples[i] = rng.normal(0, np.sqrt(max(sampled_var, 1e-10)))
+            trend_samples[i] = rng.multivariate_normal(
+                posterior_mean, sampled_var * posterior_cov
+            )
+            residual_samples[i] = rng.normal(
+                0, np.sqrt(max(sampled_var, 1e-10))
+            )
 
         self.trend_coef = posterior_mean
         self.trend_coef_cov = posterior_cov * post_scale * 2 / (post_df - 1)
-        self.residual_std = float(np.sqrt(post_scale * 2 / (post_df - 1))) if post_df > 1 else 1.0
+        self.residual_std = (
+            float(np.sqrt(post_scale * 2 / (post_df - 1)))
+            if post_df > 1
+            else 1.0
+        )
 
         self._posterior_trend_samples = trend_samples
         self._posterior_residual_samples = residual_samples
@@ -1632,7 +1919,9 @@ class BayesianStructuralTimeSeries:
         x = np.arange(n, dtype=float)
 
         if self.seasonality_period_input is None:
-            use_seasonal, seasonality_period, _ = self._detect_seasonality(observations)
+            use_seasonal, seasonality_period, _ = self._detect_seasonality(
+                observations
+            )
         else:
             use_seasonal = True
             seasonality_period = self.seasonality_period_input
@@ -1646,7 +1935,9 @@ class BayesianStructuralTimeSeries:
         else:
             fit_x = x.copy()
 
-        self._compute_bayesian_posterior(fit_data, fit_x, self._outlier_weights[-len(fit_data) :])
+        self._compute_bayesian_posterior(
+            fit_data, fit_x, self._outlier_weights[-len(fit_data) :]
+        )
 
         detrended = observations - np.polyval(self.trend_coef, x)
 
@@ -1657,9 +1948,13 @@ class BayesianStructuralTimeSeries:
                 indices = np.arange(i, n, seasonality_period)
                 if len(indices) > 0:
                     w = self._outlier_weights[indices]
-                    seasonal[i] = np.sum(w * detrended[indices]) / (np.sum(w) + 1e-10)
+                    seasonal[i] = np.sum(w * detrended[indices]) / (
+                        np.sum(w) + 1e-10
+                    )
                     seasonal_weights[i] = np.sum(w)
-            seasonal = seasonal - np.average(seasonal, weights=seasonal_weights + 1e-10)
+            seasonal = seasonal - np.average(
+                seasonal, weights=seasonal_weights + 1e-10
+            )
             self.seasonal_coef = seasonal
             self.detected_seasonality_period = seasonality_period
         elif not use_seasonal:
@@ -1681,7 +1976,11 @@ class BayesianStructuralTimeSeries:
 
     def _construct_model(self, x: np.ndarray) -> np.ndarray:
         """构建完整的趋势+季节性模型"""
-        trend = np.polyval(self.trend_coef, x) if self.trend_coef is not None else np.zeros_like(x, dtype=float)
+        trend = (
+            np.polyval(self.trend_coef, x)
+            if self.trend_coef is not None
+            else np.zeros_like(x, dtype=float)
+        )
         seasonal = np.zeros_like(x, dtype=float)
         if self.seasonal_coef is not None:
             period = len(self.seasonal_coef)
@@ -1757,22 +2056,34 @@ class BayesianStructuralTimeSeries:
             seasonal_pred = np.zeros(n_ahead)
             if self.seasonal_coef is not None:
                 period = len(self.seasonal_coef)
-                seasonal_pred = self.seasonal_coef[np.mod(future_x.astype(int), period)]
+                seasonal_pred = self.seasonal_coef[
+                    np.mod(future_x.astype(int), period)
+                ]
 
             noise_std = self._posterior_residual_samples[i]
             step_uncertainty = noise_std * np.sqrt(np.arange(1, n_ahead + 1))
 
             season_noise = 0.0
             if self.seasonal_coef is not None and n_ahead > period:
-                season_noise = noise_std * 0.3 * np.sqrt(np.arange(1, n_ahead + 1) / period)
+                season_noise = (
+                    noise_std
+                    * 0.3
+                    * np.sqrt(np.arange(1, n_ahead + 1) / period)
+                )
 
-            all_predictions[i] = trend_pred + seasonal_pred + step_uncertainty + season_noise
+            all_predictions[i] = (
+                trend_pred + seasonal_pred + step_uncertainty + season_noise
+            )
 
         mean_pred = np.mean(all_predictions, axis=0)
         std_pred = np.std(all_predictions, axis=0)
 
-        lower_bound_95 = np.percentile(all_predictions, (alpha / 2) * 100, axis=0)
-        upper_bound_95 = np.percentile(all_predictions, (1 - alpha / 2) * 100, axis=0)
+        lower_bound_95 = np.percentile(
+            all_predictions, (alpha / 2) * 100, axis=0
+        )
+        upper_bound_95 = np.percentile(
+            all_predictions, (1 - alpha / 2) * 100, axis=0
+        )
         lower_bound_90 = np.percentile(all_predictions, 5, axis=0)
         upper_bound_90 = np.percentile(all_predictions, 95, axis=0)
         lower_bound_68 = np.percentile(all_predictions, 16, axis=0)
@@ -1780,11 +2091,18 @@ class BayesianStructuralTimeSeries:
 
         prediction_probs = np.zeros(10)
         if len(mean_pred) > 0:
-            overall_trend = mean_pred[-1] - mean_pred[0] if n_ahead > 1 else mean_pred[0]
+            overall_trend = (
+                mean_pred[-1] - mean_pred[0] if n_ahead > 1 else mean_pred[0]
+            )
             uncertainty_scale = std_pred[-1] if len(std_pred) > 0 else 1.0
             for d in range(10):
                 base_prob = 0.1
-                trend_adj = overall_trend * 0.02 * (d - 4.5) / (uncertainty_scale + 0.1)
+                trend_adj = (
+                    overall_trend
+                    * 0.02
+                    * (d - 4.5)
+                    / (uncertainty_scale + 0.1)
+                )
                 prediction_probs[d] = base_prob + trend_adj
         prediction_probs = np.clip(prediction_probs, 0.01, 0.5)
         prediction_probs /= prediction_probs.sum()
@@ -1813,20 +2131,27 @@ class BayesianStructuralTimeSeries:
 
         return result
 
-    def forecast_with_trend(self, observations: np.ndarray, n_ahead: int = 1) -> Tuple[np.ndarray, np.ndarray]:
+    def forecast_with_trend(
+        self, observations: np.ndarray, n_ahead: int = 1
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """带趋势的预测接口（向后兼容）"""
         self.fit(observations)
         self._last_fit_n = len(observations)
         return self.predict(n_ahead)
 
-    def forecast_with_intervals(self, observations: np.ndarray, n_ahead: int = 1) -> Dict:
+    def forecast_with_intervals(
+        self, observations: np.ndarray, n_ahead: int = 1
+    ) -> Dict:
         """带预测区间的完整预测接口"""
         self.fit(observations)
         self._last_fit_n = len(observations)
         return self.predict_with_intervals(n_ahead)
 
     def partial_fit(
-        self, new_data: np.ndarray, retrain_threshold: float = 0.3, window_reselect: bool = False
+        self,
+        new_data: np.ndarray,
+        retrain_threshold: float = 0.3,
+        window_reselect: bool = False,
     ) -> "BayesianStructuralTimeSeries":
         """
         增量更新模型（无需完全重新训练）
@@ -1877,10 +2202,19 @@ class BayesianStructuralTimeSeries:
 
         predictions_new = self._construct_model(new_x)
         residuals_new = new_data - predictions_new
-        weighted_residual_std = np.sqrt(np.sum(new_weights * residuals_new**2) / (np.sum(new_weights) + 1e-10))
-        relative_deviation = abs(weighted_residual_std) / (self.residual_std + 1e-10)
+        weighted_residual_std = np.sqrt(
+            np.sum(new_weights * residuals_new**2)
+            / (np.sum(new_weights) + 1e-10)
+        )
+        relative_deviation = abs(weighted_residual_std) / (
+            self.residual_std + 1e-10
+        )
 
-        needs_full_retrain = relative_deviation > retrain_threshold or n_new > old_n * 0.5 or self._fit_count == 0
+        needs_full_retrain = (
+            relative_deviation > retrain_threshold
+            or n_new > old_n * 0.5
+            or self._fit_count == 0
+        )
 
         fit_record = {
             "timestamp": self._fit_count,
@@ -1889,12 +2223,15 @@ class BayesianStructuralTimeSeries:
             "relative_deviation": float(relative_deviation),
             "full_retrain": needs_full_retrain,
             "prev_residual_std": float(self.residual_std),
-            "new_residual_std": float(weighted_residual_std) if n_new > 0 else 0.0,
+            "new_residual_std": (
+                float(weighted_residual_std) if n_new > 0 else 0.0
+            ),
         }
 
         if needs_full_retrain:
             logger.info(
-                f"[BSTS-partial] 检测到显著偏移(dev={relative_deviation:.3f}), " f"触发完全重训练, 新数据点={n_new}"
+                f"[BSTS-partial] 检测到显著偏移(dev={relative_deviation:.3f}), "
+                f"触发完全重训练, 新数据点={n_new}"
             )
             return self.fit(combined)
 
@@ -1912,22 +2249,41 @@ class BayesianStructuralTimeSeries:
             delta_cov = np.linalg.inv(XtWX_new + reg)
             delta_mean = delta_cov @ XtWy_new
         except Exception:
-            delta_mean = np.array([np.mean(np.diff(new_data)) if n_new > 1 else 0.0, np.mean(new_data)])
+            delta_mean = np.array(
+                [
+                    np.mean(np.diff(new_data)) if n_new > 1 else 0.0,
+                    np.mean(new_data),
+                ]
+            )
             delta_cov = np.eye(2) * self.residual_std
 
-        old_trend = self.trend_coef.copy() if self.trend_coef is not None else np.zeros(2)
-        updated_trend = (1 - effective_lr) * old_trend + effective_lr * delta_mean
+        old_trend = (
+            self.trend_coef.copy()
+            if self.trend_coef is not None
+            else np.zeros(2)
+        )
+        updated_trend = (
+            1 - effective_lr
+        ) * old_trend + effective_lr * delta_mean
 
-        old_cov = self.trend_coef_cov.copy() if self.trend_coef_cov is not None else np.eye(2)
+        old_cov = (
+            self.trend_coef_cov.copy()
+            if self.trend_coef_cov is not None
+            else np.eye(2)
+        )
         updated_cov = (1 - effective_lr) * old_cov + effective_lr * delta_cov
 
         self.trend_coef = updated_trend
         self.trend_coef_cov = updated_cov
 
-        new_ss_res = np.sum(new_weights * (new_data - X_new_design @ updated_trend) ** 2)
+        new_ss_res = np.sum(
+            new_weights * (new_data - X_new_design @ updated_trend) ** 2
+        )
         effective_n_new = np.sum(new_weights)
         old_ss_proxy = self.residual_std**2 * max(old_n, 1)
-        updated_var = ((1 - effective_lr) * old_ss_proxy + effective_lr * new_ss_res) / max(old_n + effective_n_new, 1)
+        updated_var = (
+            (1 - effective_lr) * old_ss_proxy + effective_lr * new_ss_res
+        ) / max(old_n + effective_n_new, 1)
         self.residual_std = float(np.sqrt(max(updated_var, 1e-6)))
 
         if self.seasonal_coef is not None and n_new >= len(self.seasonal_coef):
@@ -1938,8 +2294,12 @@ class BayesianStructuralTimeSeries:
                 indices = np.arange(i, n_new, period)
                 if len(indices) > 0:
                     w = new_weights[indices]
-                    incremental_seasonal = np.sum(w * detrended_new[indices]) / (np.sum(w) + 1e-10)
-                    self.seasonal_coef[i] = (1 - effective_lr * 0.7) * self.seasonal_coef[
+                    incremental_seasonal = np.sum(
+                        w * detrended_new[indices]
+                    ) / (np.sum(w) + 1e-10)
+                    self.seasonal_coef[i] = (
+                        1 - effective_lr * 0.7
+                    ) * self.seasonal_coef[
                         i
                     ] + effective_lr * 0.7 * incremental_seasonal
 
@@ -1949,9 +2309,15 @@ class BayesianStructuralTimeSeries:
         residual_samples = np.zeros(n_samples)
 
         for i in range(n_samples):
-            sampled_var = inv_gamma_sample(rng, 2.0 + effective_n_new / 2.0, self.residual_std**2 / 2)
-            trend_samples[i] = rng.multivariate_normal(updated_trend, sampled_var * updated_cov)
-            residual_samples[i] = rng.normal(0, np.sqrt(max(sampled_var, 1e-10)))
+            sampled_var = inv_gamma_sample(
+                rng, 2.0 + effective_n_new / 2.0, self.residual_std**2 / 2
+            )
+            trend_samples[i] = rng.multivariate_normal(
+                updated_trend, sampled_var * updated_cov
+            )
+            residual_samples[i] = rng.normal(
+                0, np.sqrt(max(sampled_var, 1e-10))
+            )
 
         self._posterior_trend_samples = trend_samples
         self._posterior_residual_samples = residual_samples
@@ -1982,11 +2348,19 @@ class BayesianStructuralTimeSeries:
             "fitted": self.fitted,
             "trend_window_used": self._optimal_window or self.trend_window,
             "window_selection_scores": self._window_selection_scores,
-            "trend_coefficients": self.trend_coef.tolist() if self.trend_coef is not None else None,
+            "trend_coefficients": (
+                self.trend_coef.tolist()
+                if self.trend_coef is not None
+                else None
+            ),
             "detected_seasonality": self._seasonality_detected,
             "seasonality_period": self.detected_seasonality_period,
             "seasonality_strength": self._seasonality_strength,
-            "seasonal_coefficients": self.seasonal_coef.tolist() if self.seasonal_coef is not None else None,
+            "seasonal_coefficients": (
+                self.seasonal_coef.tolist()
+                if self.seasonal_coef is not None
+                else None
+            ),
             "residual_std": self.residual_std,
             "n_outliers_detected": self._n_outliers,
             "outlier_threshold": self.outlier_threshold,
@@ -1996,11 +2370,19 @@ class BayesianStructuralTimeSeries:
             "incremental_learning": {
                 "fit_count": self._fit_count,
                 "last_fit_n": self._last_fit_n,
-                "total_training_points": len(self._training_data) if self._training_data is not None else 0,
+                "total_training_points": (
+                    len(self._training_data)
+                    if self._training_data is not None
+                    else 0
+                ),
                 "learning_rate": self._learning_rate,
                 "max_history_length": self._max_history_length,
                 "n_partial_fit_calls": len(self._partial_fit_history),
-                "partial_fit_history": self._partial_fit_history[-5:] if self._partial_fit_history else [],
+                "partial_fit_history": (
+                    self._partial_fit_history[-5:]
+                    if self._partial_fit_history
+                    else []
+                ),
             },
         }
 

@@ -7,27 +7,22 @@ PL5 预测器 V8.0 — 功能完整实现
 
 from __future__ import annotations
 
-import json
 import logging
 import pickle
 import warnings
-from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from src.core.monitoring.performance_monitor import track_performance
 
 import numpy as np
 import pandas as pd
-from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import (
-    AdaBoostClassifier,
     ExtraTreesClassifier,
     GradientBoostingClassifier,
     RandomForestClassifier,
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import label_binarize
 
 warnings.filterwarnings("ignore")
 
@@ -73,7 +68,9 @@ class HMMModel:
 
     def fit(self, data: np.ndarray) -> "HMMModel":
         data = np.asarray(data, dtype=int).ravel()
-        counts: Dict[int, np.ndarray] = {d: np.ones(10) * self._alpha for d in DIGITS}
+        counts: Dict[int, np.ndarray] = {
+            d: np.ones(10) * self._alpha for d in DIGITS
+        }
         for i in range(len(data) - 1):
             prev, nxt = int(data[i]), int(data[i + 1])
             if 0 <= prev <= 9 and 0 <= nxt <= 9:
@@ -139,7 +136,12 @@ class CopulaModel:
             return self.kendall_tau
         return np.eye(5)
 
-    def predict_position(self, recent_data: Dict[str, np.ndarray], target_pos: str, positions: List[str]) -> np.ndarray:
+    def predict_position(
+        self,
+        recent_data: Dict[str, np.ndarray],
+        target_pos: str,
+        positions: List[str],
+    ) -> np.ndarray:
         """
         根据位置间相关性，为目标位置生成概率调整向量。
 
@@ -175,7 +177,9 @@ class CopulaModel:
             seq = recent_data.get(other_pos, np.array([0]))
             # 兼容 pandas Series（RangeIndex 不支持 seq[-1]）和 numpy array / list
             try:
-                last_digit = int(seq.iloc[-1]) if hasattr(seq, "iloc") else int(seq[-1])
+                last_digit = (
+                    int(seq.iloc[-1]) if hasattr(seq, "iloc") else int(seq[-1])
+                )
             except (KeyError, IndexError, ValueError):
                 last_digit = 0
             # 相关性强度因子
@@ -184,11 +188,15 @@ class CopulaModel:
                 # 正相关：其他位置出现较多的数字，同方向调整
                 # 简化：用数字是否等于最近值来加权
                 for d in range(10):
-                    adjustment[d] += strength * (1.0 if d == last_digit else 0.0)
+                    adjustment[d] += strength * (
+                        1.0 if d == last_digit else 0.0
+                    )
             else:
                 # 负相关：其他位置出现较多的数字，反方向调整
                 for d in range(10):
-                    adjustment[d] += strength * (1.0 if d != last_digit else 0.0)
+                    adjustment[d] += strength * (
+                        1.0 if d != last_digit else 0.0
+                    )
 
         return adjustment
 
@@ -274,9 +282,15 @@ class StackingEnsemble:
     """
 
     BASE_MODELS = {
-        "rf": RandomForestClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
-        "gbm": GradientBoostingClassifier(n_estimators=50, max_depth=4, random_state=42),
-        "et": ExtraTreesClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
+        "rf": RandomForestClassifier(
+            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
+        ),
+        "gbm": GradientBoostingClassifier(
+            n_estimators=50, max_depth=4, random_state=42
+        ),
+        "et": ExtraTreesClassifier(
+            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
+        ),
     }
 
     def __init__(self):
@@ -284,7 +298,9 @@ class StackingEnsemble:
         self.meta_models: Dict[str, LogisticRegression] = {}
         self._fitted = False
 
-    def fit_position_models(self, data: pd.DataFrame, feature_cols: List[str]) -> "StackingEnsemble":
+    def fit_position_models(
+        self, data: pd.DataFrame, feature_cols: List[str]
+    ) -> "StackingEnsemble":
         X = data[feature_cols].fillna(0).values
         tscv = TimeSeriesSplit(n_splits=5)  # 统一与V10一致（V10默认5折）
 
@@ -299,7 +315,10 @@ class StackingEnsemble:
         if parallel_available:
             logger.info("使用并行训练模式")
             results = Parallel(n_jobs=-1)(
-                delayed(self._fit_single_position)(X, data[pos].values.astype(int), tscv) for pos in POSITIONS
+                delayed(self._fit_single_position)(
+                    X, data[pos].values.astype(int), tscv
+                )
+                for pos in POSITIONS
             )
             for pos, (base_fitted, meta_clf) in zip(POSITIONS, results):
                 self.position_models[pos] = base_fitted
@@ -349,7 +368,9 @@ class StackingEnsemble:
 
         # --- 训练元学习器 ---
         # sklearn 1.8.0 已移除 multi_class 参数，多分类为默认行为
-        meta_clf = LogisticRegression(max_iter=300, C=1.0, solver="lbfgs", random_state=42)
+        meta_clf = LogisticRegression(
+            max_iter=300, C=1.0, solver="lbfgs", random_state=42
+        )
         meta_clf.fit(meta_X, y)
 
         return base_fitted, meta_clf
@@ -470,7 +491,12 @@ class PL5Predictor:
             # 训练单个位置的HMM/BSTS/EVM模型
             def train_position_models(pos):
                 seq = df[pos].values
-                return pos, HMMModel().fit(seq), BSTSModel().fit(seq), ExtremeValueModel().fit(seq)
+                return (
+                    pos,
+                    HMMModel().fit(seq),
+                    BSTSModel().fit(seq),
+                    ExtremeValueModel().fit(seq),
+                )
 
             # 训练Copula模型
             def train_copula():
@@ -482,7 +508,10 @@ class PL5Predictor:
                 [
                     delayed(train_stacking)(),
                     delayed(train_copula)(),
-                    *[delayed(train_position_models)(pos) for pos in POSITIONS],
+                    *[
+                        delayed(train_position_models)(pos)
+                        for pos in POSITIONS
+                    ],
                 ]
             )
 
@@ -539,14 +568,22 @@ class PL5Predictor:
         """
         if not self.is_trained:
             logger.warning("[PL5Predictor] 模型未训练，返回均匀分布")
-            return {pos: {"top_k": list(range(10))[:top_k], "probabilities": [0.1] * top_k} for pos in POSITIONS}
+            return {
+                pos: {
+                    "top_k": list(range(10))[:top_k],
+                    "probabilities": [0.1] * top_k,
+                }
+                for pos in POSITIONS
+            }
 
         result: Dict[str, Dict[str, Any]] = {}
 
         for pos in POSITIONS:
             # Stacking 概率
             if pos in self.stacking:
-                p_stacking = self.stacking[pos].predict_proba_position(pos, features)
+                p_stacking = self.stacking[pos].predict_proba_position(
+                    pos, features
+                )
             else:
                 p_stacking = np.ones(10) / 10
 
@@ -562,7 +599,9 @@ class PL5Predictor:
 
             # Copula 概率调整（基于位置相关性）
             if self.copula is not None and recent_original_data:
-                p_copula_adj = self.copula.predict_position(recent_original_data, pos, POSITIONS)
+                p_copula_adj = self.copula.predict_position(
+                    recent_original_data, pos, POSITIONS
+                )
                 p_copula = p_copula_adj / (p_copula_adj.sum() + 1e-12)
             else:
                 p_copula = np.ones(10) / 10
@@ -681,7 +720,9 @@ class PL5Predictor:
     # ---- 模型优化 ----------------------------------------------------
 
     @track_performance
-    def optimize(self, df: pd.DataFrame, feature_cols: List[str], n_trials: int = 20) -> Dict[str, Any]:
+    def optimize(
+        self, df: pd.DataFrame, feature_cols: List[str], n_trials: int = 20
+    ) -> Dict[str, Any]:
         """
         优化模型参数和权重
 
@@ -696,7 +737,9 @@ class PL5Predictor:
         logger.info("[PL5Predictor] 开始模型优化...")
 
         # 1. 优化模型参数
-        optimized_params = self._optimize_model_params(df, feature_cols, n_trials)
+        optimized_params = self._optimize_model_params(
+            df, feature_cols, n_trials
+        )
 
         # 2. 优化模型权重
         optimized_weights = self._optimize_model_weights(df, feature_cols)
@@ -704,11 +747,15 @@ class PL5Predictor:
         # 3. 应用优化结果
         self.weights = optimized_weights
 
-        logger.info(f"[PL5Predictor] 模型优化完成，新权重: {optimized_weights}")
+        logger.info(
+            f"[PL5Predictor] 模型优化完成，新权重: {optimized_weights}"
+        )
 
         return {"params": optimized_params, "weights": optimized_weights}
 
-    def _optimize_model_params(self, df: pd.DataFrame, feature_cols: List[str], n_trials: int) -> Dict[str, Any]:
+    def _optimize_model_params(
+        self, df: pd.DataFrame, feature_cols: List[str], n_trials: int
+    ) -> Dict[str, Any]:
         """
         优化模型参数
         """
@@ -718,7 +765,9 @@ class PL5Predictor:
         # 目前返回默认参数
         return MODEL_PARAMS
 
-    def _optimize_model_weights(self, df: pd.DataFrame, feature_cols: List[str]) -> Dict[str, float]:
+    def _optimize_model_weights(
+        self, df: pd.DataFrame, feature_cols: List[str]
+    ) -> Dict[str, float]:
         """
         基于交叉验证优化模型权重
         """
@@ -735,7 +784,9 @@ class PL5Predictor:
 
         return optimized_weights
 
-    def get_model_performance(self, df: pd.DataFrame, feature_cols: List[str]) -> Dict[str, Any]:
+    def get_model_performance(
+        self, df: pd.DataFrame, feature_cols: List[str]
+    ) -> Dict[str, Any]:
         """
         评估模型性能
 
@@ -751,7 +802,15 @@ class PL5Predictor:
         # 简单的性能评估
         # 这里可以实现更复杂的评估逻辑
 
-        return {"accuracy": 0.0, "top_k_accuracy": {"top_1": 0.0, "top_3": 0.0, "top_5": 0.0, "top_8": 0.0}}
+        return {
+            "accuracy": 0.0,
+            "top_k_accuracy": {
+                "top_1": 0.0,
+                "top_3": 0.0,
+                "top_5": 0.0,
+                "top_8": 0.0,
+            },
+        }
 
     # 向后兼容旧接口
     def save(self, path: str = None) -> None:

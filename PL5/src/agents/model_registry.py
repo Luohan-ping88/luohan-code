@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import logging
 import pickle
 
@@ -72,7 +72,9 @@ class ModelRegistry:
 
     def __init__(self, registry_path: Path = None):
         if registry_path is None:
-            registry_path = Path(__file__).parent.parent / "models" / "registry"
+            registry_path = (
+                Path(__file__).parent.parent / "models" / "registry"
+            )
 
         self.registry_path = registry_path
         self.registry_path.mkdir(parents=True, exist_ok=True)
@@ -91,13 +93,20 @@ class ModelRegistry:
                 data = json.load(f)
 
             for model_name, versions_data in data.items():
-                self._versions[model_name] = [ModelVersion.from_dict(v) for v in versions_data]
+                self._versions[model_name] = [
+                    ModelVersion.from_dict(v) for v in versions_data
+                ]
 
-            logger.info(f"[Registry] 已加载 {len(self._versions)} 个模型的注册信息")
+            logger.info(
+                f"[Registry] 已加载 {len(self._versions)} 个模型的注册信息"
+            )
 
     def _save_registry(self):
         """保存注册表"""
-        data = {model_name: [v.to_dict() for v in versions] for model_name, versions in self._versions.items()}
+        data = {
+            model_name: [v.to_dict() for v in versions]
+            for model_name, versions in self._versions.items()
+        }
 
         with open(self.versions_db_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -161,7 +170,9 @@ class ModelRegistry:
 
         return version
 
-    def get_version(self, model_name: str, version_id: str) -> Optional[ModelVersion]:
+    def get_version(
+        self, model_name: str, version_id: str
+    ) -> Optional[ModelVersion]:
         """获取特定版本"""
         if model_name not in self._versions:
             return None
@@ -172,12 +183,16 @@ class ModelRegistry:
 
         return None
 
-    def get_latest_version(self, model_name: str, status: str = "active") -> Optional[ModelVersion]:
+    def get_latest_version(
+        self, model_name: str, status: str = "active"
+    ) -> Optional[ModelVersion]:
         """获取最新版本"""
         if model_name not in self._versions:
             return None
 
-        versions = [v for v in self._versions[model_name] if v.status == status]
+        versions = [
+            v for v in self._versions[model_name] if v.status == status
+        ]
         if not versions:
             return None
 
@@ -191,13 +206,17 @@ class ModelRegistry:
         """列出所有模型"""
         return list(self._versions.keys())
 
-    def update_version_status(self, model_name: str, version_id: str, status: str):
+    def update_version_status(
+        self, model_name: str, version_id: str, status: str
+    ):
         """更新版本状态"""
         version = self.get_version(model_name, version_id)
         if version:
             version.status = status
             self._save_registry()
-            logger.info(f"[Registry] 模型 {model_name} 版本 {version_id} 状态更新为 {status}")
+            logger.info(
+                f"[Registry] 模型 {model_name} 版本 {version_id} 状态更新为 {status}"
+            )
 
     def add_tags(self, model_name: str, version_id: str, tags: List[str]):
         """添加标签"""
@@ -207,7 +226,9 @@ class ModelRegistry:
             version.tags = list(set(version.tags))  # 去重
             self._save_registry()
 
-    def compare_versions(self, model_name: str, version_id1: str, version_id2: str) -> Dict[str, Any]:
+    def compare_versions(
+        self, model_name: str, version_id1: str, version_id2: str
+    ) -> Dict[str, Any]:
         """比较两个版本"""
         v1 = self.get_version(model_name, version_id1)
         v2 = self.get_version(model_name, version_id2)
@@ -215,7 +236,12 @@ class ModelRegistry:
         if not v1 or not v2:
             return {"error": "版本不存在"}
 
-        comparison = {"version1": v1.to_dict(), "version2": v2.to_dict(), "metric_diff": {}, "parameter_diff": {}}
+        comparison = {
+            "version1": v1.to_dict(),
+            "version2": v2.to_dict(),
+            "metric_diff": {},
+            "parameter_diff": {},
+        }
 
         # 比较指标
         all_metrics = set(v1.metrics.keys()) | set(v2.metrics.keys())
@@ -231,7 +257,9 @@ class ModelRegistry:
 
         return comparison
 
-    def get_version_lineage(self, model_name: str, version_id: str) -> List[ModelVersion]:
+    def get_version_lineage(
+        self, model_name: str, version_id: str
+    ) -> List[ModelVersion]:
         """获取版本血缘关系"""
         lineage = []
         current_id = version_id
@@ -259,7 +287,9 @@ class ModelRegistry:
         with open(version.file_path, "rb") as f:
             model = pickle.load(f)
 
-        logger.info(f"[Registry] 已加载模型 {model_name} 版本 {version.version_id}")
+        logger.info(
+            f"[Registry] 已加载模型 {model_name} 版本 {version.version_id}"
+        )
 
         return model
 
@@ -272,17 +302,27 @@ class ModelRegistry:
                 version.file_path.unlink()
 
             # 从注册表移除
-            self._versions[model_name] = [v for v in self._versions[model_name] if v.version_id != version_id]
+            self._versions[model_name] = [
+                v
+                for v in self._versions[model_name]
+                if v.version_id != version_id
+            ]
 
             self._save_registry()
-            logger.info(f"[Registry] 模型 {model_name} 版本 {version_id} 已删除")
+            logger.info(
+                f"[Registry] 模型 {model_name} 版本 {version_id} 已删除"
+            )
 
-    def get_best_version(self, model_name: str, metric: str = "accuracy") -> Optional[ModelVersion]:
+    def get_best_version(
+        self, model_name: str, metric: str = "accuracy"
+    ) -> Optional[ModelVersion]:
         """获取最佳版本（基于指标）"""
         if model_name not in self._versions:
             return None
 
-        active_versions = [v for v in self._versions[model_name] if v.status == "active"]
+        active_versions = [
+            v for v in self._versions[model_name] if v.status == "active"
+        ]
         if not active_versions:
             return None
 
@@ -293,7 +333,10 @@ class ModelRegistry:
         data = {"export_time": datetime.now().isoformat(), "models": {}}
 
         for model_name, versions in self._versions.items():
-            data["models"][model_name] = {"version_count": len(versions), "versions": [v.to_dict() for v in versions]}
+            data["models"][model_name] = {
+                "version_count": len(versions),
+                "versions": [v.to_dict() for v in versions],
+            }
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -322,7 +365,11 @@ class ModelDeployment:
             json.dump(self.deployments, f, ensure_ascii=False, indent=2)
 
     def deploy(
-        self, model_name: str, version_id: str, environment: str = "production", traffic_percentage: float = 100.0
+        self,
+        model_name: str,
+        version_id: str,
+        environment: str = "production",
+        traffic_percentage: float = 100.0,
     ):
         """部署模型"""
         deployment_id = f"{model_name}_{environment}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -338,15 +385,23 @@ class ModelDeployment:
 
         self._save_deployments()
 
-        logger.info(f"[Deployment] 模型 {model_name} 版本 {version_id} 已部署到 {environment}")
+        logger.info(
+            f"[Deployment] 模型 {model_name} 版本 {version_id} 已部署到 {environment}"
+        )
 
         return deployment_id
 
     def setup_ab_test(
-        self, model_name: str, version_a: str, version_b: str, traffic_split: Tuple[float, float] = (50.0, 50.0)
+        self,
+        model_name: str,
+        version_a: str,
+        version_b: str,
+        traffic_split: Tuple[float, float] = (50.0, 50.0),
     ):
         """设置A/B测试"""
-        test_id = f"ab_test_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        test_id = (
+            f"ab_test_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
 
         self.deployments[test_id] = {
             "type": "ab_test",
@@ -364,13 +419,18 @@ class ModelDeployment:
 
         return test_id
 
-    def get_active_deployments(self, environment: str = None) -> List[Dict[str, Any]]:
+    def get_active_deployments(
+        self, environment: str = None
+    ) -> List[Dict[str, Any]]:
         """获取活跃部署"""
         deployments = []
 
         for dep_id, dep in self.deployments.items():
             if dep.get("status") == "active":
-                if environment is None or dep.get("environment") == environment:
+                if (
+                    environment is None
+                    or dep.get("environment") == environment
+                ):
                     dep["deployment_id"] = dep_id
                     deployments.append(dep)
 
@@ -380,7 +440,9 @@ class ModelDeployment:
         """回滚部署"""
         if deployment_id in self.deployments:
             self.deployments[deployment_id]["status"] = "rolled_back"
-            self.deployments[deployment_id]["rolled_back_at"] = datetime.now().isoformat()
+            self.deployments[deployment_id][
+                "rolled_back_at"
+            ] = datetime.now().isoformat()
             self._save_deployments()
 
             logger.info(f"[Deployment] 部署 {deployment_id} 已回滚")

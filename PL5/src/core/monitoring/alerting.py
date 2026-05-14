@@ -5,9 +5,7 @@
 实现系统异常检测和通知功能
 """
 
-import os
 import time
-import logging
 import json
 from datetime import datetime
 from pathlib import Path
@@ -34,7 +32,9 @@ class Alert:
 
     def __post_init__(self):
         if not self.alert_id:
-            self.alert_id = f"alert_{int(time.time())}_{hash(self.message) % 10000}"
+            self.alert_id = (
+                f"alert_{int(time.time())}_{hash(self.message) % 10000}"
+            )
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
 
@@ -89,10 +89,19 @@ class AlertManager:
         }
 
         # 告警抑制规则
-        self.alert_suppression = {"enabled": True, "duration": 300, "rules": []}  # 抑制持续时间（秒）  # 抑制规则
+        self.alert_suppression = {
+            "enabled": True,
+            "duration": 300,
+            "rules": [],
+        }  # 抑制持续时间（秒）  # 抑制规则
 
         # 告警优先级映射
-        self.priority_map = {"critical": 1, "error": 2, "warning": 3, "info": 4}
+        self.priority_map = {
+            "critical": 1,
+            "error": 2,
+            "warning": 3,
+            "info": 4,
+        }
 
         logger.info("告警管理器初始化完成")
 
@@ -136,7 +145,10 @@ class AlertManager:
                         level="critical",
                         message=f"CPU使用率过高: {cpu_percent}%",
                         source="system_health",
-                        details={"cpu_percent": cpu_percent, "threshold": self.thresholds["cpu"]},
+                        details={
+                            "cpu_percent": cpu_percent,
+                            "threshold": self.thresholds["cpu"],
+                        },
                     )
                 )
 
@@ -149,7 +161,10 @@ class AlertManager:
                         level="error",
                         message=f"内存使用率过高: {memory_percent}%",
                         source="system_health",
-                        details={"memory_percent": memory_percent, "threshold": self.thresholds["memory"]},
+                        details={
+                            "memory_percent": memory_percent,
+                            "threshold": self.thresholds["memory"],
+                        },
                     )
                 )
 
@@ -162,13 +177,18 @@ class AlertManager:
                         level="error",
                         message=f"磁盘使用率过高: {disk_percent}%",
                         source="system_health",
-                        details={"disk_percent": disk_percent, "threshold": self.thresholds["disk"]},
+                        details={
+                            "disk_percent": disk_percent,
+                            "threshold": self.thresholds["disk"],
+                        },
                     )
                 )
 
         return alerts
 
-    def _check_performance_anomalies(self, metrics: Dict[str, Any]) -> List[Alert]:
+    def _check_performance_anomalies(
+        self, metrics: Dict[str, Any]
+    ) -> List[Alert]:
         """检查性能异常"""
         alerts = []
 
@@ -181,7 +201,10 @@ class AlertManager:
                         level="warning",
                         message=f"响应时间过长: {response_time}秒",
                         source="performance",
-                        details={"response_time": response_time, "threshold": self.thresholds["response_time"]},
+                        details={
+                            "response_time": response_time,
+                            "threshold": self.thresholds["response_time"],
+                        },
                     )
                 )
 
@@ -194,7 +217,10 @@ class AlertManager:
                         level="error",
                         message=f"错误率过高: {error_rate*100}%",
                         source="performance",
-                        details={"error_rate": error_rate, "threshold": self.thresholds["error_rate"]},
+                        details={
+                            "error_rate": error_rate,
+                            "threshold": self.thresholds["error_rate"],
+                        },
                     )
                 )
 
@@ -242,7 +268,9 @@ class AlertManager:
             last_backup = metrics["last_backup"]
             if last_backup:
                 backup_time = datetime.fromisoformat(last_backup)
-                time_since_backup = (datetime.now() - backup_time).total_seconds() / 3600  # 小时
+                time_since_backup = (
+                    datetime.now() - backup_time
+                ).total_seconds() / 3600  # 小时
                 if time_since_backup > 24:  # 超过24小时没有备份
                     alerts.append(
                         Alert(
@@ -268,7 +296,10 @@ class AlertManager:
                         level="warning",
                         message=f"网络发送速率过高: {network_sent} MB/s",
                         source="network",
-                        details={"network_sent": network_sent, "threshold": self.thresholds["network_sent"]},
+                        details={
+                            "network_sent": network_sent,
+                            "threshold": self.thresholds["network_sent"],
+                        },
                     )
                 )
 
@@ -281,7 +312,10 @@ class AlertManager:
                         level="warning",
                         message=f"网络接收速率过高: {network_recv} MB/s",
                         source="network",
-                        details={"network_recv": network_recv, "threshold": self.thresholds["network_recv"]},
+                        details={
+                            "network_recv": network_recv,
+                            "threshold": self.thresholds["network_recv"],
+                        },
                     )
                 )
 
@@ -300,7 +334,10 @@ class AlertManager:
                         level="warning",
                         message=f"进程线程数量过高: {thread_count}",
                         source="process",
-                        details={"thread_count": thread_count, "threshold": self.thresholds["process_count"]},
+                        details={
+                            "thread_count": thread_count,
+                            "threshold": self.thresholds["process_count"],
+                        },
                     )
                 )
 
@@ -313,7 +350,10 @@ class AlertManager:
                         level="warning",
                         message=f"打开文件数量过高: {open_files}",
                         source="process",
-                        details={"open_files": open_files, "threshold": self.thresholds["open_files"]},
+                        details={
+                            "open_files": open_files,
+                            "threshold": self.thresholds["open_files"],
+                        },
                     )
                 )
 
@@ -365,7 +405,10 @@ class AlertManager:
                     level=key[0],
                     message=f"[{len(group)}个] {group[0].message}",
                     source=key[1],
-                    details={"count": len(group), "original_alerts": [alert.alert_id for alert in group]},
+                    details={
+                        "count": len(group),
+                        "original_alerts": [alert.alert_id for alert in group],
+                    },
                 )
                 aggregated_alerts.append(aggregated_alert)
             else:
@@ -386,8 +429,13 @@ class AlertManager:
                 and existing_alert.source == alert.source
                 and not existing_alert.resolved
             ):
-                alert_time = datetime.fromisoformat(existing_alert.timestamp).timestamp()
-                if current_time - alert_time < self.alert_suppression["duration"]:
+                alert_time = datetime.fromisoformat(
+                    existing_alert.timestamp
+                ).timestamp()
+                if (
+                    current_time - alert_time
+                    < self.alert_suppression["duration"]
+                ):
                     return True
 
         return False
@@ -440,11 +488,15 @@ class AlertManager:
         try:
             # 日志通知
             if alert.level == "critical":
-                logger.critical(f"[告警] {alert.message} - 来源: {alert.source}")
+                logger.critical(
+                    f"[告警] {alert.message} - 来源: {alert.source}"
+                )
             elif alert.level == "error":
                 logger.error(f"[告警] {alert.message} - 来源: {alert.source}")
             elif alert.level == "warning":
-                logger.warning(f"[告警] {alert.message} - 来源: {alert.source}")
+                logger.warning(
+                    f"[告警] {alert.message} - 来源: {alert.source}"
+                )
             else:
                 logger.info(f"[告警] {alert.message} - 来源: {alert.source}")
 
@@ -506,7 +558,12 @@ class AlertManager:
         stats = {
             "total_alerts": len(self.alert_history),
             "active_alerts": len(self.get_active_alerts()),
-            "alerts_by_level": {"critical": 0, "error": 0, "warning": 0, "info": 0},
+            "alerts_by_level": {
+                "critical": 0,
+                "error": 0,
+                "warning": 0,
+                "info": 0,
+            },
             "alerts_by_source": {},
         }
 

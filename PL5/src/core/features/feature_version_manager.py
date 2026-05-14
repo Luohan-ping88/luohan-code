@@ -42,7 +42,7 @@ class FeatureVersionManager:
             try:
                 with open(self.history_file, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
+            except Exception:
                 return []
         return []
 
@@ -58,7 +58,10 @@ class FeatureVersionManager:
         return hashlib.md5(cols_str.encode()).hexdigest()
 
     def save_feature_version(
-        self, feature_cols: List[str], feature_config: Optional[Dict] = None, metadata: Optional[Dict] = None
+        self,
+        feature_cols: List[str],
+        feature_config: Optional[Dict] = None,
+        metadata: Optional[Dict] = None,
     ) -> str:
         """
         保存特征版本
@@ -72,7 +75,9 @@ class FeatureVersionManager:
             str: 版本ID
         """
         feature_hash = self._compute_feature_hash(feature_cols)
-        version_id = f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}_{feature_hash[:8]}"
+        version_id = (
+            f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}_{feature_hash[:8]}"
+        )
 
         version_data = {
             "version_id": version_id,
@@ -94,7 +99,7 @@ class FeatureVersionManager:
             if self.latest_link.exists():
                 self.latest_link.unlink()
             self.latest_link.symlink_to(version_file.name)
-        except:
+        except Exception:
             # Windows 可能不支持符号链接，直接复制
             import shutil
 
@@ -115,10 +120,14 @@ class FeatureVersionManager:
         history = history[:20]
         self._save_history(history)
 
-        logger.info(f"[特征版本] 已保存版本: {version_id} (特征数: {len(feature_cols)})")
+        logger.info(
+            f"[特征版本] 已保存版本: {version_id} (特征数: {len(feature_cols)})"
+        )
         return version_id
 
-    def load_feature_version(self, version_id: Optional[str] = None) -> Optional[Dict]:
+    def load_feature_version(
+        self, version_id: Optional[str] = None
+    ) -> Optional[Dict]:
         """
         加载特征版本
 
@@ -140,7 +149,9 @@ class FeatureVersionManager:
         try:
             with open(version_file, "r", encoding="utf-8") as f:
                 version_data = json.load(f)
-            logger.info(f"[特征版本] 已加载版本: {version_data.get('version_id', 'unknown')}")
+            logger.info(
+                f"[特征版本] 已加载版本: {version_data.get('version_id', 'unknown')}"
+            )
             return version_data
         except Exception as e:
             logger.error(f"[特征版本] 加载版本失败: {e}")
@@ -169,7 +180,11 @@ class FeatureVersionManager:
         version_data = self.load_feature_version(version_id)
 
         if not version_data:
-            return {"consistent": False, "reason": "没有可对比的特征版本", "action": "save_new_version"}
+            return {
+                "consistent": False,
+                "reason": "没有可对比的特征版本",
+                "action": "save_new_version",
+            }
 
         saved_features = version_data.get("feature_cols", [])
         saved_hash = version_data.get("feature_hash", "")
@@ -197,7 +212,11 @@ class FeatureVersionManager:
                 "removed_count": len(removed),
                 "added_features": added[:10],  # 只显示前10个
                 "removed_features": removed[:10],
-                "action": "update_version" if len(added) + len(removed) < 10 else "save_new_version",
+                "action": (
+                    "update_version"
+                    if len(added) + len(removed) < 10
+                    else "save_new_version"
+                ),
             }
 
     def list_versions(self, limit: int = 10) -> List[Dict]:

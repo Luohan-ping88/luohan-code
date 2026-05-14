@@ -14,9 +14,9 @@ iTransformer - 倒置Transformer V1.0
 """
 
 import numpy as np
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Optional
 import logging
-from src.core.config import ModelConfig, get_model_config
+from src.core.config import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ class InvertedMultiHeadAttention:
     - 变量数(5)远小于时间步数, 计算高效
     """
 
-    def __init__(self, d_model: int = 64, n_heads: int = 4, dropout: float = 0.1):
+    def __init__(
+        self, d_model: int = 64, n_heads: int = 4, dropout: float = 0.1
+    ):
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_k = d_model // n_heads
@@ -74,8 +76,12 @@ class InvertedMultiHeadAttention:
         attention_weights = self._softmax(scores, axis=-1)
 
         if self.dropout_rate > 0 and self.training:
-            mask = np.random.binomial(1, 1 - self.dropout_rate, attention_weights.shape)
-            attention_weights = attention_weights * mask / (1 - self.dropout_rate)
+            mask = np.random.binomial(
+                1, 1 - self.dropout_rate, attention_weights.shape
+            )
+            attention_weights = (
+                attention_weights * mask / (1 - self.dropout_rate)
+            )
 
         context = np.matmul(attention_weights, V)
 
@@ -110,7 +116,9 @@ class TemporalFFN:
     - 有效提取周期、趋势等时序特征
     """
 
-    def __init__(self, d_model: int = 64, d_ff: int = 256, dropout: float = 0.1):
+    def __init__(
+        self, d_model: int = 64, d_ff: int = 256, dropout: float = 0.1
+    ):
         self.d_model = d_model
         self.d_ff = d_ff
         self.dropout_rate = dropout
@@ -133,7 +141,9 @@ class TemporalFFN:
         h = np.maximum(h, 0)
 
         if self.dropout_rate > 0:
-            mask = np.random.binomial(1, 1 - self.dropout_rate, h.shape) / (1 - self.dropout_rate)
+            mask = np.random.binomial(1, 1 - self.dropout_rate, h.shape) / (
+                1 - self.dropout_rate
+            )
             h = h * mask
 
         output = h @ self.W2 + self.b2
@@ -147,7 +157,13 @@ class InvertedTransformerBlock:
           LayerNorm(变量) → FFN(时间) → Residual
     """
 
-    def __init__(self, d_model: int = 64, n_heads: int = 4, d_ff: int = 256, dropout: float = 0.1):
+    def __init__(
+        self,
+        d_model: int = 64,
+        n_heads: int = 4,
+        d_ff: int = 256,
+        dropout: float = 0.1,
+    ):
         self.attention = InvertedMultiHeadAttention(d_model, n_heads, dropout)
         self.ffn = TemporalFFN(d_model, d_ff, dropout)
 
@@ -156,7 +172,9 @@ class InvertedTransformerBlock:
         self.norm2_weight = np.ones(d_model)
         self.norm2_bias = np.zeros(d_model)
 
-    def _layer_norm(self, x: np.ndarray, weight: np.ndarray, bias: np.ndarray) -> np.ndarray:
+    def _layer_norm(
+        self, x: np.ndarray, weight: np.ndarray, bias: np.ndarray
+    ) -> np.ndarray:
         mean = np.mean(x, axis=-1, keepdims=True)
         var = np.var(x, axis=-1, keepdims=True)
         return weight * (x - mean) / np.sqrt(var + 1e-5) + bias
@@ -223,18 +241,24 @@ class iTransformerPredictor:
         """初始化模型参数"""
         scale = self.d_model**-0.5
 
-        self.var_embedding_W = np.random.randn(self.seq_length, self.d_model) * scale
+        self.var_embedding_W = (
+            np.random.randn(self.seq_length, self.d_model) * scale
+        )
         self.var_embedding_b = np.zeros(self.d_model)
 
         self.blocks = [
-            InvertedTransformerBlock(d_model=self.d_model, n_heads=self.n_heads, d_ff=self.d_ff)
+            InvertedTransformerBlock(
+                d_model=self.d_model, n_heads=self.n_heads, d_ff=self.d_ff
+            )
             for _ in range(self.n_layers)
         ]
 
         self.final_norm_weight = np.ones(self.d_model)
         self.final_norm_bias = np.zeros(self.d_model)
 
-        self.heads_W = np.random.randn(self.n_vars, self.d_model, self.n_classes) * scale
+        self.heads_W = (
+            np.random.randn(self.n_vars, self.d_model, self.n_classes) * scale
+        )
         self.heads_b = np.zeros((self.n_vars, self.n_classes))
 
     def _embed_variables(self, data: Dict[str, np.ndarray]) -> np.ndarray:
@@ -269,7 +293,9 @@ class iTransformerPredictor:
                     freq_features = freq_features[: self.seq_length]
                 elif freq_features.shape[0] < self.seq_length:
                     pad_rows = self.seq_length - freq_features.shape[0]
-                    freq_features = np.vstack([freq_features, np.zeros((pad_rows, self.n_classes))])
+                    freq_features = np.vstack(
+                        [freq_features, np.zeros((pad_rows, self.n_classes))]
+                    )
 
                 combined = np.concatenate([one_hot, freq_features], axis=1)
 
@@ -279,15 +305,21 @@ class iTransformerPredictor:
                 target_len = self.var_embedding_W.shape[0]
                 if combined.shape[0] < target_len:
                     pad_rows = target_len - combined.shape[0]
-                    combined = np.vstack([np.zeros((pad_rows, combined.shape[1])), combined])
+                    combined = np.vstack(
+                        [np.zeros((pad_rows, combined.shape[1])), combined]
+                    )
                 elif combined.shape[0] > target_len:
                     combined = combined[:target_len]
 
                 if combined.shape[1] != self.d_model:
-                    proj_W = np.random.randn(combined.shape[1], self.d_model) * (combined.shape[1] ** -0.5)
+                    proj_W = np.random.randn(
+                        combined.shape[1], self.d_model
+                    ) * (combined.shape[1] ** -0.5)
                     emb = combined @ proj_W
                 else:
-                    emb = combined @ self.var_embedding_W + self.var_embedding_b
+                    emb = (
+                        combined @ self.var_embedding_W + self.var_embedding_b
+                    )
 
                 var_emb = np.mean(emb, axis=0)
             else:
@@ -300,9 +332,17 @@ class iTransformerPredictor:
     def _layer_norm(self, x: np.ndarray) -> np.ndarray:
         mean = np.mean(x, axis=-1, keepdims=True)
         var = np.var(x, axis=-1, keepdims=True)
-        return self.final_norm_weight * (x - mean) / np.sqrt(var + 1e-5) + self.final_norm_bias
+        return (
+            self.final_norm_weight * (x - mean) / np.sqrt(var + 1e-5)
+            + self.final_norm_bias
+        )
 
-    def fit(self, data: Dict[str, np.ndarray], epochs: int = 50, verbose: bool = True) -> Dict:
+    def fit(
+        self,
+        data: Dict[str, np.ndarray],
+        epochs: int = 50,
+        verbose: bool = True,
+    ) -> Dict:
         """训练模型
 
         Args:
@@ -330,14 +370,22 @@ class iTransformerPredictor:
             total_loss = 0.0
             n_samples = 0
 
-            for start in range(0, seq_len - self.seq_length, max(1, (seq_len - self.seq_length) // 20)):
+            for start in range(
+                0,
+                seq_len - self.seq_length,
+                max(1, (seq_len - self.seq_length) // 20),
+            ):
                 window_data = {}
                 targets = {}
                 for pos in self.positions:
                     if pos in data:
-                        window_data[pos] = data[pos][start : start + self.seq_length]
+                        window_data[pos] = data[pos][
+                            start : start + self.seq_length
+                        ]
                         if start + self.seq_length < len(data[pos]):
-                            targets[pos] = int(data[pos][start + self.seq_length])
+                            targets[pos] = int(
+                                data[pos][start + self.seq_length]
+                            )
 
                 if len(targets) < self.n_vars:
                     continue
@@ -352,8 +400,12 @@ class iTransformerPredictor:
                 h = self._layer_norm(h)
 
                 loss = 0.0
-                grads_W = [np.zeros_like(self.heads_W[i]) for i in range(self.n_vars)]
-                grads_b = [np.zeros_like(self.heads_b[i]) for i in range(self.n_vars)]
+                grads_W = [
+                    np.zeros_like(self.heads_W[i]) for i in range(self.n_vars)
+                ]
+                grads_b = [
+                    np.zeros_like(self.heads_b[i]) for i in range(self.n_vars)
+                ]
 
                 for i, pos in enumerate(self.positions):
                     if pos not in targets:
@@ -388,8 +440,12 @@ class iTransformerPredictor:
                     m_b_hat = m_b[i] / (1 - beta1**t_step)
                     v_b_hat = v_b[i] / (1 - beta2**t_step)
 
-                    self.heads_W[i] -= self.learning_rate * m_W_hat / (np.sqrt(v_W_hat) + eps)
-                    self.heads_b[i] -= self.learning_rate * m_b_hat / (np.sqrt(v_b_hat) + eps)
+                    self.heads_W[i] -= (
+                        self.learning_rate * m_W_hat / (np.sqrt(v_W_hat) + eps)
+                    )
+                    self.heads_b[i] -= (
+                        self.learning_rate * m_b_hat / (np.sqrt(v_b_hat) + eps)
+                    )
 
             avg_loss = total_loss / max(n_samples, 1)
 
@@ -401,16 +457,22 @@ class iTransformerPredictor:
 
             if patience_counter >= patience:
                 if verbose:
-                    logger.info(f"  iTransformer早停: epoch {epoch+1}, loss={avg_loss:.4f}")
+                    logger.info(
+                        f"  iTransformer早停: epoch {epoch+1}, loss={avg_loss:.4f}"
+                    )
                 break
 
             if verbose and (epoch + 1) % 10 == 0:
-                logger.info(f"  iTransformer epoch {epoch+1}/{epochs}, loss={avg_loss:.4f}")
+                logger.info(
+                    f"  iTransformer epoch {epoch+1}/{epochs}, loss={avg_loss:.4f}"
+                )
 
         self.fitted = True
         return {"loss": best_loss, "epochs": epoch + 1}
 
-    def predict_proba(self, data: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def predict_proba(
+        self, data: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
         """预测各位置的下一个数字概率分布
 
         Args:
@@ -419,7 +481,10 @@ class iTransformerPredictor:
             predictions: 各位置的概率分布
         """
         if not self.fitted:
-            return {pos: np.ones(self.n_classes) / self.n_classes for pos in self.positions}
+            return {
+                pos: np.ones(self.n_classes) / self.n_classes
+                for pos in self.positions
+            }
 
         var_emb = self._embed_variables(data)
 
@@ -440,7 +505,9 @@ class iTransformerPredictor:
 
         return predictions
 
-    def get_variable_attention_map(self, data: Dict[str, np.ndarray]) -> np.ndarray:
+    def get_variable_attention_map(
+        self, data: Dict[str, np.ndarray]
+    ) -> np.ndarray:
         """获取变量间注意力图
 
         反映5个位置之间的动态相关性
@@ -461,7 +528,9 @@ class iTransformerPredictor:
         avg_attention = np.mean(attention_maps, axis=0)
         return avg_attention
 
-    def get_position_correlation_insight(self, data: Dict[str, np.ndarray]) -> Dict:
+    def get_position_correlation_insight(
+        self, data: Dict[str, np.ndarray]
+    ) -> Dict:
         """获取位置间相关性洞察"""
         attn_map = self.get_variable_attention_map(data)
 
@@ -476,10 +545,15 @@ class iTransformerPredictor:
             for j in range(i + 1, self.n_vars):
                 strength = (attn_map[i, j] + attn_map[j, i]) / 2
                 insights["strongest_pairs"].append(
-                    {"positions": (self.positions[i], self.positions[j]), "strength": float(strength)}
+                    {
+                        "positions": (self.positions[i], self.positions[j]),
+                        "strength": float(strength),
+                    }
                 )
 
-        insights["strongest_pairs"].sort(key=lambda x: x["strength"], reverse=True)
+        insights["strongest_pairs"].sort(
+            key=lambda x: x["strength"], reverse=True
+        )
 
         for i in range(self.n_vars):
             row = attn_map[i].copy()

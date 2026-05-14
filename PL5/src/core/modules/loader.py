@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Type, Callable, Set
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 import importlib
 import importlib.util
@@ -71,7 +71,9 @@ class ModuleLoader:
                 sys.path.remove(str(path))
             logger.info(f"移除模块搜索路径: {path}")
 
-    def load_module_from_file(self, file_path: Path, module_name: Optional[str] = None) -> Optional[LoadedModule]:
+    def load_module_from_file(
+        self, file_path: Path, module_name: Optional[str] = None
+    ) -> Optional[LoadedModule]:
         """
         从文件加载模块
 
@@ -98,7 +100,9 @@ class ModuleLoader:
             self.unload_module(module_name)
 
         try:
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            spec = importlib.util.spec_from_file_location(
+                module_name, file_path
+            )
             if not spec or not spec.loader:
                 logger.error(f"无法创建模块规范: {file_path}")
                 return None
@@ -107,7 +111,9 @@ class ModuleLoader:
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
 
-            metadata = self._extract_metadata(module, module_name, str(file_path))
+            metadata = self._extract_metadata(
+                module, module_name, str(file_path)
+            )
             self._module_registry.register(metadata)
 
             loaded_module = LoadedModule(
@@ -123,12 +129,16 @@ class ModuleLoader:
             return loaded_module
 
         except Exception as e:
-            logger.error(f"加载模块失败: {file_path}, 错误: {e}", exc_info=True)
+            logger.error(
+                f"加载模块失败: {file_path}, 错误: {e}", exc_info=True
+            )
             if module_name in sys.modules:
                 del sys.modules[module_name]
             return None
 
-    def load_module_from_directory(self, directory: Path, recursive: bool = False) -> List[LoadedModule]:
+    def load_module_from_directory(
+        self, directory: Path, recursive: bool = False
+    ) -> List[LoadedModule]:
         """
         从目录加载所有Python模块
 
@@ -155,7 +165,9 @@ class ModuleLoader:
 
         return loaded_modules
 
-    def initialize_module(self, module_name: str, config: Optional[Dict[str, Any]] = None) -> bool:
+    def initialize_module(
+        self, module_name: str, config: Optional[Dict[str, Any]] = None
+    ) -> bool:
         """
         初始化已加载的模块
 
@@ -188,7 +200,9 @@ class ModuleLoader:
             return True
 
         except Exception as e:
-            logger.error(f"模块初始化失败: {module_name}, 错误: {e}", exc_info=True)
+            logger.error(
+                f"模块初始化失败: {module_name}, 错误: {e}", exc_info=True
+            )
             loaded_module.metadata.status = ModuleStatus.ERROR
             return False
 
@@ -219,7 +233,9 @@ class ModuleLoader:
                 if name.startswith(f"{module_name}."):
                     del sys.modules[name]
 
-            self._module_registry.update_status(module_name, ModuleStatus.INACTIVE)
+            self._module_registry.update_status(
+                module_name, ModuleStatus.INACTIVE
+            )
             del self._loaded_modules[module_name]
 
             gc.collect()
@@ -228,7 +244,9 @@ class ModuleLoader:
             return True
 
         except Exception as e:
-            logger.error(f"模块卸载失败: {module_name}, 错误: {e}", exc_info=True)
+            logger.error(
+                f"模块卸载失败: {module_name}, 错误: {e}", exc_info=True
+            )
             return False
 
     def reload_module(self, module_name: str) -> Optional[LoadedModule]:
@@ -272,7 +290,9 @@ class ModuleLoader:
         """
         return list(self._loaded_modules.values())
 
-    def _extract_metadata(self, module: Any, module_name: str, module_path: str) -> ModuleMetadata:
+    def _extract_metadata(
+        self, module: Any, module_name: str, module_path: str
+    ) -> ModuleMetadata:
         """
         从模块中提取元数据
 

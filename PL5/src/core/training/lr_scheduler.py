@@ -3,9 +3,8 @@
 """
 
 import math
-import numpy as np
-from typing import Dict, List, Optional, Union, Any
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 from enum import Enum
 import logging
 
@@ -75,7 +74,11 @@ class BaseLRScheduler:
         self.last_epoch: int = -1
         self.history: List[float] = []
 
-    def step(self, epoch: Optional[int] = None, metrics: Optional[Dict[str, float]] = None) -> float:
+    def step(
+        self,
+        epoch: Optional[int] = None,
+        metrics: Optional[Dict[str, float]] = None,
+    ) -> float:
         """
         更新学习率
 
@@ -124,7 +127,10 @@ class CosineAnnealingScheduler(BaseLRScheduler):
 
         progress = self.last_epoch / self.t_max
         cosine_decay = 0.5 * (1 + math.cos(math.pi * progress))
-        lr = self.eta_min + (self.config.initial_lr - self.eta_min) * cosine_decay
+        lr = (
+            self.eta_min
+            + (self.config.initial_lr - self.eta_min) * cosine_decay
+        )
         return max(lr, self.config.min_lr)
 
 
@@ -161,7 +167,11 @@ class ReduceLROnPlateauScheduler(BaseLRScheduler):
     def _compute_lr(self) -> float:
         return self.current_lr
 
-    def step(self, epoch: Optional[int] = None, metrics: Optional[Dict[str, float]] = None) -> float:
+    def step(
+        self,
+        epoch: Optional[int] = None,
+        metrics: Optional[Dict[str, float]] = None,
+    ) -> float:
         if metrics is None or "score" not in metrics:
             return self.current_lr
 
@@ -182,7 +192,9 @@ class ReduceLROnPlateauScheduler(BaseLRScheduler):
             self.num_bad_epochs += 1
             if self.num_bad_epochs > self.patience:
                 new_lr = max(self.current_lr * self.factor, self.config.min_lr)
-                logger.info(f"ReduceLROnPlateau: 学习率从 {self.current_lr:.6f} 调整到 {new_lr:.6f}")
+                logger.info(
+                    f"ReduceLROnPlateau: 学习率从 {self.current_lr:.6f} 调整到 {new_lr:.6f}"
+                )
                 self.current_lr = new_lr
                 self.cooldown_counter = self.cooldown
                 self.num_bad_epochs = 0
@@ -217,7 +229,9 @@ class ExponentialLRScheduler(BaseLRScheduler):
         return max(lr, self.config.min_lr)
 
 
-def create_lr_scheduler(scheduler_type: LRSchedulerType, config: Optional[Dict[str, Any]] = None) -> BaseLRScheduler:
+def create_lr_scheduler(
+    scheduler_type: LRSchedulerType, config: Optional[Dict[str, Any]] = None
+) -> BaseLRScheduler:
     """
     工厂函数：创建学习率调度器
 

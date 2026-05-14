@@ -1,7 +1,7 @@
 """OpenAI模型适配器"""
 
 import os
-from typing import Dict, List, Any, Generator
+from typing import Dict, List, Generator
 
 from .base import BaseLLM, LLMFactory
 from ..ai_types import LLMConfig, LLMType
@@ -83,7 +83,9 @@ class OpenAILLM(BaseLLM):
             # 模拟实现
             return f"[OpenAI Model] {prompt} - This is a mock response"
 
-    def generate_stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+    def generate_stream(
+        self, prompt: str, **kwargs
+    ) -> Generator[str, None, None]:
         """流式生成文本
 
         Args:
@@ -133,14 +135,25 @@ class OpenAILLM(BaseLLM):
                     temperature=self.config.temperature,
                     **kwargs,
                 )
-                return {"role": "assistant", "content": response.choices[0].message.content.strip()}
+                return {
+                    "role": "assistant",
+                    "content": response.choices[0].message.content.strip(),
+                }
             except Exception as e:
-                return {"role": "assistant", "content": f"OpenAI model chat failed: {str(e)}"}
+                return {
+                    "role": "assistant",
+                    "content": f"OpenAI model chat failed: {str(e)}",
+                }
         else:
             # 模拟实现
-            return {"role": "assistant", "content": f"[OpenAI Model] Chat response - This is a mock response"}
+            return {
+                "role": "assistant",
+                "content": f"[OpenAI Model] Chat response - This is a mock response",
+            }
 
-    def chat_stream(self, messages: List[Dict], **kwargs) -> Generator[Dict, None, None]:
+    def chat_stream(
+        self, messages: List[Dict], **kwargs
+    ) -> Generator[Dict, None, None]:
         """流式对话
 
         Args:
@@ -162,9 +175,15 @@ class OpenAILLM(BaseLLM):
                 )
                 for chunk in response:
                     if chunk.choices[0].delta.content:
-                        yield {"role": "assistant", "content": chunk.choices[0].delta.content}
+                        yield {
+                            "role": "assistant",
+                            "content": chunk.choices[0].delta.content,
+                        }
             except Exception as e:
-                yield {"role": "assistant", "content": f"OpenAI model chat failed: {str(e)}"}
+                yield {
+                    "role": "assistant",
+                    "content": f"OpenAI model chat failed: {str(e)}",
+                }
         else:
             # 模拟实现
             response = "[OpenAI Model] Chat response - This is a mock response"

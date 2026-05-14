@@ -65,7 +65,13 @@ class SearchTool(BaseTool):
                 results = self._document_search(query, max_results)
 
             return ToolResult(
-                success=True, data={"query": query, "type": search_type, "results": results, "total": len(results)}
+                success=True,
+                data={
+                    "query": query,
+                    "type": search_type,
+                    "results": results,
+                    "total": len(results),
+                },
             )
         except Exception as e:
             return ToolResult(success=False, error=f"搜索执行失败: {str(e)}")

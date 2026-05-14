@@ -4,7 +4,11 @@
 """
 
 # V8.0 导入增强版调度器
-from .auto_scheduler_v8 import AutoSchedulerV8, TaskRetryManager, TaskHistoryManager
+from .auto_scheduler_v8 import (
+    AutoSchedulerV8,
+    TaskRetryManager,
+    TaskHistoryManager,
+)
 
 # 保持向后兼容
 AutoScheduler = AutoSchedulerV8

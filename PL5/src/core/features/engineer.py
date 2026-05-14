@@ -10,13 +10,9 @@
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 from scipy.fft import fft
-from scipy.signal import correlate
-from scipy.stats import kstest, entropy as scipy_entropy
-import warnings
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Any, Callable
+from typing import List, Dict, Optional, Tuple, Any
 import json
 import pickle
 import hashlib
@@ -25,16 +21,20 @@ import threading  # 【V10.4新增】线程锁支持
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel, VarianceThreshold
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler as SklearnRobustScaler
+from sklearn.preprocessing import (
+    StandardScaler,
+    MinMaxScaler,
+    RobustScaler as SklearnRobustScaler,
+)
 
-from .config import setup_logging, MODELS_DIR, PROCESSED_DATA_DIR
+from .config import setup_logging, MODELS_DIR
 from src.core.config import ModelConfig, get_model_config
 from src.core.monitoring.performance_monitor import track_performance
 
 logger = setup_logging(__name__)
 
 try:
-    from joblib import Parallel, delayed
+    pass
 
     JOBLIB_AVAILABLE = True
 except ImportError:
@@ -50,11 +50,19 @@ def _vectorized_rolling_skew(series: pd.Series, window: int) -> pd.Series:
     mean = rolled.mean()
     std = rolled.std()
     n = window
-    m3 = ((series - mean) ** 3).rolling(window=window, min_periods=window).sum()
+    m3 = (
+        ((series - mean) ** 3).rolling(window=window, min_periods=window).sum()
+    )
     with np.errstate(invalid="ignore", divide="ignore"):
-        result = (m3 / n) / (std**3) if std is not None else pd.Series(np.nan, index=series.index)
+        result = (
+            (m3 / n) / (std**3)
+            if std is not None
+            else pd.Series(np.nan, index=series.index)
+        )
         if isinstance(result, (int, float)):
-            result = pd.Series(np.full(len(series), result), index=series.index)
+            result = pd.Series(
+                np.full(len(series), result), index=series.index
+            )
     return result
 
 
@@ -66,16 +74,22 @@ def _vectorized_rolling_kurtosis(series: pd.Series, window: int) -> pd.Series:
     mean = rolled.mean()
     std = rolled.std()
     n = window
-    m4 = ((series - mean) ** 4).rolling(window=window, min_periods=window).sum()
+    m4 = (
+        ((series - mean) ** 4).rolling(window=window, min_periods=window).sum()
+    )
     m2_var = std**2
     with np.errstate(invalid="ignore", divide="ignore"):
         result = (m4 / n) / (m2_var**2) - 3
         if isinstance(result, (int, float)):
-            result = pd.Series(np.full(len(series), result), index=series.index)
+            result = pd.Series(
+                np.full(len(series), result), index=series.index
+            )
     return result
 
 
-def _vectorized_rolling_polyfit_trend(series: pd.Series, window: int) -> pd.Series:
+def _vectorized_rolling_polyfit_trend(
+    series: pd.Series, window: int
+) -> pd.Series:
     """向量化rolling trend (polyfit slope) - 使用cumsum技巧加速"""
     n = len(series)
     result = np.full(n, np.nan)
@@ -91,7 +105,9 @@ def _vectorized_rolling_polyfit_trend(series: pd.Series, window: int) -> pd.Seri
     return pd.Series(result, index=series.index)
 
 
-def _compute_data_hash(df: pd.DataFrame, columns: Optional[List[str]] = None) -> str:
+def _compute_data_hash(
+    df: pd.DataFrame, columns: Optional[List[str]] = None
+) -> str:
     """基于DataFrame内容计算hash用于缓存"""
     cols = columns or list(df.columns)
     hash_obj = hashlib.md5()
@@ -117,25 +133,36 @@ class FeatureImportanceAnalyzer:
         self.feature_ranking = []
         self.selector = None
 
-    def calculate_importance(self, X: pd.DataFrame, y: pd.Series, method: str = "random_forest") -> Dict[str, float]:
+    def calculate_importance(
+        self, X: pd.DataFrame, y: pd.Series, method: str = "random_forest"
+    ) -> Dict[str, float]:
         """计算特征重要性 - 内存优化版本"""
         logger.info(f"使用 {method} 方法计算特征重要性...")
 
-        feature_cols = [col for col in X.columns if col not in ["period", "full_number"]]
+        feature_cols = [
+            col for col in X.columns if col not in ["period", "full_number"]
+        ]
         X_features = X[feature_cols].fillna(0)
 
         if len(feature_cols) > 200:
-            logger.info(f"特征数量过多 ({len(feature_cols)})，先进行初步筛选...")
+            logger.info(
+                f"特征数量过多 ({len(feature_cols)})，先进行初步筛选..."
+            )
             selector = VarianceThreshold(threshold=0.01)
             X_filtered = selector.fit_transform(X_features)
             mask = selector.get_support()
-            feature_cols = [feature_cols[i] for i in range(len(feature_cols)) if mask[i]]
+            feature_cols = [
+                feature_cols[i] for i in range(len(feature_cols)) if mask[i]
+            ]
             X_features = X[feature_cols].fillna(0)
             logger.info(f"初步筛选后剩余 {len(feature_cols)} 个特征")
 
         if method == "random_forest":
             model = RandomForestClassifier(
-                n_estimators=30, max_depth=8, random_state=42, n_jobs=-1 if JOBLIB_AVAILABLE else 1
+                n_estimators=30,
+                max_depth=8,
+                random_state=42,
+                n_jobs=-1 if JOBLIB_AVAILABLE else 1,
             )
             model.fit(X_features, y)
             importance = dict(zip(feature_cols, model.feature_importances_))
@@ -149,22 +176,35 @@ class FeatureImportanceAnalyzer:
         else:
             raise ValueError(f"未知方法: {method}")
 
-        self.importance_scores = dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
+        self.importance_scores = dict(
+            sorted(importance.items(), key=lambda x: x[1], reverse=True)
+        )
         self.feature_ranking = list(self.importance_scores.keys())
 
-        logger.info(f"特征重要性计算完成，共 {len(self.importance_scores)} 个特征")
+        logger.info(
+            f"特征重要性计算完成，共 {len(self.importance_scores)} 个特征"
+        )
         return self.importance_scores
 
-    def select_top_features(self, n_features: int = 100, threshold: float = 0.001) -> List[str]:
+    def select_top_features(
+        self, n_features: int = 100, threshold: float = 0.001
+    ) -> List[str]:
         """选择Top N特征"""
         if not self.importance_scores:
             raise ValueError("请先计算特征重要性")
-        selected = [name for name, score in self.importance_scores.items() if score >= threshold][:n_features]
+        selected = [
+            name
+            for name, score in self.importance_scores.items()
+            if score >= threshold
+        ][:n_features]
         logger.info(f"选择Top {len(selected)} 个特征 (阈值: {threshold})")
         return selected
 
     def save_importance(self, filepath: Path):
-        data = {"importance_scores": self.importance_scores, "feature_ranking": self.feature_ranking}
+        data = {
+            "importance_scores": self.importance_scores,
+            "feature_ranking": self.feature_ranking,
+        }
         with open(filepath, "wb") as f:
             pickle.dump(data, f)
         logger.info(f"特征重要性已保存: {filepath}")
@@ -176,56 +216,114 @@ class FeatureImportanceAnalyzer:
         self.feature_ranking = data["feature_ranking"]
         logger.info(f"特征重要性已加载: {filepath}")
 
-    def rfe_feature_selection(self, X: pd.DataFrame, y: pd.Series, n_features: int = 50) -> List[str]:
+    def rfe_feature_selection(
+        self, X: pd.DataFrame, y: pd.Series, n_features: int = 50
+    ) -> List[str]:
         logger.info(f"使用RFE选择 {n_features} 个特征...")
         feature_cols = [
-            col for col in X.columns if col not in ["period", "date", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            col
+            for col in X.columns
+            if col
+            not in [
+                "period",
+                "date",
+                "full_number",
+                "wan",
+                "qian",
+                "bai",
+                "shi",
+                "ge",
+            ]
         ]
         X_features = X[feature_cols].fillna(0)
 
         if len(feature_cols) > 200:
-            logger.info(f"特征数量过多 ({len(feature_cols)})，先进行初步筛选...")
+            logger.info(
+                f"特征数量过多 ({len(feature_cols)})，先进行初步筛选..."
+            )
             selector = VarianceThreshold(threshold=0.01)
             X_filtered = selector.fit_transform(X_features)
             mask = selector.get_support()
-            feature_cols = [feature_cols[i] for i in range(len(feature_cols)) if mask[i]]
+            feature_cols = [
+                feature_cols[i] for i in range(len(feature_cols)) if mask[i]
+            ]
             X_features = X[feature_cols].fillna(0)
             logger.info(f"初步筛选后剩余 {len(feature_cols)} 个特征")
 
         from sklearn.feature_selection import RFE
 
         model = RandomForestClassifier(
-            n_estimators=30, max_depth=8, random_state=42, n_jobs=-1 if JOBLIB_AVAILABLE else 1
+            n_estimators=30,
+            max_depth=8,
+            random_state=42,
+            n_jobs=-1 if JOBLIB_AVAILABLE else 1,
         )
-        rfe = RFE(estimator=model, n_features_to_select=min(n_features, len(feature_cols)), step=20)
+        rfe = RFE(
+            estimator=model,
+            n_features_to_select=min(n_features, len(feature_cols)),
+            step=20,
+        )
         rfe.fit(X_features, y)
-        selected_features = [feature_cols[i] for i in range(len(feature_cols)) if rfe.support_[i]]
+        selected_features = [
+            feature_cols[i]
+            for i in range(len(feature_cols))
+            if rfe.support_[i]
+        ]
         logger.info(f"RFE特征选择完成，选择了 {len(selected_features)} 个特征")
         return selected_features
 
-    def model_based_feature_selection(self, X: pd.DataFrame, y: pd.Series, n_features: int = 50) -> List[str]:
+    def model_based_feature_selection(
+        self, X: pd.DataFrame, y: pd.Series, n_features: int = 50
+    ) -> List[str]:
         logger.info(f"使用基于模型的方法选择 {n_features} 个特征...")
         feature_cols = [
-            col for col in X.columns if col not in ["period", "date", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            col
+            for col in X.columns
+            if col
+            not in [
+                "period",
+                "date",
+                "full_number",
+                "wan",
+                "qian",
+                "bai",
+                "shi",
+                "ge",
+            ]
         ]
         X_features = X[feature_cols].fillna(0)
 
         if len(feature_cols) > 200:
-            logger.info(f"特征数量过多 ({len(feature_cols)})，先进行初步筛选...")
+            logger.info(
+                f"特征数量过多 ({len(feature_cols)})，先进行初步筛选..."
+            )
             selector = VarianceThreshold(threshold=0.01)
             X_filtered = selector.fit_transform(X_features)
             mask = selector.get_support()
-            feature_cols = [feature_cols[i] for i in range(len(feature_cols)) if mask[i]]
+            feature_cols = [
+                feature_cols[i] for i in range(len(feature_cols)) if mask[i]
+            ]
             X_features = X[feature_cols].fillna(0)
             logger.info(f"初步筛选后剩余 {len(feature_cols)} 个特征")
 
         model = RandomForestClassifier(
-            n_estimators=30, max_depth=8, random_state=42, n_jobs=-1 if JOBLIB_AVAILABLE else 1
+            n_estimators=30,
+            max_depth=8,
+            random_state=42,
+            n_jobs=-1 if JOBLIB_AVAILABLE else 1,
         )
-        selector = SelectFromModel(estimator=model, max_features=min(n_features, len(feature_cols)))
+        selector = SelectFromModel(
+            estimator=model, max_features=min(n_features, len(feature_cols))
+        )
         selector.fit(X_features, y)
-        selected_features = [feature_cols[i] for i in range(len(feature_cols)) if selector.get_support()[i]]
-        logger.info(f"基于模型的特征选择完成，选择了 {len(selected_features)} 个特征")
+        selected_features = [
+            feature_cols[i]
+            for i in range(len(feature_cols))
+            if selector.get_support()[i]
+        ]
+        logger.info(
+            f"基于模型的特征选择完成，选择了 {len(selected_features)} 个特征"
+        )
         return selected_features
 
 
@@ -268,7 +366,10 @@ class FeatureCacheManager:
             else:
                 if len(self._cache) >= self._max_size:
                     # 智能淘汰：优先淘汰最旧的缓存
-                    oldest_key = min(self._cache_times, key=lambda k: self._cache_times.get(k, 0))
+                    oldest_key = min(
+                        self._cache_times,
+                        key=lambda k: self._cache_times.get(k, 0),
+                    )
                     del self._cache[oldest_key]
                     del self._cache_times[oldest_key]
                     logger.debug(f"缓存淘汰: {oldest_key[:16]}...")
@@ -302,7 +403,6 @@ class FeatureCacheManager:
                 logger.debug(f"预热缓存配置: {config}")
                 # 这里不实际计算，只是记录预热标记
                 # 实际计算会在第一次使用时进行
-                pass
         logger.info("缓存预热完成")
 
     @property
@@ -312,8 +412,11 @@ class FeatureCacheManager:
             "max_size": self._max_size,
             "hits": self._hit_count,
             "misses": self._miss_count,
-            "hit_rate": self._hit_count / max(1, self._hit_count + self._miss_count),
-            "recent_cache_times": {k[:16]: v for k, v in list(self._cache_times.items())[-5:]},
+            "hit_rate": self._hit_count
+            / max(1, self._hit_count + self._miss_count),
+            "recent_cache_times": {
+                k[:16]: v for k, v in list(self._cache_times.items())[-5:]
+            },
         }
 
     def __len__(self):
@@ -333,10 +436,15 @@ class FeatureDriftDetector:
     def fit(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None):
         """记录训练数据的特征统计量"""
         cols = feature_cols or [
-            c for c in df.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in df.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
         for col in cols:
-            if col not in df.columns or not np.issubdtype(df[col].dtype, np.number):
+            if col not in df.columns or not np.issubdtype(
+                df[col].dtype, np.number
+            ):
                 continue
             series = df[col].dropna()
             if len(series) == 0:
@@ -358,9 +466,13 @@ class FeatureDriftDetector:
                 "q95": float(series.quantile(0.95)),
                 "q99": float(series.quantile(0.99)),
             }
-        logger.info(f"漂移检测器已拟合: 记录了 {len(self.training_stats)} 个特征的统计量")
+        logger.info(
+            f"漂移检测器已拟合: 记录了 {len(self.training_stats)} 个特征的统计量"
+        )
 
-    def detect(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def detect(
+        self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """检测特征分布漂移，返回漂移警告列表"""
         self.drift_warnings = []
         cols = feature_cols or list(self.training_stats.keys())
@@ -376,7 +488,9 @@ class FeatureDriftDetector:
             train_q = self.training_quantiles.get(col, {})
 
             psi_score = self._calc_psi(train_q, series)
-            z_score = abs(float(series.mean()) - train_stats["mean"]) / max(train_stats["std"], 1e-10)
+            z_score = abs(float(series.mean()) - train_stats["mean"]) / max(
+                train_stats["std"], 1e-10
+            )
 
             drift_type = []
             if psi_score > self.psi_threshold:
@@ -395,21 +509,31 @@ class FeatureDriftDetector:
                     "severity": (
                         "high"
                         if psi_score > 0.5 or z_score > 5
-                        else ("medium" if psi_score > 0.3 or z_score > 4 else "low")
+                        else (
+                            "medium"
+                            if psi_score > 0.3 or z_score > 4
+                            else "low"
+                        )
                     ),
                 }
                 self.drift_warnings.append(warning)
 
         if self.drift_warnings:
-            high_count = sum(1 for w in self.drift_warnings if w["severity"] == "high")
-            logger.warning(f"检测到 {len(self.drift_warnings)} 个特征漂移 ({high_count}个严重)")
+            high_count = sum(
+                1 for w in self.drift_warnings if w["severity"] == "high"
+            )
+            logger.warning(
+                f"检测到 {len(self.drift_warnings)} 个特征漂移 ({high_count}个严重)"
+            )
         else:
             logger.info("未检测到显著特征漂移")
 
         return self.drift_warnings
 
     @staticmethod
-    def _calc_psi(train_q: Dict[str, float], current_series: pd.Series) -> float:
+    def _calc_psi(
+        train_q: Dict[str, float], current_series: pd.Series
+    ) -> float:
         """计算Population Stability Index (PSI)"""
         bins = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
         q_keys = ["q01", "q05", "q25", "q50", "q75", "q95", "q99"]
@@ -424,7 +548,10 @@ class FeatureDriftDetector:
             current_pct = current_counts / current_counts.sum()
 
             uniform_train = np.ones(len(edges) - 1) / (len(edges) - 1)
-            psi = np.sum((current_pct - uniform_train) * np.log((current_pct + 1e-10) / (uniform_train + 1e-10)))
+            psi = np.sum(
+                (current_pct - uniform_train)
+                * np.log((current_pct + 1e-10) / (uniform_train + 1e-10))
+            )
             return float(psi)
         except Exception:
             return 0.0
@@ -433,7 +560,10 @@ class FeatureDriftDetector:
         """生成漂移报告"""
         if not self.drift_warnings:
             return "无特征漂移"
-        lines = [f"=== 特征漂移报告 ===", f"共检测到 {len(self.drift_warnings)} 个漂移特征:"]
+        lines = [
+            f"=== 特征漂移报告 ===",
+            f"共检测到 {len(self.drift_warnings)} 个漂移特征:",
+        ]
         for w in self.drift_warnings:
             lines.append(
                 f"  [{w['severity'].upper()}] {w['feature']}: "
@@ -476,7 +606,9 @@ class FeatureScaler:
         robust_quantile_range: Tuple[float, float] = (25.0, 75.0),
     ):
         if method not in self.SUPPORTED_METHODS:
-            raise ValueError(f"不支持的标准化方法: {method}，可选: {self.SUPPORTED_METHODS}")
+            raise ValueError(
+                f"不支持的标准化方法: {method}，可选: {self.SUPPORTED_METHODS}"
+            )
         self.method = method
         self.group_mapping = group_mapping or {}
         self.robust_quantile_range = robust_quantile_range
@@ -486,14 +618,19 @@ class FeatureScaler:
     def _get_group(self, col_name: str) -> str:
         """确定特征所属组"""
         for group_name, members in self.group_mapping.items():
-            if any(col_name.startswith(m) or col_name.endswith(m) for m in members):
+            if any(
+                col_name.startswith(m) or col_name.endswith(m) for m in members
+            ):
                 return group_name
         return "_default"
 
     def fit(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None):
         """拟合标准化器"""
         cols = feature_cols or [
-            c for c in df.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in df.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
         groups = set(self._get_group(c) for c in cols)
 
@@ -508,7 +645,9 @@ class FeatureScaler:
             elif self.method == "minmax":
                 scaler = MinMaxScaler()
             elif self.method == "robust":
-                scaler = SklearnRobustScaler(quantile_range=self.robust_quantile_range)
+                scaler = SklearnRobustScaler(
+                    quantile_range=self.robust_quantile_range
+                )
             elif self.method == "none":
                 continue
 
@@ -516,7 +655,9 @@ class FeatureScaler:
             self._scalers[group] = scaler
 
         self._fitted = True
-        logger.info(f"标准化器已拟合: method={self.method}, groups={list(self._scalers.keys())}")
+        logger.info(
+            f"标准化器已拟合: method={self.method}, groups={list(self._scalers.keys())}"
+        )
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """转换数据"""
@@ -525,13 +666,20 @@ class FeatureScaler:
         result = df.copy()
         for group, scaler in self._scalers.items():
             group_cols = [
-                c for c in result.columns if self._get_group(c) == group and np.issubdtype(result[c].dtype, np.number)
+                c
+                for c in result.columns
+                if self._get_group(c) == group
+                and np.issubdtype(result[c].dtype, np.number)
             ]
             if group_cols:
-                result[group_cols] = scaler.transform(result[group_cols].fillna(0))
+                result[group_cols] = scaler.transform(
+                    result[group_cols].fillna(0)
+                )
         return result
 
-    def fit_transform(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> pd.DataFrame:
+    def fit_transform(
+        self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None
+    ) -> pd.DataFrame:
         self.fit(df, feature_cols)
         return self.transform(df)
 
@@ -552,7 +700,9 @@ class FeatureScaler:
             data = pickle.load(f)
         self.method = data["method"]
         self.group_mapping = data.get("group_mapping", {})
-        self.robust_quantile_range = data.get("robust_quantile_range", (25.0, 75.0))
+        self.robust_quantile_range = data.get(
+            "robust_quantile_range", (25.0, 75.0)
+        )
         self._scalers = data.get("scalers", {})
         self._fitted = data.get("fitted", False)
         logger.info(f"标准化器已加载: {filepath}")
@@ -562,17 +712,58 @@ class FeatureConfig:
     """特征配置管理器"""
 
     DEFAULT_CONFIG = {
-        "fibonacci": {"enabled": True, "windows": [5, 8, 13], "description": "黄金分割特征"},
-        "entropy": {"enabled": False, "windows": [10, 20, 30], "description": "熵值特征"},
+        "fibonacci": {
+            "enabled": True,
+            "windows": [5, 8, 13],
+            "description": "黄金分割特征",
+        },
+        "entropy": {
+            "enabled": False,
+            "windows": [10, 20, 30],
+            "description": "熵值特征",
+        },
         "markov": {"enabled": True, "order": 2, "description": "马尔可夫特征"},
-        "chaos": {"enabled": False, "hurst_windows": [10, 20, 50], "lyapunov": True, "description": "混沌特征"},
-        "fourier": {"enabled": True, "n_components": 3, "description": "傅里叶特征"},
-        "cross_correlation": {"enabled": False, "max_lag": 5, "description": "互相关特征"},
-        "extreme": {"enabled": True, "windows": [10, 20], "description": "极值特征"},
-        "pattern": {"enabled": True, "patterns": ["consecutive", "repeat"], "description": "形态模式特征"},
-        "momentum": {"enabled": True, "windows": [3, 5], "description": "动量特征"},
-        "garch": {"enabled": False, "windows": [20, 50], "description": "GARCH波动率特征"},
-        "granger": {"enabled": False, "maxlag": 5, "description": "格兰杰因果特征"},
+        "chaos": {
+            "enabled": False,
+            "hurst_windows": [10, 20, 50],
+            "lyapunov": True,
+            "description": "混沌特征",
+        },
+        "fourier": {
+            "enabled": True,
+            "n_components": 3,
+            "description": "傅里叶特征",
+        },
+        "cross_correlation": {
+            "enabled": False,
+            "max_lag": 5,
+            "description": "互相关特征",
+        },
+        "extreme": {
+            "enabled": True,
+            "windows": [10, 20],
+            "description": "极值特征",
+        },
+        "pattern": {
+            "enabled": True,
+            "patterns": ["consecutive", "repeat"],
+            "description": "形态模式特征",
+        },
+        "momentum": {
+            "enabled": True,
+            "windows": [3, 5],
+            "description": "动量特征",
+        },
+        "garch": {
+            "enabled": False,
+            "windows": [20, 50],
+            "description": "GARCH波动率特征",
+        },
+        "granger": {
+            "enabled": False,
+            "maxlag": 5,
+            "description": "格兰杰因果特征",
+        },
         "pl5_specific": {"enabled": True, "description": "排列五特定特征"},
     }
 
@@ -592,7 +783,11 @@ class FeatureConfig:
         logger.info(f"特征配置已保存: {self.config_path}")
 
     def get_enabled_features(self) -> List[str]:
-        return [name for name, cfg in self.config.items() if cfg.get("enabled", True)]
+        return [
+            name
+            for name, cfg in self.config.items()
+            if cfg.get("enabled", True)
+        ]
 
     def update_config(self, feature_name: str, **kwargs):
         if feature_name in self.config:
@@ -632,18 +827,23 @@ class FeatureEngineerV9:
         self.n_jobs = -1 if self.enable_parallel else 1
 
         cache_cfg = fe_cfg.get("cache", {})
-        self.cache = FeatureCacheManager(max_size=cache_cfg.get("max_size", cache_max_size))
+        self.cache = FeatureCacheManager(
+            max_size=cache_cfg.get("max_size", cache_max_size)
+        )
 
         drift_cfg = fe_cfg.get("drift_detection", {})
         self.drift_detector = FeatureDriftDetector(
-            psi_threshold=drift_cfg.get("psi_threshold", 0.2), ks_threshold=drift_cfg.get("ks_threshold", 0.05)
+            psi_threshold=drift_cfg.get("psi_threshold", 0.2),
+            ks_threshold=drift_cfg.get("ks_threshold", 0.05),
         )
 
         scaler_cfg = fe_cfg.get("scaler", {})
         scaler_method_from_cfg = scaler_cfg.get("method", scaler_method)
         self.scaler = FeatureScaler(
             method=scaler_method_from_cfg,
-            robust_quantile_range=tuple(scaler_cfg.get("robust_quantile_range", [25.0, 75.0])),
+            robust_quantile_range=tuple(
+                scaler_cfg.get("robust_quantile_range", [25.0, 75.0])
+            ),
         )
 
         try:
@@ -681,8 +881,12 @@ class FeatureEngineerV9:
             s = df[pos]
             for window in fib_windows:
                 if len(df) >= window:
-                    result[f"{pos}_fib_mean_{window}"] = s.rolling(window=window, min_periods=1).mean()
-                    result[f"{pos}_fib_std_{window}"] = s.rolling(window=window, min_periods=1).std()
+                    result[f"{pos}_fib_mean_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).mean()
+                    result[f"{pos}_fib_std_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).std()
 
         return result
 
@@ -702,7 +906,11 @@ class FeatureEngineerV9:
                     counts = np.bincount(window_vals, minlength=10)
                     probs = counts[counts > 0] / window
                     entropies[i] = -np.sum(probs * np.log2(probs + 1e-10))
-                entropies[: window - 1] = entropies[window - 1] if not np.isnan(entropies[window - 1]) else 0.0
+                entropies[: window - 1] = (
+                    entropies[window - 1]
+                    if not np.isnan(entropies[window - 1])
+                    else 0.0
+                )
                 result[f"{pos}_entropy_{window}"] = entropies
 
         return result
@@ -720,10 +928,19 @@ class FeatureEngineerV9:
 
             prev_vals = values[:-1]
             curr_vals = values[1:]
-            valid_mask = (prev_vals >= 0) & (prev_vals < 10) & (curr_vals >= 0) & (curr_vals < 10)
+            valid_mask = (
+                (prev_vals >= 0)
+                & (prev_vals < 10)
+                & (curr_vals >= 0)
+                & (curr_vals < 10)
+            )
 
             trans_counts = np.zeros((10, 10), dtype=np.float64)
-            np.add.at(trans_counts, (prev_vals[valid_mask], curr_vals[valid_mask]), 1.0)
+            np.add.at(
+                trans_counts,
+                (prev_vals[valid_mask], curr_vals[valid_mask]),
+                1.0,
+            )
 
             row_sums = trans_counts.sum(axis=1, keepdims=True)
             trans_probs = (trans_counts + 0.1) / (row_sums + 1.0)
@@ -733,7 +950,9 @@ class FeatureEngineerV9:
 
             markov_entropies = np.full(n, np.log(10))
             valid_prev = (values[:-1] >= 0) & (values[:-1] < 10)
-            markov_entropies[1:][valid_prev] = per_row_entropy[values[:-1][valid_prev]]
+            markov_entropies[1:][valid_prev] = per_row_entropy[
+                values[:-1][valid_prev]
+            ]
             markov_entropies[0] = np.log(10)
 
             result[f"{pos}_markov_entropy"] = markov_entropies
@@ -765,19 +984,29 @@ class FeatureEngineerV9:
                 real_parts = np.real(fft_vals[:n_components])
                 imag_parts = np.imag(fft_vals[:n_components])
                 for i in range(n_components):
-                    result[f"{pos}_fft_real_{i}"] = real_parts[i] if i < len(real_parts) else 0.0
-                    result[f"{pos}_fft_imag_{i}"] = imag_parts[i] if i < len(imag_parts) else 0.0
+                    result[f"{pos}_fft_real_{i}"] = (
+                        real_parts[i] if i < len(real_parts) else 0.0
+                    )
+                    result[f"{pos}_fft_imag_{i}"] = (
+                        imag_parts[i] if i < len(imag_parts) else 0.0
+                    )
 
         return result
 
-    def _add_cross_correlation_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_cross_correlation_features(
+        self, df: pd.DataFrame
+    ) -> pd.DataFrame:
         """互相关特征 - 向量化"""
         result = df.copy()
         for i, pos1 in enumerate(POSITIONS):
             for pos2 in POSITIONS[i + 1 :]:
                 if len(df) >= 20:
-                    corr = np.corrcoef(df[pos1].values[-20:], df[pos2].values[-20:])[0, 1]
-                    result[f"corr_{pos1}_{pos2}"] = corr if not np.isnan(corr) else 0.0
+                    corr = np.corrcoef(
+                        df[pos1].values[-20:], df[pos2].values[-20:]
+                    )[0, 1]
+                    result[f"corr_{pos1}_{pos2}"] = (
+                        corr if not np.isnan(corr) else 0.0
+                    )
         return result
 
     def _add_extreme_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -789,8 +1018,12 @@ class FeatureEngineerV9:
             s = df[pos]
             for window in windows:
                 if len(df) >= window:
-                    result[f"{pos}_max_{window}"] = s.rolling(window=window, min_periods=1).max()
-                    result[f"{pos}_min_{window}"] = s.rolling(window=window, min_periods=1).min()
+                    result[f"{pos}_max_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).max()
+                    result[f"{pos}_min_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).min()
 
         return result
 
@@ -799,23 +1032,32 @@ class FeatureEngineerV9:
         result = df.copy()
         for pos in POSITIONS:
             # 1. 连续重复模式
-            result[f"{pos}_repeat_2"] = (df[pos] == df[pos].shift(1)).astype(int)
+            result[f"{pos}_repeat_2"] = (df[pos] == df[pos].shift(1)).astype(
+                int
+            )
 
             # 2. 连续递增模式
-            result[f"{pos}_increasing"] = ((df[pos] - df[pos].shift(1)) == 1).astype(int)
+            result[f"{pos}_increasing"] = (
+                (df[pos] - df[pos].shift(1)) == 1
+            ).astype(int)
 
             # 3. 连续递减模式
-            result[f"{pos}_decreasing"] = ((df[pos] - df[pos].shift(1)) == -1).astype(int)
+            result[f"{pos}_decreasing"] = (
+                (df[pos] - df[pos].shift(1)) == -1
+            ).astype(int)
 
             # 4. 交替模式
             result[f"{pos}_alternating"] = (
-                (df[pos] - df[pos].shift(1)) * (df[pos].shift(1) - df[pos].shift(2)) < 0
+                (df[pos] - df[pos].shift(1))
+                * (df[pos].shift(1) - df[pos].shift(2))
+                < 0
             ).astype(int)
 
             # 5. 三连重复模式
-            result[f"{pos}_repeat_3"] = ((df[pos] == df[pos].shift(1)) & (df[pos].shift(1) == df[pos].shift(2))).astype(
-                int
-            )
+            result[f"{pos}_repeat_3"] = (
+                (df[pos] == df[pos].shift(1))
+                & (df[pos].shift(1) == df[pos].shift(2))
+            ).astype(int)
         return result
 
     def _add_momentum_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -836,7 +1078,9 @@ class FeatureEngineerV9:
         result = df.copy()
         for pos in POSITIONS:
             returns = df[pos].diff().fillna(0)
-            result[f"{pos}_volatility_20"] = returns.rolling(window=20, min_periods=1).std()
+            result[f"{pos}_volatility_20"] = returns.rolling(
+                window=20, min_periods=1
+            ).std()
         return result
 
     def _add_granger_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -845,7 +1089,9 @@ class FeatureEngineerV9:
         for i, pos1 in enumerate(POSITIONS):
             for pos2 in POSITIONS:
                 if pos1 != pos2:
-                    result[f"granger_{pos1}_{pos2}"] = df[pos1].shift(1).corr(df[pos2]).fillna(0)
+                    result[f"granger_{pos1}_{pos2}"] = (
+                        df[pos1].shift(1).corr(df[pos2]).fillna(0)
+                    )
         return result
 
     def _add_time_series_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -856,15 +1102,21 @@ class FeatureEngineerV9:
         if "date" in df.columns:
             try:
                 date_series = pd.to_datetime(df["date"])
-                result["date_timestamp"] = (date_series - pd.Timestamp("2004-01-01")).dt.days
+                result["date_timestamp"] = (
+                    date_series - pd.Timestamp("2004-01-01")
+                ).dt.days
                 result["date_year"] = date_series.dt.year
                 result["date_month"] = date_series.dt.month
                 result["date_day"] = date_series.dt.day
                 result["date_weekday"] = date_series.dt.weekday
                 result["date_quarter"] = date_series.dt.quarter
                 result["date_dayofyear"] = date_series.dt.dayofyear
-                result["date_is_month_start"] = date_series.dt.is_month_start.astype(int)
-                result["date_is_month_end"] = date_series.dt.is_month_end.astype(int)
+                result["date_is_month_start"] = (
+                    date_series.dt.is_month_start.astype(int)
+                )
+                result["date_is_month_end"] = (
+                    date_series.dt.is_month_end.astype(int)
+                )
                 logger.info("日期特征已提取")
             except Exception as e:
                 logger.warning(f"日期特征提取失败: {e}")
@@ -874,22 +1126,38 @@ class FeatureEngineerV9:
 
             for window in windows:
                 if len(df) >= window:
-                    result[f"{pos}_ma_{window}"] = s.rolling(window=window, min_periods=1).mean()
-                    result[f"{pos}_ema_{window}"] = s.ewm(span=window, adjust=False).mean()
-                    result[f"{pos}_std_{window}"] = s.rolling(window=window, min_periods=1).std()
+                    result[f"{pos}_ma_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).mean()
+                    result[f"{pos}_ema_{window}"] = s.ewm(
+                        span=window, adjust=False
+                    ).mean()
+                    result[f"{pos}_std_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).std()
 
-                    result[f"{pos}_skew_{window}"] = _vectorized_rolling_skew(s, window)
-                    result[f"{pos}_kurtosis_{window}"] = _vectorized_rolling_kurtosis(s, window)
+                    result[f"{pos}_skew_{window}"] = _vectorized_rolling_skew(
+                        s, window
+                    )
+                    result[f"{pos}_kurtosis_{window}"] = (
+                        _vectorized_rolling_kurtosis(s, window)
+                    )
 
             for window in [5, 10, 20, 30]:
                 if len(df) >= window:
-                    result[f"{pos}_trend_{window}"] = _vectorized_rolling_polyfit_trend(s, window)
+                    result[f"{pos}_trend_{window}"] = (
+                        _vectorized_rolling_polyfit_trend(s, window)
+                    )
 
             returns = s.diff()
             for window in [5, 10, 20]:
                 if len(df) >= window:
-                    result[f"{pos}_volatility_{window}"] = returns.rolling(window=window, min_periods=1).std()
-                    result[f"{pos}_volatility_ema_{window}"] = returns.ewm(span=window, adjust=False).std()
+                    result[f"{pos}_volatility_{window}"] = returns.rolling(
+                        window=window, min_periods=1
+                    ).std()
+                    result[f"{pos}_volatility_ema_{window}"] = returns.ewm(
+                        span=window, adjust=False
+                    ).std()
 
         return result
 
@@ -917,8 +1185,12 @@ class FeatureEngineerV9:
         for i, pos1 in enumerate(POSITIONS):
             for j, pos2 in enumerate(POSITIONS[i + 1 :], i + 1):
                 for k, pos3 in enumerate(POSITIONS[j + 1 :], j + 1):
-                    result[f"{pos1}_{pos2}_{pos3}_product"] = df[pos1] * df[pos2] * df[pos3]
-                    result[f"{pos1}_{pos2}_{pos3}_sum"] = df[pos1] + df[pos2] + df[pos3]
+                    result[f"{pos1}_{pos2}_{pos3}_product"] = (
+                        df[pos1] * df[pos2] * df[pos3]
+                    )
+                    result[f"{pos1}_{pos2}_{pos3}_sum"] = (
+                        df[pos1] + df[pos2] + df[pos3]
+                    )
 
         return result
 
@@ -931,15 +1203,27 @@ class FeatureEngineerV9:
             s = df[pos].astype(np.float64)
             for window in windows:
                 if len(df) >= window:
-                    result[f"{pos}_skew_{window}"] = _vectorized_rolling_skew(s, window)
-                    result[f"{pos}_kurtosis_{window}"] = _vectorized_rolling_kurtosis(s, window)
-                    result[f"{pos}_quantile_25_{window}"] = s.rolling(window=window, min_periods=1).quantile(0.25)
-                    result[f"{pos}_quantile_50_{window}"] = s.rolling(window=window, min_periods=1).quantile(0.5)
-                    result[f"{pos}_quantile_75_{window}"] = s.rolling(window=window, min_periods=1).quantile(0.75)
+                    result[f"{pos}_skew_{window}"] = _vectorized_rolling_skew(
+                        s, window
+                    )
+                    result[f"{pos}_kurtosis_{window}"] = (
+                        _vectorized_rolling_kurtosis(s, window)
+                    )
+                    result[f"{pos}_quantile_25_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).quantile(0.25)
+                    result[f"{pos}_quantile_50_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).quantile(0.5)
+                    result[f"{pos}_quantile_75_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).quantile(0.75)
 
         return result
 
-    def _add_pattern_recognition_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_pattern_recognition_features(
+        self, df: pd.DataFrame
+    ) -> pd.DataFrame:
         """模式识别特征 - 完全向量化"""
         result = df.copy()
 
@@ -948,13 +1232,20 @@ class FeatureEngineerV9:
             shifted1 = s.shift(1)
             shifted2 = s.shift(2)
             result[f"{pos}_repeat_2"] = (s == shifted1).astype(int)
-            result[f"{pos}_repeat_3"] = ((s == shifted1) & (s == shifted2)).astype(int)
+            result[f"{pos}_repeat_3"] = (
+                (s == shifted1) & (s == shifted2)
+            ).astype(int)
             result[f"{pos}_increasing"] = (s > shifted1).astype(int)
             result[f"{pos}_decreasing"] = (s < shifted1).astype(int)
-            result[f"{pos}_consecutive_increasing"] = ((s > shifted1) & (shifted1 > shifted2)).astype(int)
-            result[f"{pos}_consecutive_decreasing"] = ((s < shifted1) & (shifted1 < shifted2)).astype(int)
+            result[f"{pos}_consecutive_increasing"] = (
+                (s > shifted1) & (shifted1 > shifted2)
+            ).astype(int)
+            result[f"{pos}_consecutive_decreasing"] = (
+                (s < shifted1) & (shifted1 < shifted2)
+            ).astype(int)
             result[f"{pos}_alternating"] = (
-                ((s > shifted1) & (shifted1 < shifted2)) | ((s < shifted1) & (shifted1 > shifted2))
+                ((s > shifted1) & (shifted1 < shifted2))
+                | ((s < shifted1) & (shifted1 > shifted2))
             ).astype(int)
 
         return result
@@ -969,22 +1260,50 @@ class FeatureEngineerV9:
             freq = df[pos].value_counts(normalize=True)
             freq_dict = freq.to_dict()
             # 数字频率特征
-            result[f"{pos}_freq_0"] = df[pos].apply(lambda x: freq_dict.get(0, 0))
-            result[f"{pos}_freq_1"] = df[pos].apply(lambda x: freq_dict.get(1, 0))
-            result[f"{pos}_freq_2"] = df[pos].apply(lambda x: freq_dict.get(2, 0))
-            result[f"{pos}_freq_3"] = df[pos].apply(lambda x: freq_dict.get(3, 0))
-            result[f"{pos}_freq_4"] = df[pos].apply(lambda x: freq_dict.get(4, 0))
-            result[f"{pos}_freq_5"] = df[pos].apply(lambda x: freq_dict.get(5, 0))
-            result[f"{pos}_freq_6"] = df[pos].apply(lambda x: freq_dict.get(6, 0))
-            result[f"{pos}_freq_7"] = df[pos].apply(lambda x: freq_dict.get(7, 0))
-            result[f"{pos}_freq_8"] = df[pos].apply(lambda x: freq_dict.get(8, 0))
-            result[f"{pos}_freq_9"] = df[pos].apply(lambda x: freq_dict.get(9, 0))
+            result[f"{pos}_freq_0"] = df[pos].apply(
+                lambda x: freq_dict.get(0, 0)
+            )
+            result[f"{pos}_freq_1"] = df[pos].apply(
+                lambda x: freq_dict.get(1, 0)
+            )
+            result[f"{pos}_freq_2"] = df[pos].apply(
+                lambda x: freq_dict.get(2, 0)
+            )
+            result[f"{pos}_freq_3"] = df[pos].apply(
+                lambda x: freq_dict.get(3, 0)
+            )
+            result[f"{pos}_freq_4"] = df[pos].apply(
+                lambda x: freq_dict.get(4, 0)
+            )
+            result[f"{pos}_freq_5"] = df[pos].apply(
+                lambda x: freq_dict.get(5, 0)
+            )
+            result[f"{pos}_freq_6"] = df[pos].apply(
+                lambda x: freq_dict.get(6, 0)
+            )
+            result[f"{pos}_freq_7"] = df[pos].apply(
+                lambda x: freq_dict.get(7, 0)
+            )
+            result[f"{pos}_freq_8"] = df[pos].apply(
+                lambda x: freq_dict.get(8, 0)
+            )
+            result[f"{pos}_freq_9"] = df[pos].apply(
+                lambda x: freq_dict.get(9, 0)
+            )
 
             # 2. 数字分布特征
-            result[f"{pos}_mean"] = df[pos].rolling(window=100, min_periods=1).mean()
-            result[f"{pos}_std"] = df[pos].rolling(window=100, min_periods=1).std()
-            result[f"{pos}_skew"] = df[pos].rolling(window=100, min_periods=1).skew()
-            result[f"{pos}_kurt"] = df[pos].rolling(window=100, min_periods=1).kurt()
+            result[f"{pos}_mean"] = (
+                df[pos].rolling(window=100, min_periods=1).mean()
+            )
+            result[f"{pos}_std"] = (
+                df[pos].rolling(window=100, min_periods=1).std()
+            )
+            result[f"{pos}_skew"] = (
+                df[pos].rolling(window=100, min_periods=1).skew()
+            )
+            result[f"{pos}_kurt"] = (
+                df[pos].rolling(window=100, min_periods=1).kurt()
+            )
 
         # 3. 排列五特定模式特征
         # 连号特征
@@ -1013,7 +1332,11 @@ class FeatureEngineerV9:
             for j, pos2 in enumerate(POSITIONS):
                 if i < j:
                     result[f"{pos1}_{pos2}_corr"] = (
-                        df[[pos1, pos2]].rolling(window=50, min_periods=1).corr().iloc[::2, 1].reset_index(drop=True)
+                        df[[pos1, pos2]]
+                        .rolling(window=50, min_periods=1)
+                        .corr()
+                        .iloc[::2, 1]
+                        .reset_index(drop=True)
                     )
 
         # 5. 历史开奖模式特征
@@ -1024,7 +1347,11 @@ class FeatureEngineerV9:
             for i in range(len(series)):
                 window_data = series.iloc[max(0, i - window + 1) : i + 1]
                 if len(window_data) > 0:
-                    mode_val = window_data.mode().iloc[0] if not window_data.mode().empty else 0
+                    mode_val = (
+                        window_data.mode().iloc[0]
+                        if not window_data.mode().empty
+                        else 0
+                    )
                     result.append(mode_val)
                 else:
                     result.append(0)
@@ -1036,7 +1363,12 @@ class FeatureEngineerV9:
                 result[f"{pos}_last_{n}_most_freq"] = (
                     df[pos]
                     .rolling(window=n, min_periods=1)
-                    .apply(lambda x: x.value_counts().idxmax() if len(x) > 0 else 0, raw=False)
+                    .apply(
+                        lambda x: (
+                            x.value_counts().idxmax() if len(x) > 0 else 0
+                        ),
+                        raw=False,
+                    )
                 )
 
         # 6. 随机性类型特征
@@ -1125,7 +1457,9 @@ class FeatureEngineerV9:
                 data_str = "".join(map(str, window_data))
                 compressed_size = len(zlib.compress(data_str.encode()))
                 original_size = len(data_str)
-                complexity = compressed_size / original_size if original_size > 0 else 0
+                complexity = (
+                    compressed_size / original_size if original_size > 0 else 0
+                )
                 result.append(complexity)
             return pd.Series(result, index=series.index)
 
@@ -1137,7 +1471,9 @@ class FeatureEngineerV9:
         for pos in POSITIONS:
             for window in [5, 10, 15]:
                 result[f"{pos}_window_correlation_{window}"] = (
-                    df[pos].rolling(window=window, min_periods=window).corr(df[pos].shift(1))
+                    df[pos]
+                    .rolling(window=window, min_periods=window)
+                    .corr(df[pos].shift(1))
                 )
 
         # 趋势方向特征：基于历史数据的趋势分析
@@ -1167,7 +1503,6 @@ class FeatureEngineerV9:
         result = df.copy()
 
         try:
-            import tensorflow as tf
             from tensorflow.keras.models import Sequential
             from tensorflow.keras.layers import LSTM, Dense, Dropout
 
@@ -1178,13 +1513,18 @@ class FeatureEngineerV9:
 
                 def process_position(pos):
                     sequence_data = np.array(
-                        [df[pos].iloc[i : i + window_size].values for i in range(len(df) - window_size + 1)],
+                        [
+                            df[pos].iloc[i : i + window_size].values
+                            for i in range(len(df) - window_size + 1)
+                        ],
                         dtype=np.float32,
                     )
                     if len(sequence_data) == 0:
                         return pos, np.zeros(len(df))
 
-                    sequence_data = sequence_data.reshape((*sequence_data.shape, 1))
+                    sequence_data = sequence_data.reshape(
+                        (*sequence_data.shape, 1)
+                    )
 
                     # 简化模型结构
                     model = Sequential(
@@ -1218,14 +1558,19 @@ class FeatureEngineerV9:
             else:
                 for pos in POSITIONS:
                     sequence_data = np.array(
-                        [df[pos].iloc[i : i + window_size].values for i in range(len(df) - window_size + 1)],
+                        [
+                            df[pos].iloc[i : i + window_size].values
+                            for i in range(len(df) - window_size + 1)
+                        ],
                         dtype=np.float32,
                     )
                     if len(sequence_data) == 0:
                         result[f"{pos}_lstm_feature"] = np.zeros(len(df))
                         continue
 
-                    sequence_data = sequence_data.reshape((*sequence_data.shape, 1))
+                    sequence_data = sequence_data.reshape(
+                        (*sequence_data.shape, 1)
+                    )
 
                     # 简化模型结构
                     model = Sequential(
@@ -1259,7 +1604,9 @@ class FeatureEngineerV9:
 
     # ===================== 并行调度 =====================
 
-    def _compute_feature_group(self, df: pd.DataFrame, group_name: str) -> pd.DataFrame:
+    def _compute_feature_group(
+        self, df: pd.DataFrame, group_name: str
+    ) -> pd.DataFrame:
         """计算单个特征组（供并行调用）"""
         dispatch = {
             "fibonacci": self._add_fibonacci_features,
@@ -1308,20 +1655,28 @@ class FeatureEngineerV9:
         start_time = time.time()
         logger.info("V10.0 特征工程开始（高性能优化版）...")
 
-        cache_key = self.cache.get_key(df, (select_top, feature_selection_method, enable_scaler))
+        cache_key = self.cache.get_key(
+            df, (select_top, feature_selection_method, enable_scaler)
+        )
 
         # 强制刷新缓存，确保特征选择逻辑被执行
         cached = None
         if cached is not None:
             logger.info("  从缓存加载特征（命中）")
             duration = time.time() - start_time
-            logger.info(f"V10.0 特征工程完成（缓存）: {cached.shape[1]} 列, 耗时: {duration:.3f}s")
+            logger.info(
+                f"V10.0 特征工程完成（缓存）: {cached.shape[1]} 列, 耗时: {duration:.3f}s"
+            )
             return cached
 
         enabled_features = (
-            self.config.get_enabled_features() if self.config else list(FeatureConfig.DEFAULT_CONFIG.keys())
+            self.config.get_enabled_features()
+            if self.config
+            else list(FeatureConfig.DEFAULT_CONFIG.keys())
         )
-        logger.info(f"启用的特征类型: {enabled_features}, 并行={'开启' if self.enable_parallel else '关闭'}")
+        logger.info(
+            f"启用的特征类型: {enabled_features}, 并行={'开启' if self.enable_parallel else '关闭'}"
+        )
 
         result_df = df.copy()
 
@@ -1346,7 +1701,9 @@ class FeatureEngineerV9:
         ]
 
         active_groups = [
-            (cfg_key, method_name) for cfg_key, method_name in feature_groups if cfg_key in enabled_features
+            (cfg_key, method_name)
+            for cfg_key, method_name in feature_groups
+            if cfg_key in enabled_features
         ]
 
         # 暂时禁用并行计算，避免卡住
@@ -1370,10 +1727,14 @@ class FeatureEngineerV9:
             result_df = self._compute_feature_group(result_df, method_name)
             logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
 
-        logger.info(f"extract_all_features: select_top={select_top}, type={type(select_top)}")
+        logger.info(
+            f"extract_all_features: select_top={select_top}, type={type(select_top)}"
+        )
         if select_top is not None:
             logger.info(f"调用 _select_features: n_features={select_top}")
-            result_df = self._select_features(result_df, select_top, feature_selection_method)
+            result_df = self._select_features(
+                result_df, select_top, feature_selection_method
+            )
         else:
             logger.info("select_top 为 None，跳过特征选择")
 
@@ -1386,19 +1747,36 @@ class FeatureEngineerV9:
             feature_cols = [
                 c
                 for c in result_df.columns
-                if c not in ["period", "date", "full_number", "wan", "qian", "bai", "shi", "ge"]
+                if c
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
             if not self.drift_detector.training_stats:
                 self.drift_detector.fit(result_df, feature_cols)
                 logger.info("  漂移检测器: 已记录基线统计量")
             else:
-                warnings_list = self.drift_detector.detect(result_df, feature_cols)
+                warnings_list = self.drift_detector.detect(
+                    result_df, feature_cols
+                )
                 if warnings_list:
-                    logger.warning(f"  漂移警告: {self.drift_detector.get_drift_report()}")
+                    logger.warning(
+                        f"  漂移警告: {self.drift_detector.get_drift_report()}"
+                    )
 
         self.cache.put(cache_key, result_df)
 
-        importance_path = MODELS_DIR / f"feature_importance_v9_{feature_selection_method}.pkl"
+        importance_path = (
+            MODELS_DIR
+            / f"feature_importance_v9_{feature_selection_method}.pkl"
+        )
         self.importance_analyzer.save_importance(importance_path)
 
         duration = time.time() - start_time
@@ -1407,19 +1785,45 @@ class FeatureEngineerV9:
         )
         return result_df
 
-    def _select_features(self, df: pd.DataFrame, n_features: int, method: str = "rfe") -> pd.DataFrame:
+    def _select_features(
+        self, df: pd.DataFrame, n_features: int, method: str = "rfe"
+    ) -> pd.DataFrame:
         """基于重要性选择特征 - 智能动态选择"""
         feature_cols = [
-            col for col in df.columns if col not in ["period", "date", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            col
+            for col in df.columns
+            if col
+            not in [
+                "period",
+                "date",
+                "full_number",
+                "wan",
+                "qian",
+                "bai",
+                "shi",
+                "ge",
+            ]
         ]
 
-        logger.info(f"_select_features 开始: n_features={n_features}, 总特征数={len(feature_cols)}")
+        logger.info(
+            f"_select_features 开始: n_features={n_features}, 总特征数={len(feature_cols)}"
+        )
 
         if len(feature_cols) <= n_features:
             # 即使特征数量不足，也返回基础列 + 所有特征列
-            basic_cols = ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            basic_cols = [
+                "period",
+                "full_number",
+                "wan",
+                "qian",
+                "bai",
+                "shi",
+                "ge",
+            ]
             selected_cols = basic_cols + feature_cols
-            logger.info(f"特征数量不足，返回所有 {len(feature_cols)} 个特征，总列数={len(selected_cols)}")
+            logger.info(
+                f"特征数量不足，返回所有 {len(feature_cols)} 个特征，总列数={len(selected_cols)}"
+            )
             return df[selected_cols]
 
         # 智能计算每个位置应选择的特征数量
@@ -1440,7 +1844,15 @@ class FeatureEngineerV9:
             f"每位置选择约{optimal_features_per_pos}个特征"
         )
 
-        basic_cols = ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+        basic_cols = [
+            "period",
+            "full_number",
+            "wan",
+            "qian",
+            "bai",
+            "shi",
+            "ge",
+        ]
         selected_features = []
 
         # 暂时禁用并行计算，避免卡住
@@ -1469,46 +1881,70 @@ class FeatureEngineerV9:
         for pos in POSITIONS:
             y = df[pos]
             if method == "rfe":
-                pos_features = self.importance_analyzer.rfe_feature_selection(df, y, optimal_features_per_pos)
+                pos_features = self.importance_analyzer.rfe_feature_selection(
+                    df, y, optimal_features_per_pos
+                )
             elif method == "model_based":
-                pos_features = self.importance_analyzer.model_based_feature_selection(df, y, optimal_features_per_pos)
+                pos_features = (
+                    self.importance_analyzer.model_based_feature_selection(
+                        df, y, optimal_features_per_pos
+                    )
+                )
             else:
                 if not self.importance_analyzer.importance_scores:
                     self.importance_analyzer.calculate_importance(df, y)
-                pos_features = self.importance_analyzer.select_top_features(optimal_features_per_pos)
+                pos_features = self.importance_analyzer.select_top_features(
+                    optimal_features_per_pos
+                )
             selected_features.extend(pos_features)
 
         # 去重并限制数量
         selected_features = list(dict.fromkeys(selected_features))[:n_features]
         selected_cols = basic_cols + selected_features
 
-        logger.info(f"特征选择: 从 {len(feature_cols)} 个中选择 {len(selected_features)} 个 (方法: {method})")
+        logger.info(
+            f"特征选择: 从 {len(feature_cols)} 个中选择 {len(selected_features)} 个 (方法: {method})"
+        )
         return df[selected_cols]
 
     # ===================== 简化版接口（向后兼容） =====================
 
-    def _add_time_series_features_simplified(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_time_series_features_simplified(
+        self, df: pd.DataFrame
+    ) -> pd.DataFrame:
         result = df.copy()
         windows = [5, 10, 20]
         for pos in POSITIONS:
             s = df[pos]
             for window in windows:
                 if len(df) >= window:
-                    result[f"{pos}_ma_{window}"] = s.rolling(window=window, min_periods=1).mean()
-                    result[f"{pos}_ema_{window}"] = s.ewm(span=window, adjust=False).mean()
+                    result[f"{pos}_ma_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).mean()
+                    result[f"{pos}_ema_{window}"] = s.ewm(
+                        span=window, adjust=False
+                    ).mean()
             if len(df) >= 5:
-                result[f"{pos}_trend_5"] = _vectorized_rolling_polyfit_trend(s, 5)
+                result[f"{pos}_trend_5"] = _vectorized_rolling_polyfit_trend(
+                    s, 5
+                )
         return result
 
-    def _add_statistical_features_simplified(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_statistical_features_simplified(
+        self, df: pd.DataFrame
+    ) -> pd.DataFrame:
         result = df.copy()
         windows = [5, 10]
         for pos in POSITIONS:
             s = df[pos]
             for window in windows:
                 if len(df) >= window:
-                    result[f"{pos}_std_{window}"] = s.rolling(window=window, min_periods=1).std()
-                    result[f"{pos}_mean_{window}"] = s.rolling(window=window, min_periods=1).mean()
+                    result[f"{pos}_std_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).std()
+                    result[f"{pos}_mean_{window}"] = s.rolling(
+                        window=window, min_periods=1
+                    ).mean()
         return result
 
 

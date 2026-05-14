@@ -9,7 +9,6 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from threading import Lock
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +59,32 @@ class AnomalyDetector:
         self.lock = Lock()
         self.learning_period = 3600  # 学习周期（秒）
         self.thresholds = {
-            "request_rate": int(os.getenv("ANOMALY_REQUEST_RATE", "100")),  # 每分钟最大请求数
-            "error_rate": float(os.getenv("ANOMALY_ERROR_RATE", "0.3")),  # 错误率阈值
-            "response_time_spike": float(os.getenv("ANOMALY_RESPONSE_TIME_SPIKE", "2.0")),  # 响应时间突增倍数
-            "concurrent_users": int(os.getenv("ANOMALY_CONCURRENT_USERS", "100")),  # 并发用户数阈值
-            "unusual_method_ratio": float(os.getenv("ANOMALY_UNUSUAL_METHOD_RATIO", "0.1")),  # 异常请求方法比例
+            "request_rate": int(
+                os.getenv("ANOMALY_REQUEST_RATE", "100")
+            ),  # 每分钟最大请求数
+            "error_rate": float(
+                os.getenv("ANOMALY_ERROR_RATE", "0.3")
+            ),  # 错误率阈值
+            "response_time_spike": float(
+                os.getenv("ANOMALY_RESPONSE_TIME_SPIKE", "2.0")
+            ),  # 响应时间突增倍数
+            "concurrent_users": int(
+                os.getenv("ANOMALY_CONCURRENT_USERS", "100")
+            ),  # 并发用户数阈值
+            "unusual_method_ratio": float(
+                os.getenv("ANOMALY_UNUSUAL_METHOD_RATIO", "0.1")
+            ),  # 异常请求方法比例
         }
         self.baseline = {}
         self.last_baseline_update = 0
 
-    def record_request(self, ip_address: str, request_type: str, status_code: int, response_time: float):
+    def record_request(
+        self,
+        ip_address: str,
+        request_type: str,
+        status_code: int,
+        response_time: float,
+    ):
         """记录请求信息"""
         with self.lock:
             pattern = self.traffic_patterns[ip_address]
@@ -84,7 +99,8 @@ class AnomalyDetector:
 
             # 更新平均响应时间
             pattern.avg_response_time = (
-                pattern.avg_response_time * (pattern.request_count - 1) + response_time
+                pattern.avg_response_time * (pattern.request_count - 1)
+                + response_time
             ) / pattern.request_count
 
     def detect_anomalies(self) -> List[AnomalyAlert]:
@@ -102,9 +118,13 @@ class AnomalyDetector:
                     continue
 
                 # 检测请求速率异常
-                time_window = pattern.last_request_time - pattern.first_request_time
+                time_window = (
+                    pattern.last_request_time - pattern.first_request_time
+                )
                 if time_window > 0:
-                    requests_per_minute = (pattern.request_count / time_window) * 60
+                    requests_per_minute = (
+                        pattern.request_count / time_window
+                    ) * 60
                     if requests_per_minute > self.thresholds["request_rate"]:
                         alerts.append(
                             self._create_alert(
@@ -115,7 +135,9 @@ class AnomalyDetector:
                                     "ip_address": ip,
                                     "request_count": pattern.request_count,
                                     "requests_per_minute": requests_per_minute,
-                                    "threshold": self.thresholds["request_rate"],
+                                    "threshold": self.thresholds[
+                                        "request_rate"
+                                    ],
                                 },
                                 ip_address=ip,
                             )
@@ -123,7 +145,11 @@ class AnomalyDetector:
 
                 # 检测错误率异常
                 total_requests = pattern.request_count
-                error_requests = sum(count for code, count in pattern.status_codes.items() if code >= 400)
+                error_requests = sum(
+                    count
+                    for code, count in pattern.status_codes.items()
+                    if code >= 400
+                )
                 if total_requests > 0:
                     error_rate = error_requests / total_requests
                     if error_rate > self.thresholds["error_rate"]:
@@ -148,7 +174,8 @@ class AnomalyDetector:
                     baseline_rt = self.baseline["avg_response_time"]
                     if (
                         baseline_rt > 0
-                        and pattern.avg_response_time > baseline_rt * self.thresholds["response_time_spike"]
+                        and pattern.avg_response_time
+                        > baseline_rt * self.thresholds["response_time_spike"]
                     ):
                         alerts.append(
                             self._create_alert(
@@ -159,7 +186,8 @@ class AnomalyDetector:
                                     "ip_address": ip,
                                     "current_response_time": pattern.avg_response_time,
                                     "baseline_response_time": baseline_rt,
-                                    "increase_ratio": pattern.avg_response_time / baseline_rt,
+                                    "increase_ratio": pattern.avg_response_time
+                                    / baseline_rt,
                                 },
                                 ip_address=ip,
                             )
@@ -179,7 +207,12 @@ class AnomalyDetector:
                                     alert_type="unusual_method_anomaly",
                                     severity="low",
                                     message=f"IP {ip} 使用异常请求方法 {method}: {ratio:.2%}",
-                                    details={"ip_address": ip, "method": method, "ratio": ratio, "count": count},
+                                    details={
+                                        "ip_address": ip,
+                                        "method": method,
+                                        "ratio": ratio,
+                                        "count": count,
+                                    },
                                     ip_address=ip,
                                 )
                             )
@@ -215,12 +248,25 @@ class AnomalyDetector:
             return
 
         with self.lock:
-            total_requests = sum(p.request_count for p in self.traffic_patterns.values())
-            total_response_time = sum(p.avg_response_time * p.request_count for p in self.traffic_patterns.values())
+            total_requests = sum(
+                p.request_count for p in self.traffic_patterns.values()
+            )
+            total_response_time = sum(
+                p.avg_response_time * p.request_count
+                for p in self.traffic_patterns.values()
+            )
 
             self.baseline = {
-                "avg_request_rate": total_requests / self.learning_period if self.learning_period > 0 else 0,
-                "avg_response_time": total_response_time / total_requests if total_requests > 0 else 0,
+                "avg_request_rate": (
+                    total_requests / self.learning_period
+                    if self.learning_period > 0
+                    else 0
+                ),
+                "avg_response_time": (
+                    total_response_time / total_requests
+                    if total_requests > 0
+                    else 0
+                ),
                 "ip_count": len(self.traffic_patterns),
             }
 
@@ -248,7 +294,9 @@ class AnomalyDetector:
             user=user,
         )
 
-    def get_alerts(self, severity: Optional[str] = None, limit: int = 50) -> List[AnomalyAlert]:
+    def get_alerts(
+        self, severity: Optional[str] = None, limit: int = 50
+    ) -> List[AnomalyAlert]:
         """获取告警列表"""
         alerts = self.alerts.copy()
 
@@ -263,9 +311,15 @@ class AnomalyDetector:
     def get_statistics(self) -> Dict[str, Any]:
         """获取流量统计信息"""
         with self.lock:
-            total_requests = sum(p.request_count for p in self.traffic_patterns.values())
+            total_requests = sum(
+                p.request_count for p in self.traffic_patterns.values()
+            )
             total_errors = sum(
-                sum(count for code, count in p.status_codes.items() if code >= 400)
+                sum(
+                    count
+                    for code, count in p.status_codes.items()
+                    if code >= 400
+                )
                 for p in self.traffic_patterns.values()
             )
 
@@ -273,9 +327,15 @@ class AnomalyDetector:
                 "total_ips": len(self.traffic_patterns),
                 "total_requests": total_requests,
                 "total_errors": total_errors,
-                "error_rate": total_errors / total_requests if total_requests > 0 else 0,
+                "error_rate": (
+                    total_errors / total_requests if total_requests > 0 else 0
+                ),
                 "avg_response_time": (
-                    sum(p.avg_response_time for p in self.traffic_patterns.values()) / len(self.traffic_patterns)
+                    sum(
+                        p.avg_response_time
+                        for p in self.traffic_patterns.values()
+                    )
+                    / len(self.traffic_patterns)
                     if self.traffic_patterns
                     else 0
                 ),
@@ -290,7 +350,9 @@ class AnomalyDetector:
         now = time.time()
         with self.lock:
             old_ips = [
-                ip for ip, pattern in self.traffic_patterns.items() if now - pattern.last_request_time > max_age_seconds
+                ip
+                for ip, pattern in self.traffic_patterns.items()
+                if now - pattern.last_request_time > max_age_seconds
             ]
 
             for ip in old_ips:

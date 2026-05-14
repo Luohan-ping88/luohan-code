@@ -23,7 +23,9 @@ class ModelProtection:
             secret_key: 用于签名的密钥
         """
         self.models_dir = Path(models_dir)
-        self.secret_key = secret_key or os.getenv("MODEL_SECRET_KEY", "default-model-secret-key-change-in-production")
+        self.secret_key = secret_key or os.getenv(
+            "MODEL_SECRET_KEY", "default-model-secret-key-change-in-production"
+        )
         self.allowed_users = {"admin", "user"}
 
         # 确保目录存在并设置正确权限
@@ -58,7 +60,9 @@ class ModelProtection:
             content = f.read()
 
         # 计算HMAC签名
-        signature = hmac.new(self.secret_key.encode(), content, hashlib.sha256).hexdigest()
+        signature = hmac.new(
+            self.secret_key.encode(), content, hashlib.sha256
+        ).hexdigest()
 
         return signature
 
@@ -94,7 +98,9 @@ class ModelProtection:
             try:
                 os.chmod(sig_file, 0o600)  # 只有所有者可读
             except Exception as e:
-                logger.warning(f"Failed to set signature file permissions: {e}")
+                logger.warning(
+                    f"Failed to set signature file permissions: {e}"
+                )
 
         logger.info(f"Model signed: {model_file}")
         return True
@@ -169,7 +175,9 @@ class ModelProtection:
 
         return models
 
-    def validate_and_load_model(self, model_file: str, user_role: str) -> Dict[str, Any]:
+    def validate_and_load_model(
+        self, model_file: str, user_role: str
+    ) -> Dict[str, Any]:
         """验证并加载模型（安全检查）
 
         Args:
@@ -226,7 +234,9 @@ class ModelProtection:
             "size_human": self._format_size(model_path.stat().st_size),
             "has_signature": sig_file.exists(),
             "last_modified": model_path.stat().st_mtime,
-            "signature_valid": self.verify_model(model_file) if sig_file.exists() else None,
+            "signature_valid": (
+                self.verify_model(model_file) if sig_file.exists() else None
+            ),
         }
 
     def _format_size(self, bytes_size: int) -> str:

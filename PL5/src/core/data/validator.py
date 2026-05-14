@@ -5,9 +5,9 @@
 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Optional, Any
 import json
 import hashlib
 from dataclasses import dataclass
@@ -54,7 +54,9 @@ class ValidationResult:
 class AdvancedDataValidator:
     """高级数据验证器"""
 
-    def __init__(self, validation_level: ValidationLevel = ValidationLevel.STANDARD):
+    def __init__(
+        self, validation_level: ValidationLevel = ValidationLevel.STANDARD
+    ):
         self.validation_level = validation_level
         self.issues = []
         self.validation_stats = {}
@@ -88,7 +90,9 @@ class AdvancedDataValidator:
         }
 
         if data.empty:
-            self._add_issue(DataIssue.MISSING_VALUES, "数据集为空", severity="critical")
+            self._add_issue(
+                DataIssue.MISSING_VALUES, "数据集为空", severity="critical"
+            )
             return self._create_result(False, data)
 
         # 1. 检查数据结构
@@ -112,7 +116,10 @@ class AdvancedDataValidator:
                     )
 
         # 3. 检查数据集级别的问题
-        if self.validation_level in [ValidationLevel.STRICT, ValidationLevel.COMPLETE]:
+        if self.validation_level in [
+            ValidationLevel.STRICT,
+            ValidationLevel.COMPLETE,
+        ]:
             self._validate_dataset_level(data)
 
         # 4. 检查时序连续性
@@ -131,10 +138,16 @@ class AdvancedDataValidator:
         """验证数据结构"""
         # 检查必需列
         required_columns = list(self.rules.keys())
-        missing_columns = [col for col in required_columns if col not in data.columns]
+        missing_columns = [
+            col for col in required_columns if col not in data.columns
+        ]
 
         if missing_columns:
-            self._add_issue(DataIssue.MISSING_VALUES, f"缺少必需列: {missing_columns}", severity="critical")
+            self._add_issue(
+                DataIssue.MISSING_VALUES,
+                f"缺少必需列: {missing_columns}",
+                severity="critical",
+            )
 
         # 检查数据类型
         for col, rule in self.rules.items():
@@ -143,9 +156,12 @@ class AdvancedDataValidator:
                 actual_type = data[col].dtype
 
                 # 简单的类型检查
-                if expected_type == int and not pd.api.types.is_integer_dtype(actual_type):
+                if expected_type == int and not pd.api.types.is_integer_dtype(
+                    actual_type
+                ):
                     self._add_issue(
-                        DataIssue.INVALID_FORMAT, f"列 {col} 类型错误: 期望 {expected_type}, 实际 {actual_type}"
+                        DataIssue.INVALID_FORMAT,
+                        f"列 {col} 类型错误: 期望 {expected_type}, 实际 {actual_type}",
                     )
 
     def _validate_record(self, record: pd.Series) -> Tuple[bool, List[Dict]]:
@@ -157,7 +173,11 @@ class AdvancedDataValidator:
             if field not in record:
                 if rule["required"]:
                     issues.append(
-                        {"type": DataIssue.MISSING_VALUES, "message": f"缺少字段: {field}", "severity": "error"}
+                        {
+                            "type": DataIssue.MISSING_VALUES,
+                            "message": f"缺少字段: {field}",
+                            "severity": "error",
+                        }
                     )
                     is_valid = False
                 continue
@@ -165,7 +185,9 @@ class AdvancedDataValidator:
             value = record[field]
 
             # 检查类型
-            if rule["type"] == int and not isinstance(value, (int, np.integer)):
+            if rule["type"] == int and not isinstance(
+                value, (int, np.integer)
+            ):
                 try:
                     value = int(value)
                 except (ValueError, TypeError):
@@ -209,7 +231,9 @@ class AdvancedDataValidator:
         if duplicates.any():
             duplicate_periods = data[duplicates]["period"].unique()
             self._add_issue(
-                DataIssue.DUPLICATES, f"发现重复期号: {duplicate_periods[:5]}", count=len(duplicate_periods)
+                DataIssue.DUPLICATES,
+                f"发现重复期号: {duplicate_periods[:5]}",
+                count=len(duplicate_periods),
             )
 
         # 检查数字分布（统计异常）
@@ -231,18 +255,24 @@ class AdvancedDataValidator:
                 invalid_values = values[(values < 0) | (values > 9)]
                 if len(invalid_values) > 0:
                     self._add_issue(
-                        DataIssue.OUT_OF_RANGE, f"位置 {pos} 有无效值: {invalid_values[:5]}", count=len(invalid_values)
+                        DataIssue.OUT_OF_RANGE,
+                        f"位置 {pos} 有无效值: {invalid_values[:5]}",
+                        count=len(invalid_values),
                     )
 
                 # 检查分布均匀性（可选）
                 if len(values) > 100:
                     unique, counts = np.unique(values, return_counts=True)
                     expected_count = len(values) / 10
-                    chi_square = np.sum((counts - expected_count) ** 2 / expected_count)
+                    chi_square = np.sum(
+                        (counts - expected_count) ** 2 / expected_count
+                    )
 
                     if chi_square > 20:  # 卡方检验阈值
                         self._add_issue(
-                            DataIssue.ANOMALY, f"位置 {pos} 数字分布不均匀 (χ²={chi_square:.2f})", severity="warning"
+                            DataIssue.ANOMALY,
+                            f"位置 {pos} 数字分布不均匀 (χ²={chi_square:.2f})",
+                            severity="warning",
                         )
 
     def _validate_missing_periods(self, data: pd.DataFrame):
@@ -258,7 +288,9 @@ class AdvancedDataValidator:
                 return
 
             # 检查期号连续性
-            expected_sequence = list(range(int(periods_sorted[0]), int(periods_sorted[-1]) + 1))
+            expected_sequence = list(
+                range(int(periods_sorted[0]), int(periods_sorted[-1]) + 1)
+            )
             actual_sequence = [int(p) for p in periods_sorted]
 
             missing_periods = set(expected_sequence) - set(actual_sequence)
@@ -290,18 +322,26 @@ class AdvancedDataValidator:
                 self._add_issue(
                     DataIssue.SEQUENCE_BREAK,
                     f"期号间隔不规则: 发现 {len(irregular_intervals)} 处间隔不为1",
-                    details={"irregular_intervals": irregular_intervals.tolist()},
+                    details={
+                        "irregular_intervals": irregular_intervals.tolist()
+                    },
                 )
 
         except Exception as e:
             logger.warning(f"检查时序连续性失败: {e}")
 
-    def _update_validation_stats(self, data: pd.DataFrame, valid_indices: List):
+    def _update_validation_stats(
+        self, data: pd.DataFrame, valid_indices: List
+    ):
         """更新验证统计信息"""
         # 统计各类问题数量
         issue_counts = {}
         for issue in self.issues:
-            issue_type = issue["type"].value if isinstance(issue["type"], DataIssue) else issue["type"]
+            issue_type = (
+                issue["type"].value
+                if isinstance(issue["type"], DataIssue)
+                else issue["type"]
+            )
             issue_counts[issue_type] = issue_counts.get(issue_type, 0) + 1
 
         self.validation_stats["issue_counts"] = issue_counts
@@ -335,7 +375,12 @@ class AdvancedDataValidator:
 
     def _add_issue(self, issue_type: DataIssue, message: str, **kwargs):
         """添加问题记录"""
-        issue = {"type": issue_type, "message": message, "timestamp": datetime.now().isoformat(), **kwargs}
+        issue = {
+            "type": issue_type,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+            **kwargs,
+        }
         self.issues.append(issue)
 
         # 记录日志
@@ -347,7 +392,9 @@ class AdvancedDataValidator:
         else:
             logger.warning(f"数据验证问题: {message}")
 
-    def _create_result(self, is_valid: bool, data: pd.DataFrame, data_hash: str = None) -> ValidationResult:
+    def _create_result(
+        self, is_valid: bool, data: pd.DataFrame, data_hash: str = None
+    ) -> ValidationResult:
         """创建验证结果"""
         if data_hash is None:
             data_hash = self._calculate_data_hash(data)
@@ -374,7 +421,9 @@ class AdvancedDataValidator:
             validated_at=datetime.now().isoformat(),
         )
 
-    def generate_validation_report(self, result: ValidationResult, output_path: Optional[Path] = None) -> str:
+    def generate_validation_report(
+        self, result: ValidationResult, output_path: Optional[Path] = None
+    ) -> str:
         """生成验证报告"""
         report = {
             "validation_result": {
@@ -385,7 +434,11 @@ class AdvancedDataValidator:
             "summary": result.summary,
             "issues": [
                 {
-                    "type": issue["type"].value if isinstance(issue["type"], DataIssue) else issue["type"],
+                    "type": (
+                        issue["type"].value
+                        if isinstance(issue["type"], DataIssue)
+                        else issue["type"]
+                    ),
                     "message": issue["message"],
                     "severity": issue.get("severity", "warning"),
                     "timestamp": issue.get("timestamp"),
@@ -395,7 +448,9 @@ class AdvancedDataValidator:
             "recommendations": self._generate_recommendations(result),
         }
 
-        report_json = json.dumps(report, indent=2, ensure_ascii=False, default=str)
+        report_json = json.dumps(
+            report, indent=2, ensure_ascii=False, default=str
+        )
 
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -414,10 +469,14 @@ class AdvancedDataValidator:
         issue_counts = summary.get("issue_summary", {})
 
         if issue_counts.get("missing_values", 0) > 0:
-            recommendations.append("发现缺失值，建议进行数据填充或删除无效记录")
+            recommendations.append(
+                "发现缺失值，建议进行数据填充或删除无效记录"
+            )
 
         if issue_counts.get("invalid_format", 0) > 0:
-            recommendations.append("发现格式错误，建议检查数据源并修复格式问题")
+            recommendations.append(
+                "发现格式错误，建议检查数据源并修复格式问题"
+            )
 
         if issue_counts.get("out_of_range", 0) > 0:
             recommendations.append("发现超出范围的值，建议验证数据采集过程")
@@ -431,9 +490,13 @@ class AdvancedDataValidator:
         # 有效性率建议
         validity_rate = summary.get("validity_rate", 0)
         if validity_rate < 0.9:
-            recommendations.append(f"数据有效性较低 ({validity_rate:.1%})，建议全面检查数据质量")
+            recommendations.append(
+                f"数据有效性较低 ({validity_rate:.1%})，建议全面检查数据质量"
+            )
         elif validity_rate < 0.99:
-            recommendations.append(f"数据有效性良好 ({validity_rate:.1%})，但仍有改进空间")
+            recommendations.append(
+                f"数据有效性良好 ({validity_rate:.1%})，但仍有改进空间"
+            )
 
         return recommendations
 
@@ -442,7 +505,9 @@ class DataCleaner:
     """数据清洗器"""
 
     @staticmethod
-    def clean_dataset(data: pd.DataFrame, validation_result: ValidationResult) -> pd.DataFrame:
+    def clean_dataset(
+        data: pd.DataFrame, validation_result: ValidationResult
+    ) -> pd.DataFrame:
         """根据验证结果清洗数据"""
         if data.empty:
             return data
@@ -484,7 +549,9 @@ class DataCleaner:
                 # 将非数字转换为NaN
                 data[pos] = pd.to_numeric(data[pos], errors="coerce")
                 # 将超出范围的值转换为NaN
-                data[pos] = data[pos].where((data[pos] >= 0) & (data[pos] <= 9), np.nan)
+                data[pos] = data[pos].where(
+                    (data[pos] >= 0) & (data[pos] <= 9), np.nan
+                )
                 # 使用前向填充缺失值
                 data[pos] = data[pos].ffill().bfill()
                 # 确保为整数
@@ -495,7 +562,14 @@ class DataCleaner:
     @staticmethod
     def _ensure_types(data: pd.DataFrame) -> pd.DataFrame:
         """确保数据类型正确"""
-        type_mapping = {"period": str, "wan": int, "qian": int, "bai": int, "shi": int, "ge": int}
+        type_mapping = {
+            "period": str,
+            "wan": int,
+            "qian": int,
+            "bai": int,
+            "shi": int,
+            "ge": int,
+        }
 
         for col, dtype in type_mapping.items():
             if col in data.columns:
@@ -503,7 +577,11 @@ class DataCleaner:
                     if dtype == str:
                         data[col] = data[col].astype(str)
                     elif dtype == int:
-                        data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0).astype(int)
+                        data[col] = (
+                            pd.to_numeric(data[col], errors="coerce")
+                            .fillna(0)
+                            .astype(int)
+                        )
                 except Exception as e:
                     logger.warning(f"转换列 {col} 类型失败: {e}")
 
@@ -511,7 +589,8 @@ class DataCleaner:
 
 
 def validate_data_file(
-    data_path: Path, validation_level: ValidationLevel = ValidationLevel.STANDARD
+    data_path: Path,
+    validation_level: ValidationLevel = ValidationLevel.STANDARD,
 ) -> ValidationResult:
     """验证数据文件"""
     logger.info(f"开始验证数据文件: {data_path}")
@@ -530,10 +609,14 @@ def validate_data_file(
         result = validator.validate_dataset(data)
 
         # 生成报告
-        report_path = data_path.parent / f"{data_path.stem}_validation_report.json"
+        report_path = (
+            data_path.parent / f"{data_path.stem}_validation_report.json"
+        )
         validator.generate_validation_report(result, report_path)
 
-        logger.info(f"数据验证完成: 有效性 {result.summary.get('validity_rate', 0):.1%}")
+        logger.info(
+            f"数据验证完成: 有效性 {result.summary.get('validity_rate', 0):.1%}"
+        )
 
         return result
 
@@ -551,11 +634,18 @@ def quick_validate(data: pd.DataFrame) -> Tuple[bool, str]:
     if result.is_valid:
         return True, "数据验证通过"
     else:
-        issues_summary = ", ".join([f"{k}:{v}" for k, v in result.summary.get("issue_summary", {}).items()])
+        issues_summary = ", ".join(
+            [
+                f"{k}:{v}"
+                for k, v in result.summary.get("issue_summary", {}).items()
+            ]
+        )
         return False, f"数据验证失败: {issues_summary}"
 
 
-def clean_and_validate(data: pd.DataFrame) -> Tuple[pd.DataFrame, ValidationResult]:
+def clean_and_validate(
+    data: pd.DataFrame,
+) -> Tuple[pd.DataFrame, ValidationResult]:
     """清洗并验证数据"""
     # 首先验证
     validator = AdvancedDataValidator(ValidationLevel.STANDARD)

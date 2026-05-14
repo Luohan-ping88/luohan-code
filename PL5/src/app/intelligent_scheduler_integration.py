@@ -60,13 +60,7 @@ class IntelligentSchedulerIntegration:
     def _load_intelligent_modules(self) -> bool:
         """尝试加载智能体模块"""
         try:
-            from src.core.rl import DQNAgent, PPOAgent
-            from src.core.modules import ModuleRegistry, ModuleLoader
-            from src.core.training import TrainingOptimizer
-            from src.core.features.exploration import FeatureImportanceEvaluator
-            from src.core.policies import PolicyLibrary, ContextAwareSelector
-            from src.core.curriculum import ProgressTracker, CurriculumAdapter
-            from src.agents.coordination import SharedMemorySystem, VotingEngine
+            pass
 
             self._intelligent_available = True
             logger.info("[Integration] 智能体模块加载成功")
@@ -82,7 +76,10 @@ class IntelligentSchedulerIntegration:
 
     def set_mode(self, mode: SchedulerMode) -> bool:
         """设置模式"""
-        if mode == SchedulerMode.INTELLIGENT and not self._intelligent_available:
+        if (
+            mode == SchedulerMode.INTELLIGENT
+            and not self._intelligent_available
+        ):
             logger.warning("[Integration] 智能体模式不可用，切换到Legacy模式")
             self.config.mode = SchedulerMode.LEGACY
             return False
@@ -97,7 +94,10 @@ class IntelligentSchedulerIntegration:
             return False
 
         if self.config.mode == SchedulerMode.INTELLIGENT:
-            return self._intelligent_available and self.config.enable_intelligent_agents
+            return (
+                self._intelligent_available
+                and self.config.enable_intelligent_agents
+            )
 
         if self.config.mode == SchedulerMode.HYBRID:
             import random
@@ -107,7 +107,12 @@ class IntelligentSchedulerIntegration:
         return False
 
     def execute_with_fallback(
-        self, intelligent_fn: Callable, legacy_fn: Callable, task_name: str, *args, **kwargs
+        self,
+        intelligent_fn: Callable,
+        legacy_fn: Callable,
+        task_name: str,
+        *args,
+        **kwargs,
     ) -> Any:
         """
         带降级的执行
@@ -130,23 +135,39 @@ class IntelligentSchedulerIntegration:
             if use_intelligent and self.config.enable_intelligent_agents:
                 try:
                     result = intelligent_fn(*args, **kwargs)
-                    self._record_decision(task_name, mode_used, "success", start_time)
+                    self._record_decision(
+                        task_name, mode_used, "success", start_time
+                    )
                     return result
                 except Exception as e:
-                    logger.warning(f"[Integration] 智能体执行失败: {e}，尝试降级")
+                    logger.warning(
+                        f"[Integration] 智能体执行失败: {e}，尝试降级"
+                    )
                     if not self.config.enable_fallback:
                         raise
 
             result = legacy_fn(*args, **kwargs)
-            self._record_decision(task_name, mode_used if not use_intelligent else "fallback", "success", start_time)
+            self._record_decision(
+                task_name,
+                mode_used if not use_intelligent else "fallback",
+                "success",
+                start_time,
+            )
             return result
 
         except Exception as e:
-            self._record_decision(task_name, mode_used, "error", start_time, str(e))
+            self._record_decision(
+                task_name, mode_used, "error", start_time, str(e)
+            )
             raise
 
     def _record_decision(
-        self, task_name: str, mode_used: str, status: str, start_time: datetime, error: Optional[str] = None
+        self,
+        task_name: str,
+        mode_used: str,
+        status: str,
+        start_time: datetime,
+        error: Optional[str] = None,
     ):
         """记录决策"""
         record = {
@@ -169,9 +190,17 @@ class IntelligentSchedulerIntegration:
             return {"total_decisions": 0}
 
         total = len(self._decision_history)
-        intelligent_count = sum(1 for d in self._decision_history if d["mode_used"] == "intelligent")
-        fallback_count = sum(1 for d in self._decision_history if d["mode_used"] == "fallback")
-        success_count = sum(1 for d in self._decision_history if d["status"] == "success")
+        intelligent_count = sum(
+            1
+            for d in self._decision_history
+            if d["mode_used"] == "intelligent"
+        )
+        fallback_count = sum(
+            1 for d in self._decision_history if d["mode_used"] == "fallback"
+        )
+        success_count = sum(
+            1 for d in self._decision_history if d["status"] == "success"
+        )
 
         return {
             "total_decisions": total,
@@ -203,10 +232,16 @@ class IntelligentSchedulerIntegration:
             config_data = json.load(f)
 
         self.config.mode = SchedulerMode(config_data.get("mode", "legacy"))
-        self.config.enable_intelligent_agents = config_data.get("enable_intelligent_agents", True)
+        self.config.enable_intelligent_agents = config_data.get(
+            "enable_intelligent_agents", True
+        )
         self.config.enable_fallback = config_data.get("enable_fallback", True)
-        self.config.fallback_timeout_seconds = config_data.get("fallback_timeout_seconds", 30)
-        self.config.intelligent_agent_weight = config_data.get("intelligent_agent_weight", 0.7)
+        self.config.fallback_timeout_seconds = config_data.get(
+            "fallback_timeout_seconds", 30
+        )
+        self.config.intelligent_agent_weight = config_data.get(
+            "intelligent_agent_weight", 0.7
+        )
 
 
 _global_integration: Optional[IntelligentSchedulerIntegration] = None

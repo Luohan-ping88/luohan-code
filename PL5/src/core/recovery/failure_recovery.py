@@ -5,10 +5,7 @@
 实现系统故障检测和自动恢复功能
 """
 
-import os
-import sys
 import time
-import logging
 import threading
 import traceback
 from datetime import datetime
@@ -48,7 +45,12 @@ class FailureRecovery:
 
         logger.info("故障恢复管理器初始化完成")
 
-    def handle_failure(self, failure_type: str, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def handle_failure(
+        self,
+        failure_type: str,
+        error: Exception,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         """处理故障
 
         Args:
@@ -73,7 +75,9 @@ class FailureRecovery:
             else:
                 self._handle_generic_failure(error, context)
 
-    def _handle_data_collection_failure(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_data_collection_failure(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理数据采集失败"""
         logger.warning("[恢复] 处理数据采集失败")
 
@@ -81,7 +85,9 @@ class FailureRecovery:
         if context and "collector" in context:
             for attempt in range(self.max_retries):
                 try:
-                    logger.info(f"[恢复] 尝试重新采集数据 (尝试 {attempt + 1}/{self.max_retries})")
+                    logger.info(
+                        f"[恢复] 尝试重新采集数据 (尝试 {attempt + 1}/{self.max_retries})"
+                    )
                     context["collector"].update_data()
                     logger.info("[恢复] 数据采集恢复成功")
                     return
@@ -91,7 +97,9 @@ class FailureRecovery:
 
         logger.error("[恢复] 数据采集多次尝试失败，需要人工干预")
 
-    def _handle_model_training_failure(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_model_training_failure(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理模型训练失败"""
         logger.warning("[恢复] 处理模型训练失败")
 
@@ -99,19 +107,25 @@ class FailureRecovery:
         latest_backup = get_latest_backup()
         if latest_backup:
             try:
-                logger.info(f"[恢复] 尝试从备份恢复模型: {latest_backup.get('backup_id')}")
+                logger.info(
+                    f"[恢复] 尝试从备份恢复模型: {latest_backup.get('backup_id')}"
+                )
                 restore_result = restore_backup(latest_backup.get("backup_id"))
                 if restore_result.get("status") == "success":
                     logger.info("[恢复] 模型恢复成功")
                     return
                 else:
-                    logger.error(f"[恢复] 模型恢复失败: {restore_result.get('error')}")
+                    logger.error(
+                        f"[恢复] 模型恢复失败: {restore_result.get('error')}"
+                    )
             except Exception as e:
                 logger.error(f"[恢复] 恢复模型时发生错误: {str(e)}")
 
         logger.error("[恢复] 模型训练失败且无法恢复，需要人工干预")
 
-    def _handle_prediction_failure(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_prediction_failure(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理预测失败"""
         logger.warning("[恢复] 处理预测失败")
 
@@ -119,19 +133,25 @@ class FailureRecovery:
         latest_backup = get_latest_backup()
         if latest_backup:
             try:
-                logger.info(f"[恢复] 尝试从备份恢复模型用于预测: {latest_backup.get('backup_id')}")
+                logger.info(
+                    f"[恢复] 尝试从备份恢复模型用于预测: {latest_backup.get('backup_id')}"
+                )
                 restore_result = restore_backup(latest_backup.get("backup_id"))
                 if restore_result.get("status") == "success":
                     logger.info("[恢复] 模型恢复成功，预测功能已恢复")
                     return
                 else:
-                    logger.error(f"[恢复] 模型恢复失败: {restore_result.get('error')}")
+                    logger.error(
+                        f"[恢复] 模型恢复失败: {restore_result.get('error')}"
+                    )
             except Exception as e:
                 logger.error(f"[恢复] 恢复模型时发生错误: {str(e)}")
 
         logger.error("[恢复] 预测失败且无法恢复，需要人工干预")
 
-    def _handle_system_crash(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_system_crash(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理系统崩溃"""
         logger.critical("[恢复] 处理系统崩溃")
 
@@ -161,12 +181,16 @@ class FailureRecovery:
         latest_backup = get_latest_backup()
         if latest_backup:
             try:
-                logger.info(f"[恢复] 尝试从最新备份恢复系统: {latest_backup.get('backup_id')}")
+                logger.info(
+                    f"[恢复] 尝试从最新备份恢复系统: {latest_backup.get('backup_id')}"
+                )
                 restore_result = restore_backup(latest_backup.get("backup_id"))
                 if restore_result.get("status") == "success":
                     logger.info("[恢复] 系统恢复成功")
                 else:
-                    logger.error(f"[恢复] 系统恢复失败: {restore_result.get('error')}")
+                    logger.error(
+                        f"[恢复] 系统恢复失败: {restore_result.get('error')}"
+                    )
             except Exception as e:
                 logger.error(f"[恢复] 恢复系统时发生错误: {str(e)}")
 
@@ -174,14 +198,18 @@ class FailureRecovery:
         logger.info("[恢复] 准备重启系统...")
         # 注意：这里只是记录，实际重启需要根据运行环境调整
 
-    def _handle_backup_failure(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_backup_failure(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理备份失败"""
         logger.warning("[恢复] 处理备份失败")
 
         # 尝试重新执行备份
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"[恢复] 尝试重新执行备份 (尝试 {attempt + 1}/{self.max_retries})")
+                logger.info(
+                    f"[恢复] 尝试重新执行备份 (尝试 {attempt + 1}/{self.max_retries})"
+                )
                 from src.core.backup.backup_manager import create_backup
 
                 backup_result = create_backup()
@@ -189,14 +217,18 @@ class FailureRecovery:
                     logger.info("[恢复] 备份恢复成功")
                     return
                 else:
-                    logger.error(f"[恢复] 重新备份失败: {backup_result.get('error')}")
+                    logger.error(
+                        f"[恢复] 重新备份失败: {backup_result.get('error')}"
+                    )
             except Exception as e:
                 logger.error(f"[恢复] 重新执行备份失败: {str(e)}")
             time.sleep(self.retry_delay)
 
         logger.error("[恢复] 备份多次尝试失败，需要人工干预")
 
-    def _handle_generic_failure(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def _handle_generic_failure(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ):
         """处理通用故障"""
         logger.warning("[恢复] 处理通用故障")
 
@@ -205,7 +237,9 @@ class FailureRecovery:
             retry_func = context["retry_func"]
             for attempt in range(self.max_retries):
                 try:
-                    logger.info(f"[恢复] 尝试重新执行操作 (尝试 {attempt + 1}/{self.max_retries})")
+                    logger.info(
+                        f"[恢复] 尝试重新执行操作 (尝试 {attempt + 1}/{self.max_retries})"
+                    )
                     retry_func()
                     logger.info("[恢复] 操作恢复成功")
                     return
@@ -228,9 +262,13 @@ class FailureRecovery:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error(f"[自动重试] 尝试 {attempt + 1}/{self.max_retries} 失败: {str(e)}")
+                logger.error(
+                    f"[自动重试] 尝试 {attempt + 1}/{self.max_retries} 失败: {str(e)}"
+                )
                 if attempt < self.max_retries - 1:
-                    logger.info(f"[自动重试] 等待 {self.retry_delay} 秒后重试...")
+                    logger.info(
+                        f"[自动重试] 等待 {self.retry_delay} 秒后重试..."
+                    )
                     time.sleep(self.retry_delay)
                 else:
                     logger.error("[自动重试] 达到最大重试次数，操作失败")
@@ -244,7 +282,11 @@ class FailureRecovery:
         """
         return {
             "failure_count": self.failure_count,
-            "last_failure_time": self.last_failure_time.isoformat() if self.last_failure_time else None,
+            "last_failure_time": (
+                self.last_failure_time.isoformat()
+                if self.last_failure_time
+                else None
+            ),
             "max_retries": self.max_retries,
             "retry_delay": self.retry_delay,
             "is_recovering": self.is_recovering,
@@ -269,7 +311,11 @@ def get_recovery_manager() -> FailureRecovery:
     return _global_recovery_manager
 
 
-def handle_failure(failure_type: str, error: Exception, context: Optional[Dict[str, Any]] = None):
+def handle_failure(
+    failure_type: str,
+    error: Exception,
+    context: Optional[Dict[str, Any]] = None,
+):
     """处理故障"""
     manager = get_recovery_manager()
     manager.handle_failure(failure_type, error, context)

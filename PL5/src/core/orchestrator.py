@@ -3,7 +3,6 @@ PL5 统一架构编排器
 整合智能体框架与传统架构，实现统一的系统架构
 """
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Protocol
@@ -41,7 +40,10 @@ class PredictorProtocol(Protocol):
         ...
 
     def predict(
-        self, features: Any, recent_original_data: Optional[Dict[str, Any]] = None, top_k: int = 8
+        self,
+        features: Any,
+        recent_original_data: Optional[Dict[str, Any]] = None,
+        top_k: int = 8,
     ) -> Dict[str, Any]:
         """预测"""
         ...
@@ -71,7 +73,9 @@ class EmailSenderProtocol(Protocol):
 class EvaluatorProtocol(Protocol):
     """评估器接口"""
 
-    def evaluate_predictions(self, actual: Dict[str, Any], predictions: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_predictions(
+        self, actual: Dict[str, Any], predictions: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """评估预测结果"""
         ...
 
@@ -83,7 +87,9 @@ class EvaluatorProtocol(Protocol):
 class SelfLearningProtocol(Protocol):
     """自学习系统接口"""
 
-    def record_evaluation(self, accuracy: float, evaluation_data: Dict[str, Any]) -> None:
+    def record_evaluation(
+        self, accuracy: float, evaluation_data: Dict[str, Any]
+    ) -> None:
         """记录评估结果"""
         ...
 
@@ -136,7 +142,9 @@ class PL5Orchestrator:
 
     @log_execution_time("orchestrator_train")
     @log_exception("orchestrator_train")  # type: ignore[arg-type]
-    async def execute_training_pipeline(self, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute_training_pipeline(
+        self, params: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """
         执行训练流程
 
@@ -167,7 +175,9 @@ class PL5Orchestrator:
 
             # 2. 特征工程
             logger.info("\n[Stage 2/5] 特征工程")
-            stage2_result = await self._stage_feature_engineering(stage1_result)
+            stage2_result = await self._stage_feature_engineering(
+                stage1_result
+            )
             results["feature_engineering"] = stage2_result
 
             if not stage2_result.get("success"):
@@ -183,7 +193,9 @@ class PL5Orchestrator:
 
             # 4. 模型评估
             logger.info("\n[Stage 4/5] 模型评估")
-            stage4_result = await self._stage_model_evaluation(stage3_result, stage2_result)
+            stage4_result = await self._stage_model_evaluation(
+                stage3_result, stage2_result
+            )
             results["model_evaluation"] = stage4_result
 
             # 5. 报告生成
@@ -194,7 +206,9 @@ class PL5Orchestrator:
             execution_time = (datetime.now() - start_time).total_seconds()
 
             logger.info("=" * 80)
-            logger.info(f"[Orchestrator] 训练流程执行完成，总耗时: {execution_time:.2f}s")
+            logger.info(
+                f"[Orchestrator] 训练流程执行完成，总耗时: {execution_time:.2f}s"
+            )
             logger.info("=" * 80)
 
             return {
@@ -217,7 +231,9 @@ class PL5Orchestrator:
         finally:
             self.is_running = False
 
-    async def _stage_data_processing(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_data_processing(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段1: 数据采集与处理"""
         try:
             collector = self.components["data_collector"]
@@ -225,12 +241,19 @@ class PL5Orchestrator:
 
             logger.info(f"数据采集完成，记录数: {len(df)}")
 
-            return {"success": True, "data": df, "record_count": len(df), "latest_period": int(df["period"].max())}
+            return {
+                "success": True,
+                "data": df,
+                "record_count": len(df),
+                "latest_period": int(df["period"].max()),
+            }
         except Exception as e:
             logger.error("数据采集失败", exception=e)
             return {"success": False, "error": str(e)}
 
-    async def _stage_feature_engineering(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_feature_engineering(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段2: 特征工程"""
         try:
             engineer = self.components["feature_engineer"]
@@ -240,7 +263,18 @@ class PL5Orchestrator:
             feature_cols = [
                 c
                 for c in df_features.columns
-                if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                if c
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "parse_line",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
 
             logger.info(f"特征工程完成，特征数: {len(feature_cols)}")
@@ -255,7 +289,9 @@ class PL5Orchestrator:
             logger.error("特征工程失败", exception=e)
             return {"success": False, "error": str(e)}
 
-    async def _stage_model_training(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_model_training(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段3: 模型训练"""
         try:
             predictor = self.components["predictor"]
@@ -267,7 +303,11 @@ class PL5Orchestrator:
 
             logger.info("模型训练完成并保存")
 
-            return {"success": True, "models": "saved", "positions_trained": ["wan", "qian", "bai", "shi", "ge"]}
+            return {
+                "success": True,
+                "models": "saved",
+                "positions_trained": ["wan", "qian", "bai", "shi", "ge"],
+            }
         except Exception as e:
             logger.error("模型训练失败", exception=e)
             return {"success": False, "error": str(e)}
@@ -298,10 +338,18 @@ class PL5Orchestrator:
                 predictions = predictor.predict(features)
 
                 # 构建实际号码字典
-                actual_dict = {"wan": actual[0], "qian": actual[1], "bai": actual[2], "shi": actual[3], "ge": actual[4]}
+                actual_dict = {
+                    "wan": actual[0],
+                    "qian": actual[1],
+                    "bai": actual[2],
+                    "shi": actual[3],
+                    "ge": actual[4],
+                }
 
                 # 使用评估器评估预测结果
-                evaluation = evaluator.evaluate_predictions(actual_dict, predictions)
+                evaluation = evaluator.evaluate_predictions(
+                    actual_dict, predictions
+                )
                 evaluations.append(evaluation)
 
                 # 简单评估：检查每个位置的预测是否正确
@@ -326,7 +374,9 @@ class PL5Orchestrator:
             )
 
             # 生成优化建议
-            optimization_suggestions = self_learning.generate_optimization_suggestions()
+            optimization_suggestions = (
+                self_learning.generate_optimization_suggestions()
+            )
             logger.info("生成优化建议:")
             for suggestion in optimization_suggestions[:5]:  # 只打印前5条建议
                 logger.info(f"  - {suggestion}")
@@ -356,36 +406,52 @@ class PL5Orchestrator:
             logger.error("模型评估失败", exception=e)
             return {"success": False, "error": str(e)}
 
-    async def _stage_report_generation(self, all_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_report_generation(
+        self, all_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段5: 报告生成"""
         try:
             # 生成详细的训练报告
             report = {
                 "timestamp": datetime.now().isoformat(),
                 "data_processing": all_results.get("data_processing", {}),
-                "feature_engineering": all_results.get("feature_engineering", {}),
+                "feature_engineering": all_results.get(
+                    "feature_engineering", {}
+                ),
                 "model_training": all_results.get("model_training", {}),
                 "model_evaluation": all_results.get("model_evaluation", {}),
                 "analysis": {
                     "summary": "PL5 预测模型训练报告",
                     "performance_metrics": {
-                        "overall_accuracy": all_results.get("model_evaluation", {})
+                        "overall_accuracy": all_results.get(
+                            "model_evaluation", {}
+                        )
                         .get("evaluation", {})
                         .get("overall_accuracy", 0.0),
-                        "total_predictions": all_results.get("model_evaluation", {})
+                        "total_predictions": all_results.get(
+                            "model_evaluation", {}
+                        )
                         .get("evaluation", {})
                         .get("total_predictions", 0),
-                        "correct_predictions": all_results.get("model_evaluation", {})
+                        "correct_predictions": all_results.get(
+                            "model_evaluation", {}
+                        )
                         .get("evaluation", {})
                         .get("correct_predictions", 0),
                     },
                     "feature_analysis": {
-                        "total_features": all_results.get("feature_engineering", {}).get("feature_count", 0),
+                        "total_features": all_results.get(
+                            "feature_engineering", {}
+                        ).get("feature_count", 0),
                         "feature_selection_method": "RFE (Recursive Feature Elimination)",
                     },
                     "data_analysis": {
-                        "record_count": all_results.get("data_processing", {}).get("record_count", 0),
-                        "latest_period": all_results.get("data_processing", {}).get("latest_period", 0),
+                        "record_count": all_results.get(
+                            "data_processing", {}
+                        ).get("record_count", 0),
+                        "latest_period": all_results.get(
+                            "data_processing", {}
+                        ).get("latest_period", 0),
                     },
                 },
             }
@@ -398,13 +464,19 @@ class PL5Orchestrator:
 
                 # 【修复D1延伸】与 execute_prediction_pipeline 保持一致：
                 # 尝试读取 best_feature_config.json，但最终用 predictor.feature_cols 对齐
-                best_config_path = Path(MODELS_DIR) / "best_feature_config.json"
+                best_config_path = (
+                    Path(MODELS_DIR) / "best_feature_config.json"
+                )
                 best_select_top = None
                 if best_config_path.exists():
                     try:
-                        with open(best_config_path, "r", encoding="utf-8") as f:
+                        with open(
+                            best_config_path, "r", encoding="utf-8"
+                        ) as f:
                             cfg_data = json.load(f)
-                        best_select_top = cfg_data.get("best_config", {}).get("select_top")
+                        best_select_top = cfg_data.get("best_config", {}).get(
+                            "select_top"
+                        )
                         if best_select_top is not None:
                             logger.info(
                                 f"[_stage_report_generation] 使用动态验证最佳配置: select_top={best_select_top}"
@@ -414,11 +486,24 @@ class PL5Orchestrator:
 
                 # 提取特征（与 execute_prediction_pipeline 一致：select_top=None）
                 engineer = self.components["feature_engineer"]
-                df_features = engineer.extract_all_features(df, select_top=None)
+                df_features = engineer.extract_all_features(
+                    df, select_top=None
+                )
                 all_feature_cols = [
                     c
                     for c in df_features.columns
-                    if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                    if c
+                    not in [
+                        "period",
+                        "date",
+                        "full_number",
+                        "parse_line",
+                        "wan",
+                        "qian",
+                        "bai",
+                        "shi",
+                        "ge",
+                    ]
                 ]
 
                 # 模型推理
@@ -427,8 +512,15 @@ class PL5Orchestrator:
                 load_result = predictor.load_models()
                 if load_result:
                     # 【修复ISSUE-3】与 execute_prediction_pipeline 一致：使用模型训练时的 feature_cols
-                    if predictor.feature_cols and len(predictor.feature_cols) > 0:
-                        missing = [c for c in predictor.feature_cols if c not in df_features.columns]
+                    if (
+                        predictor.feature_cols
+                        and len(predictor.feature_cols) > 0
+                    ):
+                        missing = [
+                            c
+                            for c in predictor.feature_cols
+                            if c not in df_features.columns
+                        ]
                         if missing:
                             logger.warning(
                                 f"[_stage_report_generation] 模型特征列中有 {len(missing)} 个缺失，将用0填充"
@@ -440,19 +532,28 @@ class PL5Orchestrator:
                         feature_cols = all_feature_cols
                     latest_features = df_features[feature_cols].iloc[-1].values
                     # 【修复ISSUE-1】确保传入 ndarray 而非 pandas Series（避免 iloc[-1] KeyError 陷阱）
-                    recent_original_data = {pos: df[pos].values for pos in ["wan", "qian", "bai", "shi", "ge"]}
+                    recent_original_data = {
+                        pos: df[pos].values
+                        for pos in ["wan", "qian", "bai", "shi", "ge"]
+                    }
 
                     # 生成8个预测号码
                     predictions_8 = predictor.predict(
-                        latest_features, recent_original_data=recent_original_data, top_k=8
+                        latest_features,
+                        recent_original_data=recent_original_data,
+                        top_k=8,
                     )
                     # 生成5个预测号码
                     predictions_5 = predictor.predict(
-                        latest_features, recent_original_data=recent_original_data, top_k=5
+                        latest_features,
+                        recent_original_data=recent_original_data,
+                        top_k=5,
                     )
                     # 生成3个预测号码
                     predictions_3 = predictor.predict(
-                        latest_features, recent_original_data=recent_original_data, top_k=3
+                        latest_features,
+                        recent_original_data=recent_original_data,
+                        top_k=3,
                     )
 
                     next_period = int(df["period"].max()) + 1
@@ -475,14 +576,20 @@ class PL5Orchestrator:
 
             logger.info("训练报告生成完成")
 
-            return {"success": True, "report": report, "email_sent": email_sent}
+            return {
+                "success": True,
+                "report": report,
+                "email_sent": email_sent,
+            }
         except Exception as e:
             logger.error("报告生成失败", exception=e)
             return {"success": False, "error": str(e)}
 
     @log_execution_time("orchestrator_predict")
     @log_exception("orchestrator_predict")  # type: ignore[arg-type]
-    async def execute_prediction_pipeline(self, latest_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute_prediction_pipeline(
+        self, latest_data: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         执行预测流程
 
@@ -509,12 +616,18 @@ class PL5Orchestrator:
             best_select_top = None  # 默认：全量特征（与历史行为一致）
             cfg_data = None
             for config_dir in [LOGS_DIR, MODELS_DIR]:
-                best_config_path = Path(config_dir) / "best_feature_config.json"
+                best_config_path = (
+                    Path(config_dir) / "best_feature_config.json"
+                )
                 if best_config_path.exists():
                     try:
-                        with open(best_config_path, "r", encoding="utf-8") as f:
+                        with open(
+                            best_config_path, "r", encoding="utf-8"
+                        ) as f:
                             cfg_data = json.load(f)
-                        logger.info(f"[Orchestrator] 从 {config_dir.name}/best_feature_config.json 读取配置")
+                        logger.info(
+                            f"[Orchestrator] 从 {config_dir.name}/best_feature_config.json 读取配置"
+                        )
                         break
                     except Exception as cfg_err:
                         logger.warning(
@@ -525,7 +638,9 @@ class PL5Orchestrator:
                 try:
                     # 兼容两种格式：直接配置或嵌套在 best_config 中
                     if "best_config" in cfg_data:
-                        best_select_top = cfg_data["best_config"].get("select_top")
+                        best_select_top = cfg_data["best_config"].get(
+                            "select_top"
+                        )
                     else:
                         best_select_top = cfg_data.get("select_top")
                     if best_select_top is not None:
@@ -547,51 +662,91 @@ class PL5Orchestrator:
             all_feature_cols = [
                 c
                 for c in df_features.columns
-                if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                if c
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "parse_line",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
 
             # 3. 模型推理 - 【关键修复】先加载模型，优先使用训练时保存的 feature_cols
             predictor = self.components["predictor"]
             load_result = predictor.load_models()
-            logger.info(f"[Orchestrator] 模型加载结果: {load_result}, is_trained={predictor.is_trained}")
+            logger.info(
+                f"[Orchestrator] 模型加载结果: {load_result}, is_trained={predictor.is_trained}"
+            )
             if not load_result:
-                logger.warning("[Orchestrator] 模型文件加载失败，使用RFE选择的特征")
+                logger.warning(
+                    "[Orchestrator] 模型文件加载失败，使用RFE选择的特征"
+                )
                 feature_cols = all_feature_cols
             else:
                 # 【核心修复】使用模型训练时保存的 feature_cols，避免 RFE 漂移
                 if predictor.feature_cols and len(predictor.feature_cols) > 0:
                     # 检查模型特征列是否都存在于当前 df_features 中
-                    missing = [c for c in predictor.feature_cols if c not in df_features.columns]
+                    missing = [
+                        c
+                        for c in predictor.feature_cols
+                        if c not in df_features.columns
+                    ]
                     if missing:
                         # 【关键修复】不能回退到 RFE 选择（全量特征数不匹配），
                         # 必须用模型期望的精确特征集，哪怕有少量缺失也填充 0
-                        logger.warning(f"[Orchestrator] 模型特征列中有 {len(missing)} 个缺失，将用0填充: {missing[:5]}")
+                        logger.warning(
+                            f"[Orchestrator] 模型特征列中有 {len(missing)} 个缺失，将用0填充: {missing[:5]}"
+                        )
                         # 用模型存储的 feature_cols 作为最终选择（缺失部分自动补0）
                         feature_cols = predictor.feature_cols
                     else:
                         feature_cols = predictor.feature_cols
-                        logger.info(f"[Orchestrator] 使用模型训练时的 {len(feature_cols)} 个特征列（特征漂移已修复）")
+                        logger.info(
+                            f"[Orchestrator] 使用模型训练时的 {len(feature_cols)} 个特征列（特征漂移已修复）"
+                        )
                 else:
-                    logger.warning("[Orchestrator] 模型无 feature_cols 记录，使用RFE选择的特征")
+                    logger.warning(
+                        "[Orchestrator] 模型无 feature_cols 记录，使用RFE选择的特征"
+                    )
                     feature_cols = all_feature_cols
 
             # 4. 使用确定的 feature_cols 提取特征（缺失列自动填0）
-            missing_cols = [c for c in feature_cols if c not in df_features.columns]
+            missing_cols = [
+                c for c in feature_cols if c not in df_features.columns
+            ]
             if missing_cols:
-                logger.warning(f"[Orchestrator] 特征提取: {len(missing_cols)} 列缺失，自动填充0: {missing_cols[:3]}")
+                logger.warning(
+                    f"[Orchestrator] 特征提取: {len(missing_cols)} 列缺失，自动填充0: {missing_cols[:3]}"
+                )
                 for col in missing_cols:
                     df_features[col] = 0.0
             latest_features = df_features[feature_cols].iloc[-1].values
             # 【修复ISSUE-1】确保传入 ndarray 而非 pandas Series（避免 iloc[-1] KeyError 陷阱）
-            recent_original_data = {pos: df[pos].values for pos in ["wan", "qian", "bai", "shi", "ge"]}
-            predictions = predictor.predict(latest_features, recent_original_data=recent_original_data, top_k=8)
+            recent_original_data = {
+                pos: df[pos].values
+                for pos in ["wan", "qian", "bai", "shi", "ge"]
+            }
+            predictions = predictor.predict(
+                latest_features,
+                recent_original_data=recent_original_data,
+                top_k=8,
+            )
 
             # 4. 结果后处理
             # 这里可以添加结果后处理逻辑
 
             # 5. 生成预测报告
             next_period = int(df["period"].max()) + 1
-            report = {"next_period": next_period, "predictions": predictions, "timestamp": datetime.now().isoformat()}
+            report = {
+                "next_period": next_period,
+                "predictions": predictions,
+                "timestamp": datetime.now().isoformat(),
+            }
 
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"预测流程执行完成，耗时: {execution_time:.2f}s")
@@ -610,7 +765,9 @@ class PL5Orchestrator:
             import traceback
 
             err_msg = f"{type(e).__name__}: {str(e)}"
-            logger.error(f"预测流程执行失败: {err_msg}\n{traceback.format_exc()}")
+            logger.error(
+                f"预测流程执行失败: {err_msg}\n{traceback.format_exc()}"
+            )
 
             return {
                 "success": False,

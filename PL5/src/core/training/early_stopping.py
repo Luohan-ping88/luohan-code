@@ -125,9 +125,16 @@ class EarlyStopping:
         if self.config.baseline is not None:
             self.state.best_score = self.config.baseline
             if self.config.verbose:
-                logger.info(f"EarlyStopping: 使用基线值 {self.config.baseline}")
+                logger.info(
+                    f"EarlyStopping: 使用基线值 {self.config.baseline}"
+                )
 
-    def step(self, epoch: int, validation_score: float, metrics: Optional[Dict[str, Any]] = None) -> bool:
+    def step(
+        self,
+        epoch: int,
+        validation_score: float,
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """
         更新早停状态
 
@@ -174,11 +181,14 @@ class EarlyStopping:
             self.state.best_epoch = epoch
             self.state.wait = 0
             self.state.status = EarlyStoppingStatus.IMPROVED
-            self._record_improvement(epoch, validation_score, metrics, improvement)
+            self._record_improvement(
+                epoch, validation_score, metrics, improvement
+            )
 
             if self.config.verbose:
                 logger.info(
-                    f"EarlyStopping: Epoch {epoch}: 验证集分数改善 " f"({self.state.best_score:.6f}). 保存最佳模型."
+                    f"EarlyStopping: Epoch {epoch}: 验证集分数改善 "
+                    f"({self.state.best_score:.6f}). 保存最佳模型."
                 )
         else:
             self.state.wait += 1
@@ -196,7 +206,11 @@ class EarlyStopping:
                 self.state.cooldown_counter = self.config.cooldown
 
                 if self.config.verbose:
-                    elapsed_time = time.time() - self._start_time if self._start_time else 0
+                    elapsed_time = (
+                        time.time() - self._start_time
+                        if self._start_time
+                        else 0
+                    )
                     logger.info(
                         f"EarlyStopping: 在 Epoch {epoch} 时早停. "
                         f"最佳 Epoch 是 {self.state.best_epoch}, "
@@ -208,7 +222,11 @@ class EarlyStopping:
         return self.state.status == EarlyStoppingStatus.STOPPED
 
     def _record_improvement(
-        self, epoch: int, score: float, metrics: Optional[Dict[str, Any]] = None, improvement: Optional[float] = None
+        self,
+        epoch: int,
+        score: float,
+        metrics: Optional[Dict[str, Any]] = None,
+        improvement: Optional[float] = None,
     ) -> None:
         """记录性能改善"""
         record = {
@@ -220,7 +238,12 @@ class EarlyStopping:
         }
         self.state.improvement_history.append(record)
 
-    def _record_validation(self, epoch: int, score: float, metrics: Optional[Dict[str, Any]] = None) -> None:
+    def _record_validation(
+        self,
+        epoch: int,
+        score: float,
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """记录验证结果"""
         record = {
             "epoch": epoch,
@@ -301,7 +324,12 @@ class AdaptiveEarlyStopping(EarlyStopping):
         self._original_patience = self.config.patience
         self._original_min_delta = self.config.min_delta
 
-    def step(self, epoch: int, validation_score: float, metrics: Optional[Dict[str, Any]] = None) -> bool:
+    def step(
+        self,
+        epoch: int,
+        validation_score: float,
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         if epoch > self.window_size:
             self._adapt_parameters(epoch)
 
@@ -326,11 +354,15 @@ class AdaptiveEarlyStopping(EarlyStopping):
             if new_patience != self.config.patience:
                 self.config.patience = new_patience
                 if self.config.verbose:
-                    logger.info(f"AdaptiveEarlyStopping: patience 调整为 {new_patience}")
+                    logger.info(
+                        f"AdaptiveEarlyStopping: patience 调整为 {new_patience}"
+                    )
 
         if self.adaptive_min_delta:
             new_min_delta = max(1e-6, score_std * 0.1)
             if abs(new_min_delta - self.config.min_delta) > 1e-6:
                 self.config.min_delta = new_min_delta
                 if self.config.verbose:
-                    logger.info(f"AdaptiveEarlyStopping: min_delta 调整为 {new_min_delta:.6f}")
+                    logger.info(
+                        f"AdaptiveEarlyStopping: min_delta 调整为 {new_min_delta:.6f}"
+                    )

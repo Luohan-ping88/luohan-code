@@ -17,10 +17,9 @@ import time
 import functools
 import traceback
 import json
-import os
 from typing import Any, Callable, Optional, Type, Tuple, Dict, List, Union
 from datetime import datetime
-from enum import Enum, auto
+from enum import Enum
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
@@ -126,7 +125,9 @@ class PL5BaseError(Exception):
             "category": self.category.value,
             "timestamp": self.timestamp,
             "context": self.context,
-            "original_error": str(self.original_error) if self.original_error else None,
+            "original_error": (
+                str(self.original_error) if self.original_error else None
+            ),
         }
 
     def to_json(self) -> str:
@@ -146,17 +147,27 @@ class PL5BaseError(Exception):
 class DataError(PL5BaseError):
     """数据相关错误基类"""
 
-    def __init__(self, message: str, data_source: str = "unknown", record_count: int = 0, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        data_source: str = "unknown",
+        record_count: int = 0,
+        **kwargs,
+    ):
         super().__init__(message, category=ErrorCategory.DATA, **kwargs)
         self.data_source = data_source
         self.record_count = record_count
-        self.context.update({"data_source": data_source, "record_count": record_count})
+        self.context.update(
+            {"data_source": data_source, "record_count": record_count}
+        )
 
 
 class DataLoadError(DataError):
     """数据加载失败"""
 
-    def __init__(self, message: str, file_path: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, file_path: Optional[str] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.file_path = file_path
         if file_path:
@@ -166,7 +177,12 @@ class DataLoadError(DataError):
 class DataValidationError(DataError):
     """数据验证失败"""
 
-    def __init__(self, message: str, validation_errors: Optional[List[str]] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        validation_errors: Optional[List[str]] = None,
+        **kwargs,
+    ):
         super().__init__(message, severity=ErrorSeverity.MEDIUM, **kwargs)
         self.validation_errors = validation_errors or []
         self.context["validation_errors"] = self.validation_errors
@@ -179,19 +195,30 @@ class DataParseError(DataError):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.raw_data = raw_data
         if raw_data:
-            self.context["raw_data_preview"] = raw_data[:200] if len(raw_data) > 200 else raw_data
+            self.context["raw_data_preview"] = (
+                raw_data[:200] if len(raw_data) > 200 else raw_data
+            )
 
 
 class DataCorruptionError(DataError):
     """数据损坏错误"""
 
     def __init__(
-        self, message: str, checksum_expected: Optional[str] = None, checksum_actual: Optional[str] = None, **kwargs
+        self,
+        message: str,
+        checksum_expected: Optional[str] = None,
+        checksum_actual: Optional[str] = None,
+        **kwargs,
     ):
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
         self.checksum_expected = checksum_expected
         self.checksum_actual = checksum_actual
-        self.context.update({"checksum_expected": checksum_expected, "checksum_actual": checksum_actual})
+        self.context.update(
+            {
+                "checksum_expected": checksum_expected,
+                "checksum_actual": checksum_actual,
+            }
+        )
 
 
 # ==================== 模型相关错误 ====================
@@ -200,7 +227,13 @@ class DataCorruptionError(DataError):
 class ModelError(PL5BaseError):
     """模型相关错误基类"""
 
-    def __init__(self, message: str, model_name: str = "unknown", operation: str = "unknown", **kwargs):
+    def __init__(
+        self,
+        message: str,
+        model_name: str = "unknown",
+        operation: str = "unknown",
+        **kwargs,
+    ):
         super().__init__(message, category=ErrorCategory.MODEL, **kwargs)
         self.model_name = model_name
         self.operation = operation
@@ -210,7 +243,9 @@ class ModelError(PL5BaseError):
 class ModelLoadError(ModelError):
     """模型加载失败"""
 
-    def __init__(self, message: str, model_path: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, model_path: Optional[str] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.model_path = model_path
         if model_path:
@@ -220,7 +255,9 @@ class ModelLoadError(ModelError):
 class ModelSaveError(ModelError):
     """模型保存失败"""
 
-    def __init__(self, message: str, save_path: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, save_path: Optional[str] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.save_path = save_path
         if save_path:
@@ -230,7 +267,9 @@ class ModelSaveError(ModelError):
 class ModelPredictionError(ModelError):
     """模型预测失败"""
 
-    def __init__(self, message: str, input_shape: Optional[Tuple] = None, **kwargs):
+    def __init__(
+        self, message: str, input_shape: Optional[Tuple] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.input_shape = input_shape
         if input_shape:
@@ -240,7 +279,13 @@ class ModelPredictionError(ModelError):
 class ModelTrainingError(ModelError):
     """模型训练失败"""
 
-    def __init__(self, message: str, epoch: Optional[int] = None, loss: Optional[float] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        epoch: Optional[int] = None,
+        loss: Optional[float] = None,
+        **kwargs,
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.epoch = epoch
         self.loss = loss
@@ -251,12 +296,21 @@ class ModelVersionError(ModelError):
     """模型版本错误"""
 
     def __init__(
-        self, message: str, expected_version: Optional[str] = None, actual_version: Optional[str] = None, **kwargs
+        self,
+        message: str,
+        expected_version: Optional[str] = None,
+        actual_version: Optional[str] = None,
+        **kwargs,
     ):
         super().__init__(message, severity=ErrorSeverity.MEDIUM, **kwargs)
         self.expected_version = expected_version
         self.actual_version = actual_version
-        self.context.update({"expected_version": expected_version, "actual_version": actual_version})
+        self.context.update(
+            {
+                "expected_version": expected_version,
+                "actual_version": actual_version,
+            }
+        )
 
 
 # ==================== 配置相关错误 ====================
@@ -265,11 +319,24 @@ class ModelVersionError(ModelError):
 class ConfigError(PL5BaseError):
     """配置相关错误基类"""
 
-    def __init__(self, message: str, config_key: str = "unknown", config_file: str = "unknown", **kwargs):
-        super().__init__(message, severity=ErrorSeverity.MEDIUM, category=ErrorCategory.CONFIG, **kwargs)
+    def __init__(
+        self,
+        message: str,
+        config_key: str = "unknown",
+        config_file: str = "unknown",
+        **kwargs,
+    ):
+        super().__init__(
+            message,
+            severity=ErrorSeverity.MEDIUM,
+            category=ErrorCategory.CONFIG,
+            **kwargs,
+        )
         self.config_key = config_key
         self.config_file = config_file
-        self.context.update({"config_key": config_key, "config_file": config_file})
+        self.context.update(
+            {"config_key": config_key, "config_file": config_file}
+        )
 
 
 class ConfigMissingKeyError(ConfigError):
@@ -282,19 +349,32 @@ class ConfigMissingKeyError(ConfigError):
 class ConfigValueError(ConfigError):
     """配置值无效"""
 
-    def __init__(self, message: str, expected_type: Optional[str] = None, actual_value: Optional[Any] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        expected_type: Optional[str] = None,
+        actual_value: Optional[Any] = None,
+        **kwargs,
+    ):
         super().__init__(message, severity=ErrorSeverity.MEDIUM, **kwargs)
         self.expected_type = expected_type
         self.actual_value = actual_value
         self.context.update(
-            {"expected_type": expected_type, "actual_value": str(actual_value) if actual_value is not None else None}
+            {
+                "expected_type": expected_type,
+                "actual_value": (
+                    str(actual_value) if actual_value is not None else None
+                ),
+            }
         )
 
 
 class ConfigFileError(ConfigError):
     """配置文件错误"""
 
-    def __init__(self, message: str, file_path: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, file_path: Optional[str] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.file_path = file_path
         if file_path:
@@ -307,8 +387,19 @@ class ConfigFileError(ConfigError):
 class NetworkError(PL5BaseError):
     """网络相关错误基类"""
 
-    def __init__(self, message: str, url: str = "unknown", status_code: int = 0, **kwargs):
-        super().__init__(message, severity=ErrorSeverity.HIGH, category=ErrorCategory.NETWORK, **kwargs)
+    def __init__(
+        self,
+        message: str,
+        url: str = "unknown",
+        status_code: int = 0,
+        **kwargs,
+    ):
+        super().__init__(
+            message,
+            severity=ErrorSeverity.HIGH,
+            category=ErrorCategory.NETWORK,
+            **kwargs,
+        )
         self.url = url
         self.status_code = status_code
         self.context.update({"url": url, "status_code": status_code})
@@ -317,7 +408,9 @@ class NetworkError(PL5BaseError):
 class NetworkTimeoutError(NetworkError):
     """网络超时"""
 
-    def __init__(self, message: str, timeout_seconds: Optional[float] = None, **kwargs):
+    def __init__(
+        self, message: str, timeout_seconds: Optional[float] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.timeout_seconds = timeout_seconds
         if timeout_seconds:
@@ -345,7 +438,9 @@ class NetworkHTTPError(NetworkError):
 class NetworkRateLimitError(NetworkError):
     """请求频率限制"""
 
-    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs):
+    def __init__(
+        self, message: str, retry_after: Optional[int] = None, **kwargs
+    ):
         super().__init__(message, severity=ErrorSeverity.MEDIUM, **kwargs)
         self.retry_after = retry_after
         if retry_after:
@@ -377,29 +472,55 @@ class ResourceExhaustedError(SystemError):
         self.resource_type = resource_type
         self.current_usage = current_usage
         self.limit = limit
-        self.context.update({"resource_type": resource_type, "current_usage": current_usage, "limit": limit})
+        self.context.update(
+            {
+                "resource_type": resource_type,
+                "current_usage": current_usage,
+                "limit": limit,
+            }
+        )
 
 
 class ServiceUnavailableError(SystemError):
     """服务不可用错误"""
 
-    def __init__(self, message: str, service_name: str = "unknown", downtime_seconds: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        service_name: str = "unknown",
+        downtime_seconds: Optional[int] = None,
+        **kwargs,
+    ):
         super().__init__(message, severity=ErrorSeverity.CRITICAL, **kwargs)
         self.service_name = service_name
         self.downtime_seconds = downtime_seconds
-        self.context.update({"service_name": service_name, "downtime_seconds": downtime_seconds})
+        self.context.update(
+            {
+                "service_name": service_name,
+                "downtime_seconds": downtime_seconds,
+            }
+        )
 
 
 class ConcurrencyError(SystemError):
     """并发错误"""
 
     def __init__(
-        self, message: str, max_concurrency: Optional[int] = None, current_concurrency: Optional[int] = None, **kwargs
+        self,
+        message: str,
+        max_concurrency: Optional[int] = None,
+        current_concurrency: Optional[int] = None,
+        **kwargs,
     ):
         super().__init__(message, severity=ErrorSeverity.HIGH, **kwargs)
         self.max_concurrency = max_concurrency
         self.current_concurrency = current_concurrency
-        self.context.update({"max_concurrency": max_concurrency, "current_concurrency": current_concurrency})
+        self.context.update(
+            {
+                "max_concurrency": max_concurrency,
+                "current_concurrency": current_concurrency,
+            }
+        )
 
 
 # ==================== 错误日志记录器 ====================
@@ -448,7 +569,9 @@ class ErrorLogger:
             category = error.category
             message = error.message
             context_data = error.context
-            original_error_str = str(error.original_error) if error.original_error else None
+            original_error_str = (
+                str(error.original_error) if error.original_error else None
+            )
         else:
             error_id = f"ERR_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
             error_type = error.__class__.__name__
@@ -460,7 +583,10 @@ class ErrorLogger:
 
         # 创建错误上下文
         context = ErrorContext(
-            operation=operation, component=component, metadata=context_data, stack_trace=traceback.format_exc()
+            operation=operation,
+            component=component,
+            metadata=context_data,
+            stack_trace=traceback.format_exc(),
         )
 
         # 创建错误记录
@@ -492,7 +618,10 @@ class ErrorLogger:
     def _write_to_log(self, record: ErrorRecord):
         """写入日志文件"""
         try:
-            log_file = self.log_dir / f"errors_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            log_file = (
+                self.log_dir
+                / f"errors_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            )
 
             log_entry = {
                 "error_id": record.error_id,
@@ -526,15 +655,21 @@ class ErrorLogger:
         for record in self.error_history:
             # 按严重程度统计
             severity = record.severity.value
-            stats["errors_by_severity"][severity] = stats["errors_by_severity"].get(severity, 0) + 1
+            stats["errors_by_severity"][severity] = (
+                stats["errors_by_severity"].get(severity, 0) + 1
+            )
 
             # 按类别统计
             category = record.category.value
-            stats["errors_by_category"][category] = stats["errors_by_category"].get(category, 0) + 1
+            stats["errors_by_category"][category] = (
+                stats["errors_by_category"].get(category, 0) + 1
+            )
 
             # 按类型统计
             error_type = record.error_type
-            stats["errors_by_type"][error_type] = stats["errors_by_type"].get(error_type, 0) + 1
+            stats["errors_by_type"][error_type] = (
+                stats["errors_by_type"].get(error_type, 0) + 1
+            )
 
         # 最近10个错误
         stats["recent_errors"] = [
@@ -579,12 +714,19 @@ class RecoveryManager:
     """恢复管理器"""
 
     def __init__(self):
-        self.recovery_stats = {"total_attempts": 0, "successful_recoveries": 0, "failed_recoveries": 0}
+        self.recovery_stats = {
+            "total_attempts": 0,
+            "successful_recoveries": 0,
+            "failed_recoveries": 0,
+        }
         self.last_good_results: Dict[str, Any] = {}
 
     def record_success(self, operation: str, result: Any):
         """记录成功的结果"""
-        self.last_good_results[operation] = {"result": result, "timestamp": datetime.now().isoformat()}
+        self.last_good_results[operation] = {
+            "result": result,
+            "timestamp": datetime.now().isoformat(),
+        }
 
     def get_last_good_result(self, operation: str) -> Optional[Any]:
         """获取上次成功的结果"""
@@ -604,7 +746,10 @@ class RecoveryManager:
         """获取恢复统计信息"""
         total = self.recovery_stats["total_attempts"]
         successful = self.recovery_stats["successful_recoveries"]
-        return {**self.recovery_stats, "success_rate": successful / total if total > 0 else 0.0}
+        return {
+            **self.recovery_stats,
+            "success_rate": successful / total if total > 0 else 0.0,
+        }
 
 
 # 全局恢复管理器实例
@@ -654,7 +799,9 @@ def retry_with_exponential_backoff(
                     last_exception = e
 
                     if attempt < max_retries:
-                        delay = min(base_delay * (backoff_factor**attempt), max_delay)
+                        delay = min(
+                            base_delay * (backoff_factor**attempt), max_delay
+                        )
 
                         logger.warning(
                             f"[Retry] {op_name} attempt {attempt + 1}/{max_retries + 1} failed: {e}, "
@@ -666,15 +813,21 @@ def retry_with_exponential_backoff(
 
                         time.sleep(delay)
                     else:
-                        logger.error(f"[Retry] {op_name} failed after {max_retries + 1} attempts: {e}")
+                        logger.error(
+                            f"[Retry] {op_name} failed after {max_retries + 1} attempts: {e}"
+                        )
 
                         if on_failure:
                             on_failure(e)
 
                         # 尝试使用上次成功的结果
-                        last_good = recovery_manager.get_last_good_result(op_name)
+                        last_good = recovery_manager.get_last_good_result(
+                            op_name
+                        )
                         if last_good is not None:
-                            logger.warning(f"[Fallback] Using last good result for {op_name}")
+                            logger.warning(
+                                f"[Fallback] Using last good result for {op_name}"
+                            )
                             recovery_manager.record_recovery_attempt(True)
                             return last_good
 
@@ -716,9 +869,14 @@ def safe_execute(
     except Exception as e:
         if log_errors:
             error_logger.log_error(
-                e, operation=op_name, component="safe_execute", recovery_strategy=RecoveryStrategy.FALLBACK_TO_DEFAULT
+                e,
+                operation=op_name,
+                component="safe_execute",
+                recovery_strategy=RecoveryStrategy.FALLBACK_TO_DEFAULT,
             )
-            logger.warning(f"[SafeExecute] {op_name} failed: {e}, using fallback value")
+            logger.warning(
+                f"[SafeExecute] {op_name} failed: {e}, using fallback value"
+            )
 
         return fallback_value
 
@@ -765,7 +923,9 @@ def handle_errors(
 
 
 def circuit_breaker(
-    failure_threshold: int = 5, recovery_timeout: float = 60.0, expected_exception: Type[Exception] = Exception
+    failure_threshold: int = 5,
+    recovery_timeout: float = 60.0,
+    expected_exception: Type[Exception] = Exception,
 ):
     """
     熔断器装饰器
@@ -788,12 +948,19 @@ def circuit_breaker(
 
             with lock:
                 if state == "open":
-                    if last_failure_time and (time.time() - last_failure_time) > recovery_timeout:
+                    if (
+                        last_failure_time
+                        and (time.time() - last_failure_time)
+                        > recovery_timeout
+                    ):
                         state = "half-open"
-                        logger.info(f"[CircuitBreaker] {func.__name__} entering half-open state")
+                        logger.info(
+                            f"[CircuitBreaker] {func.__name__} entering half-open state"
+                        )
                     else:
                         raise ServiceUnavailableError(
-                            f"Circuit breaker is open for {func.__name__}", service_name=func.__name__
+                            f"Circuit breaker is open for {func.__name__}",
+                            service_name=func.__name__,
                         )
 
             try:
@@ -803,7 +970,9 @@ def circuit_breaker(
                     if state == "half-open":
                         state = "closed"
                         failures = 0
-                        logger.info(f"[CircuitBreaker] {func.__name__} circuit closed")
+                        logger.info(
+                            f"[CircuitBreaker] {func.__name__} circuit closed"
+                        )
 
                 return result
 
@@ -814,7 +983,9 @@ def circuit_breaker(
 
                     if failures >= failure_threshold:
                         state = "open"
-                        logger.error(f"[CircuitBreaker] {func.__name__} circuit opened after {failures} failures")
+                        logger.error(
+                            f"[CircuitBreaker] {func.__name__} circuit opened after {failures} failures"
+                        )
 
                 raise
 
@@ -841,7 +1012,9 @@ def clear_error_history():
     error_logger.clear_history()
 
 
-def wrap_exception(exception: Exception, target_class: Type[PL5BaseError], **kwargs) -> PL5BaseError:
+def wrap_exception(
+    exception: Exception, target_class: Type[PL5BaseError], **kwargs
+) -> PL5BaseError:
     """
     将普通异常包装为PL5BaseError
 
@@ -853,7 +1026,9 @@ def wrap_exception(exception: Exception, target_class: Type[PL5BaseError], **kwa
     Returns:
         包装后的异常
     """
-    return target_class(message=str(exception), original_error=exception, **kwargs)
+    return target_class(
+        message=str(exception), original_error=exception, **kwargs
+    )
 
 
 # ==================== 导出 ====================

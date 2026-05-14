@@ -21,7 +21,6 @@ import json
 import logging
 import math
 import uuid
-from collections import deque
 from datetime import datetime
 from enum import Enum, IntEnum
 from pathlib import Path
@@ -33,8 +32,12 @@ from src.core.config import ModelConfig, get_model_config
 
 logger = logging.getLogger(__name__)
 
-_HISTORY_PATH = Path(__file__).parent.parent.parent / "models" / "learning_history.json"
-_SUGGESTION_HISTORY_PATH = Path(__file__).parent.parent.parent / "models" / "suggestion_history.json"
+_HISTORY_PATH = (
+    Path(__file__).parent.parent.parent / "models" / "learning_history.json"
+)
+_SUGGESTION_HISTORY_PATH = (
+    Path(__file__).parent.parent.parent / "models" / "suggestion_history.json"
+)
 
 _DEFAULT_RETRAIN_THRESHOLD = 0.02
 _DEFAULT_WINDOW_SIZE = 10
@@ -57,11 +60,17 @@ class SuggestionPriority(IntEnum):
 
     @property
     def label(self) -> str:
-        return {3: "\u7d27\u6025", 2: "\u91cd\u8981", 1: "\u5e38\u89c4"}[self.value]
+        return {3: "\u7d27\u6025", 2: "\u91cd\u8981", 1: "\u5e38\u89c4"}[
+            self.value
+        ]
 
     @property
     def color_tag(self) -> str:
-        return {3: "[\U0001f534\u7d27\u6025]", 2: "[\U0001f7e1\u91cd\u8981]", 1: "[\U0001f535\u5e38\u89c4]"}[self.value]
+        return {
+            3: "[\U0001f534\u7d27\u6025]",
+            2: "[\U0001f7e1\u91cd\u8981]",
+            1: "[\U0001f535\u5e38\u89c4]",
+        }[self.value]
 
 
 class SuggestionStatus(Enum):
@@ -160,11 +169,14 @@ class OptimizationSuggestion:
                 round(self.estimated_improvement_mid, 4),
                 round(self.estimated_improvement_high, 4),
             ],
-            "expected_gain_pct": round(self.estimated_improvement_mid * 100, 2),
+            "expected_gain_pct": round(
+                self.estimated_improvement_mid * 100, 2
+            ),
         }
         if self.source_metrics:
             d["source_metrics"] = {
-                k: round(v, 6) if isinstance(v, float) else v for k, v in self.source_metrics.items()
+                k: round(v, 6) if isinstance(v, float) else v
+                for k, v in self.source_metrics.items()
             }
         return d
 
@@ -173,9 +185,16 @@ class OptimizationSuggestion:
         lines.append(f"{self.priority.color_tag} {self.title}")
         if self.parameter_name and self.recommended_value is not None:
             range_str = ""
-            if self.value_range_min is not None and self.value_range_max is not None:
+            if (
+                self.value_range_min is not None
+                and self.value_range_max is not None
+            ):
                 range_str = f" (\u5408\u7406\u8303\u56f4: {self.value_range_min}{self.unit} ~ {self.value_range_max}{self.unit})"
-            cur_str = f"{self.current_value}{self.unit}" if self.current_value is not None else "\u672a\u77e5"
+            cur_str = (
+                f"{self.current_value}{self.unit}"
+                if self.current_value is not None
+                else "\u672a\u77e5"
+            )
             lines.append(
                 f"  \u53c2\u6570: {self.parameter_name} | \u5f53\u524d\u503c: {cur_str} -> "
                 f"\u63a8\u8350\u503c: {self.recommended_value}{self.unit}{range_str}"
@@ -183,7 +202,9 @@ class OptimizationSuggestion:
         effect = f"+{self.estimated_improvement_mid*100:.1f}%"
         ci = f"[{self.estimated_improvement_low*100:.1f}%, +{self.estimated_improvement_high*100:.1f}%]"
         conf = f"\u7f6e\u4fe5\u5ea6: {self.confidence_level*100:.0f}%"
-        lines.append(f"  \u9884\u4f30\u6548\u679c: {effect} (95%CI: {ci}) | {conf}")
+        lines.append(
+            f"  \u9884\u4f30\u6548\u679c: {effect} (95%CI: {ci}) | {conf}"
+        )
         if self.reasoning:
             lines.append(f"  \u4f9d\u636e: {self.reasoning}")
         return "\n".join(lines)
@@ -286,14 +307,20 @@ class SelfLearningSystem:
         _mc = model_config or get_model_config()
         sl_cfg = _mc.self_learning_config()
 
-        self.window = window if window != _DEFAULT_WINDOW_SIZE else sl_cfg.get("window", _DEFAULT_WINDOW_SIZE)
+        self.window = (
+            window
+            if window != _DEFAULT_WINDOW_SIZE
+            else sl_cfg.get("window", _DEFAULT_WINDOW_SIZE)
+        )
         self.retrain_threshold = (
             retrain_threshold
             if retrain_threshold != _DEFAULT_RETRAIN_THRESHOLD
             else sl_cfg.get("retrain_threshold", _DEFAULT_RETRAIN_THRESHOLD)
         )
         self.min_history = (
-            min_history if min_history != _DEFAULT_MIN_HISTORY else sl_cfg.get("min_history", _DEFAULT_MIN_HISTORY)
+            min_history
+            if min_history != _DEFAULT_MIN_HISTORY
+            else sl_cfg.get("min_history", _DEFAULT_MIN_HISTORY)
         )
         self.volatility_factor = (
             volatility_factor
@@ -326,7 +353,9 @@ class SelfLearningSystem:
                     self.learning_history = raw
                 else:
                     self.learning_history = []
-                logger.info(f"[SelfLearning V10] Loaded {len(self.learning_history)} evaluation records")
+                logger.info(
+                    f"[SelfLearning V10] Loaded {len(self.learning_history)} evaluation records"
+                )
         except Exception as exc:
             logger.warning(f"[SelfLearning V10] Failed to load history: {exc}")
             self.learning_history = []
@@ -335,14 +364,18 @@ class SelfLearningSystem:
         try:
             _HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
             with open(_HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.learning_history, f, ensure_ascii=False, indent=2)
+                json.dump(
+                    self.learning_history, f, ensure_ascii=False, indent=2
+                )
         except Exception as exc:
             logger.warning(f"[SelfLearning V10] Failed to save history: {exc}")
 
     def _load_suggestion_history(self) -> None:
         try:
             if _SUGGESTION_HISTORY_PATH.exists():
-                with open(_SUGGESTION_HISTORY_PATH, "r", encoding="utf-8") as f:
+                with open(
+                    _SUGGESTION_HISTORY_PATH, "r", encoding="utf-8"
+                ) as f:
                     raw = json.load(f)
                 if isinstance(raw, list):
                     self.suggestion_history = raw
@@ -350,18 +383,26 @@ class SelfLearningSystem:
                     self.suggestion_history = raw.get("suggestions", [])
                 else:
                     self.suggestion_history = []
-                logger.info(f"[SelfLearning V10] Loaded {len(self.suggestion_history)} suggestion records")
+                logger.info(
+                    f"[SelfLearning V10] Loaded {len(self.suggestion_history)} suggestion records"
+                )
         except Exception as exc:
-            logger.warning(f"[SelfLearning V10] Failed to load suggestion history: {exc}")
+            logger.warning(
+                f"[SelfLearning V10] Failed to load suggestion history: {exc}"
+            )
             self.suggestion_history = []
 
     def _save_suggestion_history(self) -> None:
         try:
             _SUGGESTION_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
             with open(_SUGGESTION_HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.suggestion_history, f, ensure_ascii=False, indent=2)
+                json.dump(
+                    self.suggestion_history, f, ensure_ascii=False, indent=2
+                )
         except Exception as exc:
-            logger.warning(f"[SelfLearning V10] Failed to save suggestion history: {exc}")
+            logger.warning(
+                f"[SelfLearning V10] Failed to save suggestion history: {exc}"
+            )
 
     def record_evaluation(
         self,
@@ -399,7 +440,9 @@ class SelfLearningSystem:
                     f"status={status.value}, effect={actual_effect}"
                 )
                 return True
-        logger.warning(f"[SelfLearning V10] Suggestion not found: {suggestion_id}")
+        logger.warning(
+            f"[SelfLearning V10] Suggestion not found: {suggestion_id}"
+        )
         return False
 
     def get_suggestion_history(
@@ -409,20 +452,30 @@ class SelfLearningSystem:
     ) -> List[Dict[str, Any]]:
         records = list(self.suggestion_history)
         if status_filter:
-            records = [r for r in records if r.get("status") == status_filter.value]
+            records = [
+                r for r in records if r.get("status") == status_filter.value
+            ]
         records.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return records[:limit]
 
     def get_suggestion_statistics(self) -> Dict[str, Any]:
         total = len(self.suggestion_history)
-        applied = sum(1 for r in self.suggestion_history if r.get("status") == "applied")
-        rejected = sum(1 for r in self.suggestion_history if r.get("status") == "rejected")
-        pending = sum(1 for r in self.suggestion_history if r.get("status") == "pending")
+        applied = sum(
+            1 for r in self.suggestion_history if r.get("status") == "applied"
+        )
+        rejected = sum(
+            1 for r in self.suggestion_history if r.get("status") == "rejected"
+        )
+        pending = sum(
+            1 for r in self.suggestion_history if r.get("status") == "pending"
+        )
 
         effects = [
             r["actual_effect"]
             for r in self.suggestion_history
-            if r.get("status") == "applied" and "actual_effect" in r and r["actual_effect"] is not None
+            if r.get("status") == "applied"
+            and "actual_effect" in r
+            and r["actual_effect"] is not None
         ]
 
         stats = {
@@ -430,7 +483,9 @@ class SelfLearningSystem:
             "applied_count": applied,
             "rejected_count": rejected,
             "pending_count": pending,
-            "adoption_rate": round(applied / total * 100, 1) if total > 0 else 0.0,
+            "adoption_rate": (
+                round(applied / total * 100, 1) if total > 0 else 0.0
+            ),
         }
 
         if effects:
@@ -438,11 +493,16 @@ class SelfLearningSystem:
             stats.update(
                 {
                     "avg_actual_effect": round(float(np.mean(effects_arr)), 6),
-                    "median_actual_effect": round(float(np.median(effects_arr)), 6),
+                    "median_actual_effect": round(
+                        float(np.median(effects_arr)), 6
+                    ),
                     "max_actual_effect": round(float(np.max(effects_arr)), 6),
                     "min_actual_effect": round(float(np.min(effects_arr)), 6),
                     "effect_sample_size": len(effects),
-                    "positive_effect_rate": round(sum(1 for e in effects if e > 0) / len(effects) * 100, 1),
+                    "positive_effect_rate": round(
+                        sum(1 for e in effects if e > 0) / len(effects) * 100,
+                        1,
+                    ),
                 }
             )
         else:
@@ -491,7 +551,12 @@ class SelfLearningSystem:
     def mann_kendall_test(series: List[float]) -> Dict[str, Any]:
         n = len(series)
         if n < 4:
-            return {"tau": 0.0, "p_value": 1.0, "trend": "unknown", "significance": False}
+            return {
+                "tau": 0.0,
+                "p_value": 1.0,
+                "trend": "unknown",
+                "significance": False,
+            }
 
         s = 0
         for i in range(n - 1):
@@ -504,7 +569,12 @@ class SelfLearningSystem:
 
         var_s = n * (n - 1) * (2 * n + 5) / 18.0
         if var_s == 0:
-            return {"tau": 0.0, "p_value": 1.0, "trend": "stable", "significance": False}
+            return {
+                "tau": 0.0,
+                "p_value": 1.0,
+                "trend": "stable",
+                "significance": False,
+            }
 
         z = (s - np.sign(s)) / math.sqrt(var_s) if s != 0 else 0.0
         from math import erf, sqrt
@@ -535,7 +605,9 @@ class SelfLearningSystem:
         hist = history or self.learning_history[-self.window :]
         accs = [r.get("accuracy", 0.0) for r in hist if "accuracy" in r]
         hit_rates = [r.get("hit_rate", 0.0) for r in hist if "hit_rate" in r]
-        confidences = [r.get("confidence", 0.0) for r in hist if "confidence" in r]
+        confidences = [
+            r.get("confidence", 0.0) for r in hist if "confidence" in r
+        ]
 
         if not accs:
             return {
@@ -554,7 +626,12 @@ class SelfLearningSystem:
         stability = 1.0 / (1.0 + std_acc * 10)
 
         w_acc, w_hit, w_conf, w_stab = 0.40, 0.20, 0.20, 0.20
-        score = w_acc * avg_acc * 2.0 + w_hit * avg_hit + w_conf * avg_conf + w_stab * stability
+        score = (
+            w_acc * avg_acc * 2.0
+            + w_hit * avg_hit
+            + w_conf * avg_conf
+            + w_stab * stability
+        )
         score = max(0.0, min(1.0, score))
 
         available = []
@@ -600,11 +677,15 @@ class SelfLearningSystem:
 
         if current_acc <= self.urgent_accuracy:
             alert_level = AlertLevel.URGENT
-            reasons.append(f"URGENT: current accuracy {current_acc:.4f} below urgent line {self.urgent_accuracy}")
+            reasons.append(
+                f"URGENT: current accuracy {current_acc:.4f} below urgent line {self.urgent_accuracy}"
+            )
         elif current_acc <= self.warning_accuracy:
             if alert_level != AlertLevel.URGENT:
                 alert_level = AlertLevel.WARNING
-            reasons.append(f"WARNING: current accuracy {current_acc:.4f} below warning line {self.warning_accuracy}")
+            reasons.append(
+                f"WARNING: current accuracy {current_acc:.4f} below warning line {self.warning_accuracy}"
+            )
 
         if trend in ("declining", "decreasing"):
             is_significant = mk_result.get("significant", False)
@@ -617,7 +698,9 @@ class SelfLearningSystem:
             )
             if is_significant and current_acc < 0.15:
                 alert_level = AlertLevel.URGENT
-                reasons.append("Significant declining trend with low accuracy -> upgraded to URGENT")
+                reasons.append(
+                    "Significant declining trend with low accuracy -> upgraded to URGENT"
+                )
 
         if comp_score["comprehensive_score"] < 0.15:
             if alert_level.value < AlertLevel.WARNING.value:
@@ -645,7 +728,12 @@ class SelfLearningSystem:
         accs = [r["accuracy"] for r in recent if "accuracy" in r]
         if len(accs) >= 4:
             return self.mann_kendall_test(accs)
-        return {"tau": 0.0, "p_value": 1.0, "trend": "unknown", "significance": False}
+        return {
+            "tau": 0.0,
+            "p_value": 1.0,
+            "trend": "unknown",
+            "significance": False,
+        }
 
     def evaluate_recent_performance(self, window: int = 0) -> Dict[str, Any]:
         w = window or self.window
@@ -655,7 +743,11 @@ class SelfLearningSystem:
         if not recent:
             return {
                 "total_records": total,
-                "recent_performance": {"accuracy": 0.0, "trend": "unknown", "count": 0},
+                "recent_performance": {
+                    "accuracy": 0.0,
+                    "trend": "unknown",
+                    "count": 0,
+                },
                 "accuracy": 0.0,
                 "trend": "unknown",
                 "count": 0,
@@ -665,7 +757,11 @@ class SelfLearningSystem:
         if not accs:
             return {
                 "total_records": total,
-                "recent_performance": {"accuracy": 0.0, "trend": "unknown", "count": 0},
+                "recent_performance": {
+                    "accuracy": 0.0,
+                    "trend": "unknown",
+                    "count": 0,
+                },
                 "accuracy": 0.0,
                 "trend": "unknown",
                 "count": 0,
@@ -705,10 +801,15 @@ class SelfLearningSystem:
 
     def should_trigger_retrain(self) -> Tuple[bool, str]:
         if len(self.learning_history) < self.min_history:
-            return False, f"Insufficient history ({len(self.learning_history)} < {self.min_history})"
+            return (
+                False,
+                f"Insufficient history ({len(self.learning_history)} < {self.min_history})",
+            )
 
         recent = self.evaluate_recent_performance()
-        early = self.evaluate_recent_performance(window=max(1, self.window // 2))
+        early = self.evaluate_recent_performance(
+            window=max(1, self.window // 2)
+        )
         dyn_thresh_info = self.calculate_dynamic_threshold()
         dyn_threshold = dyn_thresh_info["dynamic_threshold"]
         mk = self._mk_trend_recent()
@@ -731,7 +832,9 @@ class SelfLearningSystem:
                     f"low comprehensive score({comp['comprehensive_score']:.4f}), recommend retraining"
                 )
 
-        all_accs = [r["accuracy"] for r in self.learning_history if "accuracy" in r]
+        all_accs = [
+            r["accuracy"] for r in self.learning_history if "accuracy" in r
+        ]
         if len(all_accs) >= 2 * self.min_history:
             hist_avg = float(np.mean(all_accs[: -self.window]))
             drop = hist_avg - recent["accuracy"]
@@ -772,7 +875,9 @@ class SelfLearningSystem:
 
         if mk["trend"] in ("decreasing", "declining"):
             if mk["significant"]:
-                low, mid, high, conf = self._estimate_optimization_effect("retraining_full", current_acc, hist_stats)
+                low, mid, high, conf = self._estimate_optimization_effect(
+                    "retraining_full", current_acc, hist_stats
+                )
                 suggestions.append(
                     f"[URGENT] Significant declining trend detected (tau={mk['tau']:.4f}). "
                     f"Recommended: Full retraining with expanded ensemble. "
@@ -780,7 +885,9 @@ class SelfLearningSystem:
                 )
 
         if current_acc < 0.12:
-            low, mid, high, conf = self._estimate_optimization_effect("data_quality_fix", current_acc, hist_stats)
+            low, mid, high, conf = self._estimate_optimization_effect(
+                "data_quality_fix", current_acc, hist_stats
+            )
             suggestions.append(
                 f"[CRITICAL] Very low accuracy ({current_acc:.4f}). "
                 f"Recommended: Check data quality and preprocessing pipeline. "
@@ -794,7 +901,11 @@ class SelfLearningSystem:
             )
 
         if drop_pct > 0.05:
-            priority_str = "[URGENT]" if priority == SuggestionPriority.URGENT else "[IMPORTANT]"
+            priority_str = (
+                "[URGENT]"
+                if priority == SuggestionPriority.URGENT
+                else "[IMPORTANT]"
+            )
             suggestions.append(
                 f"{priority_str} Accuracy drop of {drop_pct*100:.1f}% from peak ({peak_acc:.4f} -> {current_acc:.4f}). "
                 f"Consider adaptive learning rate or feature re-selection."
@@ -807,15 +918,22 @@ class SelfLearningSystem:
 
         if not suggestions:
             suggestions.append(
-                f"[INFO] System performance is stable. " f"Recent accuracy: {current_acc:.4f}, trend: {mk['trend']}"
+                f"[INFO] System performance is stable. "
+                f"Recent accuracy: {current_acc:.4f}, trend: {mk['trend']}"
             )
 
         return suggestions
 
-    def _determine_priority(self, accuracy_drop_pct: float, current_acc: float, trend: str) -> SuggestionPriority:
+    def _determine_priority(
+        self, accuracy_drop_pct: float, current_acc: float, trend: str
+    ) -> SuggestionPriority:
         if accuracy_drop_pct > 0.10 or current_acc <= self.urgent_accuracy:
             return SuggestionPriority.URGENT
-        if accuracy_drop_pct > 0.05 or current_acc <= self.warning_accuracy or trend in ("decreasing", "declining"):
+        if (
+            accuracy_drop_pct > 0.05
+            or current_acc <= self.warning_accuracy
+            or trend in ("decreasing", "declining")
+        ):
             return SuggestionPriority.IMPORTANT
         return SuggestionPriority.REGULAR
 
@@ -855,7 +973,10 @@ class SelfLearningSystem:
         mid *= scale
         high *= scale
 
-        if historical_stats and historical_stats.get("avg_actual_effect") is not None:
+        if (
+            historical_stats
+            and historical_stats.get("avg_actual_effect") is not None
+        ):
             hist_eff = abs(historical_stats["avg_actual_effect"])
             pos_rate = historical_stats.get("positive_effect_rate", 50) / 100.0
             mid = mid * 0.4 + hist_eff * 0.6
@@ -867,7 +988,9 @@ class SelfLearningSystem:
         return round(low, 4), round(mid, 4), round(high, 4), round(conf, 3)
 
     def _compute_accuracy_drop(self) -> Tuple[float, float, float]:
-        all_accs = [r["accuracy"] for r in self.learning_history if "accuracy" in r]
+        all_accs = [
+            r["accuracy"] for r in self.learning_history if "accuracy" in r
+        ]
         if len(all_accs) < 3:
             return 0.0, 0.0, 0.0
 
@@ -895,7 +1018,9 @@ class SelfLearningSystem:
         trend = mk.get("trend", "unknown")
         drop_abs, drop_pct, peak = self._compute_accuracy_drop()
         priority = self._determine_priority(drop_pct, acc, trend)
-        hist_stats = self._get_similar_historical_stats(category_prefix="param")
+        hist_stats = self._get_similar_historical_stats(
+            category_prefix="param"
+        )
 
         for param_name, knowledge in _PARAMETER_KNOWLEDGE_BASE.items():
             default_val = knowledge["default"]
@@ -941,7 +1066,9 @@ class SelfLearningSystem:
             range_hi = min(knowledge["max"], rec_val + range_margin)
 
             cat_key = f"{param_name}_{action}"
-            eff_low, eff_mid, eff_high, eff_conf = self._estimate_optimization_effect(cat_key, acc, hist_stats)
+            eff_low, eff_mid, eff_high, eff_conf = (
+                self._estimate_optimization_effect(cat_key, acc, hist_stats)
+            )
 
             sug = OptimizationSuggestion(
                 category=f"parameter_{param_name}",
@@ -987,10 +1114,14 @@ class SelfLearningSystem:
         std = perf["std"]
         trend = mk.get("trend", "unknown")
         drop_abs, drop_pct, peak = self._compute_accuracy_drop()
-        hist_stats = self._get_similar_historical_stats(category_prefix="model")
+        hist_stats = self._get_similar_historical_stats(
+            category_prefix="model"
+        )
 
         if alert["alert_level"] == AlertLevel.URGENT.value:
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("retraining_full", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "retraining_full", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="model_retraining",
@@ -1008,11 +1139,19 @@ class SelfLearningSystem:
                         f"accuracy={acc:.4f} below urgent line {self.urgent_accuracy}, "
                         f"dropped {drop_pct*100:.1f}% from peak {peak:.4f}"
                     ),
-                    source_metrics={"accuracy": acc, "alert_level": alert["alert_level"], "drop_pct": drop_pct},
+                    source_metrics={
+                        "accuracy": acc,
+                        "alert_level": alert["alert_level"],
+                        "drop_pct": drop_pct,
+                    },
                 )
             )
 
-            eff_l2, eff_m2, eff_h2, eff_c2 = self._estimate_optimization_effect("data_quality_fix", acc, hist_stats)
+            eff_l2, eff_m2, eff_h2, eff_c2 = (
+                self._estimate_optimization_effect(
+                    "data_quality_fix", acc, hist_stats
+                )
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="data_quality",
@@ -1032,9 +1171,17 @@ class SelfLearningSystem:
             )
 
         if trend in ("declining", "decreasing"):
-            sig_mark = "(statistically significant)" if mk.get("significant") else ""
-            pri = SuggestionPriority.IMPORTANT if drop_pct <= 0.10 else SuggestionPriority.URGENT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("incremental_learning", acc, hist_stats)
+            sig_mark = (
+                "(statistically significant)" if mk.get("significant") else ""
+            )
+            pri = (
+                SuggestionPriority.IMPORTANT
+                if drop_pct <= 0.10
+                else SuggestionPriority.URGENT
+            )
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "incremental_learning", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="strategy_incremental",
@@ -1060,7 +1207,9 @@ class SelfLearningSystem:
 
         if std > 0.06:
             pri = self._determine_priority(drop_pct, acc, trend)
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("regularization", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "regularization", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="stability_regularization",
@@ -1082,7 +1231,9 @@ class SelfLearningSystem:
 
         if acc < 0.10:
             pri = SuggestionPriority.URGENT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("feature_engineering", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "feature_engineering", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="model_diagnosis",
@@ -1104,7 +1255,9 @@ class SelfLearningSystem:
             )
         elif acc < 0.18:
             pri = SuggestionPriority.IMPORTANT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("feature_engineering", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "feature_engineering", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="feature_enhancement",
@@ -1125,7 +1278,9 @@ class SelfLearningSystem:
             )
         elif acc > 0.35:
             pri = SuggestionPriority.REGULAR
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("ensemble_expansion", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "ensemble_expansion", acc, hist_stats
+            )
             suggestions.append(
                 OptimizationSuggestion(
                     category="performance_fine_tuning",
@@ -1148,13 +1303,17 @@ class SelfLearningSystem:
 
         if comp["comprehensive_score"] < 0.20 and acc > 0.15:
             pri = SuggestionPriority.IMPORTANT
-            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect("cross_validation", acc, hist_stats)
+            eff_l, eff_m, eff_h, eff_c = self._estimate_optimization_effect(
+                "cross_validation", acc, hist_stats
+            )
             missing = []
             if "hit_rate" not in comp.get("metrics_available", []):
                 missing.append("hit_rate")
             if "confidence" not in comp.get("metrics_available", []):
                 missing.append("confidence")
-            miss_text = f", missing {', '.join(missing)} records" if missing else ""
+            miss_text = (
+                f", missing {', '.join(missing)} records" if missing else ""
+            )
 
             suggestions.append(
                 OptimizationSuggestion(
@@ -1170,20 +1329,27 @@ class SelfLearningSystem:
                     estimated_improvement_high=eff_h,
                     confidence_level=eff_c,
                     reasoning=f"Comprehensive score={comp['comprehensive_score']:.4f}<0.20 threshold, available metrics={comp.get('metrics_available', [])}",
-                    source_metrics={"comprehensive_score": comp["comprehensive_score"], "accuracy": acc},
+                    source_metrics={
+                        "comprehensive_score": comp["comprehensive_score"],
+                        "accuracy": acc,
+                    },
                 )
             )
 
         return suggestions
 
-    def _get_similar_historical_stats(self, category_prefix: str = "") -> Optional[Dict[str, float]]:
+    def _get_similar_historical_stats(
+        self, category_prefix: str = ""
+    ) -> Optional[Dict[str, float]]:
         relevant = [
             r
             for r in self.suggestion_history
             if r.get("status") == "applied"
             and "actual_effect" in r
             and r["actual_effect"] is not None
-            and (not category_prefix or category_prefix in r.get("category", ""))
+            and (
+                not category_prefix or category_prefix in r.get("category", "")
+            )
         ]
         if not relevant:
             return None
@@ -1192,7 +1358,8 @@ class SelfLearningSystem:
             "avg_actual_effect": float(np.mean(effects)),
             "median_actual_effect": float(np.median(effects)),
             "effect_sample_size": len(effects),
-            "positive_effect_rate": sum(1 for e in effects if e > 0) / len(effects),
+            "positive_effect_rate": sum(1 for e in effects if e > 0)
+            / len(effects),
         }
 
     def generate_structured_suggestions(self) -> List[OptimizationSuggestion]:
@@ -1217,11 +1384,18 @@ class SelfLearningSystem:
             self._persist_suggestions(suggestions)
             return suggestions
 
-        param_sugs = self._generate_parameter_suggestions(perf, mk, comp, alert)
-        model_sugs = self._generate_data_and_model_suggestions(perf, mk, comp, alert)
+        param_sugs = self._generate_parameter_suggestions(
+            perf, mk, comp, alert
+        )
+        model_sugs = self._generate_data_and_model_suggestions(
+            perf, mk, comp, alert
+        )
 
         all_sugs = param_sugs + model_sugs
-        all_sugs.sort(key=lambda s: (s.priority.value, -s.estimated_improvement_mid), reverse=True)
+        all_sugs.sort(
+            key=lambda s: (s.priority.value, -s.estimated_improvement_mid),
+            reverse=True,
+        )
 
         seen_categories = set()
         for sug in all_sugs:
@@ -1232,7 +1406,9 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
-    def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
+    def _persist_suggestions(
+        self, suggestions: List[OptimizationSuggestion]
+    ) -> None:
         """持久化建议到历史记录。
 
         内容级去重策略（修复V10.3堆积BUG）：
@@ -1266,10 +1442,20 @@ class SelfLearningSystem:
         # 容量控制：保留 ≤200 条
         if len(self.suggestion_history) > 200:
             # 优先保留所有 pending 记录
-            pending = [r for r in self.suggestion_history if r.get("status") == "pending"]
-            others = [r for r in self.suggestion_history if r.get("status") != "pending"]
+            pending = [
+                r
+                for r in self.suggestion_history
+                if r.get("status") == "pending"
+            ]
+            others = [
+                r
+                for r in self.suggestion_history
+                if r.get("status") != "pending"
+            ]
             # 按 timestamp 排序，淘汰最老的 applied/rejected/expired
-            others_sorted = sorted(others, key=lambda r: r.get("timestamp", ""), reverse=True)
+            others_sorted = sorted(
+                others, key=lambda r: r.get("timestamp", ""), reverse=True
+            )
             # 最多保留 (200 - pending数) 条其他状态
             keep_others = 200 - len(pending)
             self.suggestion_history = pending + others_sorted[:keep_others]
@@ -1281,7 +1467,11 @@ class SelfLearningSystem:
         cat = record.get("category", "")
         param = record.get("parameter", {})
         param_name = param.get("name", "") if isinstance(param, dict) else ""
-        recommended = param.get("recommended_value", "") if isinstance(param, dict) else ""
+        recommended = (
+            param.get("recommended_value", "")
+            if isinstance(param, dict)
+            else ""
+        )
         return f"{cat}|{param_name}|{recommended}"
 
     # =====================================================================
@@ -1313,33 +1503,48 @@ class SelfLearningSystem:
                     break
         elif category:
             for r in reversed(self.suggestion_history):
-                if r.get("category") == category and r.get("status") == "pending":
+                if (
+                    r.get("category") == category
+                    and r.get("status") == "pending"
+                ):
                     target = r
                     break
 
         if not target:
-            return {"applied": False, "message": f"未找到 pending 建议: id={suggestion_id}, cat={category}"}
+            return {
+                "applied": False,
+                "message": f"未找到 pending 建议: id={suggestion_id}, cat={category}",
+            }
 
         if target.get("status") == "applied":
-            return {"applied": False, "message": f"建议已应用过: {target.get('id')}"}
+            return {
+                "applied": False,
+                "message": f"建议已应用过: {target.get('id')}",
+            }
 
         cat = target.get("category", "")
         param = target.get("parameter", {})
         param_name = param.get("name", "") if isinstance(param, dict) else ""
-        recommended = param.get("recommended_value") if isinstance(param, dict) else None
+        recommended = (
+            param.get("recommended_value") if isinstance(param, dict) else None
+        )
 
         result = {
             "suggestion_id": target.get("id"),
             "category": cat,
             "parameter": param_name,
-            "current_value": param.get("current_value") if isinstance(param, dict) else None,
+            "current_value": (
+                param.get("current_value") if isinstance(param, dict) else None
+            ),
             "recommended_value": recommended,
             "dry_run": dry_run,
         }
 
         if dry_run:
             result["applied"] = True
-            result["message"] = f"[dry-run] 将更新 {param_name}: {param.get('current_value')} → {recommended}"
+            result["message"] = (
+                f"[dry-run] 将更新 {param_name}: {param.get('current_value')} → {recommended}"
+            )
             return result
 
         # 2. 应用参数修改（修复 V10.3：正确使用 ModelConfig.set() API）
@@ -1356,7 +1561,9 @@ class SelfLearningSystem:
         if param_name and recommended is not None:
             try:
                 config = get_model_config()
-                cfg_key = _PARAM_KEY_MAP.get(param_name, f"stacking.base_config.{param_name}")
+                cfg_key = _PARAM_KEY_MAP.get(
+                    param_name, f"stacking.base_config.{param_name}"
+                )
                 if config.get(cfg_key) is not None:
                     old_val = config.get(cfg_key)
                     # max_depth 验证要求 int，对小数取整
@@ -1367,18 +1574,29 @@ class SelfLearningSystem:
                     config.set(cfg_key, new_val)
                     config.save()  # 持久化到 model_config.yaml
                     updated_params[cfg_key] = {"old": old_val, "new": new_val}
-                    logger.info(f"[SelfLearning V10] 应用建议: {cfg_key} {old_val} → {recommended}")
+                    logger.info(
+                        f"[SelfLearning V10] 应用建议: {cfg_key} {old_val} → {recommended}"
+                    )
                 else:
                     # 参数不在标准路径，尝试直接写入
                     if config.get(param_name) is not None:
                         old_val = config.get(param_name)
-                        new_val = round(float(recommended)) if param_name == "max_depth" else float(recommended)
+                        new_val = (
+                            round(float(recommended))
+                            if param_name == "max_depth"
+                            else float(recommended)
+                        )
                         config.set(param_name, new_val)
                         config.save()
-                        updated_params[param_name] = {"old": old_val, "new": new_val}
+                        updated_params[param_name] = {
+                            "old": old_val,
+                            "new": new_val,
+                        }
                     else:
                         result["applied"] = False
-                        result["message"] = f"参数 {param_name}(key={cfg_key}) 不在 ModelConfig 中，跳过"
+                        result["message"] = (
+                            f"参数 {param_name}(key={cfg_key}) 不在 ModelConfig 中，跳过"
+                        )
                         return result
             except Exception as exc:
                 result["applied"] = False
@@ -1395,7 +1613,9 @@ class SelfLearningSystem:
         self._save_suggestion_history()
 
         result["applied"] = True
-        result["message"] = f"已应用建议 {target.get('id')}，参数: {updated_params}"
+        result["message"] = (
+            f"已应用建议 {target.get('id')}，参数: {updated_params}"
+        )
         result["params_updated"] = updated_params
         return result
 
@@ -1421,15 +1641,24 @@ class SelfLearningSystem:
         返回:
             {"applied": [dict], "skipped": [dict], "dry_run": bool}
         """
-        pending = [r for r in self.suggestion_history if r.get("status") == "pending"]
+        pending = [
+            r for r in self.suggestion_history if r.get("status") == "pending"
+        ]
         if not pending:
-            return {"applied": [], "skipped": [], "dry_run": dry_run, "message": "无 pending 建议"}
+            return {
+                "applied": [],
+                "skipped": [],
+                "dry_run": dry_run,
+                "message": "无 pending 建议",
+            }
 
         applied_list = []
         skipped_list = []
 
         # 按 confidence_level 降序排列，优先应用高置信
-        pending_sorted = sorted(pending, key=lambda r: -r.get("confidence_level", 0))
+        pending_sorted = sorted(
+            pending, key=lambda r: -r.get("confidence_level", 0)
+        )
 
         for record in pending_sorted:
             conf = record.get("confidence_level", 0)
@@ -1461,7 +1690,9 @@ class SelfLearningSystem:
                 continue
 
             # 尝试应用
-            res = self.apply_suggestion(suggestion_id=record.get("id"), dry_run=dry_run)
+            res = self.apply_suggestion(
+                suggestion_id=record.get("id"), dry_run=dry_run
+            )
             if res.get("applied"):
                 applied_list.append(res)
             else:
@@ -1498,9 +1729,15 @@ class SelfLearningSystem:
             text_lines.append("System running stably, all metrics normal")
             return text_lines
 
-        urgent_count = sum(1 for s in structured if s.priority == SuggestionPriority.URGENT)
-        important_count = sum(1 for s in structured if s.priority == SuggestionPriority.IMPORTANT)
-        regular_count = sum(1 for s in structured if s.priority == SuggestionPriority.REGULAR)
+        urgent_count = sum(
+            1 for s in structured if s.priority == SuggestionPriority.URGENT
+        )
+        important_count = sum(
+            1 for s in structured if s.priority == SuggestionPriority.IMPORTANT
+        )
+        regular_count = sum(
+            1 for s in structured if s.priority == SuggestionPriority.REGULAR
+        )
 
         text_lines.append(f"=== V10.0 Optimization Suggestion Report ===")
         text_lines.append(
@@ -1509,13 +1746,17 @@ class SelfLearningSystem:
         text_lines.append("")
 
         for i, sug in enumerate(structured, 1):
-            text_lines.append(f"--- Suggestion #{i} [{sug.priority.label}] ---")
+            text_lines.append(
+                f"--- Suggestion #{i} [{sug.priority.label}] ---"
+            )
             text_lines.append(sug.to_display_text())
             text_lines.append("")
 
         stats = self.get_suggestion_statistics()
         if stats["effect_sample_size"] > 0:
-            text_lines.append("--- Historical Suggestion Effect Statistics ---")
+            text_lines.append(
+                "--- Historical Suggestion Effect Statistics ---"
+            )
             text_lines.append(
                 f"Adoption rate: {stats['adoption_rate']}% | "
                 f"Avg actual effect: {stats['avg_actual_effect']} | "

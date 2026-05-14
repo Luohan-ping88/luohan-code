@@ -1,7 +1,6 @@
 """执行记忆实现"""
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime
 
 from .base import BaseMemory
 from ..ai_types import MemoryConfig, MemoryType, ExecutionRecord
@@ -82,7 +81,9 @@ class ExecutionMemory(BaseMemory):
             执行记录列表
         """
         # 过滤过期记录
-        return [record for record in self._store if not self._check_expiry(record)]
+        return [
+            record for record in self._store if not self._check_expiry(record)
+        ]
 
     def remove(self, key: Any) -> bool:
         """移除执行记录
@@ -103,7 +104,9 @@ class ExecutionMemory(BaseMemory):
         if isinstance(key, str):
             # 按工具名称移除所有记录
             original_length = len(self._store)
-            self._store = [record for record in self._store if record.tool_name != key]
+            self._store = [
+                record for record in self._store if record.tool_name != key
+            ]
             return len(self._store) < original_length
 
         return False
@@ -124,7 +127,13 @@ class ExecutionMemory(BaseMemory):
             执行记录数量
         """
         # 过滤过期记录
-        return len([record for record in self._store if not self._check_expiry(record)])
+        return len(
+            [
+                record
+                for record in self._store
+                if not self._check_expiry(record)
+            ]
+        )
 
     def get_last_n_records(self, n: int) -> List[ExecutionRecord]:
         """获取最近的n条执行记录
@@ -162,7 +171,9 @@ class ExecutionMemory(BaseMemory):
         records = self.get_all()
 
         if tool_name:
-            records = [record for record in records if record.tool_name == tool_name]
+            records = [
+                record for record in records if record.tool_name == tool_name
+            ]
 
         if not records:
             return 0.0
@@ -170,7 +181,9 @@ class ExecutionMemory(BaseMemory):
         success_count = sum(1 for record in records if record.result.success)
         return success_count / len(records)
 
-    def get_average_execution_time(self, tool_name: Optional[str] = None) -> float:
+    def get_average_execution_time(
+        self, tool_name: Optional[str] = None
+    ) -> float:
         """获取平均执行时间
 
         Args:
@@ -182,7 +195,9 @@ class ExecutionMemory(BaseMemory):
         records = self.get_all()
 
         if tool_name:
-            records = [record for record in records if record.tool_name == tool_name]
+            records = [
+                record for record in records if record.tool_name == tool_name
+            ]
 
         if not records:
             return 0.0
@@ -191,7 +206,11 @@ class ExecutionMemory(BaseMemory):
         return total_time / len(records)
 
     def add_execution_record(
-        self, tool_name: str, parameters: Dict[str, Any], result: Any, execution_time: float = 0.0
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any],
+        result: Any,
+        execution_time: float = 0.0,
     ) -> bool:
         """添加执行记录
 
@@ -205,6 +224,9 @@ class ExecutionMemory(BaseMemory):
             是否添加成功
         """
         record = ExecutionRecord(
-            tool_name=tool_name, parameters=parameters, result=result, execution_time=execution_time
+            tool_name=tool_name,
+            parameters=parameters,
+            result=result,
+            execution_time=execution_time,
         )
         return self.add(record)

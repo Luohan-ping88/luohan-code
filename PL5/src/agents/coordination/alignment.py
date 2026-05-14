@@ -97,13 +97,19 @@ class AlignmentGoal:
         self.updated_at = datetime.now()
 
         for milestone in self.milestones:
-            if not milestone.is_completed and milestone.check_completion(self.progress):
+            if not milestone.is_completed and milestone.check_completion(
+                self.progress
+            ):
                 milestone.complete()
                 logger.info(f"里程碑完成: {milestone.name}")
 
     def is_complete(self) -> bool:
         """检查目标是否完成"""
-        return all(m.is_completed for m in self.milestones) if self.milestones else False
+        return (
+            all(m.is_completed for m in self.milestones)
+            if self.milestones
+            else False
+        )
 
     def complete(self, success: bool = True) -> None:
         """标记目标完成"""
@@ -121,16 +127,24 @@ class AlignmentGoal:
             "priority": self.priority.value,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "target_date": self.target_date.isoformat() if self.target_date else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "target_date": (
+                self.target_date.isoformat() if self.target_date else None
+            ),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "milestones": [
                 {
                     "milestone_id": m.milestone_id,
                     "name": m.name,
                     "description": m.description,
-                    "target_date": m.target_date.isoformat() if m.target_date else None,
+                    "target_date": (
+                        m.target_date.isoformat() if m.target_date else None
+                    ),
                     "completion_criteria": m.completion_criteria,
-                    "completed_at": m.completed_at.isoformat() if m.completed_at else None,
+                    "completed_at": (
+                        m.completed_at.isoformat() if m.completed_at else None
+                    ),
                     "is_completed": m.is_completed,
                 }
                 for m in self.milestones
@@ -186,7 +200,9 @@ class GoalTracker:
         async with self._lock:
             return self.goals.get(goal_id)
 
-    async def update_goal_progress(self, goal_id: str, key: str, value: Any) -> bool:
+    async def update_goal_progress(
+        self, goal_id: str, key: str, value: Any
+    ) -> bool:
         """更新目标进度"""
         async with self._lock:
             goal = self.goals.get(goal_id)
@@ -205,18 +221,28 @@ class GoalTracker:
             if not goal:
                 return False
             goal.complete(success)
-            logger.info(f"目标状态已更新: {goal_id} -> {'成功' if success else '失败'}")
+            logger.info(
+                f"目标状态已更新: {goal_id} -> {'成功' if success else '失败'}"
+            )
             return True
 
-    async def get_goals_by_status(self, status: GoalStatus) -> List[AlignmentGoal]:
+    async def get_goals_by_status(
+        self, status: GoalStatus
+    ) -> List[AlignmentGoal]:
         """按状态获取目标"""
         async with self._lock:
-            return [goal for goal in self.goals.values() if goal.status == status]
+            return [
+                goal for goal in self.goals.values() if goal.status == status
+            ]
 
     async def get_goals_by_agent(self, agent_id: str) -> List[AlignmentGoal]:
         """按智能体获取目标"""
         async with self._lock:
-            return [goal for goal in self.goals.values() if agent_id in goal.involved_agents]
+            return [
+                goal
+                for goal in self.goals.values()
+                if agent_id in goal.involved_agents
+            ]
 
     async def cancel_goal(self, goal_id: str) -> bool:
         """取消目标"""
@@ -242,7 +268,9 @@ class GoalEvaluator:
         time_elapsed = (datetime.now() - goal.created_at).total_seconds()
         time_remaining = None
         if goal.target_date:
-            time_remaining = (goal.target_date - datetime.now()).total_seconds()
+            time_remaining = (
+                goal.target_date - datetime.now()
+            ).total_seconds()
 
         evaluation = {
             "goal_id": goal.goal_id,
@@ -252,7 +280,9 @@ class GoalEvaluator:
             "time_elapsed_seconds": time_elapsed,
             "time_remaining_seconds": time_remaining,
             "milestones_total": len(goal.milestones),
-            "milestones_completed": sum(1 for m in goal.milestones if m.is_completed),
+            "milestones_completed": sum(
+                1 for m in goal.milestones if m.is_completed
+            ),
             "success_metrics": goal.success_metrics,
             "evaluation_time": datetime.now().isoformat(),
             "is_on_track": self._is_on_track(goal, progress_pct, time_elapsed),
@@ -261,7 +291,9 @@ class GoalEvaluator:
         self.evaluation_history.append(evaluation)
         return evaluation
 
-    def _is_on_track(self, goal: AlignmentGoal, progress_pct: float, time_elapsed: float) -> bool:
+    def _is_on_track(
+        self, goal: AlignmentGoal, progress_pct: float, time_elapsed: float
+    ) -> bool:
         """判断是否在正轨上"""
         if goal.status == GoalStatus.COMPLETED:
             return True
@@ -276,19 +308,27 @@ class GoalEvaluator:
         expected_progress = (time_elapsed / total_time) * 100
         return progress_pct >= (expected_progress * 0.8)
 
-    def get_agent_performance(self, agent_id: str, goals: List[AlignmentGoal]) -> Dict[str, Any]:
+    def get_agent_performance(
+        self, agent_id: str, goals: List[AlignmentGoal]
+    ) -> Dict[str, Any]:
         """获取智能体表现"""
         agent_goals = [g for g in goals if agent_id in g.involved_agents]
         if not agent_goals:
             return {"agent_id": agent_id, "total_goals": 0}
 
-        completed = sum(1 for g in agent_goals if g.status == GoalStatus.COMPLETED)
-        avg_progress = sum(g.get_progress_percentage() for g in agent_goals) / len(agent_goals)
+        completed = sum(
+            1 for g in agent_goals if g.status == GoalStatus.COMPLETED
+        )
+        avg_progress = sum(
+            g.get_progress_percentage() for g in agent_goals
+        ) / len(agent_goals)
 
         return {
             "agent_id": agent_id,
             "total_goals": len(agent_goals),
             "completed_goals": completed,
-            "completion_rate": completed / len(agent_goals) if agent_goals else 0,
+            "completion_rate": (
+                completed / len(agent_goals) if agent_goals else 0
+            ),
             "avg_progress_percentage": avg_progress,
         }

@@ -141,11 +141,17 @@ class EventBus:
             event_type: 事件类型
             handler: 事件处理函数
         """
-        if event_type in self._handlers and handler in self._handlers[event_type]:
+        if (
+            event_type in self._handlers
+            and handler in self._handlers[event_type]
+        ):
             self._handlers[event_type].remove(handler)
             logger.debug(f"[EventBus] 取消订阅同步事件: {event_type}")
 
-        if event_type in self._async_handlers and handler in self._async_handlers[event_type]:
+        if (
+            event_type in self._async_handlers
+            and handler in self._async_handlers[event_type]
+        ):
             self._async_handlers[event_type].remove(handler)
             logger.debug(f"[EventBus] 取消订阅异步事件: {event_type}")
 
@@ -164,7 +170,9 @@ class EventBus:
                 try:
                     handler(event)
                 except Exception as e:
-                    logger.error(f"[EventBus] 同步事件处理错误 {event.event_type}: {e}")
+                    logger.error(
+                        f"[EventBus] 同步事件处理错误 {event.event_type}: {e}"
+                    )
 
             logger.debug(f"[EventBus] 发布同步事件: {event.event_type}")
 
@@ -189,7 +197,9 @@ class EventBus:
                     else:
                         handler(event)
                 except Exception as e:
-                    logger.error(f"[EventBus] 异步事件处理错误 {event.event_type}: {e}")
+                    logger.error(
+                        f"[EventBus] 异步事件处理错误 {event.event_type}: {e}"
+                    )
 
             logger.debug(f"[EventBus] 发布异步事件: {event.event_type}")
 
@@ -200,7 +210,9 @@ class EventBus:
         """添加事件到历史记录"""
         self._event_history.append(event)
         if len(self._event_history) > self._max_history_size:
-            self._event_history = self._event_history[-self._max_history_size :]
+            self._event_history = self._event_history[
+                -self._max_history_size :
+            ]
 
     def get_history(
         self,
@@ -242,13 +254,19 @@ class EventBus:
         """获取事件统计信息"""
         event_counts = {}
         for event in self._event_history:
-            event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
+            event_counts[event.event_type] = (
+                event_counts.get(event.event_type, 0) + 1
+            )
 
         return {
             "total_events": len(self._event_history),
             "event_counts": event_counts,
-            "subscribed_sync_handlers": sum(len(h) for h in self._handlers.values()),
-            "subscribed_async_handlers": sum(len(h) for h in self._async_handlers.values()),
+            "subscribed_sync_handlers": sum(
+                len(h) for h in self._handlers.values()
+            ),
+            "subscribed_async_handlers": sum(
+                len(h) for h in self._async_handlers.values()
+            ),
             "registered_event_types": len(self._event_classes),
         }
 
@@ -273,7 +291,10 @@ def get_event_bus() -> EventBus:
 
 
 def publish_event(
-    event_type: str, data: Dict[str, Any] = None, source: str = "unknown", correlation_id: Optional[str] = None
+    event_type: str,
+    data: Dict[str, Any] = None,
+    source: str = "unknown",
+    correlation_id: Optional[str] = None,
 ) -> None:
     """发布事件的快捷函数
 
@@ -283,12 +304,20 @@ def publish_event(
         source: 事件来源
         correlation_id: 关联ID
     """
-    event = Event(event_type=event_type, data=data or {}, source=source, correlation_id=correlation_id)
+    event = Event(
+        event_type=event_type,
+        data=data or {},
+        source=source,
+        correlation_id=correlation_id,
+    )
     get_event_bus().publish(event)
 
 
 async def publish_event_async(
-    event_type: str, data: Dict[str, Any] = None, source: str = "unknown", correlation_id: Optional[str] = None
+    event_type: str,
+    data: Dict[str, Any] = None,
+    source: str = "unknown",
+    correlation_id: Optional[str] = None,
 ) -> None:
     """异步发布事件的快捷函数
 
@@ -298,5 +327,10 @@ async def publish_event_async(
         source: 事件来源
         correlation_id: 关联ID
     """
-    event = Event(event_type=event_type, data=data or {}, source=source, correlation_id=correlation_id)
+    event = Event(
+        event_type=event_type,
+        data=data or {},
+        source=source,
+        correlation_id=correlation_id,
+    )
     await get_event_bus().publish_async(event)

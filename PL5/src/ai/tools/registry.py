@@ -3,7 +3,7 @@
 管理和注册工具的核心组件。
 """
 
-from typing import Dict, Type, List, Optional
+from typing import Dict, Type, List
 from .base import BaseTool
 from ..ai_types import ToolInfo, ToolCategory
 
@@ -24,7 +24,9 @@ class ToolRegistry:
         """
         tool_name = tool_class.name
         if tool_name in self._tools:
-            raise ValueError(f"Tool with name '{tool_name}' already registered")
+            raise ValueError(
+                f"Tool with name '{tool_name}' already registered"
+            )
 
         self._tools[tool_name] = tool_class
 
@@ -115,7 +117,10 @@ class ToolRegistry:
         Returns:
             工具信息列表
         """
-        return [tool_class.get_tool_class_info() for tool_class in self._tools.values()]
+        return [
+            tool_class.get_tool_class_info()
+            for tool_class in self._tools.values()
+        ]
 
 
 # 全局工具注册表实例

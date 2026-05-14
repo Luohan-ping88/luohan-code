@@ -3,14 +3,13 @@
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import logging
 import json
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import threading
-import time
 import psutil
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,13 @@ class MetricsCollector:
         self.max_history = max_history
         self._lock = threading.Lock()
 
-    def record(self, agent_name: str, metric_type: str, value: float, metadata: Dict[str, Any] = None):
+    def record(
+        self,
+        agent_name: str,
+        metric_type: str,
+        value: float,
+        metadata: Dict[str, Any] = None,
+    ):
         """记录指标"""
         snapshot = MetricSnapshot(
             timestamp=datetime.now(),
@@ -49,10 +54,15 @@ class MetricsCollector:
             self.metrics_history.append(snapshot)
             # 限制历史记录数量
             if len(self.metrics_history) > self.max_history:
-                self.metrics_history = self.metrics_history[-self.max_history :]
+                self.metrics_history = self.metrics_history[
+                    -self.max_history :
+                ]
 
     def get_recent(
-        self, agent_name: Optional[str] = None, metric_type: Optional[str] = None, minutes: int = 60
+        self,
+        agent_name: Optional[str] = None,
+        metric_type: Optional[str] = None,
+        minutes: int = 60,
     ) -> List[MetricSnapshot]:
         """获取最近的指标"""
         cutoff = datetime.now() - timedelta(minutes=minutes)
@@ -67,7 +77,9 @@ class MetricsCollector:
             ]
         return filtered
 
-    def get_statistics(self, agent_name: str, metric_type: str, minutes: int = 60) -> Dict[str, float]:
+    def get_statistics(
+        self, agent_name: str, metric_type: str, minutes: int = 60
+    ) -> Dict[str, float]:
         """获取统计信息"""
         metrics = self.get_recent(agent_name, metric_type, minutes)
         values = [m.value for m in metrics]
@@ -152,13 +164,19 @@ class MonitoringDashboard:
             metrics = agent.get_metrics()
 
             # 记录任务完成数
-            self.metrics_collector.record(name, "tasks_completed", metrics["tasks_completed"])
+            self.metrics_collector.record(
+                name, "tasks_completed", metrics["tasks_completed"]
+            )
 
             # 记录成功率
-            self.metrics_collector.record(name, "success_rate", metrics["success_rate"])
+            self.metrics_collector.record(
+                name, "success_rate", metrics["success_rate"]
+            )
 
             # 记录平均执行时间
-            self.metrics_collector.record(name, "avg_execution_time", metrics["avg_execution_time"])
+            self.metrics_collector.record(
+                name, "avg_execution_time", metrics["avg_execution_time"]
+            )
 
     def get_dashboard_data(self) -> Dict[str, Any]:
         """获取面板数据"""
@@ -175,8 +193,12 @@ class MonitoringDashboard:
                 data["agents"][name] = {
                     "current_metrics": agent.get_metrics(),
                     "recent_stats": {
-                        "success_rate": self.metrics_collector.get_statistics(name, "success_rate", 60),
-                        "execution_time": self.metrics_collector.get_statistics(name, "avg_execution_time", 60),
+                        "success_rate": self.metrics_collector.get_statistics(
+                            name, "success_rate", 60
+                        ),
+                        "execution_time": self.metrics_collector.get_statistics(
+                            name, "avg_execution_time", 60
+                        ),
                     },
                 }
 
@@ -344,9 +366,14 @@ class ProgressTracker:
     def finish(self):
         """完成追踪"""
         total_time = (datetime.now() - self.start_time).total_seconds()
-        logger.info("[Progress] %s 完成! 总耗时: %.2fs", self.description, total_time)
+        logger.info(
+            "[Progress] %s 完成! 总耗时: %.2fs", self.description, total_time
+        )
 
-        return {"total_time": total_time, "avg_step_time": total_time / max(self.current_step, 1)}
+        return {
+            "total_time": total_time,
+            "avg_step_time": total_time / max(self.current_step, 1),
+        }
 
 
 class AnomalyDetector:
@@ -367,7 +394,9 @@ class AnomalyDetector:
 
         # 保持窗口大小
         if len(self.metric_windows[metric_name]) > self.window_size:
-            self.metric_windows[metric_name] = self.metric_windows[metric_name][-self.window_size :]
+            self.metric_windows[metric_name] = self.metric_windows[
+                metric_name
+            ][-self.window_size :]
 
         # 计算统计信息
         window = self.metric_windows[metric_name]
@@ -427,7 +456,10 @@ class SystemHealthMonitor:
         if issues:
             health_status["overall"] = "unhealthy"
             health_status["issues"] = issues
-        elif any(70 < health_status[k]["usage"] <= 80 for k in ["cpu", "memory", "disk"]):
+        elif any(
+            70 < health_status[k]["usage"] <= 80
+            for k in ["cpu", "memory", "disk"]
+        ):
             health_status["overall"] = "degraded"
 
         self.health_history.append(health_status)
@@ -444,7 +476,11 @@ class SystemHealthMonitor:
         return {
             "usage": cpu_percent,
             "count": cpu_count,
-            "status": "normal" if cpu_percent < 70 else "high" if cpu_percent < 90 else "critical",
+            "status": (
+                "normal"
+                if cpu_percent < 70
+                else "high" if cpu_percent < 90 else "critical"
+            ),
         }
 
     def _check_memory(self) -> Dict[str, Any]:
@@ -455,7 +491,11 @@ class SystemHealthMonitor:
             "usage": memory.percent,
             "total": memory.total / (1024 * 1024 * 1024),  # GB
             "available": memory.available / (1024 * 1024 * 1024),  # GB
-            "status": "normal" if memory.percent < 70 else "high" if memory.percent < 90 else "critical",
+            "status": (
+                "normal"
+                if memory.percent < 70
+                else "high" if memory.percent < 90 else "critical"
+            ),
         }
 
     def _check_disk(self) -> Dict[str, Any]:
@@ -468,7 +508,11 @@ class SystemHealthMonitor:
                 "usage": disk.percent,
                 "total": disk.total / (1024 * 1024 * 1024),  # GB
                 "free": disk.free / (1024 * 1024 * 1024),  # GB
-                "status": "normal" if disk.percent < 70 else "high" if disk.percent < 90 else "critical",
+                "status": (
+                    "normal"
+                    if disk.percent < 70
+                    else "high" if disk.percent < 90 else "critical"
+                ),
             }
         except Exception as e:
             return {"error": str(e), "status": "error"}
@@ -495,7 +539,9 @@ class AutoHealer:
         self.orchestrator = orchestrator
         self.repair_history = []
 
-    async def attempt_repair(self, issue: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def attempt_repair(
+        self, issue: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """尝试修复问题"""
         repair_result = {
             "issue": issue,
@@ -521,14 +567,20 @@ class AutoHealer:
 
         return repair_result
 
-    async def _fix_high_cpu_usage(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fix_high_cpu_usage(
+        self, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """修复高CPU使用率"""
         # 减少并行度
         if self.orchestrator:
             for agent_name, agent in self.orchestrator.agents.items():
                 if hasattr(agent, "max_workers") and agent.max_workers > 1:
                     agent.max_workers = max(1, agent.max_workers // 2)
-                    logger.info("[AutoHealer] 减少 %s 的并行度到 %d", agent_name, agent.max_workers)
+                    logger.info(
+                        "[AutoHealer] 减少 %s 的并行度到 %d",
+                        agent_name,
+                        agent.max_workers,
+                    )
 
         return {
             "issue": "high_cpu_usage",
@@ -538,7 +590,9 @@ class AutoHealer:
             "message": "Reduced agent parallelism to reduce CPU usage",
         }
 
-    async def _fix_high_memory_usage(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fix_high_memory_usage(
+        self, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """修复高内存使用率"""
         # 清理缓存
         if self.orchestrator:
@@ -558,7 +612,9 @@ class AutoHealer:
             "message": "Cleared agent caches to reduce memory usage",
         }
 
-    async def _fix_agent_failure(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fix_agent_failure(
+        self, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """修复智能体失败"""
         agent_name = context.get("agent_name")
         if self.orchestrator and agent_name in self.orchestrator.agents:
@@ -593,7 +649,9 @@ class AutoHealer:
             "message": "Agent not found",
         }
 
-    async def _fix_data_quality_issue(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _fix_data_quality_issue(
+        self, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """修复数据质量问题"""
         if self.orchestrator and "data" in self.orchestrator.agents:
             # 触发数据重新采集
@@ -677,11 +735,19 @@ class ImmuneSystem:
         if health_status["overall"] == "unhealthy":
             for issue in health_status.get("issues", []):
                 if issue not in [i["issue"] for i in self.issues]:
-                    self.issues.append({"issue": issue, "timestamp": datetime.now(), "severity": "critical"})
+                    self.issues.append(
+                        {
+                            "issue": issue,
+                            "timestamp": datetime.now(),
+                            "severity": "critical",
+                        }
+                    )
                     # 尝试修复
                     await self.auto_healer.attempt_repair(issue, health_status)
 
-        logger.debug("[ImmuneSystem] 系统健康状态: %s", health_status["overall"])
+        logger.debug(
+            "[ImmuneSystem] 系统健康状态: %s", health_status["overall"]
+        )
 
     async def _check_agents(self):
         """检查智能体状态"""
@@ -693,7 +759,10 @@ class ImmuneSystem:
                 metrics = agent.get_metrics()
 
                 # 检测智能体异常
-                if metrics["tasks_failed"] > 3 and metrics["success_rate"] < 0.5:
+                if (
+                    metrics["tasks_failed"] > 3
+                    and metrics["success_rate"] < 0.5
+                ):
                     issue = "agent_failure"
                     if issue not in [i["issue"] for i in self.issues]:
                         self.issues.append(
@@ -705,9 +774,13 @@ class ImmuneSystem:
                             }
                         )
                         # 尝试修复
-                        await self.auto_healer.attempt_repair(issue, {"agent_name": agent_name})
+                        await self.auto_healer.attempt_repair(
+                            issue, {"agent_name": agent_name}
+                        )
             except Exception as e:
-                logger.error("[ImmuneSystem] 检查智能体 %s 失败: %s", agent_name, e)
+                logger.error(
+                    "[ImmuneSystem] 检查智能体 %s 失败: %s", agent_name, e
+                )
 
     async def _check_performance(self):
         """检查性能指标"""
@@ -721,7 +794,8 @@ class ImmuneSystem:
                 # 检测性能异常
                 if metrics["avg_execution_time"] > 60:  # 执行时间超过60秒
                     anomaly = self.anomaly_detector.detect(
-                        agent_name + "_execution_time", metrics["avg_execution_time"]
+                        agent_name + "_execution_time",
+                        metrics["avg_execution_time"],
                     )
                     if anomaly["anomaly"]:
                         issue = "performance_degradation"
@@ -753,15 +827,31 @@ class ImmuneSystem:
 
         report = "# PL5 系统健康报告\n"
         report += "生成时间: " + datetime.now().isoformat() + "\n"
-        report += "免疫系统状态: " + ("运行中" if status["is_running"] else "已停止") + "\n\n"
+        report += (
+            "免疫系统状态: "
+            + ("运行中" if status["is_running"] else "已停止")
+            + "\n\n"
+        )
 
         # 系统健康状态
         report += "## 系统健康状态\n"
         system_health = status["system_health"]
         report += "- 整体状态: " + system_health["overall"] + "\n"
-        report += "- CPU使用率: " + str(system_health["cpu"].get("usage", "N/A")) + "%\n"
-        report += "- 内存使用率: " + str(system_health["memory"].get("usage", "N/A")) + "%\n"
-        report += "- 磁盘使用率: " + str(system_health["disk"].get("usage", "N/A")) + "%\n\n"
+        report += (
+            "- CPU使用率: "
+            + str(system_health["cpu"].get("usage", "N/A"))
+            + "%\n"
+        )
+        report += (
+            "- 内存使用率: "
+            + str(system_health["memory"].get("usage", "N/A"))
+            + "%\n"
+        )
+        report += (
+            "- 磁盘使用率: "
+            + str(system_health["disk"].get("usage", "N/A"))
+            + "%\n\n"
+        )
 
         # 活跃问题
         report += "## 活跃问题\n"
@@ -784,7 +874,15 @@ class ImmuneSystem:
         if status["repair_history"]:
             for repair in status["repair_history"]:
                 status_str = "成功" if repair["success"] else "失败"
-                report += "- " + repair["issue"] + ": " + status_str + " - " + repair["action"] + "\n"
+                report += (
+                    "- "
+                    + repair["issue"]
+                    + ": "
+                    + status_str
+                    + " - "
+                    + repair["action"]
+                    + "\n"
+                )
         else:
             report += "- 无修复记录\n"
 

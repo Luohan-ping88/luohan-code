@@ -9,7 +9,10 @@ import time
 import logging
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -69,56 +72,100 @@ class AIError(Exception):
 class NetworkError(AIError):
     """网络错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.NETWORK_ERROR, error_code, details)
 
 
 class ApiError(AIError):
     """API错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.API_ERROR, error_code, details)
 
 
 class RateLimitError(AIError):
     """速率限制错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
-        super().__init__(message, ErrorType.RATE_LIMIT_ERROR, error_code, details)
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
+        super().__init__(
+            message, ErrorType.RATE_LIMIT_ERROR, error_code, details
+        )
 
 
 class ValidationError(AIError):
     """验证错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
-        super().__init__(message, ErrorType.VALIDATION_ERROR, error_code, details)
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
+        super().__init__(
+            message, ErrorType.VALIDATION_ERROR, error_code, details
+        )
 
 
 class AuthError(AIError):
     """认证错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.AUTH_ERROR, error_code, details)
 
 
 class ServerError(AIError):
     """服务器错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.SERVER_ERROR, error_code, details)
 
 
 class ClientError(AIError):
     """客户端错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.CLIENT_ERROR, error_code, details)
 
 
 class TimeoutError(AIError):
     """超时错误"""
 
-    def __init__(self, message: str, error_code: Optional[int] = None, details: Optional[dict] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        details: Optional[dict] = None,
+    ):
         super().__init__(message, ErrorType.TIMEOUT_ERROR, error_code, details)
 
 
@@ -160,7 +207,13 @@ class RetryConfig:
 class RetryResult(Generic[T]):
     """重试结果"""
 
-    def __init__(self, success: bool, result: Optional[T] = None, error: Optional[AIError] = None, attempts: int = 1):
+    def __init__(
+        self,
+        success: bool,
+        result: Optional[T] = None,
+        error: Optional[AIError] = None,
+        attempts: int = 1,
+    ):
         """初始化重试结果
 
         Args:
@@ -175,7 +228,12 @@ class RetryResult(Generic[T]):
         self.attempts = attempts
 
 
-def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = None, *args, **kwargs) -> RetryResult[T]:
+def retry_with_backoff(
+    func: Callable[..., T],
+    config: Optional[RetryConfig] = None,
+    *args,
+    **kwargs,
+) -> RetryResult[T]:
     """带退避的重试装饰器
 
     Args:
@@ -207,7 +265,11 @@ def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = N
 
             # 计算退避延迟
             if attempts <= config.max_retries:
-                delay = min(config.base_delay * (config.backoff_factor ** (attempts - 1)), config.max_delay)
+                delay = min(
+                    config.base_delay
+                    * (config.backoff_factor ** (attempts - 1)),
+                    config.max_delay,
+                )
                 logger.info(
                     f"Retrying {func.__name__} in {delay:.2f} seconds... (Attempt {attempts}/{config.max_retries})"
                 )
@@ -223,7 +285,11 @@ def retry_with_backoff(func: Callable[..., T], config: Optional[RetryConfig] = N
 class ErrorHandler:
     """错误处理器"""
 
-    def __init__(self, log_errors: bool = True, default_retry_config: Optional[RetryConfig] = None):
+    def __init__(
+        self,
+        log_errors: bool = True,
+        default_retry_config: Optional[RetryConfig] = None,
+    ):
         """初始化错误处理器
 
         Args:
@@ -233,7 +299,9 @@ class ErrorHandler:
         self.log_errors = log_errors
         self.default_retry_config = default_retry_config or RetryConfig()
 
-    def handle_error(self, error: Exception, context: Optional[dict] = None) -> AIError:
+    def handle_error(
+        self, error: Exception, context: Optional[dict] = None
+    ) -> AIError:
         """处理错误
 
         Args:
@@ -255,7 +323,9 @@ class ErrorHandler:
             self._log_error(ai_error, context)
         return ai_error
 
-    def _convert_to_ai_error(self, error: Exception, context: Optional[dict] = None) -> AIError:
+    def _convert_to_ai_error(
+        self, error: Exception, context: Optional[dict] = None
+    ) -> AIError:
         """将普通异常转换为AIError
 
         Args:
@@ -277,7 +347,11 @@ class ErrorHandler:
             elif isinstance(error, requests.exceptions.ConnectionError):
                 error_type = ErrorType.NETWORK_ERROR
             elif isinstance(error, requests.exceptions.HTTPError):
-                status_code = error.response.status_code if hasattr(error, "response") else None
+                status_code = (
+                    error.response.status_code
+                    if hasattr(error, "response")
+                    else None
+                )
                 error_code = status_code
                 if 400 <= status_code < 500:
                     if status_code == 401:
@@ -291,7 +365,12 @@ class ErrorHandler:
         elif isinstance(error, TimeoutError):
             error_type = ErrorType.TIMEOUT_ERROR
 
-        return AIError(message=str(error), error_type=error_type, error_code=error_code, details=context)
+        return AIError(
+            message=str(error),
+            error_type=error_type,
+            error_code=error_code,
+            details=context,
+        )
 
     def _log_error(self, error: AIError, context: Optional[dict] = None):
         """记录错误
@@ -307,12 +386,17 @@ class ErrorHandler:
             log_message += f" Context: {context}"
 
         # 根据错误类型选择日志级别
-        if error.error_type in [ErrorType.CLIENT_ERROR, ErrorType.VALIDATION_ERROR]:
+        if error.error_type in [
+            ErrorType.CLIENT_ERROR,
+            ErrorType.VALIDATION_ERROR,
+        ]:
             logger.warning(log_message)
         else:
             logger.error(log_message)
 
-    def execute_with_retry(self, func: Callable[..., T], *args, **kwargs) -> RetryResult[T]:
+    def execute_with_retry(
+        self, func: Callable[..., T], *args, **kwargs
+    ) -> RetryResult[T]:
         """执行函数并自动重试
 
         Args:
@@ -323,7 +407,9 @@ class ErrorHandler:
         Returns:
             重试结果
         """
-        return retry_with_backoff(func, self.default_retry_config, *args, **kwargs)
+        return retry_with_backoff(
+            func, self.default_retry_config, *args, **kwargs
+        )
 
 
 # 全局错误处理器实例
@@ -352,7 +438,9 @@ def handle_error(error: Exception, context: Optional[dict] = None) -> AIError:
     return _global_error_handler.handle_error(error, context)
 
 
-def execute_with_retry(func: Callable[..., T], *args, **kwargs) -> RetryResult[T]:
+def execute_with_retry(
+    func: Callable[..., T], *args, **kwargs
+) -> RetryResult[T]:
     """执行函数并自动重试的便捷函数
 
     Args:

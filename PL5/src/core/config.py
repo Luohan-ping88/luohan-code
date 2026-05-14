@@ -5,7 +5,6 @@
 """
 
 import logging
-import sys
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
@@ -34,7 +33,15 @@ LOGS_DIR = ROOT_DIR / "logs"
 
 CONFIG_DIR = ROOT_DIR / "config"
 
-for _d in [DATA_DIR, RAW_DATA_DIR, PROCESSED_DATA_DIR, RESULTS_DIR, MODELS_DIR, LOGS_DIR, CONFIG_DIR]:
+for _d in [
+    DATA_DIR,
+    RAW_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    RESULTS_DIR,
+    MODELS_DIR,
+    LOGS_DIR,
+    CONFIG_DIR,
+]:
     _d.mkdir(parents=True, exist_ok=True)
 
 # ── 数据源配置 ────────────────────────────────────────────────
@@ -68,7 +75,9 @@ TRAINING_CONFIG: Dict[str, Any] = {
 
 
 # ── 日志工具 ──────────────────────────────────────────────────
-def setup_logging(name: str = None, level: int = logging.INFO) -> logging.Logger:
+def setup_logging(
+    name: str = None, level: int = logging.INFO
+) -> logging.Logger:
     """
     [已废弃] 请使用 src.core.utils.logger.get_logger()。
     此处保留仅为兼容旧代码，将重定向到统一日志器。
@@ -102,7 +111,9 @@ class ModelConfig:
     """
 
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
-        self._config_path = Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
+        self._config_path = (
+            Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
+        )
         self._data: Dict[str, Any] = {}
         self._env_prefix = "PL5_"
         self._callbacks: List[callable] = []
@@ -112,7 +123,9 @@ class ModelConfig:
             self.load()
         else:
             logger = logging.getLogger(__name__)
-            logger.warning(f"[ModelConfig] 配置文件不存在: {self._config_path}, 使用内置默认值")
+            logger.warning(
+                f"[ModelConfig] 配置文件不存在: {self._config_path}, 使用内置默认值"
+            )
             self._data = self._get_builtin_defaults()
             self._loaded = True
 
@@ -137,7 +150,12 @@ class ModelConfig:
                     "auto_select": True,
                     "enable_meta_features": True,
                 },
-                "model_weights": {"stacking": 0.40, "hmm": 0.15, "copula": 0.25, "bayesian": 0.20},
+                "model_weights": {
+                    "stacking": 0.40,
+                    "hmm": 0.15,
+                    "copula": 0.25,
+                    "bayesian": 0.20,
+                },
             },
             "hmm": {
                 "n_states": 4,
@@ -149,7 +167,11 @@ class ModelConfig:
                 "max_iterations": 50,
                 "convergence_tol": 1e-6,
             },
-            "copula": {"type": "gaussian", "regularization": 1e-6, "auto_select": False},
+            "copula": {
+                "type": "gaussian",
+                "regularization": 1e-6,
+                "auto_select": False,
+            },
             "bsts": {
                 "trend_window": 20,
                 "seasonality_period": None,
@@ -164,8 +186,14 @@ class ModelConfig:
             "feature_engineering": {
                 "feature_groups": {},
                 "cache": {"max_size": 10},
-                "scaler": {"method": "standard", "robust_quantile_range": [25.0, 75.0]},
-                "drift_detection": {"psi_threshold": 0.2, "ks_threshold": 0.05},
+                "scaler": {
+                    "method": "standard",
+                    "robust_quantile_range": [25.0, 75.0],
+                },
+                "drift_detection": {
+                    "psi_threshold": 0.2,
+                    "ks_threshold": 0.05,
+                },
                 "selection": {"select_top": 100, "method": "rfe"},
                 "parallel": {"enable": True},
             },
@@ -198,7 +226,11 @@ class ModelConfig:
                 "memory_capacity": 10000,
                 "n_models": 4,
                 "performance_window": 30,
-                "thompson_sampling": {"initial_alpha": 2.0, "initial_beta": 3.0, "n_arms": 5},
+                "thompson_sampling": {
+                    "initial_alpha": 2.0,
+                    "initial_beta": 3.0,
+                    "n_arms": 5,
+                },
             },
             "prediction": {
                 "top_k": 8,
@@ -210,7 +242,9 @@ class ModelConfig:
             "training": {"test_size": 0.2, "random_state": 42, "n_splits": 5},
         }
 
-    def load(self, config_path: Optional[Union[str, Path]] = None) -> "ModelConfig":
+    def load(
+        self, config_path: Optional[Union[str, Path]] = None
+    ) -> "ModelConfig":
         path = Path(config_path) if config_path else self._config_path
         if not path.exists():
             raise FileNotFoundError(f"配置文件不存在: {path}")
@@ -241,7 +275,13 @@ class ModelConfig:
 
         if _HAS_YAML:
             with open(target, "w", encoding="utf-8") as f:
-                yaml.dump(self._data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                yaml.dump(
+                    self._data,
+                    f,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
         else:
             import json
 
@@ -356,7 +396,9 @@ class ModelConfig:
                 parsed_value = self._parse_env_value(value)
                 target[last_part] = parsed_value
                 logger = logging.getLogger(__name__)
-                logger.debug(f"[ModelConfig] 环境变量覆盖: {key} => {'.'.join(config_parts)} = {parsed_value}")
+                logger.debug(
+                    f"[ModelConfig] 环境变量覆盖: {key} => {'.'.join(config_parts)} = {parsed_value}"
+                )
 
     @staticmethod
     def _parse_env_value(value: str) -> Any:
@@ -376,9 +418,18 @@ class ModelConfig:
 
     def _validate(self):
         validations = [
-            ("stacking.base_config.n_estimators", lambda v: isinstance(v, int) and v > 0),
-            ("stacking.base_config.max_depth", lambda v: isinstance(v, (int, float)) and float(v) > 0),
-            ("stacking.meta_config.cv_folds", lambda v: isinstance(v, int) and v >= 2),
+            (
+                "stacking.base_config.n_estimators",
+                lambda v: isinstance(v, int) and v > 0,
+            ),
+            (
+                "stacking.base_config.max_depth",
+                lambda v: isinstance(v, (int, float)) and float(v) > 0,
+            ),
+            (
+                "stacking.meta_config.cv_folds",
+                lambda v: isinstance(v, int) and v >= 2,
+            ),
             ("hmm.n_states", lambda v: isinstance(v, int) and v > 0),
             ("bsts.trend_window", lambda v: isinstance(v, int) and v > 0),
             ("rl_optimizer.state_dim", lambda v: isinstance(v, int) and v > 0),
@@ -427,7 +478,13 @@ class ModelConfig:
     def stacking_base_config(self) -> Dict[str, Any]:
         return self.get_dict(
             "stacking.base_config",
-            {"n_estimators": 100, "max_depth": 12, "random_state": 42, "n_jobs": -1, "learning_rate": 0.1},
+            {
+                "n_estimators": 100,
+                "max_depth": 12,
+                "random_state": 42,
+                "n_jobs": -1,
+                "learning_rate": 0.1,
+            },
         )
 
     def stacking_meta_config(self) -> Dict[str, Any]:
@@ -447,14 +504,26 @@ class ModelConfig:
 
     def model_weights(self) -> Dict[str, float]:
         return self.get_dict(
-            "stacking.model_weights", {"stacking": 0.40, "hmm": 0.15, "copula": 0.25, "bayesian": 0.20}
+            "stacking.model_weights",
+            {"stacking": 0.40, "hmm": 0.15, "copula": 0.25, "bayesian": 0.20},
         )
 
     def hmm_config(self) -> Dict[str, Any]:
-        return self.get_dict("hmm", {"n_states": 4, "n_mixtures": 2, "auto_select": False, "criterion": "bic"})
+        return self.get_dict(
+            "hmm",
+            {
+                "n_states": 4,
+                "n_mixtures": 2,
+                "auto_select": False,
+                "criterion": "bic",
+            },
+        )
 
     def copula_config(self) -> Dict[str, Any]:
-        return self.get_dict("copula", {"type": "gaussian", "regularization": 1e-6, "auto_select": False})
+        return self.get_dict(
+            "copula",
+            {"type": "gaussian", "regularization": 1e-6, "auto_select": False},
+        )
 
     def bsts_config(self) -> Dict[str, Any]:
         return self.get_dict(
@@ -500,7 +569,13 @@ class ModelConfig:
 
     def prediction_config(self) -> Dict[str, Any]:
         return self.get_dict(
-            "prediction", {"top_k": 8, "use_rl": True, "use_uncertainty": True, "parallel_training": True}
+            "prediction",
+            {
+                "top_k": 8,
+                "use_rl": True,
+                "use_uncertainty": True,
+                "parallel_training": True,
+            },
         )
 
     def summary(self) -> Dict[str, Any]:
@@ -508,8 +583,12 @@ class ModelConfig:
             "config_path": str(self._config_path),
             "is_loaded": self._loaded,
             "top_level_keys": list(self._data.keys()),
-            "stacking_n_estimators": self.get_int("stacking.base_config.n_estimators"),
-            "stacking_max_depth": self.get_int("stacking.base_config.max_depth"),
+            "stacking_n_estimators": self.get_int(
+                "stacking.base_config.n_estimators"
+            ),
+            "stacking_max_depth": self.get_int(
+                "stacking.base_config.max_depth"
+            ),
             "hmm_n_states": self.get_int("hmm.n_states"),
             "hmm_criterion": self.get("hmm.criterion"),
             "copula_type": self.get("copula.type"),
@@ -528,7 +607,9 @@ class ModelConfig:
 _global_model_config: Optional[ModelConfig] = None
 
 
-def get_model_config(config_path: Optional[Union[str, Path]] = None) -> ModelConfig:
+def get_model_config(
+    config_path: Optional[Union[str, Path]] = None,
+) -> ModelConfig:
     global _global_model_config
     if _global_model_config is None:
         _global_model_config = ModelConfig(config_path)

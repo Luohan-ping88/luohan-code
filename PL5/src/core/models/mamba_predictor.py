@@ -15,9 +15,9 @@ Mamba选择性状态空间模型 V1.0
 """
 
 import numpy as np
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional
 import logging
-from src.core.config import ModelConfig, get_model_config
+from src.core.config import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +56,18 @@ class SelectiveSSMCore:
 
         self.D = np.ones(self.d_model)
 
-        self.x_proj_W = np.random.randn(self.d_model, self.dt_rank + self.d_state * 2) * scale
+        self.x_proj_W = (
+            np.random.randn(self.d_model, self.dt_rank + self.d_state * 2)
+            * scale
+        )
         self.x_proj_b = np.zeros(self.dt_rank + self.d_state * 2)
 
         self.dt_proj_W = np.random.randn(self.dt_rank, self.d_model) * scale
-        self.dt_proj_b = np.exp(np.random.uniform(np.log(self.dt_min), np.log(self.dt_max), self.d_model))
+        self.dt_proj_b = np.exp(
+            np.random.uniform(
+                np.log(self.dt_min), np.log(self.dt_max), self.d_model
+            )
+        )
 
         self.out_proj_W = np.random.randn(self.d_model, self.d_model) * scale
         self.out_proj_b = np.zeros(self.d_model)
@@ -149,13 +156,21 @@ class MambaBlock:
     结构: LayerNorm → SelectiveSSM → 残差连接
     """
 
-    def __init__(self, d_model: int = 64, d_state: int = 16, expand_factor: int = 2, dropout: float = 0.1):
+    def __init__(
+        self,
+        d_model: int = 64,
+        d_state: int = 16,
+        expand_factor: int = 2,
+        dropout: float = 0.1,
+    ):
         self.d_model = d_model
         self.d_inner = d_model * expand_factor
 
         self.ssm = SelectiveSSMCore(d_model=self.d_inner, d_state=d_state)
 
-        self.in_proj_W = np.random.randn(d_model, self.d_inner * 2) * (d_model**-0.5)
+        self.in_proj_W = np.random.randn(d_model, self.d_inner * 2) * (
+            d_model**-0.5
+        )
         self.in_proj_b = np.zeros(self.d_inner * 2)
 
         self.norm_weight = np.ones(d_model)
@@ -166,7 +181,10 @@ class MambaBlock:
     def _layer_norm(self, x: np.ndarray) -> np.ndarray:
         mean = np.mean(x, axis=-1, keepdims=True)
         var = np.var(x, axis=-1, keepdims=True)
-        return self.norm_weight * (x - mean) / np.sqrt(var + 1e-5) + self.norm_bias
+        return (
+            self.norm_weight * (x - mean) / np.sqrt(var + 1e-5)
+            + self.norm_bias
+        )
 
     def forward(self, x_seq: np.ndarray) -> np.ndarray:
         """前向传播
@@ -188,10 +206,14 @@ class MambaBlock:
         y = y * (z * (1.0 / (1.0 + np.exp(-z))))
 
         if self.dropout_rate > 0:
-            mask = np.random.binomial(1, 1 - self.dropout_rate, y.shape) / (1 - self.dropout_rate)
+            mask = np.random.binomial(1, 1 - self.dropout_rate, y.shape) / (
+                1 - self.dropout_rate
+            )
             y = y * mask
 
-        out_proj_W = np.random.randn(self.d_inner, self.d_model) * (self.d_inner**-0.5)
+        out_proj_W = np.random.randn(self.d_inner, self.d_model) * (
+            self.d_inner**-0.5
+        )
         out_proj_b = np.zeros(self.d_model)
         y = y @ out_proj_W + out_proj_b
 
@@ -237,14 +259,21 @@ class MambaSequencePredictor:
         """初始化模型参数"""
         self.embedding = np.random.randn(self.n_classes, self.d_model) * 0.02
 
-        self.position_embedding = np.random.randn(self.seq_length, self.d_model) * 0.02
+        self.position_embedding = (
+            np.random.randn(self.seq_length, self.d_model) * 0.02
+        )
 
-        self.blocks = [MambaBlock(d_model=self.d_model, d_state=self.d_state) for _ in range(self.n_layers)]
+        self.blocks = [
+            MambaBlock(d_model=self.d_model, d_state=self.d_state)
+            for _ in range(self.n_layers)
+        ]
 
         self.final_norm_weight = np.ones(self.d_model)
         self.final_norm_bias = np.zeros(self.d_model)
 
-        self.head_W = np.random.randn(self.d_model, self.n_classes) * (self.d_model**-0.5)
+        self.head_W = np.random.randn(self.d_model, self.n_classes) * (
+            self.d_model**-0.5
+        )
         self.head_b = np.zeros(self.n_classes)
 
     def _prepare_input(self, sequence: np.ndarray) -> np.ndarray:
@@ -272,9 +301,18 @@ class MambaSequencePredictor:
     def _layer_norm(self, x: np.ndarray) -> np.ndarray:
         mean = np.mean(x, axis=-1, keepdims=True)
         var = np.var(x, axis=-1, keepdims=True)
-        return self.final_norm_weight * (x - mean) / np.sqrt(var + 1e-5) + self.final_norm_bias
+        return (
+            self.final_norm_weight * (x - mean) / np.sqrt(var + 1e-5)
+            + self.final_norm_bias
+        )
 
-    def fit(self, sequence: np.ndarray, epochs: int = 50, batch_size: int = 32, verbose: bool = True) -> Dict:
+    def fit(
+        self,
+        sequence: np.ndarray,
+        epochs: int = 50,
+        batch_size: int = 32,
+        verbose: bool = True,
+    ) -> Dict:
         """训练模型
 
         使用滑动窗口构建训练样本, 交叉熵损失 + Adam优化
@@ -286,7 +324,9 @@ class MambaSequencePredictor:
             verbose: 是否打印训练信息
         """
         if len(sequence) < self.seq_length + 1:
-            logger.warning(f"序列长度不足: {len(sequence)} < {self.seq_length + 1}")
+            logger.warning(
+                f"序列长度不足: {len(sequence)} < {self.seq_length + 1}"
+            )
             return {"loss": float("inf"), "epochs": 0}
 
         X, y = [], []
@@ -301,7 +341,9 @@ class MambaSequencePredictor:
 
         # 使用全部数据，不限制样本数
         if len(X) < self.seq_length + 1:
-            raise ValueError(f"序列长度不足，需要至少{self.seq_length + 1}个样本")
+            raise ValueError(
+                f"序列长度不足，需要至少{self.seq_length + 1}个样本"
+            )
 
         m_W = np.zeros_like(self.head_W)
         v_W = np.zeros_like(self.head_W)
@@ -368,8 +410,12 @@ class MambaSequencePredictor:
                 m_b_hat = m_b / (1 - beta1**t)
                 v_b_hat = v_b / (1 - beta2**t)
 
-                self.head_W -= self.learning_rate * m_W_hat / (np.sqrt(v_W_hat) + eps)
-                self.head_b -= self.learning_rate * m_b_hat / (np.sqrt(v_b_hat) + eps)
+                self.head_W -= (
+                    self.learning_rate * m_W_hat / (np.sqrt(v_W_hat) + eps)
+                )
+                self.head_b -= (
+                    self.learning_rate * m_b_hat / (np.sqrt(v_b_hat) + eps)
+                )
 
             avg_loss = epoch_loss / max(n_batches, 1)
 
@@ -381,11 +427,15 @@ class MambaSequencePredictor:
 
             if patience_counter >= patience:
                 if verbose:
-                    logger.info(f"  Mamba早停: epoch {epoch+1}, loss={avg_loss:.4f}")
+                    logger.info(
+                        f"  Mamba早停: epoch {epoch+1}, loss={avg_loss:.4f}"
+                    )
                 break
 
             if verbose and (epoch + 1) % 10 == 0:
-                logger.info(f"  Mamba epoch {epoch+1}/{epochs}, loss={avg_loss:.4f}")
+                logger.info(
+                    f"  Mamba epoch {epoch+1}/{epochs}, loss={avg_loss:.4f}"
+                )
 
         self.fitted = True
         return {"loss": best_loss, "epochs": epoch + 1}
@@ -416,7 +466,9 @@ class MambaSequencePredictor:
 
         return probs
 
-    def predict_with_uncertainty(self, sequence: np.ndarray, n_samples: int = 30) -> Tuple[np.ndarray, Dict]:
+    def predict_with_uncertainty(
+        self, sequence: np.ndarray, n_samples: int = 30
+    ) -> Tuple[np.ndarray, Dict]:
         """带不确定性量化的预测
 
         使用MC-Dropout风格的多次前向传播估计不确定性
@@ -429,7 +481,11 @@ class MambaSequencePredictor:
             uncertainty: 不确定性信息
         """
         if not self.fitted:
-            return np.ones(self.n_classes) / self.n_classes, {"total": 1.0, "aleatoric": 0.5, "epistemic": 0.5}
+            return np.ones(self.n_classes) / self.n_classes, {
+                "total": 1.0,
+                "aleatoric": 0.5,
+                "epistemic": 0.5,
+            }
 
         all_probs = []
         for _ in range(n_samples):
@@ -441,7 +497,11 @@ class MambaSequencePredictor:
         std_probs = np.std(all_probs, axis=0)
 
         aleatoric = -np.sum(mean_probs * np.log(mean_probs + 1e-10))
-        epistemic = np.mean(np.sum(std_probs**2, axis=-1)) if len(std_probs.shape) > 1 else np.sum(std_probs**2)
+        epistemic = (
+            np.mean(np.sum(std_probs**2, axis=-1))
+            if len(std_probs.shape) > 1
+            else np.sum(std_probs**2)
+        )
 
         uncertainty = {
             "total": aleatoric + epistemic,
@@ -499,16 +559,29 @@ class MultiPositionMambaPredictor:
         self.seq_length = seq_length
 
         self.predictors = {
-            pos: MambaSequencePredictor(n_layers=n_layers, d_model=d_model, d_state=d_state, seq_length=seq_length)
+            pos: MambaSequencePredictor(
+                n_layers=n_layers,
+                d_model=d_model,
+                d_state=d_state,
+                seq_length=seq_length,
+            )
             for pos in self.positions
         }
 
-        self.cross_position_W = np.random.randn(5 * d_model, d_model) * (5 * d_model) ** -0.5
+        self.cross_position_W = (
+            np.random.randn(5 * d_model, d_model) * (5 * d_model) ** -0.5
+        )
         self.cross_position_b = np.zeros(d_model)
 
         self.fitted = False
 
-    def fit(self, data: Dict[str, np.ndarray], epochs: int = 50, parallel: bool = True, verbose: bool = True) -> Dict:
+    def fit(
+        self,
+        data: Dict[str, np.ndarray],
+        epochs: int = 50,
+        parallel: bool = True,
+        verbose: bool = True,
+    ) -> Dict:
         """训练所有位置的预测器
 
         Args:
@@ -524,10 +597,14 @@ class MultiPositionMambaPredictor:
             if pos in data and len(data[pos]) > 0:
                 if verbose:
                     logger.info(f"  训练Mamba预测器: {pos}")
-                result = self.predictors[pos].fit(data[pos], epochs=epochs, verbose=verbose)
+                result = self.predictors[pos].fit(
+                    data[pos], epochs=epochs, verbose=verbose
+                )
                 results[pos] = result
                 if verbose:
-                    logger.info(f"    {pos} 训练完成: loss={result['loss']:.4f}")
+                    logger.info(
+                        f"    {pos} 训练完成: loss={result['loss']:.4f}"
+                    )
             else:
                 logger.warning(f"  位置 {pos} 无数据, 跳过训练")
                 results[pos] = {"loss": float("inf"), "epochs": 0}
@@ -535,7 +612,9 @@ class MultiPositionMambaPredictor:
         self.fitted = True
         return results
 
-    def predict(self, data: Dict[str, np.ndarray], with_uncertainty: bool = True) -> Dict[str, Dict]:
+    def predict(
+        self, data: Dict[str, np.ndarray], with_uncertainty: bool = True
+    ) -> Dict[str, Dict]:
         """预测所有位置的下一个数字
 
         Args:
@@ -549,7 +628,11 @@ class MultiPositionMambaPredictor:
                 pos: {
                     "probabilities": np.ones(10) / 10,
                     "top_k": list(range(8)),
-                    "uncertainty": {"total": 1.0, "aleatoric": 0.5, "epistemic": 0.5},
+                    "uncertainty": {
+                        "total": 1.0,
+                        "aleatoric": 0.5,
+                        "epistemic": 0.5,
+                    },
                 }
                 for pos in self.positions
             }
@@ -563,24 +646,40 @@ class MultiPositionMambaPredictor:
                 seq = np.array(seq, dtype=np.float64)
 
                 if with_uncertainty:
-                    probs, uncertainty = self.predictors[pos].predict_with_uncertainty(seq)
+                    probs, uncertainty = self.predictors[
+                        pos
+                    ].predict_with_uncertainty(seq)
                 else:
                     probs = self.predictors[pos].predict_proba(seq)
-                    uncertainty = {"total": 0.0, "aleatoric": 0.0, "epistemic": 0.0}
+                    uncertainty = {
+                        "total": 0.0,
+                        "aleatoric": 0.0,
+                        "epistemic": 0.0,
+                    }
 
                 top_k_indices = np.argsort(probs)[::-1][:8].tolist()
 
-                predictions[pos] = {"probabilities": probs, "top_k": top_k_indices, "uncertainty": uncertainty}
+                predictions[pos] = {
+                    "probabilities": probs,
+                    "top_k": top_k_indices,
+                    "uncertainty": uncertainty,
+                }
             else:
                 predictions[pos] = {
                     "probabilities": np.ones(10) / 10,
                     "top_k": list(range(8)),
-                    "uncertainty": {"total": 1.0, "aleatoric": 0.5, "epistemic": 0.5},
+                    "uncertainty": {
+                        "total": 1.0,
+                        "aleatoric": 0.5,
+                        "epistemic": 0.5,
+                    },
                 }
 
         return predictions
 
-    def predict_with_cross_position(self, data: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def predict_with_cross_position(
+        self, data: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
         """跨位置联合预测
 
         利用位置间的相关性进行联合预测调整
@@ -595,17 +694,23 @@ class MultiPositionMambaPredictor:
         position_embeddings = []
         for pos in self.positions:
             if pos in base_predictions:
-                position_embeddings.append(base_predictions[pos]["probabilities"])
+                position_embeddings.append(
+                    base_predictions[pos]["probabilities"]
+                )
             else:
                 position_embeddings.append(np.ones(10) / 10)
 
         joint_embedding = np.concatenate(position_embeddings)
-        cross_features = joint_embedding @ self.cross_position_W + self.cross_position_b
+        cross_features = (
+            joint_embedding @ self.cross_position_W + self.cross_position_b
+        )
 
         adjusted_probs = {}
         for i, pos in enumerate(self.positions):
             base_prob = base_predictions[pos]["probabilities"]
-            cross_adjustment = np.exp(cross_features) / np.sum(np.exp(cross_features))
+            cross_adjustment = np.exp(cross_features) / np.sum(
+                np.exp(cross_features)
+            )
 
             adjusted = 0.85 * base_prob + 0.15 * cross_adjustment
             adjusted = adjusted / np.sum(adjusted)

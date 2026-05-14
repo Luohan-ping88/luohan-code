@@ -1,7 +1,6 @@
 """对话记忆实现"""
 
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import List, Any, Optional
 
 from .base import BaseMemory
 from ..ai_types import MemoryConfig, MemoryType, ConversationMessage
@@ -167,7 +166,10 @@ class ConversationMemory(BaseMemory):
             msg_text = f"{msg.role}: {msg.content}"
             msg_tokens = len(msg_text.split())
 
-            if max_tokens is not None and total_tokens + msg_tokens > max_tokens:
+            if (
+                max_tokens is not None
+                and total_tokens + msg_tokens > max_tokens
+            ):
                 break
 
             history.insert(0, msg_text)
@@ -209,5 +211,7 @@ class ConversationMemory(BaseMemory):
         Returns:
             是否添加成功
         """
-        message = ConversationMessage(role="tool", content=str(result), tool_call_id=tool_call_id)
+        message = ConversationMessage(
+            role="tool", content=str(result), tool_call_id=tool_call_id
+        )
         return self.add(message)

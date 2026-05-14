@@ -8,7 +8,9 @@ import os
 from typing import Dict, Any, List, Optional
 
 # 添加PL5工具系统路径
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+)
 
 from .base import BaseTool
 from ..ai_types import ToolResult, ToolCategory, ToolParameter
@@ -16,7 +18,10 @@ from ..ai_types import ToolResult, ToolCategory, ToolParameter
 # 尝试导入PL5工具系统
 PL5_AVAILABLE = False
 try:
-    from tools.base import ToolRegistry as PL5ToolRegistry, BaseTool as PL5BaseTool, ToolContext
+    from tools.base import (
+        ToolRegistry as PL5ToolRegistry,
+        ToolContext,
+    )
 
     PL5_AVAILABLE = True
 except ImportError:
@@ -36,8 +41,16 @@ class PL5ToolAdapter(BaseTool):
     input_schema = {
         "type": "object",
         "properties": {
-            "tool_name": {"type": "string", "description": "PL5工具名称", "example": "predict"},
-            "parameters": {"type": "object", "description": "工具参数", "example": {}},
+            "tool_name": {
+                "type": "string",
+                "description": "PL5工具名称",
+                "example": "predict",
+            },
+            "parameters": {
+                "type": "object",
+                "description": "工具参数",
+                "example": {},
+            },
         },
         "required": ["tool_name", "parameters"],
     }
@@ -61,13 +74,17 @@ class PL5ToolAdapter(BaseTool):
         tool_params = parameters.get("parameters", {})
 
         if not PL5_AVAILABLE:
-            return ToolResult(success=False, error="PL5 tool system is not available")
+            return ToolResult(
+                success=False, error="PL5 tool system is not available"
+            )
 
         try:
             # 获取PL5工具
             tool_class = self.pl5_registry.get(tool_name)
             if not tool_class:
-                return ToolResult(success=False, error=f"PL5 tool '{tool_name}' not found")
+                return ToolResult(
+                    success=False, error=f"PL5 tool '{tool_name}' not found"
+                )
 
             # 创建工具实例
             tool = tool_class()
@@ -76,11 +93,17 @@ class PL5ToolAdapter(BaseTool):
             pl5_result = tool.run_safe(ToolContext(), **tool_params)
 
             # 转换结果格式
-            result = ToolResult(success=pl5_result.success, data=pl5_result.data, metadata=pl5_result.metadata)
+            result = ToolResult(
+                success=pl5_result.success,
+                data=pl5_result.data,
+                metadata=pl5_result.metadata,
+            )
 
             return result
         except Exception as e:
-            return ToolResult(success=False, error=f"PL5 tool execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"PL5 tool execution failed: {str(e)}"
+            )
 
     def execute(self, ctx, **kwargs) -> ToolResult:
         """执行PL5工具
@@ -167,13 +190,22 @@ def register_pl5_tools():
                 parameters.append(param)
         else:
             # 默认参数
-            parameters = [ToolParameter(name="params", type="dict", description="工具参数", required=True)]
+            parameters = [
+                ToolParameter(
+                    name="params",
+                    type="dict",
+                    description="工具参数",
+                    required=True,
+                )
+            ]
 
         # 创建包装函数
         def create_wrapper(pl5_tool_name):
             def wrapper(parameters):
                 adapter = PL5ToolAdapter()
-                return adapter.run({"tool_name": pl5_tool_name, "parameters": parameters})
+                return adapter.run(
+                    {"tool_name": pl5_tool_name, "parameters": parameters}
+                )
 
             return wrapper
 

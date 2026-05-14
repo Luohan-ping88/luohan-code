@@ -19,7 +19,7 @@ import numpy as np
 from typing import Dict, Tuple, Optional, List
 from scipy import stats
 import logging
-from src.core.config import ModelConfig, get_model_config
+from src.core.config import ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,9 @@ class ProbabilityCalibrator:
         for temp in np.arange(0.1, 5.0, 0.1):
             scaled_logits = logits / temp
             scaled_probs = self._softmax(scaled_logits)
-            nll = -np.mean(np.log(scaled_probs[np.arange(len(labels)), labels] + 1e-10))
+            nll = -np.mean(
+                np.log(scaled_probs[np.arange(len(labels)), labels] + 1e-10)
+            )
 
             if nll < best_nll:
                 best_nll = nll
@@ -120,7 +122,9 @@ class ProbabilityCalibrator:
         return exp_x / (np.sum(exp_x, axis=-1, keepdims=True) + 1e-10)
 
     @staticmethod
-    def _compute_ece(probs: np.ndarray, labels: np.ndarray, n_bins: int = 10) -> float:
+    def _compute_ece(
+        probs: np.ndarray, labels: np.ndarray, n_bins: int = 10
+    ) -> float:
         """计算期望校准误差(ECE)"""
         confidences = np.max(probs, axis=1)
         predictions = np.argmax(probs, axis=1)
@@ -131,7 +135,9 @@ class ProbabilityCalibrator:
         total = len(labels)
 
         for i in range(n_bins):
-            mask = (confidences > bin_boundaries[i]) & (confidences <= bin_boundaries[i + 1])
+            mask = (confidences > bin_boundaries[i]) & (
+                confidences <= bin_boundaries[i + 1]
+            )
             if np.sum(mask) > 0:
                 bin_acc = np.mean(accuracies[mask])
                 bin_conf = np.mean(confidences[mask])
@@ -242,11 +248,19 @@ class UncertaintyDecomposer:
         predictions = np.array(predictions)
         mean_pred = np.mean(predictions, axis=0)
 
-        aleatoric = float(-np.mean(np.sum(predictions * np.log(predictions + 1e-10), axis=-1)))
+        aleatoric = float(
+            -np.mean(
+                np.sum(predictions * np.log(predictions + 1e-10), axis=-1)
+            )
+        )
 
         epistemic = float(
             np.mean(
-                np.sum(predictions * np.log(predictions + 1e-10) - predictions * np.log(mean_pred + 1e-10), axis=-1)
+                np.sum(
+                    predictions * np.log(predictions + 1e-10)
+                    - predictions * np.log(mean_pred + 1e-10),
+                    axis=-1,
+                )
             )
         )
 
@@ -259,7 +273,9 @@ class UncertaintyDecomposer:
             "epistemic_uncertainty": float(epistemic),
             "epistemic_ratio": float(epistemic / (total + 1e-10)),
             "confidence": float(np.max(mean_pred_flat)),
-            "entropy": float(-np.sum(mean_pred_flat * np.log(mean_pred_flat + 1e-10))),
+            "entropy": float(
+                -np.sum(mean_pred_flat * np.log(mean_pred_flat + 1e-10))
+            ),
         }
 
     @staticmethod
@@ -300,7 +316,9 @@ class DistributionShiftDetector:
     """
 
     @staticmethod
-    def psi(expected: np.ndarray, actual: np.ndarray, n_bins: int = 10) -> float:
+    def psi(
+        expected: np.ndarray, actual: np.ndarray, n_bins: int = 10
+    ) -> float:
         """计算PSI (Population Stability Index)
 
         PSI < 0.1: 无显著变化
@@ -309,17 +327,23 @@ class DistributionShiftDetector:
         """
         breakpoints = np.linspace(0, 1, n_bins + 1)
 
-        expected_pct = np.histogram(expected, bins=breakpoints)[0] / len(expected)
+        expected_pct = np.histogram(expected, bins=breakpoints)[0] / len(
+            expected
+        )
         actual_pct = np.histogram(actual, bins=breakpoints)[0] / len(actual)
 
         expected_pct = np.clip(expected_pct, 0.0001, 1.0)
         actual_pct = np.clip(actual_pct, 0.0001, 1.0)
 
-        psi_value = np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct))
+        psi_value = np.sum(
+            (actual_pct - expected_pct) * np.log(actual_pct / expected_pct)
+        )
         return float(psi_value)
 
     @staticmethod
-    def mmd(x: np.ndarray, y: np.ndarray, kernel: str = "rbf", gamma: float = 1.0) -> float:
+    def mmd(
+        x: np.ndarray, y: np.ndarray, kernel: str = "rbf", gamma: float = 1.0
+    ) -> float:
         """计算MMD (Maximum Mean Discrepancy)"""
         n_x = len(x)
         n_y = len(y)
@@ -335,7 +359,11 @@ class DistributionShiftDetector:
     def ks_test(expected: np.ndarray, actual: np.ndarray) -> Dict:
         """KS检验"""
         statistic, p_value = stats.ks_2samp(expected, actual)
-        return {"statistic": float(statistic), "p_value": float(p_value), "significant": p_value < 0.05}
+        return {
+            "statistic": float(statistic),
+            "p_value": float(p_value),
+            "significant": p_value < 0.05,
+        }
 
 
 class EnhancedBayesianQuantifier:
@@ -349,7 +377,11 @@ class EnhancedBayesianQuantifier:
     5. 分布漂移检测 (PSI/MMD/KS)
     """
 
-    def __init__(self, calibration_alpha: float = 0.1, model_config: Optional[ModelConfig] = None):
+    def __init__(
+        self,
+        calibration_alpha: float = 0.1,
+        model_config: Optional[ModelConfig] = None,
+    ):
         self.calibrator = ProbabilityCalibrator(method="temperature")
         self.conformal = ConformalPredictor(alpha=calibration_alpha)
         self.decomposer = UncertaintyDecomposer()
@@ -357,7 +389,11 @@ class EnhancedBayesianQuantifier:
         self.fitted = False
         self.calibration_data = None
 
-    def fit(self, model_predictions: Dict[str, List[np.ndarray]], labels: np.ndarray) -> Dict:
+    def fit(
+        self,
+        model_predictions: Dict[str, List[np.ndarray]],
+        labels: np.ndarray,
+    ) -> Dict:
         """拟合不确定性量化器
 
         Args:
@@ -371,7 +407,11 @@ class EnhancedBayesianQuantifier:
         all_probs = []
         for model_name, pred_list in model_predictions.items():
             if pred_list:
-                avg_probs = np.mean(pred_list, axis=0) if len(pred_list) > 1 else pred_list[0]
+                avg_probs = (
+                    np.mean(pred_list, axis=0)
+                    if len(pred_list) > 1
+                    else pred_list[0]
+                )
                 all_probs.append(avg_probs)
 
         if all_probs:
@@ -382,12 +422,19 @@ class EnhancedBayesianQuantifier:
             conformal_result = self.conformal.fit(ensemble_probs, labels)
             results["conformal"] = conformal_result
 
-        self.calibration_data = {"predictions": model_predictions, "labels": labels}
+        self.calibration_data = {
+            "predictions": model_predictions,
+            "labels": labels,
+        }
         self.fitted = True
 
         return results
 
-    def quantify(self, model_predictions: Dict[str, np.ndarray], training_stats: Optional[Dict] = None) -> Dict:
+    def quantify(
+        self,
+        model_predictions: Dict[str, np.ndarray],
+        training_stats: Optional[Dict] = None,
+    ) -> Dict:
         """量化预测的不确定性
 
         Args:
@@ -409,7 +456,9 @@ class EnhancedBayesianQuantifier:
                 calibrated = self.calibrator.transform(probs.reshape(1, -1))[0]
             else:
                 calibrated = probs
-            report["calibrated_probabilities"][model_name] = calibrated.tolist()
+            report["calibrated_probabilities"][
+                model_name
+            ] = calibrated.tolist()
 
         all_probs = list(model_predictions.values())
         if len(all_probs) > 1:
@@ -419,7 +468,10 @@ class EnhancedBayesianQuantifier:
         if self.conformal.fitted:
             for model_name, probs in model_predictions.items():
                 pred_set, coverage = self.conformal.predict_set(probs)
-                report["conformal_sets"][model_name] = {"prediction_set": pred_set, "coverage": coverage}
+                report["conformal_sets"][model_name] = {
+                    "prediction_set": pred_set,
+                    "coverage": coverage,
+                }
 
         if training_stats is not None:
             for model_name, probs in model_predictions.items():
@@ -431,13 +483,16 @@ class EnhancedBayesianQuantifier:
                         "psi": psi,
                         "ks_statistic": ks_result["statistic"],
                         "ks_p_value": ks_result["p_value"],
-                        "shift_detected": psi > 0.25 or ks_result["significant"],
+                        "shift_detected": psi > 0.25
+                        or ks_result["significant"],
                     }
 
         return report
 
     def get_confidence_adjusted_weights(
-        self, model_predictions: Dict[str, np.ndarray], base_weights: Dict[str, float]
+        self,
+        model_predictions: Dict[str, np.ndarray],
+        base_weights: Dict[str, float],
     ) -> Dict[str, float]:
         """基于不确定性调整模型权重
 
@@ -459,7 +514,9 @@ class EnhancedBayesianQuantifier:
         total = 0.0
         for model_name, base_weight in base_weights.items():
             if model_name in entropies:
-                confidence = 1.0 - (entropies[model_name] - min_entropy) / entropy_range
+                confidence = (
+                    1.0 - (entropies[model_name] - min_entropy) / entropy_range
+                )
                 adjusted[model_name] = base_weight * (0.7 + 0.3 * confidence)
             else:
                 adjusted[model_name] = base_weight

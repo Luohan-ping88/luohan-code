@@ -5,15 +5,15 @@
 实现系统性能瓶颈的自动识别和分析
 """
 
-import time
-import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import statistics
 
-from src.core.monitoring.performance_monitor import get_performance_monitor, get_performance_tracker
+from src.core.monitoring.performance_monitor import (
+    get_performance_monitor,
+    get_performance_tracker,
+)
 from src.core.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -140,7 +140,10 @@ class BottleneckDetector:
                     {
                         "type": "function_execution_time",
                         "severity": (
-                            "high" if stats["avg_execution_time"] > self.thresholds["execution_time"] * 2 else "medium"
+                            "high"
+                            if stats["avg_execution_time"]
+                            > self.thresholds["execution_time"] * 2
+                            else "medium"
                         ),
                         "message": f"函数 {func_name} 执行时间过长: {stats['avg_execution_time']:.2f} 秒",
                         "function": func_name,
@@ -178,7 +181,9 @@ class BottleneckDetector:
             return trends
 
         # 分析CPU趋势
-        cpu_values = [h["system"]["cpu_percent"] for h in history if "system" in h]
+        cpu_values = [
+            h["system"]["cpu_percent"] for h in history if "system" in h
+        ]
         if cpu_values:
             cpu_trend = self._calculate_trend(cpu_values)
             if cpu_trend > 0.5:  # 上升趋势
@@ -193,7 +198,9 @@ class BottleneckDetector:
                 )
 
         # 分析内存趋势
-        memory_values = [h["system"]["memory_percent"] for h in history if "system" in h]
+        memory_values = [
+            h["system"]["memory_percent"] for h in history if "system" in h
+        ]
         if memory_values:
             memory_trend = self._calculate_trend(memory_values)
             if memory_trend > 0.3:  # 上升趋势
@@ -240,7 +247,11 @@ class BottleneckDetector:
         for category, items in bottlenecks.items():
             for item in items:
                 self.bottlenecks_history.append(
-                    {**item, "category": category, "detection_time": datetime.now().isoformat()}
+                    {
+                        **item,
+                        "category": category,
+                        "detection_time": datetime.now().isoformat(),
+                    }
                 )
 
         # 限制历史记录长度
@@ -258,20 +269,30 @@ class BottleneckDetector:
             "by_category": {},
             "by_severity": {},
             "most_common": {},
-            "last_detection": recent_bottlenecks[-1]["detection_time"] if recent_bottlenecks else None,
+            "last_detection": (
+                recent_bottlenecks[-1]["detection_time"]
+                if recent_bottlenecks
+                else None
+            ),
         }
 
         # 按类别统计
         for bottleneck in recent_bottlenecks:
             category = bottleneck.get("category", "unknown")
-            summary["by_category"][category] = summary["by_category"].get(category, 0) + 1
+            summary["by_category"][category] = (
+                summary["by_category"].get(category, 0) + 1
+            )
 
             severity = bottleneck.get("severity", "unknown")
-            summary["by_severity"][severity] = summary["by_severity"].get(severity, 0) + 1
+            summary["by_severity"][severity] = (
+                summary["by_severity"].get(severity, 0) + 1
+            )
 
             # 统计最常见的瓶颈类型
             bottleneck_type = bottleneck.get("type", "unknown")
-            summary["most_common"][bottleneck_type] = summary["most_common"].get(bottleneck_type, 0) + 1
+            summary["most_common"][bottleneck_type] = (
+                summary["most_common"].get(bottleneck_type, 0) + 1
+            )
 
         return summary
 
@@ -286,7 +307,11 @@ class BottleneckDetector:
                 recommendations.append(
                     {
                         "type": "system_cpu",
-                        "priority": "high" if bottleneck["severity"] == "high" else "medium",
+                        "priority": (
+                            "high"
+                            if bottleneck["severity"] == "high"
+                            else "medium"
+                        ),
                         "recommendation": "考虑优化CPU密集型任务，或增加系统CPU资源",
                         "affected_area": "系统整体性能",
                         "bottleneck_details": bottleneck,
@@ -296,7 +321,11 @@ class BottleneckDetector:
                 recommendations.append(
                     {
                         "type": "system_memory",
-                        "priority": "high" if bottleneck["severity"] == "high" else "medium",
+                        "priority": (
+                            "high"
+                            if bottleneck["severity"] == "high"
+                            else "medium"
+                        ),
                         "recommendation": "检查内存泄漏，优化内存使用，或增加系统内存",
                         "affected_area": "系统整体性能",
                         "bottleneck_details": bottleneck,
@@ -319,7 +348,11 @@ class BottleneckDetector:
                 recommendations.append(
                     {
                         "type": "function_execution_time",
-                        "priority": "high" if bottleneck["severity"] == "high" else "medium",
+                        "priority": (
+                            "high"
+                            if bottleneck["severity"] == "high"
+                            else "medium"
+                        ),
                         "recommendation": f'优化函数 {bottleneck["function"]} 的执行逻辑，考虑缓存、并行处理或算法优化',
                         "affected_area": f'函数 {bottleneck["function"]}',
                         "bottleneck_details": bottleneck,
@@ -365,7 +398,9 @@ class BottleneckDetector:
         """保存瓶颈报告"""
         if report_path is None:
             report_path = (
-                Path("logs") / "performance" / f"bottleneck_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                Path("logs")
+                / "performance"
+                / f"bottleneck_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             )
 
         report = {
@@ -412,7 +447,9 @@ def generate_optimization_recommendations() -> List[Dict[str, Any]]:
     return detector.generate_optimization_recommendations()
 
 
-def save_bottleneck_report(report_path: Optional[Path] = None) -> Optional[Path]:
+def save_bottleneck_report(
+    report_path: Optional[Path] = None,
+) -> Optional[Path]:
     """保存瓶颈报告"""
     detector = get_bottleneck_detector()
     return detector.save_bottleneck_report(report_path)

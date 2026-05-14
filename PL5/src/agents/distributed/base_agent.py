@@ -8,7 +8,7 @@ import logging
 from enum import Enum
 from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass, field
 
 from .protocol import (
@@ -17,7 +17,6 @@ from .protocol import (
     AgentCapability,
     AgentMessage,
     MessageType,
-    MessagePriority,
     AgentProtocolMixin,
 )
 
@@ -112,7 +111,9 @@ class BaseAgent(ABC, AgentProtocolMixin):
             status=self.state.value,
             metadata={
                 "tasks_count": len(self.tasks),
-                "completed_tasks": sum(1 for r in self.task_results.values() if r.success)
+                "completed_tasks": sum(
+                    1 for r in self.task_results.values() if r.success
+                ),
             },
         )
 
@@ -175,7 +176,11 @@ class BaseAgent(ABC, AgentProtocolMixin):
                     msg_type=MessageType.RESPONSE,
                     sender=self._agent_id,
                     receiver=msg.sender,
-                    content=result.to_dict() if isinstance(result, TaskResult) else result,
+                    content=(
+                        result.to_dict()
+                        if isinstance(result, TaskResult)
+                        else result
+                    ),
                     correlation_id=msg.msg_id,
                 )
             except Exception as e:
@@ -203,7 +208,10 @@ class BaseAgent(ABC, AgentProtocolMixin):
         query_type = msg.content.get("query_type", "")
 
         if query_type == "status":
-            content = {"status": self.state.value, "tasks": list(self.tasks.keys())}
+            content = {
+                "status": self.state.value,
+                "tasks": list(self.tasks.keys()),
+            }
         elif query_type == "capabilities":
             content = {
                 "capabilities": [
@@ -278,7 +286,9 @@ class BaseAgent(ABC, AgentProtocolMixin):
 
         return task_result
 
-    async def wait_for_result(self, task_id: str, timeout: float = 60.0) -> Optional[TaskResult]:
+    async def wait_for_result(
+        self, task_id: str, timeout: float = 60.0
+    ) -> Optional[TaskResult]:
         """等待任务结果"""
         start_time = asyncio.get_event_loop().time()
 
@@ -315,7 +325,9 @@ class CollaborativeAgent(BaseAgent):
         """移除协作者"""
         if agent_id in self.collaborators:
             self.collaborators.remove(agent_id)
-            logger.info(f"Collaborator removed: {agent_id} from {self.agent_name}")
+            logger.info(
+                f"Collaborator removed: {agent_id} from {self.agent_name}"
+            )
 
     async def delegate_task(
         self, target: str, task: AgentTask, wait_result: bool = False
@@ -336,7 +348,12 @@ class CollaborativeAgent(BaseAgent):
 
         if wait_result:
             return await self.protocol.send_and_wait(
-                target, {"task_type": task.task_type, "task_id": task.task_id, "input_data": task.input_data}
+                target,
+                {
+                    "task_type": task.task_type,
+                    "task_id": task.task_id,
+                    "input_data": task.input_data,
+                },
             )
 
         return None
@@ -440,10 +457,14 @@ class MasterAgent(BaseAgent):
                 results = {}
                 for subtask in subtasks:
                     position = subtask.input_data.get("position")
-                    worker_id = workers_by_capability.get(f"predict_{position}")
+                    worker_id = workers_by_capability.get(
+                        f"predict_{position}"
+                    )
 
                     if worker_id:
-                        result = await self.delegate_task(worker_id[0], subtask, wait_result=True)
+                        result = await self.delegate_task(
+                            worker_id[0], subtask, wait_result=True
+                        )
                         results[position] = result
 
                 return {"success": True, "results": results}

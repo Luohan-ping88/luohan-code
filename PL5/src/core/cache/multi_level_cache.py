@@ -57,7 +57,9 @@ class CacheEntry:
 class L1MemoryCache:
     """L1 内存缓存 - 线程安全"""
 
-    def __init__(self, max_size: int = 1000, strategy: CacheStrategy = CacheStrategy.LRU):
+    def __init__(
+        self, max_size: int = 1000, strategy: CacheStrategy = CacheStrategy.LRU
+    ):
         self._max_size = max_size
         self._strategy = strategy
         self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
@@ -104,7 +106,9 @@ class L1MemoryCache:
         if self._strategy == CacheStrategy.LRU:
             self._cache.popitem(last=False)
         elif self._strategy == CacheStrategy.LFU:
-            min_key = min(self._cache.keys(), key=lambda k: self._cache[k].access_count)
+            min_key = min(
+                self._cache.keys(), key=lambda k: self._cache[k].access_count
+            )
             del self._cache[min_key]
         elif self._strategy == CacheStrategy.FIFO:
             self._cache.popitem(last=False)
@@ -249,7 +253,9 @@ class L2DiskCache:
             return
 
         # 按最后访问时间排序，删除最旧的
-        sorted_items = sorted(self._metadata.items(), key=lambda x: x[1].get("last_accessed", 0))
+        sorted_items = sorted(
+            self._metadata.items(), key=lambda x: x[1].get("last_accessed", 0)
+        )
 
         for key, meta in sorted_items:
             if total_size <= self._max_size_bytes * 0.8:
@@ -310,13 +316,19 @@ class MultiLevelCache:
         strategy: CacheStrategy = CacheStrategy.LRU,
     ):
         self._l1 = L1MemoryCache(max_size=l1_size, strategy=strategy)
-        self._l2 = L2DiskCache(l2_dir or Path("./cache"), max_size_mb=l2_size_mb) if l2_dir else None
+        self._l2 = (
+            L2DiskCache(l2_dir or Path("./cache"), max_size_mb=l2_size_mb)
+            if l2_dir
+            else None
+        )
         self._l3 = None  # 远程缓存预留
         self._lock = threading.RLock()
 
     def _generate_key(self, *args, **kwargs) -> str:
         """生成缓存key"""
-        content = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True, default=str)
+        content = json.dumps(
+            {"args": args, "kwargs": kwargs}, sort_keys=True, default=str
+        )
         return hashlib.sha256(content.encode()).hexdigest()
 
     def get(self, key: str) -> Tuple[Optional[Any], Optional[CacheLevel]]:
@@ -341,7 +353,13 @@ class MultiLevelCache:
 
         return None, None
 
-    def put(self, key: str, value: Any, ttl: Optional[int] = None, levels: List[CacheLevel] = None):
+    def put(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None,
+        levels: List[CacheLevel] = None,
+    ):
         """
         存入缓存
         levels: 指定要存入的缓存级别，默认全部
@@ -355,13 +373,17 @@ class MultiLevelCache:
             if CacheLevel.L2_DISK in levels and self._l2:
                 self._l2.put(key, value, ttl)
 
-    def get_or_compute(self, key: str, compute_fn: Callable, ttl: Optional[int] = None) -> Any:
+    def get_or_compute(
+        self, key: str, compute_fn: Callable, ttl: Optional[int] = None
+    ) -> Any:
         """
         获取缓存或计算
         """
         value, level = self.get(key)
         if value is not None:
-            logger.debug(f"缓存命中 [{level.name if level else 'None'}]: {key[:16]}...")
+            logger.debug(
+                f"缓存命中 [{level.name if level else 'None'}]: {key[:16]}..."
+            )
             return value
 
         # 计算
@@ -434,14 +456,20 @@ class MultiLevelCache:
         print("=" * 50)
         print(f"L1 内存缓存:")
         print(f"  大小: {stats['l1']['size']}/{stats['l1']['max_size']}")
-        print(f"  命中: {stats['l1']['hits']}, 未命中: {stats['l1']['misses']}")
+        print(
+            f"  命中: {stats['l1']['hits']}, 未命中: {stats['l1']['misses']}"
+        )
         print(f"  命中率: {stats['l1']['hit_rate']:.2%}")
 
         if "l2" in stats:
             print(f"\nL2 磁盘缓存:")
             print(f"  大小: {stats['l2']['size']}")
-            print(f"  占用: {stats['l2']['total_size_mb']:.1f}MB/{stats['l2']['max_size_mb']:.1f}MB")
-            print(f"  命中: {stats['l2']['hits']}, 未命中: {stats['l2']['misses']}")
+            print(
+                f"  占用: {stats['l2']['total_size_mb']:.1f}MB/{stats['l2']['max_size_mb']:.1f}MB"
+            )
+            print(
+                f"  命中: {stats['l2']['hits']}, 未命中: {stats['l2']['misses']}"
+            )
             print(f"  命中率: {stats['l2']['hit_rate']:.2%}")
 
         print(f"\n整体统计:")
@@ -461,7 +489,9 @@ def get_global_cache() -> MultiLevelCache:
     if _global_cache is None:
         from src.core.config import MODELS_DIR
 
-        _global_cache = MultiLevelCache(l1_size=2000, l2_dir=MODELS_DIR / "cache", l2_size_mb=1000)
+        _global_cache = MultiLevelCache(
+            l1_size=2000, l2_dir=MODELS_DIR / "cache", l2_size_mb=1000
+        )
     return _global_cache
 
 

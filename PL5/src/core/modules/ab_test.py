@@ -5,7 +5,7 @@ A/B测试框架
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Callable
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from datetime import datetime
 import hashlib
@@ -91,7 +91,9 @@ class Experiment:
     created_at: datetime = field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
-    results: Dict[str, Dict[str, ExperimentResult]] = field(default_factory=dict)
+    results: Dict[str, Dict[str, ExperimentResult]] = field(
+        default_factory=dict
+    )
     config: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -217,7 +219,10 @@ class ABTestFramework:
             return False
 
         experiment = self._experiments[experiment_id]
-        if experiment.status in [ExperimentStatus.COMPLETED, ExperimentStatus.ARCHIVED]:
+        if experiment.status in [
+            ExperimentStatus.COMPLETED,
+            ExperimentStatus.ARCHIVED,
+        ]:
             logger.warning(f"实验已经结束: {experiment_id}")
             return True
 
@@ -226,7 +231,9 @@ class ABTestFramework:
         logger.info(f"结束实验: {experiment_id}")
         return True
 
-    def assign_variant(self, experiment_id: str, user_id: str) -> Optional[Variant]:
+    def assign_variant(
+        self, experiment_id: str, user_id: str
+    ) -> Optional[Variant]:
         """
         为用户分配实验变体
 
@@ -251,7 +258,9 @@ class ABTestFramework:
 
         if user_id in self._variant_assignments[experiment_id]:
             variant_id = self._variant_assignments[experiment_id][user_id]
-            variant = next((v for v in experiment.variants if v.id == variant_id), None)
+            variant = next(
+                (v for v in experiment.variants if v.id == variant_id), None
+            )
             return variant
 
         hash_value = self._hash_user_id(experiment_id, user_id)
@@ -315,8 +324,12 @@ class ABTestFramework:
             experiment.results[experiment_id][variant.id] = {}
 
         if metric_name not in experiment.results[experiment_id][variant.id]:
-            experiment.results[experiment_id][variant.id][metric_name] = ExperimentResult(
-                experiment_id=experiment_id, variant_id=variant.id, metric_name=metric_name
+            experiment.results[experiment_id][variant.id][metric_name] = (
+                ExperimentResult(
+                    experiment_id=experiment_id,
+                    variant_id=variant.id,
+                    metric_name=metric_name,
+                )
             )
 
         result = experiment.results[experiment_id][variant.id][metric_name]
@@ -328,7 +341,9 @@ class ABTestFramework:
 
         return True
 
-    def get_experiment_results(self, experiment_id: str) -> Optional[Dict[str, Dict[str, ExperimentResult]]]:
+    def get_experiment_results(
+        self, experiment_id: str
+    ) -> Optional[Dict[str, Dict[str, ExperimentResult]]]:
         """
         获取实验结果
 
@@ -344,7 +359,9 @@ class ABTestFramework:
 
         return self._experiments[experiment_id].results
 
-    def list_experiments(self, status: Optional[ExperimentStatus] = None) -> List[Experiment]:
+    def list_experiments(
+        self, status: Optional[ExperimentStatus] = None
+    ) -> List[Experiment]:
         """
         列出所有实验
 

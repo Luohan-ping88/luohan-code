@@ -6,13 +6,12 @@
 import asyncio
 import json
 import os
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from .ai_types import WorkflowStatus, WorkflowStep, ToolResult
+from .ai_types import WorkflowStatus, WorkflowStep
 from .registry import get_registry
-from .performance import get_cache
 
 
 @dataclass
@@ -27,7 +26,9 @@ class Workflow:
     created_at: datetime = field(default_factory=datetime.now)  # 创建时间
     started_at: Optional[datetime] = None  # 开始时间
     completed_at: Optional[datetime] = None  # 完成时间
-    execution_id: str = field(default_factory=lambda: str(int(datetime.now().timestamp() * 1000)))  # 执行ID
+    execution_id: str = field(
+        default_factory=lambda: str(int(datetime.now().timestamp() * 1000))
+    )  # 执行ID
     current_step: int = 0  # 当前执行的步骤索引
     step_results: Dict[str, Any] = field(default_factory=dict)  # 步骤执行结果
 
@@ -39,9 +40,15 @@ class Workflow:
             "steps": [step.to_dict() for step in self.steps],
             "status": self.status.value,
             "variables": self.variables,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
+            "started_at": (
+                self.started_at.isoformat() if self.started_at else None
+            ),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "execution_id": self.execution_id,
             "current_step": self.current_step,
             "step_results": self.step_results,
@@ -50,14 +57,19 @@ class Workflow:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Workflow":
         """从字典创建工作流"""
-        steps = [WorkflowStep.from_dict(step_data) for step_data in data.get("steps", [])]
+        steps = [
+            WorkflowStep.from_dict(step_data)
+            for step_data in data.get("steps", [])
+        ]
         workflow = cls(
             name=data["name"],
             description=data.get("description", ""),
             steps=steps,
             status=WorkflowStatus(data.get("status", "pending")),
             variables=data.get("variables", {}),
-            execution_id=data.get("execution_id", str(int(datetime.now().timestamp() * 1000))),
+            execution_id=data.get(
+                "execution_id", str(int(datetime.now().timestamp() * 1000))
+            ),
         )
 
         # 恢复时间戳
@@ -66,7 +78,9 @@ class Workflow:
         if data.get("started_at"):
             workflow.started_at = datetime.fromisoformat(data["started_at"])
         if data.get("completed_at"):
-            workflow.completed_at = datetime.fromisoformat(data["completed_at"])
+            workflow.completed_at = datetime.fromisoformat(
+                data["completed_at"]
+            )
 
         # 恢复执行状态
         workflow.current_step = data.get("current_step", 0)
@@ -83,7 +97,9 @@ class Workflow:
             json.dump(self.to_dict(), f, ensure_ascii=False, indent=2)
 
     @classmethod
-    def load(cls, execution_id: str, directory: str = "./workflows") -> Optional["Workflow"]:
+    def load(
+        cls, execution_id: str, directory: str = "./workflows"
+    ) -> Optional["Workflow"]:
         """从文件加载工作流"""
         file_path = os.path.join(directory, f"{execution_id}.json")
 
@@ -101,7 +117,11 @@ class Workflow:
 class WorkflowEngine:
     """工作流引擎"""
 
-    def __init__(self, persistence_dir: str = "./workflows", template_dir: str = "./workflow_templates"):
+    def __init__(
+        self,
+        persistence_dir: str = "./workflows",
+        template_dir: str = "./workflow_templates",
+    ):
         """初始化工作流引擎"""
         self.registry = get_registry()
         self.running_workflows = {}
@@ -155,7 +175,9 @@ class WorkflowEngine:
             from .api import send_workflow_update
 
             send_workflow_update(
-                workflow.execution_id, "started", {"name": workflow.name, "steps": len(workflow.steps)}
+                workflow.execution_id,
+                "started",
+                {"name": workflow.name, "steps": len(workflow.steps)},
             )
         except ImportError:
             pass
@@ -180,7 +202,9 @@ class WorkflowEngine:
                 from .api import send_workflow_update
 
                 send_workflow_update(
-                    workflow.execution_id, "completed", {"results": results, "variables": workflow.variables}
+                    workflow.execution_id,
+                    "completed",
+                    {"results": results, "variables": workflow.variables},
                 )
             except ImportError:
                 pass
@@ -202,11 +226,17 @@ class WorkflowEngine:
             try:
                 from .api import send_workflow_update
 
-                send_workflow_update(workflow.execution_id, "failed", {"error": str(e)})
+                send_workflow_update(
+                    workflow.execution_id, "failed", {"error": str(e)}
+                )
             except ImportError:
                 pass
 
-            return {"execution_id": workflow.execution_id, "status": workflow.status.value, "error": str(e)}
+            return {
+                "execution_id": workflow.execution_id,
+                "status": workflow.status.value,
+                "error": str(e),
+            }
         finally:
             # 移除运行中的工作流
             if workflow.execution_id in self.running_workflows:
@@ -263,7 +293,9 @@ class WorkflowEngine:
             if group_name in results:
                 continue
 
-            group_results = await self._execute_parallel_steps(group_steps, workflow.variables)
+            group_results = await self._execute_parallel_steps(
+                group_steps, workflow.variables
+            )
             results[group_name] = group_results
 
             # 更新工作流状态
@@ -277,7 +309,9 @@ class WorkflowEngine:
 
         return results
 
-    async def _execute_step(self, step: WorkflowStep, variables: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_step(
+        self, step: WorkflowStep, variables: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """执行单个步骤
 
         Args:
@@ -292,7 +326,9 @@ class WorkflowEngine:
 
         # 执行工具
         for attempt in range(step.retry_count + 1):
-            result = self.registry.execute_tool(step.tool_name, resolved_params)
+            result = self.registry.execute_tool(
+                step.tool_name, resolved_params
+            )
 
             if result.success:
                 return {"success": True, "data": result.data, "error": None}
@@ -302,7 +338,9 @@ class WorkflowEngine:
 
         return {"success": False, "data": None, "error": result.error}
 
-    async def _execute_parallel_steps(self, steps: List[WorkflowStep], variables: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_parallel_steps(
+        self, steps: List[WorkflowStep], variables: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """并行执行步骤
 
         Args:
@@ -329,7 +367,9 @@ class WorkflowEngine:
         # 整理结果
         return dict(zip(step_names, results))
 
-    def _resolve_variables(self, parameters: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_variables(
+        self, parameters: Dict[str, Any], variables: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """解析参数中的变量
 
         Args:
@@ -352,14 +392,21 @@ class WorkflowEngine:
             elif isinstance(value, list):
                 # 递归解析列表
                 resolved[key] = [
-                    self._resolve_variables(item, variables) if isinstance(item, dict) else item for item in value
+                    (
+                        self._resolve_variables(item, variables)
+                        if isinstance(item, dict)
+                        else item
+                    )
+                    for item in value
                 ]
             else:
                 resolved[key] = value
 
         return resolved
 
-    def get_workflow_status(self, execution_id: str) -> Optional[WorkflowStatus]:
+    def get_workflow_status(
+        self, execution_id: str
+    ) -> Optional[WorkflowStatus]:
         """获取工作流状态
 
         Args:
@@ -381,7 +428,9 @@ class WorkflowEngine:
         """
         return list(self.running_workflows.keys())
 
-    def list_workflows(self, status: Optional[WorkflowStatus] = None) -> List[str]:
+    def list_workflows(
+        self, status: Optional[WorkflowStatus] = None
+    ) -> List[str]:
         """列出工作流
 
         Args:
@@ -423,7 +472,9 @@ class WorkflowEngine:
         # 加载工作流
         workflow = Workflow.load(execution_id, self.persistence_dir)
         if not workflow:
-            raise ValueError(f"Workflow with execution_id {execution_id} not found")
+            raise ValueError(
+                f"Workflow with execution_id {execution_id} not found"
+            )
 
         # 检查工作流状态
         if workflow.status in [WorkflowStatus.SUCCESS, WorkflowStatus.FAILED]:
@@ -486,7 +537,9 @@ class WorkflowEngine:
             template_data.pop("step_results", None)
 
             # 保存模板文件
-            template_path = os.path.join(self.template_dir, f"{template_name}.json")
+            template_path = os.path.join(
+                self.template_dir, f"{template_name}.json"
+            )
             with open(template_path, "w", encoding="utf-8") as f:
                 json.dump(template_data, f, ensure_ascii=False, indent=2)
 
@@ -509,7 +562,9 @@ class WorkflowEngine:
         template_data = self.templates.get(template_name)
         if not template_data:
             # 从文件加载模板
-            template_path = os.path.join(self.template_dir, f"{template_name}.json")
+            template_path = os.path.join(
+                self.template_dir, f"{template_name}.json"
+            )
             if not os.path.exists(template_path):
                 return None
             try:
@@ -543,7 +598,9 @@ class WorkflowEngine:
             del self.templates[template_name]
 
         # 删除文件
-        template_path = os.path.join(self.template_dir, f"{template_name}.json")
+        template_path = os.path.join(
+            self.template_dir, f"{template_name}.json"
+        )
         if os.path.exists(template_path):
             try:
                 os.remove(template_path)
@@ -569,16 +626,27 @@ class BuiltInWorkflows:
             name="data_analysis",
             description="数据分析工作流",
             steps=[
-                WorkflowStep(name="read_data", tool_name="file", parameters={"action": "read", "path": "$data_file"}),
+                WorkflowStep(
+                    name="read_data",
+                    tool_name="file",
+                    parameters={"action": "read", "path": "$data_file"},
+                ),
                 WorkflowStep(
                     name="analyze_data",
                     tool_name="pl5_tool",
-                    parameters={"tool_name": "feature_engineer", "parameters": {"data": "$read_data"}},
+                    parameters={
+                        "tool_name": "feature_engineer",
+                        "parameters": {"data": "$read_data"},
+                    },
                 ),
                 WorkflowStep(
                     name="generate_report",
                     tool_name="file",
-                    parameters={"action": "write", "path": "$report_file", "content": "$analyze_data"},
+                    parameters={
+                        "action": "write",
+                        "path": "$report_file",
+                        "content": "$analyze_data",
+                    },
                 ),
             ],
         )
@@ -599,23 +667,34 @@ class BuiltInWorkflows:
                 WorkflowStep(
                     name="load_model",
                     tool_name="pl5_tool",
-                    parameters={"tool_name": "predictor", "parameters": {"model_id": "$model_id"}},
+                    parameters={
+                        "tool_name": "predictor",
+                        "parameters": {"model_id": "$model_id"},
+                    },
                 ),
                 WorkflowStep(
-                    name="prepare_data", tool_name="file", parameters={"action": "read", "path": "$data_file"}
+                    name="prepare_data",
+                    tool_name="file",
+                    parameters={"action": "read", "path": "$data_file"},
                 ),
                 WorkflowStep(
                     name="predict",
                     tool_name="pl5_tool",
                     parameters={
                         "tool_name": "batch_predictor",
-                        "parameters": {"model": "$load_model", "data": "$prepare_data"},
+                        "parameters": {
+                            "model": "$load_model",
+                            "data": "$prepare_data",
+                        },
                     },
                 ),
                 WorkflowStep(
                     name="analyze_results",
                     tool_name="pl5_tool",
-                    parameters={"tool_name": "model_analyzer", "parameters": {"predictions": "$predict"}},
+                    parameters={
+                        "tool_name": "model_analyzer",
+                        "parameters": {"predictions": "$predict"},
+                    },
                 ),
             ],
         )
@@ -632,14 +711,24 @@ class BuiltInWorkflows:
             name="research",
             description="研究工作流",
             steps=[
-                WorkflowStep(name="search_info", tool_name="search", parameters={"query": "$query", "max_results": 5}),
                 WorkflowStep(
-                    name="analyze_info", tool_name="calculator", parameters={"expression": "$analysis_expression"}
+                    name="search_info",
+                    tool_name="search",
+                    parameters={"query": "$query", "max_results": 5},
+                ),
+                WorkflowStep(
+                    name="analyze_info",
+                    tool_name="calculator",
+                    parameters={"expression": "$analysis_expression"},
                 ),
                 WorkflowStep(
                     name="generate_report",
                     tool_name="file",
-                    parameters={"action": "write", "path": "$report_file", "content": "$search_info"},
+                    parameters={
+                        "action": "write",
+                        "path": "$report_file",
+                        "content": "$search_info",
+                    },
                 ),
             ],
         )
@@ -655,16 +744,27 @@ class BuiltInWorkflows:
             description="并行处理工作流",
             steps=[
                 WorkflowStep(
-                    name="task1", tool_name="calculator", parameters={"expression": "1 + 1"}, parallel_group="group1"
+                    name="task1",
+                    tool_name="calculator",
+                    parameters={"expression": "1 + 1"},
+                    parallel_group="group1",
                 ),
                 WorkflowStep(
-                    name="task2", tool_name="calculator", parameters={"expression": "2 + 2"}, parallel_group="group1"
+                    name="task2",
+                    tool_name="calculator",
+                    parameters={"expression": "2 + 2"},
+                    parallel_group="group1",
                 ),
                 WorkflowStep(
-                    name="task3", tool_name="calculator", parameters={"expression": "3 + 3"}, parallel_group="group1"
+                    name="task3",
+                    tool_name="calculator",
+                    parameters={"expression": "3 + 3"},
+                    parallel_group="group1",
                 ),
                 WorkflowStep(
-                    name="aggregate", tool_name="calculator", parameters={"expression": "$task1 + $task2 + $task3"}
+                    name="aggregate",
+                    tool_name="calculator",
+                    parameters={"expression": "$task1 + $task2 + $task3"},
                 ),
             ],
         )

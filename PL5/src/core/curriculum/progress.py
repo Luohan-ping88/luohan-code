@@ -78,14 +78,18 @@ class ProgressTracker:
         Args:
             storage_path: 持久化存储路径
         """
-        self.storage_path = storage_path or Path("models/curriculum_progress.json")
+        self.storage_path = storage_path or Path(
+            "models/curriculum_progress.json"
+        )
         self.skills: Dict[str, SkillMastery] = {}
         self.records: Dict[str, LearningRecord] = {}
         self.sessions: Dict[str, LearningSession] = {}
         self.current_session: Optional[LearningSession] = None
         self._load()
 
-    def start_session(self, session_id: Optional[str] = None) -> LearningSession:
+    def start_session(
+        self, session_id: Optional[str] = None
+    ) -> LearningSession:
         """开始新的学习会话
 
         Args:
@@ -97,7 +101,9 @@ class ProgressTracker:
         if session_id is None:
             session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        session = LearningSession(session_id=session_id, start_time=datetime.now())
+        session = LearningSession(
+            session_id=session_id, start_time=datetime.now()
+        )
 
         self.current_session = session
         self.sessions[session_id] = session
@@ -186,7 +192,9 @@ class ProgressTracker:
             is_correct: 是否正确
         """
         if skill_id not in self.skills:
-            self.skills[skill_id] = SkillMastery(skill_id=skill_id, mastery_level=0.0)
+            self.skills[skill_id] = SkillMastery(
+                skill_id=skill_id, mastery_level=0.0
+            )
 
         skill = self.skills[skill_id]
         skill.practice_count += 1
@@ -195,9 +203,15 @@ class ProgressTracker:
 
         learning_rate = 0.1
         if is_correct:
-            skill.mastery_level = min(skill.mastery_level + learning_rate * (1 - skill.mastery_level), 1.0)
+            skill.mastery_level = min(
+                skill.mastery_level
+                + learning_rate * (1 - skill.mastery_level),
+                1.0,
+            )
         else:
-            skill.mastery_level = max(skill.mastery_level - learning_rate * skill.mastery_level, 0.0)
+            skill.mastery_level = max(
+                skill.mastery_level - learning_rate * skill.mastery_level, 0.0
+            )
 
         skill.last_practiced = datetime.now()
         skill.updated_at = datetime.now()
@@ -221,7 +235,9 @@ class ProgressTracker:
         """
         return list(self.skills.values())
 
-    def get_learning_curve(self, skill_id: Optional[str] = None, days: int = 30) -> List[Tuple[datetime, float]]:
+    def get_learning_curve(
+        self, skill_id: Optional[str] = None, days: int = 30
+    ) -> List[Tuple[datetime, float]]:
         """获取学习曲线数据
 
         Args:
@@ -248,7 +264,9 @@ class ProgressTracker:
         curve = []
         for date in sorted(daily_mastery.keys()):
             avg_mastery = sum(daily_mastery[date]) / len(daily_mastery[date])
-            curve.append((datetime.combine(date, datetime.min.time()), avg_mastery))
+            curve.append(
+                (datetime.combine(date, datetime.min.time()), avg_mastery)
+            )
 
         return curve
 
@@ -261,7 +279,9 @@ class ProgressTracker:
         Returns:
             学习会话列表
         """
-        sorted_sessions = sorted(self.sessions.values(), key=lambda s: s.start_time, reverse=True)
+        sorted_sessions = sorted(
+            self.sessions.values(), key=lambda s: s.start_time, reverse=True
+        )
         return sorted_sessions[:limit]
 
     def get_overall_stats(self) -> Dict[str, any]:
@@ -276,15 +296,22 @@ class ProgressTracker:
 
         skill_stats = {
             "total_skills": len(self.skills),
-            "mastered_skills": sum(1 for s in self.skills.values() if s.mastery_level >= 0.8),
+            "mastered_skills": sum(
+                1 for s in self.skills.values() if s.mastery_level >= 0.8
+            ),
             "average_mastery": (
-                sum(s.mastery_level for s in self.skills.values()) / len(self.skills) if self.skills else 0.0
+                sum(s.mastery_level for s in self.skills.values())
+                / len(self.skills)
+                if self.skills
+                else 0.0
             ),
         }
 
         return {
             "total_records": total_records,
-            "accuracy": correct_records / total_records if total_records > 0 else 0.0,
+            "accuracy": (
+                correct_records / total_records if total_records > 0 else 0.0
+            ),
             "total_time": total_time,
             "total_sessions": len(self.sessions),
             "skills": skill_stats,
@@ -299,24 +326,44 @@ class ProgressTracker:
 
                 for skill_data in data.get("skills", []):
                     if skill_data.get("last_practiced"):
-                        skill_data["last_practiced"] = datetime.fromisoformat(skill_data["last_practiced"])
-                    skill_data["created_at"] = datetime.fromisoformat(skill_data["created_at"])
-                    skill_data["updated_at"] = datetime.fromisoformat(skill_data["updated_at"])
-                    self.skills[skill_data["skill_id"]] = SkillMastery(**skill_data)
+                        skill_data["last_practiced"] = datetime.fromisoformat(
+                            skill_data["last_practiced"]
+                        )
+                    skill_data["created_at"] = datetime.fromisoformat(
+                        skill_data["created_at"]
+                    )
+                    skill_data["updated_at"] = datetime.fromisoformat(
+                        skill_data["updated_at"]
+                    )
+                    self.skills[skill_data["skill_id"]] = SkillMastery(
+                        **skill_data
+                    )
 
                 for record_data in data.get("records", []):
-                    record_data["timestamp"] = datetime.fromisoformat(record_data["timestamp"])
-                    self.records[record_data["record_id"]] = LearningRecord(**record_data)
+                    record_data["timestamp"] = datetime.fromisoformat(
+                        record_data["timestamp"]
+                    )
+                    self.records[record_data["record_id"]] = LearningRecord(
+                        **record_data
+                    )
 
                 for session_data in data.get("sessions", []):
-                    session_data["start_time"] = datetime.fromisoformat(session_data["start_time"])
+                    session_data["start_time"] = datetime.fromisoformat(
+                        session_data["start_time"]
+                    )
                     if session_data.get("end_time"):
-                        session_data["end_time"] = datetime.fromisoformat(session_data["end_time"])
-                    session_data["created_at"] = datetime.fromisoformat(session_data["created_at"])
+                        session_data["end_time"] = datetime.fromisoformat(
+                            session_data["end_time"]
+                        )
+                    session_data["created_at"] = datetime.fromisoformat(
+                        session_data["created_at"]
+                    )
                     session_records = session_data.pop("records", [])
                     session = LearningSession(**session_data)
                     session.records = [
-                        self.records[r["record_id"]] for r in session_records if r["record_id"] in self.records
+                        self.records[r["record_id"]]
+                        for r in session_records
+                        if r["record_id"] in self.records
                     ]
                     self.sessions[session_data["session_id"]] = session
 
@@ -332,23 +379,34 @@ class ProgressTracker:
         for skill in self.skills.values():
             skill_dict = {
                 **skill.__dict__,
-                "last_practiced": skill.last_practiced.isoformat() if skill.last_practiced else None,
+                "last_practiced": (
+                    skill.last_practiced.isoformat()
+                    if skill.last_practiced
+                    else None
+                ),
                 "created_at": skill.created_at.isoformat(),
                 "updated_at": skill.updated_at.isoformat(),
             }
             data["skills"].append(skill_dict)
 
         for record in self.records.values():
-            record_dict = {**record.__dict__, "timestamp": record.timestamp.isoformat()}
+            record_dict = {
+                **record.__dict__,
+                "timestamp": record.timestamp.isoformat(),
+            }
             data["records"].append(record_dict)
 
         for session in self.sessions.values():
             session_dict = {
                 **session.__dict__,
                 "start_time": session.start_time.isoformat(),
-                "end_time": session.end_time.isoformat() if session.end_time else None,
+                "end_time": (
+                    session.end_time.isoformat() if session.end_time else None
+                ),
                 "created_at": session.created_at.isoformat(),
-                "records": [{"record_id": r.record_id} for r in session.records],
+                "records": [
+                    {"record_id": r.record_id} for r in session.records
+                ],
             }
             data["sessions"].append(session_dict)
 

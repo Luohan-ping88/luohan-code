@@ -77,7 +77,11 @@ class TaskDependencyManager:
             创建的任务对象
         """
         task = Task(
-            name=name, task_id=task_id, dependencies=dependencies or [], priority=priority, metadata=metadata or {}
+            name=name,
+            task_id=task_id,
+            dependencies=dependencies or [],
+            priority=priority,
+            metadata=metadata or {},
         )
         self.add_task(task)
         return task
@@ -106,7 +110,9 @@ class TaskDependencyManager:
                 if dep in in_degree:
                     in_degree[task_id] += 1
 
-        queue = [task_id for task_id, degree in in_degree.items() if degree == 0]
+        queue = [
+            task_id for task_id, degree in in_degree.items() if degree == 0
+        ]
         result = []
 
         while queue:
@@ -143,12 +149,17 @@ class TaskDependencyManager:
             all_deps_completed = True
             for dep_id in task.dependencies:
                 if dep_id not in self.tasks:
-                    logger.warning(f"[TaskDependencyManager] 任务 {task_id} 的依赖 {dep_id} 不存在")
+                    logger.warning(
+                        f"[TaskDependencyManager] 任务 {task_id} 的依赖 {dep_id} 不存在"
+                    )
                     all_deps_completed = False
                     break
 
                 dep_task = self.tasks[dep_id]
-                if dep_task.status not in [TaskStatus.COMPLETED, TaskStatus.SKIPPED]:
+                if dep_task.status not in [
+                    TaskStatus.COMPLETED,
+                    TaskStatus.SKIPPED,
+                ]:
                     all_deps_completed = False
                     break
 
@@ -218,7 +229,9 @@ class TaskDependencyManager:
         task.status = TaskStatus.FAILED
         task.error = error
         task.end_time = datetime.now()
-        logger.error(f"[TaskDependencyManager] 任务失败: {task_id}, 错误: {error}")
+        logger.error(
+            f"[TaskDependencyManager] 任务失败: {task_id}, 错误: {error}"
+        )
         return True
 
     def mark_task_skipped(self, task_id: str) -> bool:
@@ -260,7 +273,9 @@ class TaskDependencyManager:
             是否全部完成
         """
         return all(
-            task.status in [TaskStatus.COMPLETED, TaskStatus.SKIPPED, TaskStatus.FAILED] for task in self.tasks.values()
+            task.status
+            in [TaskStatus.COMPLETED, TaskStatus.SKIPPED, TaskStatus.FAILED]
+            for task in self.tasks.values()
         )
 
     def get_failed_tasks(self) -> List[Task]:
@@ -269,7 +284,11 @@ class TaskDependencyManager:
         Returns:
             失败的任务列表
         """
-        return [task for task in self.tasks.values() if task.status == TaskStatus.FAILED]
+        return [
+            task
+            for task in self.tasks.values()
+            if task.status == TaskStatus.FAILED
+        ]
 
     def get_statistics(self) -> Dict[str, Any]:
         """获取任务统计信息
@@ -279,7 +298,9 @@ class TaskDependencyManager:
         """
         status_counts = {}
         for task in self.tasks.values():
-            status_counts[task.status.value] = status_counts.get(task.status.value, 0) + 1
+            status_counts[task.status.value] = (
+                status_counts.get(task.status.value, 0) + 1
+            )
 
         total_duration = 0
         completed_count = 0
@@ -292,9 +313,15 @@ class TaskDependencyManager:
         return {
             "total_tasks": len(self.tasks),
             "status_counts": status_counts,
-            "avg_duration": total_duration / completed_count if completed_count > 0 else 0,
+            "avg_duration": (
+                total_duration / completed_count if completed_count > 0 else 0
+            ),
             "failed_count": len(self.get_failed_tasks()),
-            "completion_rate": status_counts.get("completed", 0) / len(self.tasks) if self.tasks else 0,
+            "completion_rate": (
+                status_counts.get("completed", 0) / len(self.tasks)
+                if self.tasks
+                else 0
+            ),
         }
 
     def reset(self) -> None:
@@ -317,7 +344,9 @@ class TaskDependencyManager:
 
 
 # 创建从调度配置生成任务管理器的方法
-def create_task_manager_from_config(config: Dict[str, Any]) -> TaskDependencyManager:
+def create_task_manager_from_config(
+    config: Dict[str, Any],
+) -> TaskDependencyManager:
     """从调度配置创建任务管理器
 
     Args:
@@ -341,7 +370,10 @@ def create_task_manager_from_config(config: Dict[str, Any]) -> TaskDependencyMan
         "incremental_training_afternoon": ["incremental_training_noon"],
         "deep_strategy_optimization": ["training"],
         "prediction_preview": ["deep_strategy_optimization"],
-        "final_prediction": ["prediction_preview", "deep_strategy_optimization"],
+        "final_prediction": [
+            "prediction_preview",
+            "deep_strategy_optimization",
+        ],
         "final_prediction_verification": ["final_prediction"],
         "pre_sale_prediction": ["final_prediction_verification"],
         "send_report": ["pre_sale_prediction"],
@@ -353,8 +385,13 @@ def create_task_manager_from_config(config: Dict[str, Any]) -> TaskDependencyMan
         dependencies = task_dependencies.get(task_id, [])
 
         manager.add_task_simple(
-            task_id=task_id, name=task_config.get("name", task_id), dependencies=dependencies, priority=priority
+            task_id=task_id,
+            name=task_config.get("name", task_id),
+            dependencies=dependencies,
+            priority=priority,
         )
 
-    logger.info(f"[TaskDependencyManager] 从配置创建了 {len(manager.tasks)} 个任务")
+    logger.info(
+        f"[TaskDependencyManager] 从配置创建了 {len(manager.tasks)} 个任务"
+    )
     return manager

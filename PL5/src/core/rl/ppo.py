@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
-from typing import Tuple, Optional, List
+from typing import Tuple, List
 
 
 class PolicyNetwork(nn.Module):
@@ -76,13 +76,23 @@ class PPOAgent:
         self.update_epochs = update_epochs
         self.batch_size = batch_size
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
 
-        self.policy_network = PolicyNetwork(state_dim, action_dim, hidden_dim).to(self.device)
-        self.value_network = ValueNetwork(state_dim, hidden_dim).to(self.device)
+        self.policy_network = PolicyNetwork(
+            state_dim, action_dim, hidden_dim
+        ).to(self.device)
+        self.value_network = ValueNetwork(state_dim, hidden_dim).to(
+            self.device
+        )
 
-        self.actor_optimizer = optim.Adam(self.policy_network.parameters(), lr=actor_lr)
-        self.critic_optimizer = optim.Adam(self.value_network.parameters(), lr=critic_lr)
+        self.actor_optimizer = optim.Adam(
+            self.policy_network.parameters(), lr=actor_lr
+        )
+        self.critic_optimizer = optim.Adam(
+            self.value_network.parameters(), lr=critic_lr
+        )
 
         self.states: List[np.ndarray] = []
         self.actions: List[int] = []
@@ -108,7 +118,13 @@ class PPOAgent:
         return action.item(), log_prob.item(), value.item()
 
     def store_transition(
-        self, state: np.ndarray, action: int, log_prob: float, reward: float, value: float, done: bool
+        self,
+        state: np.ndarray,
+        action: int,
+        log_prob: float,
+        reward: float,
+        value: float,
+        done: bool,
     ) -> None:
         """
         存储经验
@@ -132,13 +148,25 @@ class PPOAgent:
         last_advantage = 0
 
         for t in reversed(range(len(rewards))):
-            delta = rewards[t] + self.gamma * values[t + 1] * (1 - dones[t]) - values[t]
-            last_advantage = delta + self.gamma * self.gae_lambda * (1 - dones[t]) * last_advantage
+            delta = (
+                rewards[t]
+                + self.gamma * values[t + 1] * (1 - dones[t])
+                - values[t]
+            )
+            last_advantage = (
+                delta
+                + self.gamma
+                * self.gae_lambda
+                * (1 - dones[t])
+                * last_advantage
+            )
             advantages[t] = last_advantage
 
         returns = advantages + np.array(self.values)
 
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        advantages = (advantages - advantages.mean()) / (
+            advantages.std() + 1e-8
+        )
 
         return advantages, returns
 
@@ -153,7 +181,9 @@ class PPOAgent:
 
         states = torch.FloatTensor(np.array(self.states)).to(self.device)
         actions = torch.LongTensor(np.array(self.actions)).to(self.device)
-        old_log_probs = torch.FloatTensor(np.array(self.log_probs)).to(self.device)
+        old_log_probs = torch.FloatTensor(np.array(self.log_probs)).to(
+            self.device
+        )
         advantages = torch.FloatTensor(advantages).to(self.device)
         returns = torch.FloatTensor(returns).to(self.device)
 
@@ -181,20 +211,33 @@ class PPOAgent:
 
                 ratio = torch.exp(new_log_probs - batch_old_log_probs)
                 surr1 = ratio * batch_advantages
-                surr2 = torch.clamp(ratio, 1 - self.clip_param, 1 + self.clip_param) * batch_advantages
+                surr2 = (
+                    torch.clamp(
+                        ratio, 1 - self.clip_param, 1 + self.clip_param
+                    )
+                    * batch_advantages
+                )
 
                 policy_loss = -torch.min(surr1, surr2).mean()
 
                 values = self.value_network(batch_states).squeeze()
                 value_loss = ((values - batch_returns) ** 2).mean()
 
-                loss = policy_loss + self.vf_coef * value_loss - self.entropy_coef * entropy
+                loss = (
+                    policy_loss
+                    + self.vf_coef * value_loss
+                    - self.entropy_coef * entropy
+                )
 
                 self.actor_optimizer.zero_grad()
                 self.critic_optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.policy_network.parameters(), self.max_grad_norm)
-                nn.utils.clip_grad_norm_(self.value_network.parameters(), self.max_grad_norm)
+                nn.utils.clip_grad_norm_(
+                    self.policy_network.parameters(), self.max_grad_norm
+                )
+                nn.utils.clip_grad_norm_(
+                    self.value_network.parameters(), self.max_grad_norm
+                )
                 self.actor_optimizer.step()
                 self.critic_optimizer.step()
 
@@ -204,7 +247,9 @@ class PPOAgent:
 
         self.clear_buffer()
 
-        n_updates = self.update_epochs * max(1, len(self.states) // self.batch_size)
+        n_updates = self.update_epochs * max(
+            1, len(self.states) // self.batch_size
+        )
         avg_policy_loss = total_policy_loss / n_updates
         avg_value_loss = total_value_loss / n_updates
         avg_entropy = total_entropy / n_updates

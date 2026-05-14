@@ -4,7 +4,6 @@
 
 from pathlib import Path
 import logging
-from typing import Dict, Any
 
 # 项目根目录
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -32,7 +31,9 @@ def setup_logging(name: str) -> logging.Logger:
         console_handler.setLevel(logging.INFO)
 
         # 格式化器
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         console_handler.setFormatter(formatter)
 
         logger.addHandler(console_handler)

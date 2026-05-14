@@ -3,7 +3,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Set, Callable
+from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from enum import Enum, auto
 import uuid
@@ -119,7 +119,9 @@ class VotingSession:
             "required_consensus": self.required_consensus,
             "quorum": self.quorum,
             "result": self.result,
-            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "resolved_at": (
+                self.resolved_at.isoformat() if self.resolved_at else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -190,7 +192,9 @@ class VotingEngine:
             )
             success = session.add_vote(vote)
             if success:
-                logger.debug(f"投票已提交: {voter_id} -> {choice} (会话: {session_id})")
+                logger.debug(
+                    f"投票已提交: {voter_id} -> {choice} (会话: {session_id})"
+                )
             return success
 
     async def close_session(self, session_id: str) -> bool:
@@ -231,7 +235,9 @@ class DecisionAggregator:
         if not counts:
             return None
         max_count = max(counts.values())
-        winners = [choice for choice, count in counts.items() if count == max_count]
+        winners = [
+            choice for choice, count in counts.items() if count == max_count
+        ]
         return winners[0] if len(winners) == 1 else None
 
     def resolve_weighted(self, session: VotingSession) -> Optional[Any]:
@@ -240,7 +246,11 @@ class DecisionAggregator:
         if not weighted_counts:
             return None
         max_weight = max(weighted_counts.values())
-        winners = [choice for choice, weight in weighted_counts.items() if weight == max_weight]
+        winners = [
+            choice
+            for choice, weight in weighted_counts.items()
+            if weight == max_weight
+        ]
         return winners[0] if len(winners) == 1 else None
 
     def resolve_consensus(self, session: VotingSession) -> Optional[Any]:
@@ -248,11 +258,17 @@ class DecisionAggregator:
         if not session.votes:
             return None
         first_choice = next(iter(session.votes.values())).choice
-        all_same = all(vote.choice == first_choice for vote in session.votes.values())
+        all_same = all(
+            vote.choice == first_choice for vote in session.votes.values()
+        )
         if all_same:
             return first_choice
-        agreement = sum(1 for vote in session.votes.values() if vote.choice == first_choice) / len(session.votes)
-        return first_choice if agreement >= session.required_consensus else None
+        agreement = sum(
+            1 for vote in session.votes.values() if vote.choice == first_choice
+        ) / len(session.votes)
+        return (
+            first_choice if agreement >= session.required_consensus else None
+        )
 
     def resolve_ranked_choice(self, session: VotingSession) -> Optional[Any]:
         """排序投票决策"""
@@ -260,7 +276,9 @@ class DecisionAggregator:
             return None
         return self.resolve_majority(session)
 
-    def resolve(self, session: VotingSession, total_voters: Optional[int] = None) -> Dict[str, Any]:
+    def resolve(
+        self, session: VotingSession, total_voters: Optional[int] = None
+    ) -> Dict[str, Any]:
         """集成决策"""
         if session.status not in (VoteStatus.CLOSED, VoteStatus.OPEN):
             return {"success": False, "error": "投票会话未开放或已关闭"}
@@ -296,7 +314,9 @@ class ConflictResolver:
     def __init__(self):
         self.resolution_history: List[Dict[str, Any]] = []
 
-    def mediate(self, session: VotingSession, conflicting_options: List[Any]) -> Dict[str, Any]:
+    def mediate(
+        self, session: VotingSession, conflicting_options: List[Any]
+    ) -> Dict[str, Any]:
         """调解冲突"""
         logger.info(f"正在调解冲突: {conflicting_options}")
 
@@ -310,7 +330,9 @@ class ConflictResolver:
             "conflicting_options": conflicting_options,
             "vote_counts": dict(vote_counts),
             "mediation_strategy": "select_most_popular",
-            "recommended_option": max(vote_counts, key=vote_counts.get) if vote_counts else None,
+            "recommended_option": (
+                max(vote_counts, key=vote_counts.get) if vote_counts else None
+            ),
         }
 
         self.resolution_history.append(resolution)
@@ -321,7 +343,9 @@ class ConflictResolver:
         if not session.votes:
             return None
 
-        all_reasonings = [vote.reasoning for vote in session.votes.values() if vote.reasoning]
+        all_reasonings = [
+            vote.reasoning for vote in session.votes.values() if vote.reasoning
+        ]
         if all_reasonings:
             logger.info(f"基于投票理由寻找共同点: {all_reasonings}")
 

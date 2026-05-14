@@ -7,8 +7,6 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import logging
 
-from .replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
-from .bandit import EpsilonGreedyBandit, UCBBandit, ThompsonSamplingBandit
 
 # 尝试导入PyTorch相关模块，失败时不影响核心功能
 try:
@@ -57,15 +55,32 @@ class ExperienceBuffer:
         self.buffer: List[Tuple] = []
         self.capacity = capacity
 
-    def push(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray, done: bool):
+    def push(
+        self,
+        state: np.ndarray,
+        action: np.ndarray,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+    ):
         self.buffer.append((state, action, reward, next_state, done))
         if len(self.buffer) > self.capacity:
             self.buffer.pop(0)
 
     def sample(self, batch_size: int) -> Tuple:
-        indices = np.random.choice(len(self.buffer), min(batch_size, len(self.buffer)), replace=False)
-        states, actions, rewards, next_states, dones = zip(*[self.buffer[i] for i in indices])
-        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones)
+        indices = np.random.choice(
+            len(self.buffer), min(batch_size, len(self.buffer)), replace=False
+        )
+        states, actions, rewards, next_states, dones = zip(
+            *[self.buffer[i] for i in indices]
+        )
+        return (
+            np.array(states),
+            np.array(actions),
+            np.array(rewards),
+            np.array(next_states),
+            np.array(dones),
+        )
 
 
 class Actor:
@@ -78,7 +93,9 @@ class Actor:
         exp_logits = np.exp(logits - np.max(logits))
         return exp_logits / (exp_logits.sum() + 1e-12)
 
-    def update(self, states: np.ndarray, actions: np.ndarray, advantages: np.ndarray):
+    def update(
+        self, states: np.ndarray, actions: np.ndarray, advantages: np.ndarray
+    ):
         probs = np.array([self.forward(s) for s in states])
         grads = np.zeros_like(self.weights)
 
@@ -126,7 +143,12 @@ class ModelWeightRLOptimizer:
             return np.random.dirichlet(np.ones(self.n_models))
         return self.actor.forward(state)
 
-    def compute_reward(self, predictions: Dict[str, List[int]], actual: Dict[str, int], weights: np.ndarray) -> float:
+    def compute_reward(
+        self,
+        predictions: Dict[str, List[int]],
+        actual: Dict[str, int],
+        weights: np.ndarray,
+    ) -> float:
         hit_count = 0
         total_count = 0
 
@@ -149,44 +171,79 @@ class ModelWeightRLOptimizer:
 
         return base_reward + consistency_bonus
 
-    def update(self, state: np.ndarray, action: np.ndarray, reward: float, next_state: np.ndarray, done: bool):
+    def update(
+        self,
+        state: np.ndarray,
+        action: np.ndarray,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+    ):
         self.memory.push(state, action, reward, next_state, done)
 
         if len(self.memory.buffer) < self.config.batch_size:
             return
 
-        states, actions, rewards, next_states, dones = self.memory.sample(self.config.batch_size)
-
-        td_targets = rewards + self.config.gamma * np.array([self.critic.forward(ns) for ns in next_states]) * (
-            1 - dones
+        states, actions, rewards, next_states, dones = self.memory.sample(
+            self.config.batch_size
         )
-        td_errors = td_targets - np.array([self.critic.forward(s) for s in states])
+
+        td_targets = rewards + self.config.gamma * np.array(
+            [self.critic.forward(ns) for ns in next_states]
+        ) * (1 - dones)
+        td_errors = td_targets - np.array(
+            [self.critic.forward(s) for s in states]
+        )
 
         self.critic.update(states, td_errors)
         advantages = td_errors
 
         self.actor.update(states, actions, advantages)
 
-        self.config.epsilon = max(self.config.epsilon_min, self.config.epsilon * self.config.epsilon_decay)
+        self.config.epsilon = max(
+            self.config.epsilon_min,
+            self.config.epsilon * self.config.epsilon_decay,
+        )
 
-    def fit(self, states_history: List[np.ndarray], rewards_history: List[float], n_episodes: int = 100):
+    def fit(
+        self,
+        states_history: List[np.ndarray],
+        rewards_history: List[float],
+        n_episodes: int = 100,
+    ):
         for episode in range(n_episodes):
             if not states_history:
                 break
 
             episode_reward = 0
-            indices = np.random.choice(len(states_history), min(32, len(states_history)), replace=False)
+            indices = np.random.choice(
+                len(states_history),
+                min(32, len(states_history)),
+                replace=False,
+            )
 
             for idx in indices:
                 state = states_history[idx]
                 action = self.get_action(state)
                 self.current_weights = action
 
-                reward = rewards_history[idx] if idx < len(rewards_history) else 0.0
+                reward = (
+                    rewards_history[idx] if idx < len(rewards_history) else 0.0
+                )
 
-                next_state = states_history[idx + 1] if idx + 1 < len(states_history) else state
+                next_state = (
+                    states_history[idx + 1]
+                    if idx + 1 < len(states_history)
+                    else state
+                )
 
-                self.update(state, action, reward, next_state, idx == len(states_history) - 1)
+                self.update(
+                    state,
+                    action,
+                    reward,
+                    next_state,
+                    idx == len(states_history) - 1,
+                )
                 episode_reward += reward
 
             self.training_history.append(episode_reward)
@@ -201,7 +258,9 @@ class ModelWeightRLOptimizer:
         self.is_trained = True
         logger.info("[RL] Training completed")
 
-    def get_optimal_weights(self, state: Optional[np.ndarray] = None) -> np.ndarray:
+    def get_optimal_weights(
+        self, state: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         if state is None or not self.is_trained:
             return self.current_weights
         return self.actor.forward(state)

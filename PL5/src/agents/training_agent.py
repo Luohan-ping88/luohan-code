@@ -3,11 +3,10 @@
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any
 from datetime import datetime
 import logging
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import pickle
 from pathlib import Path
 
@@ -57,7 +56,12 @@ class TrainingOptimizationAgent(BaseAgent):
         """验证任务参数"""
         required_params = {
             "train_all_models": ["data", "feature_cols"],
-            "train_single_model": ["data", "feature_cols", "model_type", "position"],
+            "train_single_model": [
+                "data",
+                "feature_cols",
+                "model_type",
+                "position",
+            ],
             "incremental_update": ["data", "feature_cols", "existing_models"],
             "hyperparameter_tuning": ["data", "feature_cols", "model_type"],
             "model_evaluation": ["models", "test_data"],
@@ -102,21 +106,34 @@ class TrainingOptimizationAgent(BaseAgent):
 
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            return AgentResult(task_id=task.task_id, success=True, data=result_data, execution_time=execution_time)
+            return AgentResult(
+                task_id=task.task_id,
+                success=True,
+                data=result_data,
+                execution_time=execution_time,
+            )
 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.error(f"[{self.name}] 任务执行失败: {str(e)}")
 
             return AgentResult(
-                task_id=task.task_id, success=False, data={}, execution_time=execution_time, error_message=str(e)
+                task_id=task.task_id,
+                success=False,
+                data={},
+                execution_time=execution_time,
+                error_message=str(e),
             )
 
-    async def _train_all_models(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _train_all_models(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """并行训练所有模型"""
         data = params.get("data")
         feature_cols = params.get("feature_cols")
-        positions = params.get("positions", ["wan", "qian", "bai", "shi", "ge"])
+        positions = params.get(
+            "positions", ["wan", "qian", "bai", "shi", "ge"]
+        )
 
         logger.info(f"[{self.name}] 开始并行训练所有模型")
 
@@ -128,7 +145,9 @@ class TrainingOptimizationAgent(BaseAgent):
             self._train_evm_models(data, positions),
         ]
 
-        base_results = await asyncio.gather(*base_model_tasks, return_exceptions=True)
+        base_results = await asyncio.gather(
+            *base_model_tasks, return_exceptions=True
+        )
 
         # 2. 并行训练 Stacking 集成模型（每个位置独立）
         stacking_tasks = []
@@ -136,15 +155,37 @@ class TrainingOptimizationAgent(BaseAgent):
             task = self._train_stacking_model(data, feature_cols, pos)
             stacking_tasks.append(task)
 
-        stacking_results = await asyncio.gather(*stacking_tasks, return_exceptions=True)
+        stacking_results = await asyncio.gather(
+            *stacking_tasks, return_exceptions=True
+        )
 
         # 3. 整合结果
         models = {
-            "hmm": base_results[0] if not isinstance(base_results[0], Exception) else None,
-            "copula": base_results[1] if not isinstance(base_results[1], Exception) else None,
-            "bsts": base_results[2] if not isinstance(base_results[2], Exception) else None,
-            "evm": base_results[3] if not isinstance(base_results[3], Exception) else None,
-            "stacking": {pos: res for pos, res in zip(positions, stacking_results) if not isinstance(res, Exception)},
+            "hmm": (
+                base_results[0]
+                if not isinstance(base_results[0], Exception)
+                else None
+            ),
+            "copula": (
+                base_results[1]
+                if not isinstance(base_results[1], Exception)
+                else None
+            ),
+            "bsts": (
+                base_results[2]
+                if not isinstance(base_results[2], Exception)
+                else None
+            ),
+            "evm": (
+                base_results[3]
+                if not isinstance(base_results[3], Exception)
+                else None
+            ),
+            "stacking": {
+                pos: res
+                for pos, res in zip(positions, stacking_results)
+                if not isinstance(res, Exception)
+            },
         }
 
         # 4. 保存模型
@@ -186,7 +227,13 @@ class TrainingOptimizationAgent(BaseAgent):
 
         # 准备数据
         position_data = np.column_stack(
-            [data["wan"].values, data["qian"].values, data["bai"].values, data["shi"].values, data["ge"].values]
+            [
+                data["wan"].values,
+                data["qian"].values,
+                data["bai"].values,
+                data["shi"].values,
+                data["ge"].values,
+            ]
         )
 
         copula.fit(position_data)
@@ -224,7 +271,9 @@ class TrainingOptimizationAgent(BaseAgent):
 
         return evm_models
 
-    async def _train_stacking_model(self, data, feature_cols, pos) -> Dict[str, Any]:
+    async def _train_stacking_model(
+        self, data, feature_cols, pos
+    ) -> Dict[str, Any]:
         """训练单个位置的 Stacking 模型"""
         import sys
 
@@ -241,7 +290,9 @@ class TrainingOptimizationAgent(BaseAgent):
 
         return ensemble
 
-    async def _incremental_update(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _incremental_update(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """增量更新模型"""
         data = params.get("data")
         feature_cols = params.get("feature_cols")
@@ -252,7 +303,9 @@ class TrainingOptimizationAgent(BaseAgent):
 
         # 1. 检查是否需要全量重训练
         if new_data_ratio > 0.3:
-            logger.info(f"[{self.name}] 新数据比例 {new_data_ratio:.2%} > 30%，执行全量重训练")
+            logger.info(
+                f"[{self.name}] 新数据比例 {new_data_ratio:.2%} > 30%，执行全量重训练"
+            )
             return await self._train_all_models(params)
 
         # 2. 增量更新 Stacking 模型（使用新数据微调）
@@ -266,15 +319,23 @@ class TrainingOptimizationAgent(BaseAgent):
                 y_new = data[pos].values[-100:]
 
                 # 部分更新（partial_fit）
-                for name, model in ensemble.position_models.get(pos, {}).items():
+                for name, model in ensemble.position_models.get(
+                    pos, {}
+                ).items():
                     if hasattr(model, "partial_fit"):
                         model.partial_fit(X_new, y_new)
 
         logger.info(f"[{self.name}] 增量更新完成")
 
-        return {"models": existing_models, "update_type": "incremental", "updated_positions": positions}
+        return {
+            "models": existing_models,
+            "update_type": "incremental",
+            "updated_positions": positions,
+        }
 
-    async def _hyperparameter_tuning(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _hyperparameter_tuning(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """超参数自动调优"""
         data = params.get("data")
         feature_cols = params.get("feature_cols")
@@ -313,9 +374,15 @@ class TrainingOptimizationAgent(BaseAgent):
                 best_score = score
                 best_params = params
 
-        return {"best_params": best_params, "best_score": best_score, "model_type": model_type}
+        return {
+            "best_params": best_params,
+            "best_score": best_score,
+            "model_type": model_type,
+        }
 
-    async def _model_evaluation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _model_evaluation(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """评估模型性能"""
         models = params.get("models")
         test_data = params.get("test_data")
@@ -340,11 +407,16 @@ class TrainingOptimizationAgent(BaseAgent):
                     predictions.append(result["prediction"])
 
                 accuracy = np.mean(np.array(predictions) == y_test)
-                results[pos] = {"accuracy": accuracy, "sample_count": len(y_test)}
+                results[pos] = {
+                    "accuracy": accuracy,
+                    "sample_count": len(y_test),
+                }
 
         return results
 
-    async def _early_stopping_check(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _early_stopping_check(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """检查是否应该早停"""
         metrics_history = params.get("metrics_history", [])
 

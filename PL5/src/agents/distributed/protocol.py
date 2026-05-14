@@ -12,7 +12,6 @@ from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +120,9 @@ class MessageQueue:
     """消息队列"""
 
     def __init__(self, max_size: int = 1000):
-        self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=max_size)
+        self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue(
+            maxsize=max_size
+        )
         self._handlers: Dict[str, List[Callable]] = {}
 
     async def put(self, message: AgentMessage):
@@ -170,7 +171,9 @@ class AgentRegistry:
         async with self._lock:
             return self._agents.get(agent_id)
 
-    async def find_agents_by_capability(self, capability: str) -> List[AgentInfo]:
+    async def find_agents_by_capability(
+        self, capability: str
+    ) -> List[AgentInfo]:
         async with self._lock:
             return [
                 agent
@@ -214,7 +217,9 @@ class AgentCommunicationProtocol:
         """处理消息队列"""
         while self._running:
             try:
-                message = await asyncio.wait_for(self.message_queue.get(), timeout=1.0)
+                message = await asyncio.wait_for(
+                    self.message_queue.get(), timeout=1.0
+                )
                 await self.message_queue.dispatch(message)
             except asyncio.TimeoutError:
                 continue
@@ -249,7 +254,9 @@ class AgentCommunicationProtocol:
         timeout: float = 30.0,
     ) -> Optional[Dict[str, Any]]:
         """发送消息并等待响应"""
-        msg_id = await self.send_message(receiver, content, MessageType.REQUEST)
+        msg_id = await self.send_message(
+            receiver, content, MessageType.REQUEST
+        )
 
         future = asyncio.get_event_loop().create_future()
         self.pending_requests[msg_id] = future
@@ -288,7 +295,10 @@ class AgentCommunicationProtocol:
 
     async def handle_response(self, message: AgentMessage):
         """处理响应消息"""
-        if message.correlation_id and message.correlation_id in self.pending_requests:
+        if (
+            message.correlation_id
+            and message.correlation_id in self.pending_requests
+        ):
             future = self.pending_requests[message.correlation_id]
             future.set_result(message.content)
 
@@ -301,9 +311,7 @@ class AgentProtocolMixin:
         self.agent_id = str(uuid.uuid4())
         self._running = False
 
-    async def send_to(
-        self, target: str, content: Dict[str, Any]
-    ) -> str:
+    async def send_to(self, target: str, content: Dict[str, Any]) -> str:
         """发送消息到指定智能体"""
         return await self.protocol.send_message(target, content)
 

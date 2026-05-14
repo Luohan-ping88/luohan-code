@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from pathlib import Path
 import json
 from datetime import datetime
@@ -15,7 +15,7 @@ import random
 from collections import defaultdict
 
 from .difficulty import DifficultyLevel, DifficultyEvaluator
-from .progress import ProgressTracker, SkillMastery
+from .progress import ProgressTracker
 
 
 class TestStatus(Enum):
@@ -111,9 +111,13 @@ class TestingManager:
             progress_tracker: 进度追踪器
             storage_path: 持久化存储路径
         """
-        self.difficulty_evaluator = difficulty_evaluator or DifficultyEvaluator()
+        self.difficulty_evaluator = (
+            difficulty_evaluator or DifficultyEvaluator()
+        )
         self.progress_tracker = progress_tracker or ProgressTracker()
-        self.storage_path = storage_path or Path("models/curriculum_testing.json")
+        self.storage_path = storage_path or Path(
+            "models/curriculum_testing.json"
+        )
         self.tests: Dict[str, Test] = {}
         self.certifications: Dict[str, Certification] = {}
         self.question_bank: Dict[str, List[TestQuestion]] = defaultdict(list)
@@ -142,7 +146,9 @@ class TestingManager:
         if difficulty is None:
             difficulty = self._determine_test_difficulty(skill_ids)
 
-        questions = self._select_questions(skill_ids, difficulty, question_count)
+        questions = self._select_questions(
+            skill_ids, difficulty, question_count
+        )
 
         test_id = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -160,7 +166,9 @@ class TestingManager:
 
         return test
 
-    def _determine_test_difficulty(self, skill_ids: List[str]) -> DifficultyLevel:
+    def _determine_test_difficulty(
+        self, skill_ids: List[str]
+    ) -> DifficultyLevel:
         """根据学习进度确定测试难度
 
         Args:
@@ -190,7 +198,9 @@ class TestingManager:
         else:
             return DifficultyLevel.HARD
 
-    def _select_questions(self, skill_ids: List[str], difficulty: DifficultyLevel, count: int) -> List[TestQuestion]:
+    def _select_questions(
+        self, skill_ids: List[str], difficulty: DifficultyLevel, count: int
+    ) -> List[TestQuestion]:
         """从题库中选择问题
 
         Args:
@@ -204,16 +214,24 @@ class TestingManager:
         selected = []
 
         for skill_id in skill_ids:
-            skill_questions = [q for q in self.question_bank.get(skill_id, []) if q.difficulty == difficulty]
+            skill_questions = [
+                q
+                for q in self.question_bank.get(skill_id, [])
+                if q.difficulty == difficulty
+            ]
             selected.extend(skill_questions)
 
         if not selected:
-            selected = self._generate_sample_questions(skill_ids, difficulty, count)
+            selected = self._generate_sample_questions(
+                skill_ids, difficulty, count
+            )
 
         if len(selected) > count:
             selected = random.sample(selected, count)
         elif len(selected) < count:
-            additional = self._generate_sample_questions(skill_ids, difficulty, count - len(selected))
+            additional = self._generate_sample_questions(
+                skill_ids, difficulty, count - len(selected)
+            )
             selected.extend(additional)
 
         return selected
@@ -272,7 +290,9 @@ class TestingManager:
 
         return test
 
-    def submit_test(self, test_id: str, answers: Dict[str, str]) -> Optional[TestResult]:
+    def submit_test(
+        self, test_id: str, answers: Dict[str, str]
+    ) -> Optional[TestResult]:
         """提交测试答案
 
         Args:
@@ -304,12 +324,18 @@ class TestingManager:
 
         skill_scores = {}
         for skill_id, results in skill_performance.items():
-            skill_scores[skill_id] = sum(results) / len(results) if results else 0.0
+            skill_scores[skill_id] = (
+                sum(results) / len(results) if results else 0.0
+            )
 
         total_count = len(test.questions)
         score = correct_count / total_count if total_count > 0 else 0.0
 
-        time_spent = (datetime.now() - test.start_time).total_seconds() if test.start_time else 0.0
+        time_spent = (
+            (datetime.now() - test.start_time).total_seconds()
+            if test.start_time
+            else 0.0
+        )
 
         result_id = f"result_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -334,7 +360,9 @@ class TestingManager:
 
         return result
 
-    def _update_progress_from_test(self, test: Test, result: TestResult) -> None:
+    def _update_progress_from_test(
+        self, test: Test, result: TestResult
+    ) -> None:
         """根据测试结果更新学习进度
 
         Args:
@@ -352,11 +380,15 @@ class TestingManager:
                 difficulty_score=(
                     0.5
                     if test.difficulty == DifficultyLevel.MEDIUM
-                    else (0.2 if test.difficulty == DifficultyLevel.EASY else 0.8)
+                    else (
+                        0.2 if test.difficulty == DifficultyLevel.EASY else 0.8
+                    )
                 ),
             )
 
-    def evaluate_certification(self, skill_id: str, test_id: str) -> Optional[Certification]:
+    def evaluate_certification(
+        self, skill_id: str, test_id: str
+    ) -> Optional[Certification]:
         """评估并颁发能力认证
 
         Args:
@@ -418,7 +450,9 @@ class TestingManager:
         """
         return self.tests.get(test_id)
 
-    def get_certification(self, certification_id: str) -> Optional[Certification]:
+    def get_certification(
+        self, certification_id: str
+    ) -> Optional[Certification]:
         """获取认证
 
         Args:
@@ -429,7 +463,9 @@ class TestingManager:
         """
         return self.certifications.get(certification_id)
 
-    def get_certifications_for_skill(self, skill_id: str) -> List[Certification]:
+    def get_certifications_for_skill(
+        self, skill_id: str
+    ) -> List[Certification]:
         """获取技能的所有认证
 
         Args:
@@ -438,7 +474,11 @@ class TestingManager:
         Returns:
             认证对象列表
         """
-        return [cert for cert in self.certifications.values() if cert.skill_id == skill_id]
+        return [
+            cert
+            for cert in self.certifications.values()
+            if cert.skill_id == skill_id
+        ]
 
     def add_question(self, question: TestQuestion) -> None:
         """添加问题到题库
@@ -456,38 +496,64 @@ class TestingManager:
                 with open(self.storage_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                for skill_id, questions_data in data.get("question_bank", {}).items():
+                for skill_id, questions_data in data.get(
+                    "question_bank", {}
+                ).items():
                     for q_data in questions_data:
-                        q_data["difficulty"] = DifficultyLevel(q_data["difficulty"])
-                        self.question_bank[skill_id].append(TestQuestion(**q_data))
+                        q_data["difficulty"] = DifficultyLevel(
+                            q_data["difficulty"]
+                        )
+                        self.question_bank[skill_id].append(
+                            TestQuestion(**q_data)
+                        )
 
                 for test_data in data.get("tests", []):
-                    test_data["difficulty"] = DifficultyLevel(test_data["difficulty"])
+                    test_data["difficulty"] = DifficultyLevel(
+                        test_data["difficulty"]
+                    )
                     test_data["status"] = TestStatus(test_data["status"])
                     if test_data.get("start_time"):
-                        test_data["start_time"] = datetime.fromisoformat(test_data["start_time"])
-                    test_data["created_at"] = datetime.fromisoformat(test_data["created_at"])
+                        test_data["start_time"] = datetime.fromisoformat(
+                            test_data["start_time"]
+                        )
+                    test_data["created_at"] = datetime.fromisoformat(
+                        test_data["created_at"]
+                    )
 
                     questions_data = test_data.pop("questions", [])
                     result_data = test_data.pop("result", None)
 
                     test = Test(**test_data)
                     test.questions = [
-                        TestQuestion(**{**q, "difficulty": DifficultyLevel(q["difficulty"])}) for q in questions_data
+                        TestQuestion(
+                            **{
+                                **q,
+                                "difficulty": DifficultyLevel(q["difficulty"]),
+                            }
+                        )
+                        for q in questions_data
                     ]
 
                     if result_data:
-                        result_data["completed_at"] = datetime.fromisoformat(result_data["completed_at"])
+                        result_data["completed_at"] = datetime.fromisoformat(
+                            result_data["completed_at"]
+                        )
                         test.result = TestResult(**result_data)
 
                     self.tests[test_data["test_id"]] = test
 
                 for cert_data in data.get("certifications", []):
                     cert_data["level"] = CertificationLevel(cert_data["level"])
-                    cert_data["issued_at"] = datetime.fromisoformat(cert_data["issued_at"])
+                    cert_data["issued_at"] = datetime.fromisoformat(
+                        cert_data["issued_at"]
+                    )
                     if cert_data.get("valid_until"):
-                        cert_data["valid_until"] = datetime.fromisoformat(cert_data["valid_until"])
-                    self.certifications[cert_data["certification_id"]] = Certification(**cert_data)
+                        cert_data["valid_until"] = datetime.fromisoformat(
+                            cert_data["valid_until"]
+                        )
+                    self.certifications[cert_data["certification_id"]] = (
+                        Certification(**cert_data)
+                    )
 
             except Exception as e:
                 print(f"加载测试数据失败: {e}")
@@ -499,20 +565,31 @@ class TestingManager:
         data = {"question_bank": {}, "tests": [], "certifications": []}
 
         for skill_id, questions in self.question_bank.items():
-            data["question_bank"][skill_id] = [{**q.__dict__, "difficulty": q.difficulty.value} for q in questions]
+            data["question_bank"][skill_id] = [
+                {**q.__dict__, "difficulty": q.difficulty.value}
+                for q in questions
+            ]
 
         for test in self.tests.values():
             test_dict = {
                 **test.__dict__,
                 "difficulty": test.difficulty.value,
                 "status": test.status.value,
-                "start_time": test.start_time.isoformat() if test.start_time else None,
+                "start_time": (
+                    test.start_time.isoformat() if test.start_time else None
+                ),
                 "created_at": test.created_at.isoformat(),
-                "questions": [{**q.__dict__, "difficulty": q.difficulty.value} for q in test.questions],
+                "questions": [
+                    {**q.__dict__, "difficulty": q.difficulty.value}
+                    for q in test.questions
+                ],
                 "result": None,
             }
             if test.result:
-                test_dict["result"] = {**test.result.__dict__, "completed_at": test.result.completed_at.isoformat()}
+                test_dict["result"] = {
+                    **test.result.__dict__,
+                    "completed_at": test.result.completed_at.isoformat(),
+                }
             data["tests"].append(test_dict)
 
         for cert in self.certifications.values():
@@ -520,7 +597,9 @@ class TestingManager:
                 **cert.__dict__,
                 "level": cert.level.value,
                 "issued_at": cert.issued_at.isoformat(),
-                "valid_until": cert.valid_until.isoformat() if cert.valid_until else None,
+                "valid_until": (
+                    cert.valid_until.isoformat() if cert.valid_until else None
+                ),
             }
             data["certifications"].append(cert_dict)
 

@@ -5,14 +5,14 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, List, Optional, Any
 import logging
 from pathlib import Path
 import pickle
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.metrics import r2_score, accuracy_score, roc_auc_score
+from sklearn.metrics import r2_score, accuracy_score
 from scipy.stats import pearsonr, spearmanr
 
 logger = logging.getLogger(__name__)
@@ -58,29 +58,46 @@ class FeatureValidator:
             验证结果
         """
         if existing_features is None:
-            existing_features = [col for col in X.columns if col not in new_features]
+            existing_features = [
+                col for col in X.columns if col not in new_features
+            ]
 
         results = {
-            "correlation_analysis": self.analyze_correlation(X, new_features, existing_features),
+            "correlation_analysis": self.analyze_correlation(
+                X, new_features, existing_features
+            ),
             "stability_test": self.test_stability(X, y, new_features, model),
-            "performance_evaluation": self.evaluate_performance(X, y, new_features, existing_features, model),
+            "performance_evaluation": self.evaluate_performance(
+                X, y, new_features, existing_features, model
+            ),
             "integration_decision": {},
         }
 
-        results["integration_decision"] = self.make_integration_decision(results)
+        results["integration_decision"] = self.make_integration_decision(
+            results
+        )
 
         for feature in new_features:
             self.validation_results[feature] = {
-                "correlation": results["correlation_analysis"].get(feature, {}),
+                "correlation": results["correlation_analysis"].get(
+                    feature, {}
+                ),
                 "stability": results["stability_test"].get(feature, {}),
-                "performance": results["performance_evaluation"].get(feature, {}),
-                "accepted": results["integration_decision"].get(feature, False),
+                "performance": results["performance_evaluation"].get(
+                    feature, {}
+                ),
+                "accepted": results["integration_decision"].get(
+                    feature, False
+                ),
             }
 
         return results
 
     def analyze_correlation(
-        self, X: pd.DataFrame, new_features: List[str], existing_features: List[str]
+        self,
+        X: pd.DataFrame,
+        new_features: List[str],
+        existing_features: List[str],
     ) -> Dict[str, Dict[str, Any]]:
         """
         特征相关性分析
@@ -116,7 +133,11 @@ class FeatureValidator:
                     abs_corr = max(abs(pearson_corr), abs(spearman_corr))
 
                     correlations.append(
-                        {"feature": existing_feature, "pearson": pearson_corr, "spearman": spearman_corr}
+                        {
+                            "feature": existing_feature,
+                            "pearson": pearson_corr,
+                            "spearman": spearman_corr,
+                        }
                     )
 
                     if abs_corr > max_corr:
@@ -125,13 +146,16 @@ class FeatureValidator:
                 except Exception:
                     continue
 
-            correlations_sorted = sorted(correlations, key=lambda x: abs(x["pearson"]), reverse=True)[:5]
+            correlations_sorted = sorted(
+                correlations, key=lambda x: abs(x["pearson"]), reverse=True
+            )[:5]
 
             results[feature] = {
                 "max_correlation": max_corr,
                 "most_correlated_feature": most_correlated,
                 "top_correlations": correlations_sorted,
-                "high_correlation_warning": max_corr > self.correlation_threshold,
+                "high_correlation_warning": max_corr
+                > self.correlation_threshold,
             }
 
         return results
@@ -169,14 +193,22 @@ class FeatureValidator:
                 is_classification = len(np.unique(y)) <= 10
                 if is_classification:
                     model = RandomForestClassifier(
-                        n_estimators=50, max_depth=5, random_state=self.random_state, n_jobs=-1
+                        n_estimators=50,
+                        max_depth=5,
+                        random_state=self.random_state,
+                        n_jobs=-1,
                     )
                 else:
                     model = RandomForestRegressor(
-                        n_estimators=50, max_depth=5, random_state=self.random_state, n_jobs=-1
+                        n_estimators=50,
+                        max_depth=5,
+                        random_state=self.random_state,
+                        n_jobs=-1,
                     )
 
-            scores = cross_val_score(model, feature_data, y, cv=n_splits, n_jobs=-1)
+            scores = cross_val_score(
+                model, feature_data, y, cv=n_splits, n_jobs=-1
+            )
 
             mean_score = scores.mean()
             std_score = scores.std()
@@ -220,23 +252,37 @@ class FeatureValidator:
         """
         results = {}
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=self.random_state)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=self.random_state
+        )
 
         existing_cols = [col for col in existing_features if col in X.columns]
 
         if model is None:
             is_classification = len(np.unique(y)) <= 10
             if is_classification:
-                model = RandomForestClassifier(n_estimators=100, max_depth=8, random_state=self.random_state, n_jobs=-1)
+                model = RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=8,
+                    random_state=self.random_state,
+                    n_jobs=-1,
+                )
             else:
-                model = RandomForestRegressor(n_estimators=100, max_depth=8, random_state=self.random_state, n_jobs=-1)
+                model = RandomForestRegressor(
+                    n_estimators=100,
+                    max_depth=8,
+                    random_state=self.random_state,
+                    n_jobs=-1,
+                )
 
         if existing_cols:
             model.fit(X_train[existing_cols].fillna(0), y_train)
             baseline_pred = model.predict(X_test[existing_cols].fillna(0))
 
             if len(np.unique(y)) <= 10:
-                self.baseline_performance = accuracy_score(y_test, baseline_pred)
+                self.baseline_performance = accuracy_score(
+                    y_test, baseline_pred
+                )
             else:
                 self.baseline_performance = r2_score(y_test, baseline_pred)
         else:
@@ -266,13 +312,17 @@ class FeatureValidator:
                 "baseline_performance": self.baseline_performance,
                 "new_performance": performance,
                 "improvement": improvement,
-                "relative_improvement": improvement / (self.baseline_performance + 1e-10),
-                "significant_improvement": improvement >= self.min_performance_improvement,
+                "relative_improvement": improvement
+                / (self.baseline_performance + 1e-10),
+                "significant_improvement": improvement
+                >= self.min_performance_improvement,
             }
 
         return results
 
-    def make_integration_decision(self, validation_results: Dict[str, Any]) -> Dict[str, bool]:
+    def make_integration_decision(
+        self, validation_results: Dict[str, Any]
+    ) -> Dict[str, bool]:
         """
         特征集成决策
 
@@ -284,9 +334,13 @@ class FeatureValidator:
         """
         decisions = {}
 
-        correlation_results = validation_results.get("correlation_analysis", {})
+        correlation_results = validation_results.get(
+            "correlation_analysis", {}
+        )
         stability_results = validation_results.get("stability_test", {})
-        performance_results = validation_results.get("performance_evaluation", {})
+        performance_results = validation_results.get(
+            "performance_evaluation", {}
+        )
 
         all_features = set(correlation_results.keys())
         all_features.update(stability_results.keys())
@@ -297,7 +351,9 @@ class FeatureValidator:
             stab_res = stability_results.get(feature, {})
             perf_res = performance_results.get(feature, {})
 
-            low_correlation = not corr_res.get("high_correlation_warning", False)
+            low_correlation = not corr_res.get(
+                "high_correlation_warning", False
+            )
             stable = stab_res.get("stable", False)
             good_performance = perf_res.get("significant_improvement", False)
 
@@ -315,7 +371,11 @@ class FeatureValidator:
 
     def get_accepted_features(self) -> List[str]:
         """获取被接受的特征列表"""
-        return [feature for feature, result in self.validation_results.items() if result.get("accepted", False)]
+        return [
+            feature
+            for feature, result in self.validation_results.items()
+            if result.get("accepted", False)
+        ]
 
     def get_feature_report(self, feature: str) -> Optional[str]:
         """获取单个特征的详细报告"""
@@ -331,8 +391,12 @@ class FeatureValidator:
         corr = result.get("correlation", {})
         report.append("[相关性分析]")
         report.append(f"  最大相关性: {corr.get('max_correlation', 0):.4f}")
-        report.append(f"  最相关特征: {corr.get('most_correlated_feature', 'N/A')}")
-        report.append(f"  高相关性警告: {'是' if corr.get('high_correlation_warning', False) else '否'}")
+        report.append(
+            f"  最相关特征: {corr.get('most_correlated_feature', 'N/A')}"
+        )
+        report.append(
+            f"  高相关性警告: {'是' if corr.get('high_correlation_warning', False) else '否'}"
+        )
         report.append("")
 
         stab = result.get("stability", {})
@@ -349,7 +413,9 @@ class FeatureValidator:
         report.append(f"  新性能: {perf.get('new_performance', 0):.4f}")
         report.append(f"  提升: {perf.get('improvement', 0):.4f}")
         report.append(f"  相对提升: {perf.get('relative_improvement', 0):.2%}")
-        report.append(f"  显著提升: {'是' if perf.get('significant_improvement', False) else '否'}")
+        report.append(
+            f"  显著提升: {'是' if perf.get('significant_improvement', False) else '否'}"
+        )
 
         return "\n".join(report)
 

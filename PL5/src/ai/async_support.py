@@ -26,7 +26,9 @@ class ConcurrencyManager:
             max_workers: 最大工作线程数
         """
         self.max_workers = max_workers
-        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        self.thread_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers
+        )
         self.semaphore = asyncio.Semaphore(max_workers)
         self.lock = threading.RLock()
         self.running_tasks = 0
@@ -57,7 +59,9 @@ class ConcurrencyManager:
         """
         async with self.semaphore:
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(self.thread_pool, func, *args, **kwargs)
+            return await loop.run_in_executor(
+                self.thread_pool, func, *args, **kwargs
+            )
 
     async def execute_async_coroutine(self, coro: Coroutine) -> Any:
         """执行协程
@@ -71,7 +75,9 @@ class ConcurrencyManager:
         async with self.semaphore:
             return await coro
 
-    async def execute_batch(self, tasks: List[Callable], *args, **kwargs) -> List[Any]:
+    async def execute_batch(
+        self, tasks: List[Callable], *args, **kwargs
+    ) -> List[Any]:
         """批量执行任务
 
         Args:
@@ -118,7 +124,10 @@ class ConcurrencyManager:
         Returns:
             统计信息
         """
-        return {"max_workers": self.max_workers, "running_tasks": self.running_tasks}
+        return {
+            "max_workers": self.max_workers,
+            "running_tasks": self.running_tasks,
+        }
 
 
 class AsyncBatchExecutor:
@@ -127,7 +136,9 @@ class AsyncBatchExecutor:
     用于批量执行工具调用。
     """
 
-    def __init__(self, concurrency_manager: Optional[ConcurrencyManager] = None):
+    def __init__(
+        self, concurrency_manager: Optional[ConcurrencyManager] = None
+    ):
         """初始化批量执行器
 
         Args:
@@ -135,7 +146,9 @@ class AsyncBatchExecutor:
         """
         self.concurrency_manager = concurrency_manager or ConcurrencyManager()
 
-    async def execute_tools(self, tool_calls: List[Dict[str, Any]]) -> List[ToolResult]:
+    async def execute_tools(
+        self, tool_calls: List[Dict[str, Any]]
+    ) -> List[ToolResult]:
         """批量执行工具
 
         Args:
@@ -168,7 +181,9 @@ class AsyncBatchExecutor:
         semaphore_tasks = [execute_with_semaphore(task) for task in tasks]
         return await asyncio.gather(*semaphore_tasks)
 
-    async def execute_functions(self, functions: List[Callable], *args, **kwargs) -> List[Any]:
+    async def execute_functions(
+        self, functions: List[Callable], *args, **kwargs
+    ) -> List[Any]:
         """批量执行函数
 
         Args:
@@ -181,11 +196,15 @@ class AsyncBatchExecutor:
         """
         tasks = []
         for func in functions:
-            tasks.append(self.concurrency_manager.execute_async(func, *args, **kwargs))
+            tasks.append(
+                self.concurrency_manager.execute_async(func, *args, **kwargs)
+            )
 
         return await asyncio.gather(*tasks)
 
-    def execute_sync_batch(self, functions: List[Callable], *args, **kwargs) -> List[Any]:
+    def execute_sync_batch(
+        self, functions: List[Callable], *args, **kwargs
+    ) -> List[Any]:
         """同步批量执行函数
 
         Args:
@@ -198,7 +217,9 @@ class AsyncBatchExecutor:
         """
         results = []
         for func in functions:
-            result = self.concurrency_manager.execute_sync(func, *args, **kwargs)
+            result = self.concurrency_manager.execute_sync(
+                func, *args, **kwargs
+            )
             results.append(result)
         return results
 
@@ -224,7 +245,9 @@ class AsyncToolRunner:
         """初始化异步工具运行器"""
         self.concurrency_manager = ConcurrencyManager()
 
-    async def run_tool(self, tool_name: str, parameters: Dict[str, Any]) -> AsyncToolResult:
+    async def run_tool(
+        self, tool_name: str, parameters: Dict[str, Any]
+    ) -> AsyncToolResult:
         """异步运行工具
 
         Args:
@@ -242,7 +265,9 @@ class AsyncToolRunner:
         start_time = time.time()
 
         try:
-            result = await self.concurrency_manager.execute_async(registry.execute_tool, tool_name, parameters)
+            result = await self.concurrency_manager.execute_async(
+                registry.execute_tool, tool_name, parameters
+            )
 
             execution_time = time.time() - start_time
 
@@ -256,9 +281,16 @@ class AsyncToolRunner:
         except Exception as e:
             execution_time = time.time() - start_time
 
-            return AsyncToolResult(task_id=task_id, success=False, error=str(e), execution_time=execution_time)
+            return AsyncToolResult(
+                task_id=task_id,
+                success=False,
+                error=str(e),
+                execution_time=execution_time,
+            )
 
-    async def run_tools(self, tool_calls: List[Dict[str, Any]]) -> List[AsyncToolResult]:
+    async def run_tools(
+        self, tool_calls: List[Dict[str, Any]]
+    ) -> List[AsyncToolResult]:
         """异步运行多个工具
 
         Args:

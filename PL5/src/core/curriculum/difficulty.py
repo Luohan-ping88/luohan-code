@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from pathlib import Path
 import json
 from datetime import datetime
@@ -56,13 +56,18 @@ class DifficultyEvaluator:
         Args:
             storage_path: 持久化存储路径
         """
-        self.storage_path = storage_path or Path("models/curriculum_difficulty.json")
+        self.storage_path = storage_path or Path(
+            "models/curriculum_difficulty.json"
+        )
         self.task_difficulties: Dict[str, TaskDifficulty] = {}
         self.sample_difficulties: Dict[str, SampleDifficulty] = {}
         self._load()
 
     def evaluate_task_difficulty(
-        self, task_id: str, factors: Dict[str, float], weights: Optional[Dict[str, float]] = None
+        self,
+        task_id: str,
+        factors: Dict[str, float],
+        weights: Optional[Dict[str, float]] = None,
     ) -> TaskDifficulty:
         """评估任务难度
 
@@ -131,7 +136,9 @@ class DifficultyEvaluator:
         error_weight = 1.0 - time_weight
         normalized_time = min(avg_time_spent / 300.0, 1.0)
 
-        difficulty_score = error_rate * error_weight + normalized_time * time_weight
+        difficulty_score = (
+            error_rate * error_weight + normalized_time * time_weight
+        )
         level = self._classify_difficulty(difficulty_score)
 
         sample_diff = SampleDifficulty(
@@ -145,7 +152,9 @@ class DifficultyEvaluator:
         )
 
         if sample_id in self.sample_difficulties:
-            sample_diff.created_at = self.sample_difficulties[sample_id].created_at
+            sample_diff.created_at = self.sample_difficulties[
+                sample_id
+            ].created_at
 
         self.sample_difficulties[sample_id] = sample_diff
         self._save()
@@ -179,7 +188,9 @@ class DifficultyEvaluator:
         """
         return self.task_difficulties.get(task_id)
 
-    def get_sample_difficulty(self, sample_id: str) -> Optional[SampleDifficulty]:
+    def get_sample_difficulty(
+        self, sample_id: str
+    ) -> Optional[SampleDifficulty]:
         """获取样本难度
 
         Args:
@@ -190,7 +201,9 @@ class DifficultyEvaluator:
         """
         return self.sample_difficulties.get(sample_id)
 
-    def get_samples_by_level(self, level: DifficultyLevel) -> List[SampleDifficulty]:
+    def get_samples_by_level(
+        self, level: DifficultyLevel
+    ) -> List[SampleDifficulty]:
         """获取指定难度级别的样本
 
         Args:
@@ -199,9 +212,15 @@ class DifficultyEvaluator:
         Returns:
             样本难度对象列表
         """
-        return [sample for sample in self.sample_difficulties.values() if sample.level == level]
+        return [
+            sample
+            for sample in self.sample_difficulties.values()
+            if sample.level == level
+        ]
 
-    def get_tasks_by_level(self, level: DifficultyLevel) -> List[TaskDifficulty]:
+    def get_tasks_by_level(
+        self, level: DifficultyLevel
+    ) -> List[TaskDifficulty]:
         """获取指定难度级别的任务
 
         Args:
@@ -210,7 +229,11 @@ class DifficultyEvaluator:
         Returns:
             任务难度对象列表
         """
-        return [task for task in self.task_difficulties.values() if task.level == level]
+        return [
+            task
+            for task in self.task_difficulties.values()
+            if task.level == level
+        ]
 
     def _load(self) -> None:
         """从文件加载数据"""
@@ -221,15 +244,29 @@ class DifficultyEvaluator:
 
                 for task_data in data.get("tasks", []):
                     task_data["level"] = DifficultyLevel(task_data["level"])
-                    task_data["created_at"] = datetime.fromisoformat(task_data["created_at"])
-                    task_data["updated_at"] = datetime.fromisoformat(task_data["updated_at"])
-                    self.task_difficulties[task_data["task_id"]] = TaskDifficulty(**task_data)
+                    task_data["created_at"] = datetime.fromisoformat(
+                        task_data["created_at"]
+                    )
+                    task_data["updated_at"] = datetime.fromisoformat(
+                        task_data["updated_at"]
+                    )
+                    self.task_difficulties[task_data["task_id"]] = (
+                        TaskDifficulty(**task_data)
+                    )
 
                 for sample_data in data.get("samples", []):
-                    sample_data["level"] = DifficultyLevel(sample_data["level"])
-                    sample_data["created_at"] = datetime.fromisoformat(sample_data["created_at"])
-                    sample_data["updated_at"] = datetime.fromisoformat(sample_data["updated_at"])
-                    self.sample_difficulties[sample_data["sample_id"]] = SampleDifficulty(**sample_data)
+                    sample_data["level"] = DifficultyLevel(
+                        sample_data["level"]
+                    )
+                    sample_data["created_at"] = datetime.fromisoformat(
+                        sample_data["created_at"]
+                    )
+                    sample_data["updated_at"] = datetime.fromisoformat(
+                        sample_data["updated_at"]
+                    )
+                    self.sample_difficulties[sample_data["sample_id"]] = (
+                        SampleDifficulty(**sample_data)
+                    )
 
             except Exception as e:
                 print(f"加载难度数据失败: {e}")

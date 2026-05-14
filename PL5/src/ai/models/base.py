@@ -1,8 +1,7 @@
 """模型层基础接口"""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Generator
-from dataclasses import dataclass
+from typing import Dict, List, Generator
 
 from ..ai_types import LLMConfig, LLMType
 
@@ -31,10 +30,11 @@ class BaseLLM(ABC):
         Returns:
             生成的文本
         """
-        pass
 
     @abstractmethod
-    def generate_stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+    def generate_stream(
+        self, prompt: str, **kwargs
+    ) -> Generator[str, None, None]:
         """流式生成文本
 
         Args:
@@ -44,7 +44,6 @@ class BaseLLM(ABC):
         Yields:
             生成的文本片段
         """
-        pass
 
     @abstractmethod
     def chat(self, messages: List[Dict], **kwargs) -> Dict:
@@ -57,10 +56,11 @@ class BaseLLM(ABC):
         Returns:
             对话响应
         """
-        pass
 
     @abstractmethod
-    def chat_stream(self, messages: List[Dict], **kwargs) -> Generator[Dict, None, None]:
+    def chat_stream(
+        self, messages: List[Dict], **kwargs
+    ) -> Generator[Dict, None, None]:
         """流式对话
 
         Args:
@@ -70,7 +70,6 @@ class BaseLLM(ABC):
         Yields:
             对话响应片段
         """
-        pass
 
     def get_config(self) -> LLMConfig:
         """获取配置

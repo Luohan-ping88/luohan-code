@@ -1,6 +1,6 @@
 """代码工具实现"""
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 import subprocess
 import tempfile
 import os
@@ -69,7 +69,9 @@ class CodeTool(BaseTool):
 
             return ToolResult(success=True, data=result)
         except Exception as e:
-            return ToolResult(success=False, error=f"代码工具执行失败: {str(e)}")
+            return ToolResult(
+                success=False, error=f"代码工具执行失败: {str(e)}"
+            )
 
     def execute(self, parameters: Dict[str, Any]) -> ToolResult:
         """执行代码工具
@@ -112,12 +114,19 @@ class CodeTool(BaseTool):
         """
         try:
             # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as f:
                 f.write(code)
                 temp_file = f.name
 
             # 执行代码
-            result = subprocess.run(["python", temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                ["python", temp_file],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             # 清理临时文件
             os.unlink(temp_file)
@@ -129,9 +138,19 @@ class CodeTool(BaseTool):
                 "success": result.returncode == 0,
             }
         except subprocess.TimeoutExpired:
-            return {"stdout": "", "stderr": "代码执行超时", "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": "代码执行超时",
+                "returncode": 1,
+                "success": False,
+            }
         except Exception as e:
-            return {"stdout": "", "stderr": str(e), "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": 1,
+                "success": False,
+            }
 
     def _execute_javascript(self, code: str) -> Dict:
         """执行JavaScript代码
@@ -144,12 +163,16 @@ class CodeTool(BaseTool):
         """
         try:
             # 创建临时文件
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".js", delete=False
+            ) as f:
                 f.write(code)
                 temp_file = f.name
 
             # 执行代码
-            result = subprocess.run(["node", temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                ["node", temp_file], capture_output=True, text=True, timeout=30
+            )
 
             # 清理临时文件
             os.unlink(temp_file)
@@ -161,9 +184,19 @@ class CodeTool(BaseTool):
                 "success": result.returncode == 0,
             }
         except subprocess.TimeoutExpired:
-            return {"stdout": "", "stderr": "代码执行超时", "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": "代码执行超时",
+                "returncode": 1,
+                "success": False,
+            }
         except Exception as e:
-            return {"stdout": "", "stderr": str(e), "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": 1,
+                "success": False,
+            }
 
     def _execute_bash(self, code: str) -> Dict:
         """执行Bash代码
@@ -176,7 +209,12 @@ class CodeTool(BaseTool):
         """
         try:
             # 执行代码
-            result = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                ["bash", "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             return {
                 "stdout": result.stdout,
@@ -185,9 +223,19 @@ class CodeTool(BaseTool):
                 "success": result.returncode == 0,
             }
         except subprocess.TimeoutExpired:
-            return {"stdout": "", "stderr": "代码执行超时", "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": "代码执行超时",
+                "returncode": 1,
+                "success": False,
+            }
         except Exception as e:
-            return {"stdout": "", "stderr": str(e), "returncode": 1, "success": False}
+            return {
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": 1,
+                "success": False,
+            }
 
     def _generate_code(self, prompt: str, language: str) -> Dict:
         """生成代码
@@ -207,4 +255,8 @@ class CodeTool(BaseTool):
 print('Hello, Code Generation!')
 """
 
-        return {"generated_code": generated_code, "language": language, "prompt": prompt}
+        return {
+            "generated_code": generated_code,
+            "language": language,
+            "prompt": prompt,
+        }

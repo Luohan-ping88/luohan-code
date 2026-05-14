@@ -7,22 +7,32 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.header import Header
 from datetime import datetime
-import logging
 from src.core.utils.logger import logger
 
 
 class EmailSender:
     """邮件发送器"""
 
-    def __init__(self, sender_email: str, auth_code: str, smtp_server: str = "smtp.qq.com", smtp_port: int = 465):
+    def __init__(
+        self,
+        sender_email: str,
+        auth_code: str,
+        smtp_server: str = "smtp.qq.com",
+        smtp_port: int = 465,
+    ):
         self.sender_email = sender_email
         self.auth_code = auth_code
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
 
-    def send_report(self, recipient_email: str, subject: str, html_content: str, text_content: str = None):
+    def send_report(
+        self,
+        recipient_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str = None,
+    ):
         """发送报告邮件
 
         Raises:
@@ -44,20 +54,34 @@ class EmailSender:
 
         # 连接SMTP服务器并发送
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context) as server:
+        with smtplib.SMTP_SSL(
+            self.smtp_server, self.smtp_port, context=context
+        ) as server:
             server.login(self.sender_email, self.auth_code)
-            server.sendmail(self.sender_email, recipient_email, msg.as_string())
+            server.sendmail(
+                self.sender_email, recipient_email, msg.as_string()
+            )
 
         logger.info(f"✓ 邮件发送成功: {recipient_email}")
         return True
 
 
 def generate_html_report(
-    period: str, predictions: dict, analysis_data: dict, data_count: int, latest_period: str
+    period: str,
+    predictions: dict,
+    analysis_data: dict,
+    data_count: int,
+    latest_period: str,
 ) -> str:
     """生成HTML格式的报告 - 全彩色清晰版"""
 
-    position_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+    position_names = {
+        "wan": "万位",
+        "qian": "千位",
+        "bai": "百位",
+        "shi": "十位",
+        "ge": "个位",
+    }
 
     # 提取预测结果
     top_8 = {}

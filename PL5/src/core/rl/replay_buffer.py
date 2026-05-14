@@ -3,7 +3,7 @@
 """
 
 import numpy as np
-from typing import Any, Tuple, List, Optional
+from typing import Tuple, Optional
 from collections import deque
 import random
 
@@ -17,13 +17,22 @@ class ReplayBuffer:
         self.capacity = capacity
         self.buffer = deque(maxlen=capacity)
 
-    def add(self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool) -> None:
+    def add(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+    ) -> None:
         """
         添加经验到缓冲区
         """
         self.buffer.append((state, action, reward, next_state, done))
 
-    def sample(self, batch_size: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def sample(
+        self, batch_size: int
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         随机采样一批经验
         """
@@ -49,7 +58,13 @@ class PrioritizedReplayBuffer:
     优先级经验回放缓冲区
     """
 
-    def __init__(self, capacity: int, alpha: float = 0.6, beta: float = 0.4, beta_increment: float = 0.001):
+    def __init__(
+        self,
+        capacity: int,
+        alpha: float = 0.6,
+        beta: float = 0.4,
+        beta_increment: float = 0.001,
+    ):
         self.capacity = capacity
         self.alpha = alpha
         self.beta = beta
@@ -80,14 +95,26 @@ class PrioritizedReplayBuffer:
             self.buffer.append((state, action, reward, next_state, done))
             self.size += 1
         else:
-            self.buffer[self.position] = (state, action, reward, next_state, done)
+            self.buffer[self.position] = (
+                state,
+                action,
+                reward,
+                next_state,
+                done,
+            )
 
         self.priorities[self.position] = max_priority
         self.position = (self.position + 1) % self.capacity
 
-    def sample(
-        self, batch_size: int
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def sample(self, batch_size: int) -> Tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]:
         """
         按优先级采样一批经验
         """
@@ -98,7 +125,9 @@ class PrioritizedReplayBuffer:
         probs = priorities**self.alpha
         probs /= probs.sum()
 
-        indices = np.random.choice(self.size, batch_size, p=probs, replace=False)
+        indices = np.random.choice(
+            self.size, batch_size, p=probs, replace=False
+        )
         weights = (self.size * probs[indices]) ** (-self.beta)
         weights /= weights.max()
 
@@ -114,7 +143,9 @@ class PrioritizedReplayBuffer:
 
         return states, actions, rewards, next_states, dones, indices, weights
 
-    def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
+    def update_priorities(
+        self, indices: np.ndarray, priorities: np.ndarray
+    ) -> None:
         """
         更新经验的优先级
         """

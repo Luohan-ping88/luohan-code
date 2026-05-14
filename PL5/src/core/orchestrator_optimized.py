@@ -10,18 +10,20 @@
 """
 
 import asyncio
-import json
-import os
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Protocol, Iterator
+from typing import Dict, Any, List, Optional, Protocol
 from datetime import datetime
 from functools import cached_property
 from contextlib import contextmanager
 
 from src.core.utils import logger, log_execution_time, log_exception
-from src.core.config import MODELS_DIR, LOGS_DIR
-from src.core.events import EventBus, Event, get_event_bus, publish_event, publish_event_async
-from src.core.features.feature_config_manager import get_feature_config_manager, FeatureConfigManager
+from src.core.events import (
+    get_event_bus,
+    publish_event,
+)
+from src.core.features.feature_config_manager import (
+    get_feature_config_manager,
+)
 
 
 class DataCollectorProtocol(Protocol):
@@ -35,7 +37,9 @@ class DataCollectorProtocol(Protocol):
 class FeatureEngineerProtocol(Protocol):
     """特征工程接口"""
 
-    def extract_all_features(self, data: Any, select_top: Optional[int] = None) -> Any:
+    def extract_all_features(
+        self, data: Any, select_top: Optional[int] = None
+    ) -> Any:
         """提取所有特征"""
         ...
 
@@ -48,7 +52,10 @@ class PredictorProtocol(Protocol):
         ...
 
     def predict(
-        self, features: Any, recent_original_data: Optional[Dict[str, Any]] = None, top_k: int = 8
+        self,
+        features: Any,
+        recent_original_data: Optional[Dict[str, Any]] = None,
+        top_k: int = 8,
     ) -> Dict[str, Any]:
         """预测"""
         ...
@@ -78,7 +85,9 @@ class EmailSenderProtocol(Protocol):
 class EvaluatorProtocol(Protocol):
     """评估器接口"""
 
-    def evaluate_predictions(self, actual: Dict[str, Any], predictions: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_predictions(
+        self, actual: Dict[str, Any], predictions: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """评估预测结果"""
         ...
 
@@ -90,7 +99,9 @@ class EvaluatorProtocol(Protocol):
 class SelfLearningProtocol(Protocol):
     """自学习系统接口"""
 
-    def record_evaluation(self, accuracy: float, evaluation_data: Dict[str, Any]) -> None:
+    def record_evaluation(
+        self, accuracy: float, evaluation_data: Dict[str, Any]
+    ) -> None:
         """记录评估结果"""
         ...
 
@@ -141,7 +152,9 @@ class PL5OrchestratorOptimized:
         self._execution_history = []
         self._event_bus = get_event_bus()
         self._feature_config_manager = get_feature_config_manager()
-        self._workflow_dir = Path(workflow_dir) if workflow_dir else Path("./workflows")
+        self._workflow_dir = (
+            Path(workflow_dir) if workflow_dir else Path("./workflows")
+        )
         self._default_timeout = default_timeout
 
         # 确保工作流目录存在
@@ -154,7 +167,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def data_collector(self):
         """数据采集器（延迟初始化）"""
-        if self._provided_components and "data_collector" in self._provided_components:
+        if (
+            self._provided_components
+            and "data_collector" in self._provided_components
+        ):
             return self._provided_components["data_collector"]
         from src.core.data.collector import PL5DataCollector
 
@@ -164,7 +180,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def feature_engineer(self):
         """特征工程（延迟初始化）"""
-        if self._provided_components and "feature_engineer" in self._provided_components:
+        if (
+            self._provided_components
+            and "feature_engineer" in self._provided_components
+        ):
             return self._provided_components["feature_engineer"]
         from src.core.features.engineer import FeatureEngineer
 
@@ -174,7 +193,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def predictor(self):
         """预测器（延迟初始化）"""
-        if self._provided_components and "predictor" in self._provided_components:
+        if (
+            self._provided_components
+            and "predictor" in self._provided_components
+        ):
             return self._provided_components["predictor"]
         from src.core.models.enhanced_predictor import EnhancedPL5Predictor
 
@@ -184,7 +206,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def email_sender(self):
         """邮件发送器（延迟初始化）"""
-        if self._provided_components and "email_sender" in self._provided_components:
+        if (
+            self._provided_components
+            and "email_sender" in self._provided_components
+        ):
             return self._provided_components["email_sender"]
         from src.core.email.sender import EmailSender
 
@@ -194,7 +219,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def evaluator(self):
         """评估器（延迟初始化）"""
-        if self._provided_components and "evaluator" in self._provided_components:
+        if (
+            self._provided_components
+            and "evaluator" in self._provided_components
+        ):
             return self._provided_components["evaluator"]
         from src.core.evaluation.evaluator import PredictionEvaluator
 
@@ -204,7 +232,10 @@ class PL5OrchestratorOptimized:
     @cached_property
     def self_learning(self):
         """自学习系统（延迟初始化）"""
-        if self._provided_components and "self_learning" in self._provided_components:
+        if (
+            self._provided_components
+            and "self_learning" in self._provided_components
+        ):
             return self._provided_components["self_learning"]
         from src.core.self_learning import SelfLearningSystem
 
@@ -247,11 +278,17 @@ class PL5OrchestratorOptimized:
         execution_id = f"train_{int(start_time.timestamp() * 1000)}"
 
         # 发布事件代替直接调用
-        publish_event("training.started", {"execution_id": execution_id, "params": params}, source="orchestrator")
+        publish_event(
+            "training.started",
+            {"execution_id": execution_id, "params": params},
+            source="orchestrator",
+        )
 
         try:
             logger.info("=" * 80)
-            logger.info(f"[OrchestratorOptimized] 开始执行训练流程 (ID: {execution_id})")
+            logger.info(
+                f"[OrchestratorOptimized] 开始执行训练流程 (ID: {execution_id})"
+            )
             logger.info("=" * 80)
 
             results = {}
@@ -266,7 +303,9 @@ class PL5OrchestratorOptimized:
 
             # 2. 特征工程
             logger.info("\n[Stage 2/5] 特征工程")
-            stage2_result = await self._stage_feature_engineering(stage1_result)
+            stage2_result = await self._stage_feature_engineering(
+                stage1_result
+            )
             results["feature_engineering"] = stage2_result
 
             if not stage2_result.get("success"):
@@ -282,7 +321,9 @@ class PL5OrchestratorOptimized:
 
             # 4. 模型评估
             logger.info("\n[Stage 4/5] 模型评估")
-            stage4_result = await self._stage_model_evaluation(stage3_result, stage2_result)
+            stage4_result = await self._stage_model_evaluation(
+                stage3_result, stage2_result
+            )
             results["model_evaluation"] = stage4_result
 
             # 5. 报告生成
@@ -293,13 +334,19 @@ class PL5OrchestratorOptimized:
             execution_time = (datetime.now() - start_time).total_seconds()
 
             logger.info("=" * 80)
-            logger.info(f"[OrchestratorOptimized] 训练流程执行完成，总耗时: {execution_time:.2f}s")
+            logger.info(
+                f"[OrchestratorOptimized] 训练流程执行完成，总耗时: {execution_time:.2f}s"
+            )
             logger.info("=" * 80)
 
             # 发布成功事件
             publish_event(
                 "training.completed",
-                {"execution_id": execution_id, "execution_time": execution_time, "results": results},
+                {
+                    "execution_id": execution_id,
+                    "execution_time": execution_time,
+                    "results": results,
+                },
                 source="orchestrator",
             )
 
@@ -319,7 +366,11 @@ class PL5OrchestratorOptimized:
 
             publish_event(
                 "training.failed",
-                {"execution_id": execution_id, "error": error_msg, "execution_time": execution_time},
+                {
+                    "execution_id": execution_id,
+                    "error": error_msg,
+                    "execution_time": execution_time,
+                },
                 source="orchestrator",
             )
 
@@ -338,7 +389,9 @@ class PL5OrchestratorOptimized:
 
             error_msg = f"训练流程执行失败: {type(e).__name__}: {str(e)}"
 
-            logger.error(f"[OrchestratorOptimized] {error_msg}\n{traceback.format_exc()}")
+            logger.error(
+                f"[OrchestratorOptimized] {error_msg}\n{traceback.format_exc()}"
+            )
 
             publish_event(
                 "training.failed",
@@ -360,19 +413,28 @@ class PL5OrchestratorOptimized:
                 "timestamp": datetime.now().isoformat(),
             }
 
-    async def _stage_data_processing(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_data_processing(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段1: 数据采集与处理"""
         try:
             df = self.data_collector.update_data()
 
             logger.info(f"数据采集完成，记录数: {len(df)}")
 
-            return {"success": True, "data": df, "record_count": len(df), "latest_period": int(df["period"].max())}
+            return {
+                "success": True,
+                "data": df,
+                "record_count": len(df),
+                "latest_period": int(df["period"].max()),
+            }
         except Exception as e:
             logger.error(f"数据采集失败: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _stage_feature_engineering(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_feature_engineering(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段2: 特征工程"""
         try:
             df = prev_result["data"]
@@ -381,7 +443,18 @@ class PL5OrchestratorOptimized:
             feature_cols = [
                 c
                 for c in df_features.columns
-                if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                if c
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "parse_line",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
 
             logger.info(f"特征工程完成，特征数: {len(feature_cols)}")
@@ -396,7 +469,9 @@ class PL5OrchestratorOptimized:
             logger.error(f"特征工程失败: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _stage_model_training(self, prev_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_model_training(
+        self, prev_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段3: 模型训练"""
         try:
             df_features = prev_result["features"]
@@ -407,7 +482,11 @@ class PL5OrchestratorOptimized:
 
             logger.info("模型训练完成并保存")
 
-            return {"success": True, "models": "saved", "positions_trained": ["wan", "qian", "bai", "shi", "ge"]}
+            return {
+                "success": True,
+                "models": "saved",
+                "positions_trained": ["wan", "qian", "bai", "shi", "ge"],
+            }
         except Exception as e:
             logger.error(f"模型训练失败: {e}")
             return {"success": False, "error": str(e)}
@@ -435,9 +514,17 @@ class PL5OrchestratorOptimized:
 
                 predictions = self.predictor.predict(features)
 
-                actual_dict = {"wan": actual[0], "qian": actual[1], "bai": actual[2], "shi": actual[3], "ge": actual[4]}
+                actual_dict = {
+                    "wan": actual[0],
+                    "qian": actual[1],
+                    "bai": actual[2],
+                    "shi": actual[3],
+                    "ge": actual[4],
+                }
 
-                evaluation = self.evaluator.evaluate_predictions(actual_dict, predictions)
+                evaluation = self.evaluator.evaluate_predictions(
+                    actual_dict, predictions
+                )
                 evaluations.append(evaluation)
 
                 for j, pos in enumerate(["wan", "qian", "bai", "shi", "ge"]):
@@ -457,12 +544,16 @@ class PL5OrchestratorOptimized:
                 },
             )
 
-            optimization_suggestions = self.self_learning.generate_optimization_suggestions()
+            optimization_suggestions = (
+                self.self_learning.generate_optimization_suggestions()
+            )
             logger.info("生成优化建议:")
             for suggestion in optimization_suggestions[:5]:
                 logger.info(f"  - {suggestion}")
 
-            should_retrain, reason = self.self_learning.should_trigger_retrain()
+            should_retrain, reason = (
+                self.self_learning.should_trigger_retrain()
+            )
             if should_retrain:
                 logger.warning(f"建议触发重训练: {reason}")
 
@@ -485,14 +576,18 @@ class PL5OrchestratorOptimized:
             logger.error(f"模型评估失败: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _stage_report_generation(self, all_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def _stage_report_generation(
+        self, all_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """阶段5: 报告生成"""
         try:
             report = {
                 "timestamp": datetime.now().isoformat(),
                 "execution_id": f"train_{int(datetime.now().timestamp() * 1000)}",
                 "data_processing": all_results.get("data_processing", {}),
-                "feature_engineering": all_results.get("feature_engineering", {}),
+                "feature_engineering": all_results.get(
+                    "feature_engineering", {}
+                ),
                 "model_training": all_results.get("model_training", {}),
                 "model_evaluation": all_results.get("model_evaluation", {}),
             }
@@ -503,15 +598,35 @@ class PL5OrchestratorOptimized:
                 best_config = self._feature_config_manager.get_config()
                 select_top = best_config.select_top if best_config else None
 
-                df_features = self.feature_engineer.extract_all_features(df, select_top=select_top)
+                df_features = self.feature_engineer.extract_all_features(
+                    df, select_top=select_top
+                )
                 all_feature_cols = [
                     c
                     for c in df_features.columns
-                    if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                    if c
+                    not in [
+                        "period",
+                        "date",
+                        "full_number",
+                        "parse_line",
+                        "wan",
+                        "qian",
+                        "bai",
+                        "shi",
+                        "ge",
+                    ]
                 ]
 
-                if self.predictor.feature_cols and len(self.predictor.feature_cols) > 0:
-                    missing = [c for c in self.predictor.feature_cols if c not in df_features.columns]
+                if (
+                    self.predictor.feature_cols
+                    and len(self.predictor.feature_cols) > 0
+                ):
+                    missing = [
+                        c
+                        for c in self.predictor.feature_cols
+                        if c not in df_features.columns
+                    ]
                     if missing:
                         for col in missing:
                             df_features[col] = 0.0
@@ -520,16 +635,25 @@ class PL5OrchestratorOptimized:
                     feature_cols = all_feature_cols
 
                 latest_features = df_features[feature_cols].iloc[-1].values
-                recent_original_data = {pos: df[pos].values for pos in ["wan", "qian", "bai", "shi", "ge"]}
+                recent_original_data = {
+                    pos: df[pos].values
+                    for pos in ["wan", "qian", "bai", "shi", "ge"]
+                }
 
                 predictions_8 = self.predictor.predict(
-                    latest_features, recent_original_data=recent_original_data, top_k=8
+                    latest_features,
+                    recent_original_data=recent_original_data,
+                    top_k=8,
                 )
                 predictions_5 = self.predictor.predict(
-                    latest_features, recent_original_data=recent_original_data, top_k=5
+                    latest_features,
+                    recent_original_data=recent_original_data,
+                    top_k=5,
                 )
                 predictions_3 = self.predictor.predict(
-                    latest_features, recent_original_data=recent_original_data, top_k=3
+                    latest_features,
+                    recent_original_data=recent_original_data,
+                    top_k=3,
                 )
 
                 next_period = int(df["period"].max()) + 1
@@ -549,7 +673,11 @@ class PL5OrchestratorOptimized:
 
             logger.info("训练报告生成完成")
 
-            return {"success": True, "report": report, "email_sent": email_sent}
+            return {
+                "success": True,
+                "report": report,
+                "email_sent": email_sent,
+            }
         except Exception as e:
             logger.error(f"报告生成失败: {e}")
             return {"success": False, "error": str(e)}
@@ -557,17 +685,25 @@ class PL5OrchestratorOptimized:
     @log_execution_time("orchestrator_predict_optimized")
     @log_exception("orchestrator_predict_optimized")
     async def execute_prediction_pipeline(
-        self, latest_data: Optional[Dict[str, Any]] = None, timeout: Optional[int] = None
+        self,
+        latest_data: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
         """执行预测流程（带超时控制）"""
         timeout = timeout or self._default_timeout
         start_time = datetime.now()
         execution_id = f"predict_{int(start_time.timestamp() * 1000)}"
 
-        publish_event("prediction.started", {"execution_id": execution_id}, source="orchestrator")
+        publish_event(
+            "prediction.started",
+            {"execution_id": execution_id},
+            source="orchestrator",
+        )
 
         try:
-            logger.info(f"[OrchestratorOptimized] 开始执行预测流程 (ID: {execution_id})")
+            logger.info(
+                f"[OrchestratorOptimized] 开始执行预测流程 (ID: {execution_id})"
+            )
 
             df = self.data_collector.update_data()
 
@@ -576,52 +712,96 @@ class PL5OrchestratorOptimized:
             select_top = best_config.select_top if best_config else None
 
             if select_top is not None:
-                logger.info(f"[OrchestratorOptimized] 使用动态验证最佳配置: select_top={select_top}")
+                logger.info(
+                    f"[OrchestratorOptimized] 使用动态验证最佳配置: select_top={select_top}"
+                )
             else:
                 logger.info("[OrchestratorOptimized] 使用全量特征")
 
-            df_features = self.feature_engineer.extract_all_features(df, select_top=None)
+            df_features = self.feature_engineer.extract_all_features(
+                df, select_top=None
+            )
             all_feature_cols = [
                 c
                 for c in df_features.columns
-                if c not in ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+                if c
+                not in [
+                    "period",
+                    "date",
+                    "full_number",
+                    "parse_line",
+                    "wan",
+                    "qian",
+                    "bai",
+                    "shi",
+                    "ge",
+                ]
             ]
 
             load_result = self.predictor.load_models()
 
             if not load_result:
-                logger.warning("[OrchestratorOptimized] 模型文件加载失败，使用全量特征")
+                logger.warning(
+                    "[OrchestratorOptimized] 模型文件加载失败，使用全量特征"
+                )
                 feature_cols = all_feature_cols
             else:
-                if self.predictor.feature_cols and len(self.predictor.feature_cols) > 0:
-                    missing = [c for c in self.predictor.feature_cols if c not in df_features.columns]
+                if (
+                    self.predictor.feature_cols
+                    and len(self.predictor.feature_cols) > 0
+                ):
+                    missing = [
+                        c
+                        for c in self.predictor.feature_cols
+                        if c not in df_features.columns
+                    ]
                     if missing:
-                        logger.warning(f"[OrchestratorOptimized] 模型特征列中有 {len(missing)} 个缺失，将用0填充")
+                        logger.warning(
+                            f"[OrchestratorOptimized] 模型特征列中有 {len(missing)} 个缺失，将用0填充"
+                        )
                         for col in missing:
                             df_features[col] = 0.0
                     feature_cols = self.predictor.feature_cols
-                    logger.info(f"[OrchestratorOptimized] 使用模型训练时的 {len(feature_cols)} 个特征列")
+                    logger.info(
+                        f"[OrchestratorOptimized] 使用模型训练时的 {len(feature_cols)} 个特征列"
+                    )
                 else:
                     feature_cols = all_feature_cols
 
-            missing_cols = [c for c in feature_cols if c not in df_features.columns]
+            missing_cols = [
+                c for c in feature_cols if c not in df_features.columns
+            ]
             if missing_cols:
                 for col in missing_cols:
                     df_features[col] = 0.0
 
             latest_features = df_features[feature_cols].iloc[-1].values
-            recent_original_data = {pos: df[pos].values for pos in ["wan", "qian", "bai", "shi", "ge"]}
-            predictions = self.predictor.predict(latest_features, recent_original_data=recent_original_data, top_k=8)
+            recent_original_data = {
+                pos: df[pos].values
+                for pos in ["wan", "qian", "bai", "shi", "ge"]
+            }
+            predictions = self.predictor.predict(
+                latest_features,
+                recent_original_data=recent_original_data,
+                top_k=8,
+            )
 
             next_period = int(df["period"].max()) + 1
-            report = {"next_period": next_period, "predictions": predictions, "timestamp": datetime.now().isoformat()}
+            report = {
+                "next_period": next_period,
+                "predictions": predictions,
+                "timestamp": datetime.now().isoformat(),
+            }
 
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"预测流程执行完成，耗时: {execution_time:.2f}s")
 
             publish_event(
                 "prediction.completed",
-                {"execution_id": execution_id, "execution_time": execution_time},
+                {
+                    "execution_id": execution_id,
+                    "execution_time": execution_time,
+                },
                 source="orchestrator",
             )
 
@@ -643,7 +823,11 @@ class PL5OrchestratorOptimized:
 
             publish_event(
                 "prediction.failed",
-                {"execution_id": execution_id, "error": error_msg, "execution_time": execution_time},
+                {
+                    "execution_id": execution_id,
+                    "error": error_msg,
+                    "execution_time": execution_time,
+                },
                 source="orchestrator",
             )
 
@@ -662,7 +846,9 @@ class PL5OrchestratorOptimized:
 
             error_msg = f"{type(e).__name__}: {str(e)}"
 
-            logger.error(f"[OrchestratorOptimized] 预测流程执行失败: {error_msg}\n{traceback.format_exc()}")
+            logger.error(
+                f"[OrchestratorOptimized] 预测流程执行失败: {error_msg}\n{traceback.format_exc()}"
+            )
 
             publish_event(
                 "prediction.failed",

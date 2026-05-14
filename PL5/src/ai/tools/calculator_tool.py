@@ -21,14 +21,36 @@ class CalculatorTool(BaseTool):
     category = ToolCategory.BUILTIN
     tags = ["calculator", "math"]
     parameters = [
-        {"name": "expression", "type": "str", "description": "数学表达式", "required": False, "example": "2 + 2 * 3"},
-        {"name": "data", "type": "list", "description": "数据数组", "required": False, "example": [1, 2, 3, 4, 5]},
+        {
+            "name": "expression",
+            "type": "str",
+            "description": "数学表达式",
+            "required": False,
+            "example": "2 + 2 * 3",
+        },
+        {
+            "name": "data",
+            "type": "list",
+            "description": "数据数组",
+            "required": False,
+            "example": [1, 2, 3, 4, 5],
+        },
         {
             "name": "operation",
             "type": "str",
             "description": "操作类型",
             "required": True,
-            "enum": ["evaluate", "sum", "mean", "median", "mode", "std", "var", "min", "max"],
+            "enum": [
+                "evaluate",
+                "sum",
+                "mean",
+                "median",
+                "mode",
+                "std",
+                "var",
+                "min",
+                "max",
+            ],
             "example": "evaluate",
         },
     ]
@@ -66,9 +88,13 @@ class CalculatorTool(BaseTool):
             elif operation == "max":
                 result = self._calculate_max(data)
             else:
-                return ToolResult(success=False, error=f"不支持的操作: {operation}")
+                return ToolResult(
+                    success=False, error=f"不支持的操作: {operation}"
+                )
 
-            return ToolResult(success=True, data={"result": result, "operation": operation})
+            return ToolResult(
+                success=True, data={"result": result, "operation": operation}
+            )
         except Exception as e:
             return ToolResult(success=False, error=f"计算执行失败: {str(e)}")
 

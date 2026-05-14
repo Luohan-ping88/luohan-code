@@ -5,7 +5,7 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import List, Optional, Tuple, Any
 import logging
 import random
 from pathlib import Path
@@ -24,7 +24,12 @@ class ExpressionNode:
         "sub": {"func": lambda x, y: x - y, "arity": 2},
         "mul": {"func": lambda x, y: x * y, "arity": 2},
         "div": {"func": lambda x, y: x / (y + 1e-10), "arity": 2},
-        "pow": {"func": lambda x, y: np.power(np.abs(x) + 1e-10, np.clip(y, 0.1, 3)), "arity": 2},
+        "pow": {
+            "func": lambda x, y: np.power(
+                np.abs(x) + 1e-10, np.clip(y, 0.1, 3)
+            ),
+            "arity": 2,
+        },
         "sin": {"func": lambda x: np.sin(x), "arity": 1},
         "cos": {"func": lambda x: np.cos(x), "arity": 1},
         "exp": {"func": lambda x: np.exp(np.clip(x, -10, 10)), "arity": 1},
@@ -122,7 +127,10 @@ class SymbolicFeatureDiscoverer:
         np.random.seed(random_state)
 
     def _generate_random_expression(
-        self, feature_names: List[str], depth: int = 0, max_depth: Optional[int] = None
+        self,
+        feature_names: List[str],
+        depth: int = 0,
+        max_depth: Optional[int] = None,
     ) -> ExpressionNode:
         """生成随机表达式"""
         if max_depth is None:
@@ -141,13 +149,19 @@ class SymbolicFeatureDiscoverer:
             op = ExpressionNode.OPERATORS[op_name]
             node = ExpressionNode("operator", op_name)
 
-            node.left = self._generate_random_expression(feature_names, depth + 1, max_depth)
+            node.left = self._generate_random_expression(
+                feature_names, depth + 1, max_depth
+            )
             if op["arity"] == 2:
-                node.right = self._generate_random_expression(feature_names, depth + 1, max_depth)
+                node.right = self._generate_random_expression(
+                    feature_names, depth + 1, max_depth
+                )
 
             return node
 
-    def _initialize_population(self, feature_names: List[str]) -> List[ExpressionNode]:
+    def _initialize_population(
+        self, feature_names: List[str]
+    ) -> List[ExpressionNode]:
         """初始化种群"""
         population = []
         for _ in range(self.population_size):
@@ -156,24 +170,39 @@ class SymbolicFeatureDiscoverer:
         return population
 
     def _fitness_function(
-        self, expression: ExpressionNode, X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None
+        self,
+        expression: ExpressionNode,
+        X: pd.DataFrame,
+        y: pd.Series,
+        model: Optional[BaseEstimator] = None,
     ) -> float:
         """适应度函数 - 评估新特征的预测能力"""
         try:
             feature_values = expression.evaluate(X)
 
-            if np.any(np.isnan(feature_values)) or np.any(np.isinf(feature_values)):
+            if np.any(np.isnan(feature_values)) or np.any(
+                np.isinf(feature_values)
+            ):
                 return -float("inf")
 
-            feature_values = (feature_values - feature_values.mean()) / (feature_values.std() + 1e-10)
+            feature_values = (feature_values - feature_values.mean()) / (
+                feature_values.std() + 1e-10
+            )
 
             if model is None:
-                model = RandomForestRegressor(n_estimators=30, max_depth=4, random_state=self.random_state, n_jobs=-1)
+                model = RandomForestRegressor(
+                    n_estimators=30,
+                    max_depth=4,
+                    random_state=self.random_state,
+                    n_jobs=-1,
+                )
 
             X_feature = feature_values.reshape(-1, 1)
             from sklearn.model_selection import cross_val_score
 
-            scores = cross_val_score(model, X_feature, y, cv=3, scoring="r2", n_jobs=-1)
+            scores = cross_val_score(
+                model, X_feature, y, cv=3, scoring="r2", n_jobs=-1
+            )
 
             complexity_penalty = expression.size() * 0.01
 
@@ -183,7 +212,11 @@ class SymbolicFeatureDiscoverer:
             return -float("inf")
 
     def _evaluate_population(
-        self, population: List[ExpressionNode], X: pd.DataFrame, y: pd.Series, model: Optional[BaseEstimator] = None
+        self,
+        population: List[ExpressionNode],
+        X: pd.DataFrame,
+        y: pd.Series,
+        model: Optional[BaseEstimator] = None,
     ) -> List[float]:
         """评估种群"""
         fitnesses = []
@@ -192,9 +225,13 @@ class SymbolicFeatureDiscoverer:
             fitnesses.append(fitness)
         return fitnesses
 
-    def _selection(self, population: List[ExpressionNode], fitnesses: List[float]) -> ExpressionNode:
+    def _selection(
+        self, population: List[ExpressionNode], fitnesses: List[float]
+    ) -> ExpressionNode:
         """选择操作"""
-        valid_indices = [i for i, f in enumerate(fitnesses) if f != -float("inf")]
+        valid_indices = [
+            i for i, f in enumerate(fitnesses) if f != -float("inf")
+        ]
         if not valid_indices:
             return random.choice(population)
 
@@ -212,7 +249,9 @@ class SymbolicFeatureDiscoverer:
 
         return population[valid_indices[-1]]
 
-    def _crossover(self, parent1: ExpressionNode, parent2: ExpressionNode) -> ExpressionNode:
+    def _crossover(
+        self, parent1: ExpressionNode, parent2: ExpressionNode
+    ) -> ExpressionNode:
         """交叉操作 - 子树交换"""
         if random.random() > self.crossover_rate:
             return parent1.clone()
@@ -269,9 +308,13 @@ class SymbolicFeatureDiscoverer:
                     target_node.right = None
             else:
                 if target_node.right is None:
-                    target_node.right = self._generate_random_expression(feature_names, max_depth=2)
+                    target_node.right = self._generate_random_expression(
+                        feature_names, max_depth=2
+                    )
 
-    def _simplify_expression(self, expression: ExpressionNode) -> ExpressionNode:
+    def _simplify_expression(
+        self, expression: ExpressionNode
+    ) -> ExpressionNode:
         """简化表达式"""
         if expression.node_type in ["variable", "constant"]:
             return expression
@@ -282,17 +325,33 @@ class SymbolicFeatureDiscoverer:
             expression.right = self._simplify_expression(expression.right)
 
         if expression.value == "add":
-            if expression.left.node_type == "constant" and expression.left.value == 0:
+            if (
+                expression.left.node_type == "constant"
+                and expression.left.value == 0
+            ):
                 return expression.right
-            if expression.right.node_type == "constant" and expression.right.value == 0:
+            if (
+                expression.right.node_type == "constant"
+                and expression.right.value == 0
+            ):
                 return expression.left
         elif expression.value == "mul":
-            if expression.left.node_type == "constant" and expression.left.value == 1:
+            if (
+                expression.left.node_type == "constant"
+                and expression.left.value == 1
+            ):
                 return expression.right
-            if expression.right.node_type == "constant" and expression.right.value == 1:
+            if (
+                expression.right.node_type == "constant"
+                and expression.right.value == 1
+            ):
                 return expression.left
-            if (expression.left.node_type == "constant" and expression.left.value == 0) or (
-                expression.right.node_type == "constant" and expression.right.value == 0
+            if (
+                expression.left.node_type == "constant"
+                and expression.left.value == 0
+            ) or (
+                expression.right.node_type == "constant"
+                and expression.right.value == 0
             ):
                 return ExpressionNode("constant", 0.0)
 
@@ -324,14 +383,20 @@ class SymbolicFeatureDiscoverer:
             发现的特征列表，格式为 (特征名, 表达式, 适应度)
         """
         if feature_cols is None:
-            feature_cols = [col for col in X.columns if np.issubdtype(X[col].dtype, np.number)]
+            feature_cols = [
+                col
+                for col in X.columns
+                if np.issubdtype(X[col].dtype, np.number)
+            ]
 
         self.feature_names = feature_cols
         discovered_features = []
 
         for feature_idx in range(num_features):
             if verbose:
-                logger.info(f"发现第 {feature_idx + 1}/{num_features} 个特征...")
+                logger.info(
+                    f"发现第 {feature_idx + 1}/{num_features} 个特征..."
+                )
 
             self.population = self._initialize_population(feature_cols)
             fitnesses = self._evaluate_population(self.population, X, y, model)
@@ -347,7 +412,9 @@ class SymbolicFeatureDiscoverer:
 
                 if current_best_fitness > best_fitness:
                     best_fitness = current_best_fitness
-                    self.best_expression = self._simplify_expression(self.population[current_best_idx].clone())
+                    self.best_expression = self._simplify_expression(
+                        self.population[current_best_idx].clone()
+                    )
                     self.best_fitness = best_fitness
                     patience_counter = 0
                 else:
@@ -355,18 +422,26 @@ class SymbolicFeatureDiscoverer:
 
                 if verbose:
                     logger.info(
-                        f"  Generation {generation + 1}/{self.max_generations} - " f"Best Fitness: {best_fitness:.4f}"
+                        f"  Generation {generation + 1}/{self.max_generations} - "
+                        f"Best Fitness: {best_fitness:.4f}"
                     )
 
                 if patience_counter >= early_stopping_patience:
                     if verbose:
-                        logger.info(f"  早停触发，在第 {generation + 1} 代停止")
+                        logger.info(
+                            f"  早停触发，在第 {generation + 1} 代停止"
+                        )
                     break
 
                 next_generation = []
                 elitism_count = int(self.elitism_rate * self.population_size)
                 sorted_indices = np.argsort(fitnesses)[::-1]
-                next_generation.extend([self.population[i].clone() for i in sorted_indices[:elitism_count]])
+                next_generation.extend(
+                    [
+                        self.population[i].clone()
+                        for i in sorted_indices[:elitism_count]
+                    ]
+                )
 
                 while len(next_generation) < self.population_size:
                     parent1 = self._selection(self.population, fitnesses)
@@ -377,18 +452,26 @@ class SymbolicFeatureDiscoverer:
                     next_generation.append(child)
 
                 self.population = next_generation
-                fitnesses = self._evaluate_population(self.population, X, y, model)
+                fitnesses = self._evaluate_population(
+                    self.population, X, y, model
+                )
 
             if self.best_expression and self.best_fitness > 0:
                 feature_name = f"symbolic_feature_{feature_idx + 1}"
-                discovered_features.append((feature_name, self.best_expression, self.best_fitness))
+                discovered_features.append(
+                    (feature_name, self.best_expression, self.best_fitness)
+                )
                 if verbose:
-                    logger.info(f"发现特征 {feature_name}，适应度: {self.best_fitness:.4f}")
+                    logger.info(
+                        f"发现特征 {feature_name}，适应度: {self.best_fitness:.4f}"
+                    )
 
         return discovered_features
 
     def generate_features(
-        self, X: pd.DataFrame, discovered_features: List[Tuple[str, ExpressionNode, float]]
+        self,
+        X: pd.DataFrame,
+        discovered_features: List[Tuple[str, ExpressionNode, float]],
     ) -> pd.DataFrame:
         """
         根据发现的特征生成新特征数据

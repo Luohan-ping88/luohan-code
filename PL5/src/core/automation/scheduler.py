@@ -6,7 +6,6 @@
 """
 
 import time
-import logging
 import sched
 from datetime import datetime, timedelta
 
@@ -17,7 +16,10 @@ from src.core.monitoring.performance_monitor import (
     stop_performance_monitoring,
     get_performance_monitor,
 )
-from src.core.monitoring.bottleneck_detector import detect_bottlenecks, save_bottleneck_report
+from src.core.monitoring.bottleneck_detector import (
+    detect_bottlenecks,
+    save_bottleneck_report,
+)
 from src.core.monitoring.alerting import check_alerts
 from src.core.monitoring.health_check import check_health
 from src.core.backup.backup_manager import create_backup, backup_models
@@ -52,7 +54,9 @@ class PL5AutomationScheduler:
 
             # 计算下一次00:00的时间
             now = datetime.now()
-            next_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            next_midnight = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             if now >= next_midnight:
                 next_midnight += timedelta(days=1)
 
@@ -60,21 +64,31 @@ class PL5AutomationScheduler:
             time_until_midnight = (next_midnight - now).total_seconds()
 
             # 00:00 启动数据采集和更新
-            self.data_collection_job = self.scheduler.enter(time_until_midnight, 1, self._run_data_collection_wrapper)
+            self.data_collection_job = self.scheduler.enter(
+                time_until_midnight, 1, self._run_data_collection_wrapper
+            )
 
             # 每小时检查一次系统状态
-            self.system_check_job = self.scheduler.enter(0, 2, self._check_system_status_wrapper)
+            self.system_check_job = self.scheduler.enter(
+                0, 2, self._check_system_status_wrapper
+            )
 
             # 每6小时检查一次性能瓶颈
-            self.performance_check_job = self.scheduler.enter(0, 3, self._check_performance_wrapper)
+            self.performance_check_job = self.scheduler.enter(
+                0, 3, self._check_performance_wrapper
+            )
 
             # 每天执行一次自动备份
-            self.backup_job = self.scheduler.enter(0, 4, self._run_backup_wrapper)
+            self.backup_job = self.scheduler.enter(
+                0, 4, self._run_backup_wrapper
+            )
 
             # 启动调度器线程
             import threading
 
-            self.scheduler_thread = threading.Thread(target=self.scheduler.run, daemon=True)
+            self.scheduler_thread = threading.Thread(
+                target=self.scheduler.run, daemon=True
+            )
             self.scheduler_thread.start()
 
             self.is_running = True
@@ -101,9 +115,13 @@ class PL5AutomationScheduler:
 
         # 重新安排下一次任务
         if self.is_running:
-            next_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            next_midnight = datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
             time_until_next = (next_midnight - datetime.now()).total_seconds()
-            self.data_collection_job = self.scheduler.enter(time_until_next, 1, self._run_data_collection_wrapper)
+            self.data_collection_job = self.scheduler.enter(
+                time_until_next, 1, self._run_data_collection_wrapper
+            )
 
     def _check_system_status_wrapper(self):
         """系统状态检查包装器（同步）"""
@@ -111,7 +129,9 @@ class PL5AutomationScheduler:
 
         # 重新安排下一次任务（每小时）
         if self.is_running:
-            self.system_check_job = self.scheduler.enter(3600, 2, self._check_system_status_wrapper)  # 3600秒 = 1小时
+            self.system_check_job = self.scheduler.enter(
+                3600, 2, self._check_system_status_wrapper
+            )  # 3600秒 = 1小时
 
     def _check_performance_wrapper(self):
         """性能检查包装器（同步）"""
@@ -119,7 +139,9 @@ class PL5AutomationScheduler:
 
         # 重新安排下一次任务（每6小时）
         if self.is_running:
-            self.performance_check_job = self.scheduler.enter(6 * 3600, 3, self._check_performance_wrapper)  # 6小时
+            self.performance_check_job = self.scheduler.enter(
+                6 * 3600, 3, self._check_performance_wrapper
+            )  # 6小时
 
     def _run_backup_wrapper(self):
         """备份任务包装器（同步）"""
@@ -127,7 +149,9 @@ class PL5AutomationScheduler:
 
         # 重新安排下一次任务（每天）
         if self.is_running:
-            self.backup_job = self.scheduler.enter(24 * 3600, 4, self._run_backup_wrapper)  # 24小时
+            self.backup_job = self.scheduler.enter(
+                24 * 3600, 4, self._run_backup_wrapper
+            )  # 24小时
 
     def _run_backup(self):
         """运行备份任务"""
@@ -138,16 +162,24 @@ class PL5AutomationScheduler:
             backup_result = create_backup()
             if backup_result.get("status") == "success":
                 self.last_backup = datetime.now()
-                logger.info(f"[Automation] 自动备份成功，备份ID: {backup_result.get('backup_id')}")
+                logger.info(
+                    f"[Automation] 自动备份成功，备份ID: {backup_result.get('backup_id')}"
+                )
             else:
-                logger.error(f"[Automation] 自动备份失败: {backup_result.get('error', '未知错误')}")
+                logger.error(
+                    f"[Automation] 自动备份失败: {backup_result.get('error', '未知错误')}"
+                )
 
             # 单独备份模型（确保模型安全）
             model_backup_result = backup_models()
             if model_backup_result.get("status") == "success":
-                logger.info(f"[Automation] 模型备份成功，备份ID: {model_backup_result.get('backup_id')}")
+                logger.info(
+                    f"[Automation] 模型备份成功，备份ID: {model_backup_result.get('backup_id')}"
+                )
             else:
-                logger.error(f"[Automation] 模型备份失败: {model_backup_result.get('error', '未知错误')}")
+                logger.error(
+                    f"[Automation] 模型备份失败: {model_backup_result.get('error', '未知错误')}"
+                )
 
         except Exception as e:
             logger.error(f"[Automation] 备份任务执行失败: {str(e)}")
@@ -183,10 +215,14 @@ class PL5AutomationScheduler:
 
         try:
             # 执行数据采集
-            data_result = await auto_retry(self.orchestrator._stage_data_processing, {})
+            data_result = await auto_retry(
+                self.orchestrator._stage_data_processing, {}
+            )
             if data_result["success"]:
                 self.last_data_update = datetime.now()
-                logger.info(f"[Automation] 数据采集成功，记录数: {data_result['record_count']}")
+                logger.info(
+                    f"[Automation] 数据采集成功，记录数: {data_result['record_count']}"
+                )
 
                 # 数据采集完成后，执行预测结果评估
                 await self._run_evaluation()
@@ -196,12 +232,22 @@ class PL5AutomationScheduler:
                 handle_failure(
                     "data_collection_failure",
                     Exception(error_msg),
-                    {"collector": self.orchestrator.components.get("data_collector")},
+                    {
+                        "collector": self.orchestrator.components.get(
+                            "data_collector"
+                        )
+                    },
                 )
         except Exception as e:
             logger.error(f"[Automation] 数据采集任务执行失败: {str(e)}")
             handle_failure(
-                "data_collection_failure", e, {"collector": self.orchestrator.components.get("data_collector")}
+                "data_collection_failure",
+                e,
+                {
+                    "collector": self.orchestrator.components.get(
+                        "data_collector"
+                    )
+                },
             )
 
     async def _run_evaluation(self):
@@ -238,7 +284,9 @@ class PL5AutomationScheduler:
 
             end_time = datetime.now()
             actual_duration = end_time - start_time
-            logger.info(f"[Automation] 学习完成，实际持续时间: {actual_duration}")
+            logger.info(
+                f"[Automation] 学习完成，实际持续时间: {actual_duration}"
+            )
 
             self.last_learning = datetime.now()
 
@@ -254,7 +302,9 @@ class PL5AutomationScheduler:
         try:
             # 计算训练时间，确保在20:30前完成
             current_time = datetime.now()
-            deadline = current_time.replace(hour=20, minute=30, second=0, microsecond=0)
+            deadline = current_time.replace(
+                hour=20, minute=30, second=0, microsecond=0
+            )
             if current_time > deadline:
                 # 今天已经过了20:30，安排到明天
                 deadline += timedelta(days=1)
@@ -265,8 +315,12 @@ class PL5AutomationScheduler:
 
             # 如果现在距离训练开始时间还有一段时间，等待
             if current_time < training_start_time:
-                wait_time = (training_start_time - current_time).total_seconds()
-                logger.info(f"[Automation] 等待训练开始，预计等待 {wait_time} 秒")
+                wait_time = (
+                    training_start_time - current_time
+                ).total_seconds()
+                logger.info(
+                    f"[Automation] 等待训练开始，预计等待 {wait_time} 秒"
+                )
                 time.sleep(wait_time)
 
             # 执行训练
@@ -274,19 +328,25 @@ class PL5AutomationScheduler:
             logger.info(f"[Automation] 开始训练，预计持续5小时")
 
             # 实际调用orchestrator的训练方法
-            training_result = await self.orchestrator.execute_training_pipeline()
+            training_result = (
+                await self.orchestrator.execute_training_pipeline()
+            )
 
             end_time = datetime.now()
             actual_duration = end_time - start_time
 
             if training_result.get("success"):
-                logger.info(f"[Automation] 训练完成，实际持续时间: {actual_duration}")
+                logger.info(
+                    f"[Automation] 训练完成，实际持续时间: {actual_duration}"
+                )
                 self.last_training = datetime.now()
 
                 # 训练完成后，生成报告并发送
                 await self._run_report_generation()
             else:
-                logger.error(f"[Automation] 训练失败: {training_result.get('error', '未知错误')}")
+                logger.error(
+                    f"[Automation] 训练失败: {training_result.get('error', '未知错误')}"
+                )
                 handle_failure(
                     "training_failure",
                     Exception(training_result.get("error", "训练失败")),
@@ -294,7 +354,9 @@ class PL5AutomationScheduler:
                 )
         except Exception as e:
             logger.error(f"[Automation] 训练任务执行失败: {str(e)}")
-            handle_failure("training_failure", e, {"orchestrator": self.orchestrator})
+            handle_failure(
+                "training_failure", e, {"orchestrator": self.orchestrator}
+            )
 
     async def _run_report_generation(self):
         """运行报告生成和发送任务"""
@@ -302,16 +364,22 @@ class PL5AutomationScheduler:
 
         try:
             # 执行预测
-            prediction_result = await self.orchestrator.execute_prediction_pipeline()
+            prediction_result = (
+                await self.orchestrator.execute_prediction_pipeline()
+            )
 
             if prediction_result.get("success"):
                 logger.info("[Automation] 报告生成完成")
-                logger.info(f"[Automation] 预测完成，下一期期号: {prediction_result.get('next_period')}")
+                logger.info(
+                    f"[Automation] 预测完成，下一期期号: {prediction_result.get('next_period')}"
+                )
 
                 # 执行邮件发送
                 email_sender = self.orchestrator.components.get("email_sender")
                 if email_sender:
-                    email_sent = email_sender.send_email(prediction_result.get("report", {}))
+                    email_sent = email_sender.send_email(
+                        prediction_result.get("report", {})
+                    )
                     if email_sent:
                         logger.info("[Automation] 邮件发送完成")
                     else:
@@ -321,7 +389,9 @@ class PL5AutomationScheduler:
 
                 self.last_report = datetime.now()
             else:
-                logger.error(f"[Automation] 预测失败: {prediction_result.get('error', '未知错误')}")
+                logger.error(
+                    f"[Automation] 预测失败: {prediction_result.get('error', '未知错误')}"
+                )
                 handle_failure(
                     "prediction_failure",
                     Exception(prediction_result.get("error", "预测失败")),
@@ -329,7 +399,11 @@ class PL5AutomationScheduler:
                 )
         except Exception as e:
             logger.error(f"[Automation] 报告生成和发送任务执行失败: {str(e)}")
-            handle_failure("report_generation_failure", e, {"orchestrator": self.orchestrator})
+            handle_failure(
+                "report_generation_failure",
+                e,
+                {"orchestrator": self.orchestrator},
+            )
 
     def _check_system_status(self):
         """检查系统状态"""
@@ -349,7 +423,9 @@ class PL5AutomationScheduler:
         # 收集系统指标
         metrics = {
             "system": get_performance_monitor().get_current_metrics(),
-            "last_backup": self.last_backup.isoformat() if self.last_backup else None,
+            "last_backup": (
+                self.last_backup.isoformat() if self.last_backup else None
+            ),
             "status": status,
         }
 
@@ -360,7 +436,9 @@ class PL5AutomationScheduler:
 
         # 执行健康检查
         health_result = check_health()
-        logger.info(f"[Automation] 健康检查结果: {health_result['overall_status']}")
+        logger.info(
+            f"[Automation] 健康检查结果: {health_result['overall_status']}"
+        )
 
         # 如果健康状态为critical，触发故障处理
         if health_result["overall_status"] == "critical":
@@ -379,5 +457,9 @@ class PL5AutomationScheduler:
             "last_training": self.last_training,
             "last_report": self.last_report,
             "last_backup": self.last_backup,
-            "scheduler_jobs": ["data_collection", "system_check", "backup"] if self.is_running else [],
+            "scheduler_jobs": (
+                ["data_collection", "system_check", "backup"]
+                if self.is_running
+                else []
+            ),
         }

@@ -5,7 +5,16 @@
 
 import os
 import logging
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+)
 from functools import wraps
 import time
 
@@ -94,8 +103,12 @@ def parallel_map(
 
     if backend == "joblib" and JOBLIB_AVAILABLE:
         try:
-            results = Parallel(n_jobs=n_jobs, prefer=prefer, verbose=verbose)(delayed(func)(item) for item in items)
-            logger.debug(f"joblib并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s")
+            results = Parallel(n_jobs=n_jobs, prefer=prefer, verbose=verbose)(
+                delayed(func)(item) for item in items
+            )
+            logger.debug(
+                f"joblib并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s"
+            )
             return list(results)
         except Exception as e:
             logger.warning(f"joblib执行失败，回退到串行: {e}")
@@ -108,7 +121,9 @@ def parallel_map(
                     results = pool.map_async(func, items).get(timeout=timeout)
                 else:
                     results = pool.map(func, items)
-                logger.debug(f"multiprocessing并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s")
+                logger.debug(
+                    f"multiprocessing并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s"
+                )
                 return results
         except Exception as e:
             logger.warning(f"multiprocessing执行失败，回退到串行: {e}")
@@ -119,7 +134,10 @@ def parallel_map(
 
         try:
             with ThreadPoolExecutor(max_workers=n_jobs) as executor:
-                futures = {executor.submit(func, item): i for i, item in enumerate(items)}
+                futures = {
+                    executor.submit(func, item): i
+                    for i, item in enumerate(items)
+                }
                 results = [None] * len(items)
                 for future in as_completed(futures):
                     idx = futures[future]
@@ -128,7 +146,9 @@ def parallel_map(
                     except Exception as e:
                         logger.error(f"线程执行错误: {e}")
                         results[idx] = None
-                logger.debug(f"threading并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s")
+                logger.debug(
+                    f"threading并行执行完成: {len(items)}项, {time.time()-start_time:.3f}s"
+                )
                 return results
         except Exception as e:
             logger.warning(f"threading执行失败，回退到串行: {e}")
@@ -140,7 +160,11 @@ def parallel_map(
 
 
 def parallel_starmap(
-    func: Callable, iterable: Iterable[Tuple], n_jobs: int = -1, backend: str = "auto", prefer: str = "processes"
+    func: Callable,
+    iterable: Iterable[Tuple],
+    n_jobs: int = -1,
+    backend: str = "auto",
+    prefer: str = "processes",
 ) -> List[Any]:
     """
     并行starmap（支持多参数）
@@ -158,16 +182,27 @@ def parallel_starmap(
 class ParallelExecutor:
     """并行执行器 - 支持批量任务"""
 
-    def __init__(self, n_jobs: int = -1, backend: str = "auto", prefer: str = "processes"):
+    def __init__(
+        self,
+        n_jobs: int = -1,
+        backend: str = "auto",
+        prefer: str = "processes",
+    ):
         self.n_jobs = get_optimal_n_jobs(n_jobs)
         self.backend = backend
         self.prefer = prefer
-        self._stats = {"tasks_executed": 0, "total_time": 0.0, "parallel_calls": 0}
+        self._stats = {
+            "tasks_executed": 0,
+            "total_time": 0.0,
+            "parallel_calls": 0,
+        }
 
     def map(self, func: Callable[[T], R], iterable: Iterable[T]) -> List[R]:
         """并行映射"""
         start = time.time()
-        results = parallel_map(func, iterable, self.n_jobs, self.backend, self.prefer)
+        results = parallel_map(
+            func, iterable, self.n_jobs, self.backend, self.prefer
+        )
         elapsed = time.time() - start
 
         self._stats["tasks_executed"] += len(results)
@@ -178,10 +213,16 @@ class ParallelExecutor:
 
     def starmap(self, func: Callable, iterable: Iterable[Tuple]) -> List[Any]:
         """并行starmap"""
-        return parallel_starmap(func, iterable, self.n_jobs, self.backend, self.prefer)
+        return parallel_starmap(
+            func, iterable, self.n_jobs, self.backend, self.prefer
+        )
 
     def batch_process(
-        self, func: Callable[[T], R], items: List[T], batch_size: int = 10, show_progress: bool = False
+        self,
+        func: Callable[[T], R],
+        items: List[T],
+        batch_size: int = 10,
+        show_progress: bool = False,
     ) -> List[R]:
         """分批处理大量数据"""
         results = []
@@ -201,11 +242,22 @@ class ParallelExecutor:
     @property
     def stats(self) -> Dict[str, Any]:
         """获取执行统计"""
-        avg_time = self._stats["total_time"] / self._stats["parallel_calls"] if self._stats["parallel_calls"] > 0 else 0
-        return {**self._stats, "avg_time_per_call": avg_time, "n_jobs": self.n_jobs, "backend": self.backend}
+        avg_time = (
+            self._stats["total_time"] / self._stats["parallel_calls"]
+            if self._stats["parallel_calls"] > 0
+            else 0
+        )
+        return {
+            **self._stats,
+            "avg_time_per_call": avg_time,
+            "n_jobs": self.n_jobs,
+            "backend": self.backend,
+        }
 
 
-def parallel_decorator(n_jobs: int = -1, backend: str = "auto", prefer: str = "processes"):
+def parallel_decorator(
+    n_jobs: int = -1, backend: str = "auto", prefer: str = "processes"
+):
     """并行装饰器"""
 
     def decorator(func: Callable) -> Callable:
@@ -218,7 +270,11 @@ def parallel_decorator(n_jobs: int = -1, backend: str = "auto", prefer: str = "p
         # 添加并行map方法
         def parallel_method(iterable: Iterable, *args, **kwargs):
             return parallel_map(
-                lambda x: func(x, *args, **kwargs), iterable, n_jobs=n_jobs, backend=backend, prefer=prefer
+                lambda x: func(x, *args, **kwargs),
+                iterable,
+                n_jobs=n_jobs,
+                backend=backend,
+                prefer=prefer,
             )
 
         wrapper.parallel = parallel_method
@@ -228,7 +284,10 @@ def parallel_decorator(n_jobs: int = -1, backend: str = "auto", prefer: str = "p
 
 
 def chunked_parallel_map(
-    func: Callable[[T], R], iterable: Iterable[T], chunk_size: int = 100, n_jobs: int = -1
+    func: Callable[[T], R],
+    iterable: Iterable[T],
+    chunk_size: int = 100,
+    n_jobs: int = -1,
 ) -> List[R]:
     """
     分块并行处理，适用于大量数据

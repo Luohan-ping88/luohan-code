@@ -26,7 +26,9 @@ class BaseAgent(ABC):
         self.timeout = config.timeout
 
     @abstractmethod
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def run(
+        self, task: str, context: Optional[Dict[str, Any]] = None
+    ) -> ToolResult:
         """执行任务
 
         Args:
@@ -36,10 +38,13 @@ class BaseAgent(ABC):
         Returns:
             任务执行结果
         """
-        pass
 
     @abstractmethod
-    def chat(self, messages: List[ConversationMessage], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def chat(
+        self,
+        messages: List[ConversationMessage],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> ToolResult:
         """对话模式
 
         Args:
@@ -49,7 +54,6 @@ class BaseAgent(ABC):
         Returns:
             对话结果
         """
-        pass
 
     def get_available_tools(self) -> List[str]:
         """获取可用工具列表
@@ -86,7 +90,9 @@ class BaseAgent(ABC):
             }
         return None
 
-    def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolResult:
+    def execute_tool(
+        self, tool_name: str, parameters: Dict[str, Any]
+    ) -> ToolResult:
         """执行工具
 
         Args:

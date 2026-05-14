@@ -1,6 +1,10 @@
 """Features module initialization"""
 
-from .feature_config_manager import FeatureConfig, FeatureConfigManager, get_feature_config_manager
+from .feature_config_manager import (
+    FeatureConfig,
+    FeatureConfigManager,
+    get_feature_config_manager,
+)
 
 from .engineer import FeatureEngineer
 from .engineer_v10 import FeatureEngineerV10

@@ -9,30 +9,28 @@ PL5 预测器 V9.0 — 重构优化版
 
 from __future__ import annotations
 
-import json
 import logging
 import pickle
 import warnings
-from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from src.core.monitoring.performance_monitor import track_performance
 
 import numpy as np
 import pandas as pd
-from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import (
-    AdaBoostClassifier,
     ExtraTreesClassifier,
     GradientBoostingClassifier,
     RandomForestClassifier,
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import label_binarize
 
 from src.core.cache import get_global_cache
-from src.core.utils.parallel import parallel_map, ParallelExecutor, get_optimal_n_jobs
+from src.core.utils.parallel import (
+    ParallelExecutor,
+    get_optimal_n_jobs,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -76,7 +74,9 @@ class HMMModel:
 
     def fit(self, data: np.ndarray) -> "HMMModel":
         data = np.asarray(data, dtype=int).ravel()
-        counts: Dict[int, np.ndarray] = {d: np.ones(10) * self._alpha for d in DIGITS}
+        counts: Dict[int, np.ndarray] = {
+            d: np.ones(10) * self._alpha for d in DIGITS
+        }
         for i in range(len(data) - 1):
             prev, nxt = int(data[i]), int(data[i + 1])
             if 0 <= prev <= 9 and 0 <= nxt <= 9:
@@ -126,7 +126,9 @@ class CopulaModel:
                     concordant += int(np.sum(di * dj > 0))
                     discordant += int(np.sum(di * dj < 0))
                 n_pairs = N * (N - 1) // 2
-                tau[i, j] = tau[j, i] = (concordant - discordant) / (n_pairs + 1e-12)
+                tau[i, j] = tau[j, i] = (concordant - discordant) / (
+                    n_pairs + 1e-12
+                )
         self.kendall_tau = tau
         self._fitted = True
         return self
@@ -213,9 +215,15 @@ class StackingEnsemble:
     """
 
     BASE_MODELS = {
-        "rf": RandomForestClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
-        "gbm": GradientBoostingClassifier(n_estimators=50, max_depth=4, random_state=42),
-        "et": ExtraTreesClassifier(n_estimators=50, max_depth=8, random_state=42, n_jobs=-1),
+        "rf": RandomForestClassifier(
+            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
+        ),
+        "gbm": GradientBoostingClassifier(
+            n_estimators=50, max_depth=4, random_state=42
+        ),
+        "et": ExtraTreesClassifier(
+            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
+        ),
     }
 
     def __init__(self, n_jobs: int = -1):
@@ -225,7 +233,9 @@ class StackingEnsemble:
         self.n_jobs = get_optimal_n_jobs(n_jobs)
         self._parallel_executor = ParallelExecutor(n_jobs=self.n_jobs)
 
-    def fit_position_models(self, data: pd.DataFrame, feature_cols: List[str]) -> "StackingEnsemble":
+    def fit_position_models(
+        self, data: pd.DataFrame, feature_cols: List[str]
+    ) -> "StackingEnsemble":
         X = data[feature_cols].fillna(0).values
         tscv = TimeSeriesSplit(n_splits=3)
 
@@ -274,7 +284,9 @@ class StackingEnsemble:
             clf.fit(X, y)
             base_fitted[name] = clf
 
-        meta_clf = LogisticRegression(max_iter=300, C=1.0, solver="lbfgs", random_state=42)
+        meta_clf = LogisticRegression(
+            max_iter=300, C=1.0, solver="lbfgs", random_state=42
+        )
         meta_clf.fit(meta_X, y)
 
         return base_fitted, meta_clf
@@ -342,7 +354,9 @@ class PL5PredictorV9:
         self._cache = get_global_cache()
 
     @track_performance
-    def fit(self, df: pd.DataFrame, feature_cols: List[str]) -> "PL5PredictorV9":
+    def fit(
+        self, df: pd.DataFrame, feature_cols: List[str]
+    ) -> "PL5PredictorV9":
         """
         Args:
             df: 含 ['period','wan','qian','bai','shi','ge'] + feature_cols 的 DataFrame
@@ -365,13 +379,18 @@ class PL5PredictorV9:
             seq = df[pos].values
             return (
                 pos,
-                {"hmm": HMMModel().fit(seq), "bsts": BSTSModel().fit(seq), "evm": ExtremeValueModel().fit(seq)},
+                {
+                    "hmm": HMMModel().fit(seq),
+                    "bsts": BSTSModel().fit(seq),
+                    "evm": ExtremeValueModel().fit(seq),
+                },
             )
 
         # 并行执行所有训练任务
         results = self._parallel_executor.map(
             lambda fn: fn(),
-            [train_stacking, train_copula] + [lambda p=pos: train_position_models(p) for pos in POSITIONS],
+            [train_stacking, train_copula]
+            + [lambda p=pos: train_position_models(p) for pos in POSITIONS],
         )
 
         # 处理结果
@@ -410,7 +429,13 @@ class PL5PredictorV9:
         """
         if not self.is_trained:
             logger.warning("[PL5PredictorV9] 模型未训练，返回均匀分布")
-            return {pos: {"top_k": list(range(10))[:top_k], "probabilities": [0.1] * top_k} for pos in POSITIONS}
+            return {
+                pos: {
+                    "top_k": list(range(10))[:top_k],
+                    "probabilities": [0.1] * top_k,
+                }
+                for pos in POSITIONS
+            }
 
         # 检查缓存
         cache_key = f"pred_{hash(features.tobytes())}_{top_k}"
@@ -423,7 +448,9 @@ class PL5PredictorV9:
 
         for pos in POSITIONS:
             p_stacking = (
-                self.stacking[pos].predict_proba_position(pos, features) if pos in self.stacking else np.ones(10) / 10
+                self.stacking[pos].predict_proba_position(pos, features)
+                if pos in self.stacking
+                else np.ones(10) / 10
             )
             seq = (recent_original_data or {}).get(pos, np.array([0]))
             p_hmm = self.hmm_models.get(pos, HMMModel()).predict(seq)
@@ -431,7 +458,12 @@ class PL5PredictorV9:
             p_evm = self.evm_models.get(pos, ExtremeValueModel()).predict(seq)
 
             w = self.weights
-            p_fused = w["stacking"] * p_stacking + w["hmm"] * p_hmm + w["bsts"] * p_bsts + w["evm"] * p_evm
+            p_fused = (
+                w["stacking"] * p_stacking
+                + w["hmm"] * p_hmm
+                + w["bsts"] * p_bsts
+                + w["evm"] * p_evm
+            )
             p_fused = p_fused / (p_fused.sum() + 1e-12)
 
             top_indices = _top_k_from_proba(p_fused, top_k)

@@ -3,7 +3,6 @@
 用于智能自主评估预测结果，并提供详细的评估报告
 """
 
-import pandas as pd
 import numpy as np
 from datetime import datetime
 from pathlib import Path
@@ -60,7 +59,9 @@ class PredictionEvaluator:
                     # 验证数据类型
                     if not isinstance(self.evaluation_history, list):
                         raise ValueError("评估历史数据必须是列表格式")
-                    logger.info(f"加载评估历史成功，共 {len(self.evaluation_history)} 条记录")
+                    logger.info(
+                        f"加载评估历史成功，共 {len(self.evaluation_history)} 条记录"
+                    )
                 except json.JSONDecodeError as e:
                     logger.error(f"评估历史文件JSON格式错误: {e}")
                     # 重置为空列表
@@ -88,15 +89,23 @@ class PredictionEvaluator:
         """保存评估历史"""
         try:
             # 限制历史记录数量
-            if len(self.evaluation_history) > self.config.get("history_size", 100):
-                self.evaluation_history = self.evaluation_history[-self.config["history_size"] :]
+            if len(self.evaluation_history) > self.config.get(
+                "history_size", 100
+            ):
+                self.evaluation_history = self.evaluation_history[
+                    -self.config["history_size"] :
+                ]
 
             with open(self.history_path, "w", encoding="utf-8") as f:
-                json.dump(self.evaluation_history, f, ensure_ascii=False, indent=2)
+                json.dump(
+                    self.evaluation_history, f, ensure_ascii=False, indent=2
+                )
         except Exception as e:
             logger.error(f"保存评估历史失败: {e}")
 
-    def evaluate_predictions(self, actual: Dict[str, int], predictions: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def evaluate_predictions(
+        self, actual: Dict[str, int], predictions: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """评估预测结果
 
         Args:
@@ -135,8 +144,14 @@ class PredictionEvaluator:
                             if hit and len(pred_probs) >= k:
                                 # 找到实际数字在预测中的位置
                                 idx = pred_top_k[:k].index(actual_digit)
-                                confidence = pred_probs[idx] if idx < len(pred_probs) else 0.0
-                                position_metrics[pos][f"confidence_top_{k}"] = confidence
+                                confidence = (
+                                    pred_probs[idx]
+                                    if idx < len(pred_probs)
+                                    else 0.0
+                                )
+                                position_metrics[pos][
+                                    f"confidence_top_{k}"
+                                ] = confidence
 
             evaluation["detailed_metrics"] = position_metrics
 
@@ -154,24 +169,46 @@ class PredictionEvaluator:
                         if metrics[f"hit_top_{k}"]:
                             hits += 1
                             if f"confidence_top_{k}" in metrics:
-                                hit_confidence += metrics[f"confidence_top_{k}"]
+                                hit_confidence += metrics[
+                                    f"confidence_top_{k}"
+                                ]
                     if f"confidence_top_{k}" in metrics:
                         total_confidence += metrics[f"confidence_top_{k}"]
 
-                overall_metrics[f"accuracy_top_{k}"] = hits / total if total > 0 else 0.0
-                overall_metrics[f"hit_rate_top_{k}"] = hits / total if total > 0 else 0.0
-                overall_metrics[f"average_confidence_top_{k}"] = total_confidence / total if total > 0 else 0.0
-                overall_metrics[f"average_hit_confidence_top_{k}"] = hit_confidence / hits if hits > 0 else 0.0
+                overall_metrics[f"accuracy_top_{k}"] = (
+                    hits / total if total > 0 else 0.0
+                )
+                overall_metrics[f"hit_rate_top_{k}"] = (
+                    hits / total if total > 0 else 0.0
+                )
+                overall_metrics[f"average_confidence_top_{k}"] = (
+                    total_confidence / total if total > 0 else 0.0
+                )
+                overall_metrics[f"average_hit_confidence_top_{k}"] = (
+                    hit_confidence / hits if hits > 0 else 0.0
+                )
 
             evaluation["metrics"] = overall_metrics
 
             # 生成评估摘要
             summary = {
                 "total_positions": len(position_metrics),
-                "total_hits": sum(1 for pos, metrics in position_metrics.items() if metrics.get("hit_top_3", False)),
-                "best_accuracy": max(overall_metrics.values()) if overall_metrics else 0.0,
-                "worst_accuracy": min(overall_metrics.values()) if overall_metrics else 0.0,
-                "average_accuracy": np.mean(list(overall_metrics.values())) if overall_metrics else 0.0,
+                "total_hits": sum(
+                    1
+                    for pos, metrics in position_metrics.items()
+                    if metrics.get("hit_top_3", False)
+                ),
+                "best_accuracy": (
+                    max(overall_metrics.values()) if overall_metrics else 0.0
+                ),
+                "worst_accuracy": (
+                    min(overall_metrics.values()) if overall_metrics else 0.0
+                ),
+                "average_accuracy": (
+                    np.mean(list(overall_metrics.values()))
+                    if overall_metrics
+                    else 0.0
+                ),
             }
 
             evaluation["summary"] = summary
@@ -183,7 +220,9 @@ class PredictionEvaluator:
             self.evaluation_history.append(evaluation)
             self._save_history()
 
-            logger.info(f"预测结果评估完成，准确率: {overall_metrics.get('accuracy_top_3', 0.0):.4f}")
+            logger.info(
+                f"预测结果评估完成，准确率: {overall_metrics.get('accuracy_top_3', 0.0):.4f}"
+            )
 
             return evaluation
 
@@ -320,11 +359,19 @@ class PredictionEvaluator:
         """
         rows = []
         positions = ["wan", "qian", "bai", "shi", "ge"]
-        pos_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+        pos_names = {
+            "wan": "万位",
+            "qian": "千位",
+            "bai": "百位",
+            "shi": "十位",
+            "ge": "个位",
+        }
 
         for pos in positions:
             if pos in actual:
-                rows.append(f"<tr><td>{pos_names.get(pos, pos)}</td><td>{actual[pos]}</td></tr>")
+                rows.append(
+                    f"<tr><td>{pos_names.get(pos, pos)}</td><td>{actual[pos]}</td></tr>"
+                )
 
         return "\n".join(rows)
 
@@ -344,7 +391,9 @@ class PredictionEvaluator:
 
         return "\n".join(rows)
 
-    def _generate_detailed_table(self, detailed_metrics: Dict[str, Dict[str, Any]]) -> str:
+    def _generate_detailed_table(
+        self, detailed_metrics: Dict[str, Dict[str, Any]]
+    ) -> str:
         """生成详细评估表格
 
         Args:
@@ -355,7 +404,13 @@ class PredictionEvaluator:
         """
         rows = []
         positions = ["wan", "qian", "bai", "shi", "ge"]
-        pos_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+        pos_names = {
+            "wan": "万位",
+            "qian": "千位",
+            "bai": "百位",
+            "shi": "十位",
+            "ge": "个位",
+        }
 
         for pos in positions:
             if pos in detailed_metrics:
@@ -365,7 +420,9 @@ class PredictionEvaluator:
                 for k in [3, 5, 8]:
                     hit = metrics.get(f"hit_top_{k}", False)
                     class_name = "hit" if hit else "miss"
-                    row += f"<td class='{class_name}'>{'✓' if hit else '✗'}</td>"
+                    row += (
+                        f"<td class='{class_name}'>{'✓' if hit else '✗'}</td>"
+                    )
 
                 row += "</tr>"
                 rows.append(row)

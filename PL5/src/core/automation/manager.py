@@ -6,7 +6,6 @@
 """
 
 import asyncio
-import logging
 from datetime import datetime
 
 from src.core.automation.scheduler import PL5AutomationScheduler

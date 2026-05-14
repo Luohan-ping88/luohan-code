@@ -3,9 +3,8 @@
 支持多智能体按照任务特殊性进行智能协调分配时间
 """
 
-import asyncio
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
@@ -15,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskSlot:
     """任务时间槽"""
+
     task_name: str
     start_time: datetime
     end_time: datetime
@@ -27,6 +27,7 @@ class TaskSlot:
 @dataclass
 class TimeWindow:
     """时间窗口"""
+
     start: datetime
     end: datetime
     available_minutes: int
@@ -39,7 +40,7 @@ class TimeCoordinator:
         self,
         window_start_hour: int = 22,
         window_end_hour: int = 20,
-        window_end_next_day: bool = True
+        window_end_next_day: bool = True,
     ):
         """
         初始化时间协调器
@@ -76,12 +77,18 @@ class TimeCoordinator:
         if self.window_end_next_day:
             # 第二天20:30
             end_time = (now + timedelta(days=1)).replace(
-                hour=self.window_end_hour, minute=self.window_end_minute, second=0, microsecond=0
+                hour=self.window_end_hour,
+                minute=self.window_end_minute,
+                second=0,
+                microsecond=0,
             )
         else:
             # 当天结束时间
             end_time = now.replace(
-                hour=self.window_end_hour, minute=self.window_end_minute, second=0, microsecond=0
+                hour=self.window_end_hour,
+                minute=self.window_end_minute,
+                second=0,
+                microsecond=0,
             )
 
         # 如果开始时间已过，使用下一个周期
@@ -93,9 +100,7 @@ class TimeCoordinator:
         total_minutes = int((end_time - start_time).total_seconds() / 60)
 
         return TimeWindow(
-            start=start_time,
-            end=end_time,
-            available_minutes=total_minutes
+            start=start_time, end=end_time, available_minutes=total_minutes
         )
 
     def register_task(
@@ -103,7 +108,7 @@ class TimeCoordinator:
         task_name: str,
         estimated_duration_minutes: int,
         priority: int = 1,
-        dependencies: List[str] = None
+        dependencies: List[str] = None,
     ):
         """
         注册任务
@@ -120,10 +125,12 @@ class TimeCoordinator:
             end_time=datetime.min,
             duration_minutes=estimated_duration_minutes,
             priority=priority,
-            dependencies=dependencies or []
+            dependencies=dependencies or [],
         )
         self.task_dependencies[task_name] = dependencies or []
-        logger.info(f"任务已注册: {task_name} (预计耗时: {estimated_duration_minutes}分钟, 优先级: {priority})")
+        logger.info(
+            f"任务已注册: {task_name} (预计耗时: {estimated_duration_minutes}分钟, 优先级: {priority})"
+        )
 
     def register_agent(self, agent_id: str, capabilities: List[str]):
         """
@@ -144,12 +151,13 @@ class TimeCoordinator:
             List[TaskSlot]: 任务时间槽列表
         """
         window = self.get_time_window()
-        logger.info(f"时间窗口: {window.start} -> {window.end} (可用: {window.available_minutes}分钟)")
+        logger.info(
+            f"时间窗口: {window.start} -> {window.end} (可用: {window.available_minutes}分钟)"
+        )
 
         # 1. 按优先级排序任务
         tasks_by_priority = sorted(
-            self.task_slots.values(),
-            key=lambda x: (-x.priority, x.task_name)
+            self.task_slots.values(), key=lambda x: (-x.priority, x.task_name)
         )
 
         # 2. 构建依赖图
@@ -163,7 +171,9 @@ class TimeCoordinator:
             schedulable = []
             for task in tasks_by_priority:
                 if task.task_name not in completed_tasks:
-                    deps_ok = all(dep in completed_tasks for dep in task.dependencies)
+                    deps_ok = all(
+                        dep in completed_tasks for dep in task.dependencies
+                    )
                     if deps_ok:
                         schedulable.append(task)
 
@@ -178,10 +188,11 @@ class TimeCoordinator:
             task_slot = TaskSlot(
                 task_name=next_task.task_name,
                 start_time=current_time,
-                end_time=current_time + timedelta(minutes=next_task.duration_minutes),
+                end_time=current_time
+                + timedelta(minutes=next_task.duration_minutes),
                 duration_minutes=next_task.duration_minutes,
                 priority=next_task.priority,
-                dependencies=next_task.dependencies
+                dependencies=next_task.dependencies,
             )
 
             # 智能分配给合适的智能体
@@ -269,7 +280,9 @@ class DynamicTimeCoordinator(TimeCoordinator):
         super().__init__(*args, **kwargs)
         self.actual_execution_times: Dict[str, timedelta] = {}
 
-    def update_actual_duration(self, task_name: str, actual_duration: timedelta):
+    def update_actual_duration(
+        self, task_name: str, actual_duration: timedelta
+    ):
         """
         更新任务实际执行时间
 
@@ -278,7 +291,9 @@ class DynamicTimeCoordinator(TimeCoordinator):
             actual_duration: 实际耗时
         """
         self.actual_execution_times[task_name] = actual_duration
-        logger.info(f"任务 {task_name} 实际耗时: {actual_duration.total_seconds()/60:.1f}分钟")
+        logger.info(
+            f"任务 {task_name} 实际耗时: {actual_duration.total_seconds()/60:.1f}分钟"
+        )
 
     def recalculate_schedule(self) -> List[TaskSlot]:
         """

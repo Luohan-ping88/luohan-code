@@ -6,9 +6,7 @@
 
 import json
 import logging
-import numpy as np
-from pathlib import Path
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List
 from datetime import datetime
 
 from src.core.config import MODELS_DIR, LOGS_DIR
@@ -44,7 +42,9 @@ class FeedbackAnalyzer:
         """加载预测历史"""
         try:
             if _PREDICTION_HISTORY_PATH.exists():
-                with open(_PREDICTION_HISTORY_PATH, "r", encoding="utf-8") as f:
+                with open(
+                    _PREDICTION_HISTORY_PATH, "r", encoding="utf-8"
+                ) as f:
                     return json.load(f)
         except Exception as e:
             logger.warning(f"加载预测历史失败: {e}")
@@ -54,7 +54,9 @@ class FeedbackAnalyzer:
         """保存反馈学习历史"""
         try:
             with open(_FEEDBACK_HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.feedback_history, f, indent=2, ensure_ascii=False)
+                json.dump(
+                    self.feedback_history, f, indent=2, ensure_ascii=False
+                )
         except Exception as e:
             logger.error(f"保存反馈学习历史失败: {e}")
 
@@ -62,7 +64,9 @@ class FeedbackAnalyzer:
         """保存预测历史"""
         try:
             with open(_PREDICTION_HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.prediction_history, f, indent=2, ensure_ascii=False)
+                json.dump(
+                    self.prediction_history, f, indent=2, ensure_ascii=False
+                )
         except Exception as e:
             logger.error(f"保存预测历史失败: {e}")
 
@@ -88,17 +92,25 @@ class FeedbackAnalyzer:
         position_names = ["wan", "qian", "bai", "shi", "ge"]
 
         for pos in position_names:
-            analysis = self._analyze_position_performance(pos, recent_predictions, df)
+            analysis = self._analyze_position_performance(
+                pos, recent_predictions, df
+            )
             position_analysis[pos] = analysis
 
         # 计算总体性能
-        overall_analysis = self._calculate_overall_performance(position_analysis)
+        overall_analysis = self._calculate_overall_performance(
+            position_analysis
+        )
 
         # 分析策略问题
-        strategy_issues = self._identify_strategy_issues(position_analysis, overall_analysis)
+        strategy_issues = self._identify_strategy_issues(
+            position_analysis, overall_analysis
+        )
 
         # 生成改进建议
-        improvement_suggestions = self._generate_improvement_suggestions(strategy_issues, position_analysis)
+        improvement_suggestions = self._generate_improvement_suggestions(
+            strategy_issues, position_analysis
+        )
 
         analysis_result = {
             "timestamp": datetime.now().isoformat(),
@@ -117,7 +129,9 @@ class FeedbackAnalyzer:
 
         return analysis_result
 
-    def _analyze_position_performance(self, position: str, predictions: List[Dict], df) -> Dict:
+    def _analyze_position_performance(
+        self, position: str, predictions: List[Dict], df
+    ) -> Dict:
         """分析单个位置的性能"""
         top1_hits = 0
         top3_hits = 0
@@ -175,14 +189,24 @@ class FeedbackAnalyzer:
             total_tests += analysis["total_tests"]
 
         return {
-            "top1_accuracy": total_top1_hits / total_tests if total_tests > 0 else 0,
-            "top3_accuracy": total_top3_hits / total_tests if total_tests > 0 else 0,
-            "top5_accuracy": total_top5_hits / total_tests if total_tests > 0 else 0,
-            "top8_accuracy": total_top8_hits / total_tests if total_tests > 0 else 0,
+            "top1_accuracy": (
+                total_top1_hits / total_tests if total_tests > 0 else 0
+            ),
+            "top3_accuracy": (
+                total_top3_hits / total_tests if total_tests > 0 else 0
+            ),
+            "top5_accuracy": (
+                total_top5_hits / total_tests if total_tests > 0 else 0
+            ),
+            "top8_accuracy": (
+                total_top8_hits / total_tests if total_tests > 0 else 0
+            ),
             "total_tests": total_tests,
         }
 
-    def _identify_strategy_issues(self, position_analysis: Dict, overall_analysis: Dict) -> List[Dict]:
+    def _identify_strategy_issues(
+        self, position_analysis: Dict, overall_analysis: Dict
+    ) -> List[Dict]:
         """识别策略问题"""
         issues = []
 
@@ -225,7 +249,11 @@ class FeedbackAnalyzer:
                     "threshold": TARGET_TOP5,
                     "current_value": overall_top5,
                     "gap": TARGET_TOP5 - overall_top5,
-                    "possible_causes": ["5码预测策略不当", "模型权重配置不合理", "阈值设置不合适"],
+                    "possible_causes": [
+                        "5码预测策略不当",
+                        "模型权重配置不合理",
+                        "阈值设置不合适",
+                    ],
                 }
             )
 
@@ -241,7 +269,11 @@ class FeedbackAnalyzer:
                     "threshold": TARGET_TOP3,
                     "current_value": overall_top3,
                     "gap": TARGET_TOP3 - overall_top3,
-                    "possible_causes": ["3码预测策略不当", "模型过拟合", "阈值设置过高"],
+                    "possible_causes": [
+                        "3码预测策略不当",
+                        "模型过拟合",
+                        "阈值设置过高",
+                    ],
                 }
             )
 
@@ -250,7 +282,9 @@ class FeedbackAnalyzer:
             # 8码分析
             top8_accuracy = analysis["top8_accuracy"]
             if top8_accuracy < TARGET_TOP8:
-                severity = "high" if top8_accuracy < TARGET_TOP8 * 0.8 else "medium"
+                severity = (
+                    "high" if top8_accuracy < TARGET_TOP8 * 0.8 else "medium"
+                )
                 issues.append(
                     {
                         "severity": severity,
@@ -272,7 +306,9 @@ class FeedbackAnalyzer:
             # 5码分析
             top5_accuracy = analysis["top5_accuracy"]
             if top5_accuracy < TARGET_TOP5:
-                severity = "high" if top5_accuracy < TARGET_TOP5 * 0.8 else "medium"
+                severity = (
+                    "high" if top5_accuracy < TARGET_TOP5 * 0.8 else "medium"
+                )
                 issues.append(
                     {
                         "severity": severity,
@@ -292,7 +328,9 @@ class FeedbackAnalyzer:
             # 3码分析
             top3_accuracy = analysis["top3_accuracy"]
             if top3_accuracy < TARGET_TOP3:
-                severity = "high" if top3_accuracy < TARGET_TOP3 * 0.8 else "medium"
+                severity = (
+                    "high" if top3_accuracy < TARGET_TOP3 * 0.8 else "medium"
+                )
                 issues.append(
                     {
                         "severity": severity,
@@ -301,26 +339,39 @@ class FeedbackAnalyzer:
                         "threshold": TARGET_TOP3,
                         "current_value": top3_accuracy,
                         "gap": TARGET_TOP3 - top3_accuracy,
-                        "possible_causes": [f"{pos}位3码预测策略不当", f"{pos}位模型过拟合", f"{pos}位阈值设置过高"],
+                        "possible_causes": [
+                            f"{pos}位3码预测策略不当",
+                            f"{pos}位模型过拟合",
+                            f"{pos}位阈值设置过高",
+                        ],
                     }
                 )
 
         # 策略分析
-        if overall_analysis["top8_accuracy"] < overall_analysis["top5_accuracy"]:
+        if (
+            overall_analysis["top8_accuracy"]
+            < overall_analysis["top5_accuracy"]
+        ):
             issues.append(
                 {
                     "severity": "medium",
                     "category": "strategy_issue",
                     "description": "8码命中率低于5码，策略可能过于保守",
                     "details": f'8码: {overall_analysis["top8_accuracy"]:.4f}, 5码: {overall_analysis["top5_accuracy"]:.4f}',
-                    "possible_causes": ["8码预测的阈值设置过高", "模型权重偏向于保守预测", "集成策略过于严格"],
+                    "possible_causes": [
+                        "8码预测的阈值设置过高",
+                        "模型权重偏向于保守预测",
+                        "集成策略过于严格",
+                    ],
                 }
             )
 
         # 性能趋势分析
         if len(self.feedback_history) >= 3:
             recent_analyses = self.feedback_history[-3:]
-            recent_top8 = [a["overall_analysis"]["top8_accuracy"] for a in recent_analyses]
+            recent_top8 = [
+                a["overall_analysis"]["top8_accuracy"] for a in recent_analyses
+            ]
 
             if recent_top8[-1] < recent_top8[0] * 0.9:
                 issues.append(
@@ -329,13 +380,19 @@ class FeedbackAnalyzer:
                         "category": "trend_issue",
                         "description": "8码命中率呈下降趋势",
                         "details": f"最近3次分析: {recent_top8[0]:.4f} → {recent_top8[1]:.4f} → {recent_top8[2]:.4f}",
-                        "possible_causes": ["策略过拟合", "数据分布发生变化", "模型退化"],
+                        "possible_causes": [
+                            "策略过拟合",
+                            "数据分布发生变化",
+                            "模型退化",
+                        ],
                     }
                 )
 
         return issues
 
-    def _generate_improvement_suggestions(self, issues: List[Dict], position_analysis: Dict) -> List[Dict]:
+    def _generate_improvement_suggestions(
+        self, issues: List[Dict], position_analysis: Dict
+    ) -> List[Dict]:
         """生成改进建议"""
         suggestions = []
 
@@ -504,9 +561,15 @@ class FeedbackAnalyzer:
         overall = analysis_result.get("overall_analysis", {})
         report.append("【总体性能】")
         report.append(f"Top-1准确率: {overall.get('top1_accuracy', 0):.4f}")
-        report.append(f"Top-3准确率: {overall.get('top3_accuracy', 0):.4f} (目标: 0.50)")
-        report.append(f"Top-5准确率: {overall.get('top5_accuracy', 0):.4f} (目标: 0.70)")
-        report.append(f"Top-8准确率: {overall.get('top8_accuracy', 0):.4f} (目标: 0.95)")
+        report.append(
+            f"Top-3准确率: {overall.get('top3_accuracy', 0):.4f} (目标: 0.50)"
+        )
+        report.append(
+            f"Top-5准确率: {overall.get('top5_accuracy', 0):.4f} (目标: 0.70)"
+        )
+        report.append(
+            f"Top-8准确率: {overall.get('top8_accuracy', 0):.4f} (目标: 0.95)"
+        )
         report.append(f"测试总数: {overall.get('total_tests', 0)}")
 
         # 位置性能
@@ -515,9 +578,15 @@ class FeedbackAnalyzer:
         for pos, analysis in position_analysis.items():
             report.append(f"{pos}位:")
             report.append(f"  Top-1: {analysis.get('top1_accuracy', 0):.4f}")
-            report.append(f"  Top-3: {analysis.get('top3_accuracy', 0):.4f} (目标: 0.50)")
-            report.append(f"  Top-5: {analysis.get('top5_accuracy', 0):.4f} (目标: 0.70)")
-            report.append(f"  Top-8: {analysis.get('top8_accuracy', 0):.4f} (目标: 0.95)")
+            report.append(
+                f"  Top-3: {analysis.get('top3_accuracy', 0):.4f} (目标: 0.50)"
+            )
+            report.append(
+                f"  Top-5: {analysis.get('top5_accuracy', 0):.4f} (目标: 0.70)"
+            )
+            report.append(
+                f"  Top-8: {analysis.get('top8_accuracy', 0):.4f} (目标: 0.95)"
+            )
 
         # 策略问题
         issues = analysis_result.get("strategy_issues", [])
@@ -541,7 +610,9 @@ class FeedbackAnalyzer:
             for i, suggestion in enumerate(suggestions, 1):
                 priority = suggestion.get("priority", "medium")
                 priority_icon = "🏆" if priority == "high" else "⭐"
-                report.append(f"{i}. {priority_icon} {suggestion.get('title')}")
+                report.append(
+                    f"{i}. {priority_icon} {suggestion.get('title')}"
+                )
                 report.append(f"   描述: {suggestion.get('description')}")
                 action_items = suggestion.get("action_items", [])
                 if action_items:
@@ -557,7 +628,11 @@ class FeedbackAnalyzer:
 
     def update_prediction_history(self, predictions: Dict, period: str):
         """更新预测历史"""
-        prediction_record = {"timestamp": datetime.now().isoformat(), "period": period, "predictions": predictions}
+        prediction_record = {
+            "timestamp": datetime.now().isoformat(),
+            "period": period,
+            "predictions": predictions,
+        }
 
         self.prediction_history.append(prediction_record)
         if len(self.prediction_history) > 100:
@@ -593,8 +668,12 @@ class FeedbackLearningSystem:
         suggestions = analysis_result.get("improvement_suggestions", [])
 
         # 优先级排序
-        high_priority_suggestions = [s for s in suggestions if s.get("priority") == "high"]
-        medium_priority_suggestions = [s for s in suggestions if s.get("priority") == "medium"]
+        high_priority_suggestions = [
+            s for s in suggestions if s.get("priority") == "high"
+        ]
+        medium_priority_suggestions = [
+            s for s in suggestions if s.get("priority") == "medium"
+        ]
 
         logger.info("\n【学习结果】")
         logger.info(f"高优先级建议: {len(high_priority_suggestions)}")
@@ -609,7 +688,10 @@ class FeedbackLearningSystem:
         }
 
         # 保存学习报告
-        learning_report_path = LOGS_DIR / f"feedback_learning_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        learning_report_path = (
+            LOGS_DIR
+            / f"feedback_learning_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
         try:
             with open(learning_report_path, "w", encoding="utf-8") as f:
                 json.dump(learning_report, f, indent=2, ensure_ascii=False)
@@ -624,16 +706,23 @@ class FeedbackLearningSystem:
         logger.info("开始优化8码命中率...")
 
         # 运行针对8码的分析
-        analysis_result = self.analyzer.analyze_strategy_performance(window_size=30)
+        analysis_result = self.analyzer.analyze_strategy_performance(
+            window_size=30
+        )
 
         # 提取8码相关的问题和建议
         issues = analysis_result.get("strategy_issues", [])
         suggestions = analysis_result.get("improvement_suggestions", [])
 
         # 过滤出8码相关的内容
-        eight_code_issues = [issue for issue in issues if "8码" in issue.get("description", "")]
+        eight_code_issues = [
+            issue for issue in issues if "8码" in issue.get("description", "")
+        ]
         eight_code_suggestions = [
-            s for s in suggestions if "8码" in s.get("description", "") or "Top-8" in s.get("description", "")
+            s
+            for s in suggestions
+            if "8码" in s.get("description", "")
+            or "Top-8" in s.get("description", "")
         ]
 
         logger.info("\n【8码优化分析】")
@@ -650,7 +739,8 @@ class FeedbackLearningSystem:
 
         # 保存8码优化报告
         eight_code_report_path = (
-            LOGS_DIR / f"eight_code_optimization_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            LOGS_DIR
+            / f"eight_code_optimization_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
         try:
             with open(eight_code_report_path, "w", encoding="utf-8") as f:

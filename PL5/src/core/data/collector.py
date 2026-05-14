@@ -5,33 +5,32 @@
 
 import requests
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Union
 from functools import wraps
 import time
 import hashlib
 import json
-import logging
-from .config import DATA_SOURCES, RAW_DATA_DIR, PROCESSED_DATA_DIR, PL5_CONFIG, setup_logging, MODELS_DIR
+from .config import (
+    DATA_SOURCES,
+    RAW_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    PL5_CONFIG,
+    setup_logging,
+    MODELS_DIR,
+)
 
 from src.core.utils.errors import (
     DataError,
     DataLoadError,
-    DataValidationError,
     DataParseError,
     NetworkError,
     NetworkTimeoutError,
     NetworkConnectionError,
     NetworkHTTPError,
-    ConfigError,
-    ConfigSafeLoader,
     StructuredLogger,
     structured_logger,
-    retry_with_exponential_backoff,
-    handle_data_load_failure,
-    handle_network_failure,
     ErrorSeverity,
 )
 from src.core.monitoring.performance_monitor import track_performance
@@ -44,7 +43,9 @@ logger = setup_logging(__name__)
 # ═══════════════════════════════════════════════════════════════
 
 
-def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,)):
+def retry_on_failure(
+    max_retries=3, delay=1, backoff=2, exceptions=(Exception,)
+):
     """重试装饰器 - 增强版，支持结构化日志和错误分类"""
 
     def decorator(func):
@@ -67,19 +68,31 @@ def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,))
                                 original_error=e,
                                 severity=ErrorSeverity.ERROR_SEVERITY_HIGH,
                             )
-                            if isinstance(e, (requests.RequestException, TimeoutError))
+                            if isinstance(
+                                e, (requests.RequestException, TimeoutError)
+                            )
                             else DataLoadError(
-                                f"{func.__name__} failed after {max_retries} attempts: {str(e)}", original_error=e
+                                f"{func.__name__} failed after {max_retries} attempts: {str(e)}",
+                                original_error=e,
                             )
                         )
-                        logger.error(f"{func.__name__} 在 {max_retries} 次尝试后失败: {str(e)}")
-                        structured_logger.log_operation_failure(func.__name__, error, 0)
+                        logger.error(
+                            f"{func.__name__} 在 {max_retries} 次尝试后失败: {str(e)}"
+                        )
+                        structured_logger.log_operation_failure(
+                            func.__name__, error, 0
+                        )
                         raise error
 
                     structured_logger.log_recovery_attempt(
-                        func.__name__, retry_count, max_retries, "retry_with_backoff"
+                        func.__name__,
+                        retry_count,
+                        max_retries,
+                        "retry_with_backoff",
                     )
-                    logger.warning(f"{func.__name__} 第 {retry_count} 次尝试失败，{current_delay}秒后重试: {str(e)}")
+                    logger.warning(
+                        f"{func.__name__} 第 {retry_count} 次尝试失败，{current_delay}秒后重试: {str(e)}"
+                    )
                     time.sleep(current_delay)
                     current_delay *= backoff
 
@@ -157,7 +170,13 @@ class DataVersionManager:
         if self.version_file.exists():
             with open(self.version_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        return {"version": "0.0.0", "last_update": None, "record_count": 0, "latest_period": None, "data_hash": None}
+        return {
+            "version": "0.0.0",
+            "last_update": None,
+            "record_count": 0,
+            "latest_period": None,
+            "data_hash": None,
+        }
 
     def calculate_data_hash(self, df: pd.DataFrame) -> str:
         """计算数据哈希值"""
@@ -171,7 +190,9 @@ class DataVersionManager:
             "version": datetime.now().strftime("%Y%m%d.%H%M%S"),
             "last_update": datetime.now().isoformat(),
             "record_count": len(df),
-            "latest_period": str(df["period"].iloc[-1]) if not df.empty else None,
+            "latest_period": (
+                str(df["period"].iloc[-1]) if not df.empty else None
+            ),
             "data_hash": self.calculate_data_hash(df),
             "source": source,
             "columns": df.columns.tolist(),
@@ -180,7 +201,9 @@ class DataVersionManager:
         with open(self.version_file, "w", encoding="utf-8") as f:
             json.dump(version_info, f, ensure_ascii=False, indent=2)
 
-        logger.info(f"数据版本已保存: {version_info['version']}, 记录数: {version_info['record_count']}")
+        logger.info(
+            f"数据版本已保存: {version_info['version']}, 记录数: {version_info['record_count']}"
+        )
 
     def create_backup(self, df: pd.DataFrame) -> Path:
         """创建数据备份（在现有备份上更新，不生成新文件）"""
@@ -197,7 +220,9 @@ class DataVersionManager:
         if backup_path.exists():
             return [backup_path]
         # 兼容旧的备份文件格式
-        old_backups = sorted(self.backup_dir.glob("pl5_backup_*.csv"), reverse=True)
+        old_backups = sorted(
+            self.backup_dir.glob("pl5_backup_*.csv"), reverse=True
+        )
         return old_backups
 
     def restore_backup(self, backup_path: Path) -> Optional[pd.DataFrame]:
@@ -229,11 +254,17 @@ class PL5DataCollectorV8:
         # 多数据源配置
         self.data_sources = {
             "lecai": {
-                "url": DATA_SOURCES.get("lecai", "http://data.17500.cn/pl5_asc.txt"),
+                "url": DATA_SOURCES.get(
+                    "lecai", "http://data.17500.cn/pl5_asc.txt"
+                ),
                 "enabled": True,
                 "priority": 1,
             },
-            "local": {"path": self.raw_data_path, "enabled": True, "priority": 2},
+            "local": {
+                "path": self.raw_data_path,
+                "enabled": True,
+                "priority": 2,
+            },
         }
 
         # 缓存机制
@@ -242,7 +273,12 @@ class PL5DataCollectorV8:
         self.cache_ttl = 3600  # 缓存过期时间（秒）
 
     @track_performance
-    @retry_on_failure(max_retries=3, delay=2, backoff=2, exceptions=(requests.RequestException, TimeoutError))
+    @retry_on_failure(
+        max_retries=3,
+        delay=2,
+        backoff=2,
+        exceptions=(requests.RequestException, TimeoutError),
+    )
     def fetch_from_network(self, source_name: str = "lecai") -> Optional[str]:
         """从网络获取数据（带重试机制和增强错误分类）"""
         source = self.data_sources.get(source_name)
@@ -252,7 +288,8 @@ class PL5DataCollectorV8:
 
         url = source.get("url")
         structured_logger.log_operation_start(
-            StructuredLogger.OPERATION_DATA_FETCH, {"source": source_name, "url": url}
+            StructuredLogger.OPERATION_DATA_FETCH,
+            {"source": source_name, "url": url},
         )
         start_time = time.time()
 
@@ -264,7 +301,9 @@ class PL5DataCollectorV8:
         }
 
         try:
-            response = requests.get(url, headers=headers, timeout=(10, 30), allow_redirects=True)
+            response = requests.get(
+                url, headers=headers, timeout=(10, 30), allow_redirects=True
+            )
             response.encoding = "utf-8"
 
             if response.status_code == 200:
@@ -284,7 +323,10 @@ class PL5DataCollectorV8:
                 structured_logger.log_operation_success(
                     StructuredLogger.OPERATION_DATA_FETCH,
                     duration_ms,
-                    {"content_length": len(response.text), "source": source_name},
+                    {
+                        "content_length": len(response.text),
+                        "source": source_name,
+                    },
                 )
                 logger.info(f"数据获取成功，大小: {len(response.text)} 字符")
                 return response.text
@@ -294,7 +336,9 @@ class PL5DataCollectorV8:
                     f"Access forbidden (403), may need to change User-Agent or IP",
                     url=url,
                     status_code=403,
-                    original_error=requests.RequestException("HTTP 403 Forbidden"),
+                    original_error=requests.RequestException(
+                        "HTTP 403 Forbidden"
+                    ),
                     severity=ErrorSeverity.ERROR_SEVERITY_HIGH,
                 )
             elif response.status_code == 404:
@@ -302,7 +346,9 @@ class PL5DataCollectorV8:
                     f"Data not found (404), URL may have changed",
                     url=url,
                     status_code=404,
-                    original_error=requests.RequestException("HTTP 404 Not Found"),
+                    original_error=requests.RequestException(
+                        "HTTP 404 Not Found"
+                    ),
                     severity=ErrorSeverity.ERROR_SEVERITY_HIGH,
                 )
             elif response.status_code == 429:
@@ -311,7 +357,9 @@ class PL5DataCollectorV8:
                     f"Too many requests (429), please wait {retry_after} seconds before retrying",
                     url=url,
                     status_code=429,
-                    original_error=requests.RequestException("HTTP 429 Too Many Requests"),
+                    original_error=requests.RequestException(
+                        "HTTP 429 Too Many Requests"
+                    ),
                     severity=ErrorSeverity.ERROR_SEVERITY_MEDIUM,
                 )
             elif response.status_code >= 500:
@@ -319,31 +367,50 @@ class PL5DataCollectorV8:
                     f"Server error ({response.status_code}), retry later",
                     url=url,
                     status_code=response.status_code,
-                    original_error=requests.RequestException(f"HTTP {response.status_code}"),
+                    original_error=requests.RequestException(
+                        f"HTTP {response.status_code}"
+                    ),
                 )
             else:
-                raise NetworkHTTPError(f"HTTP error: {response.status_code}", url=url, status_code=response.status_code)
+                raise NetworkHTTPError(
+                    f"HTTP error: {response.status_code}",
+                    url=url,
+                    status_code=response.status_code,
+                )
 
         except requests.Timeout as e:
-            raise NetworkTimeoutError(f"Request timeout for {url}", url=url, original_error=e)
+            raise NetworkTimeoutError(
+                f"Request timeout for {url}", url=url, original_error=e
+            )
         except requests.ConnectionError as e:
-            raise NetworkConnectionError(f"Connection error, please check network", url=url, original_error=e)
+            raise NetworkConnectionError(
+                f"Connection error, please check network",
+                url=url,
+                original_error=e,
+            )
         except (NetworkError,):
             raise
         except Exception as e:
-            raise NetworkError(f"Unexpected request error: {str(e)}", url=url, original_error=e)
+            raise NetworkError(
+                f"Unexpected request error: {str(e)}",
+                url=url,
+                original_error=e,
+            )
 
     @track_performance
     def parse_raw_data(self, raw_text: str) -> pd.DataFrame:
         """解析原始数据文本（增强版，带详细错误处理和分类）"""
         structured_logger.log_operation_start(
-            StructuredLogger.OPERATION_DATA_PARSE, {"input_length": len(raw_text) if raw_text else 0}
+            StructuredLogger.OPERATION_DATA_PARSE,
+            {"input_length": len(raw_text) if raw_text else 0},
         )
         start_time = time.time()
 
         if not raw_text or not isinstance(raw_text, str):
             structured_logger.log_operation_failure(
-                StructuredLogger.OPERATION_DATA_PARSE, DataParseError("Raw data is empty or invalid format"), 0
+                StructuredLogger.OPERATION_DATA_PARSE,
+                DataParseError("Raw data is empty or invalid format"),
+                0,
             )
             logger.error("原始数据为空或格式错误")
             return pd.DataFrame()
@@ -365,7 +432,9 @@ class PL5DataCollectorV8:
                 parts = line.split()
 
                 if len(parts) < 8:
-                    logger.debug(f"第 {line_num} 行字段不足，跳过: {line[:50]}")
+                    logger.debug(
+                        f"第 {line_num} 行字段不足，跳过: {line[:50]}"
+                    )
                     error_count += 1
                     continue
 
@@ -373,7 +442,9 @@ class PL5DataCollectorV8:
                 date = parts[1].strip()
 
                 if not self.validator.validate_period(period):
-                    validation_errors.append(f"Line {line_num}: invalid period '{period}'")
+                    validation_errors.append(
+                        f"Line {line_num}: invalid period '{period}'"
+                    )
                     logger.debug(f"第 {line_num} 行期号格式无效: {period}")
                     error_count += 1
                     continue
@@ -385,14 +456,18 @@ class PL5DataCollectorV8:
                     shi = int(parts[5])
                     ge = int(parts[6])
                 except (ValueError, IndexError) as e:
-                    validation_errors.append(f"Line {line_num}: digit parse error - {e}")
+                    validation_errors.append(
+                        f"Line {line_num}: digit parse error - {e}"
+                    )
                     logger.debug(f"第 {line_num} 行数字解析失败: {str(e)}")
                     error_count += 1
                     continue
 
                 digits = [wan, qian, bai, shi, ge]
                 if not all(self.validator.validate_digit(d) for d in digits):
-                    validation_errors.append(f"Line {line_num}: out-of-range digits")
+                    validation_errors.append(
+                        f"Line {line_num}: out-of-range digits"
+                    )
                     logger.debug(f"第 {line_num} 行数字超出范围")
                     error_count += 1
                     continue
@@ -431,7 +506,9 @@ class PL5DataCollectorV8:
 
             duplicates = df[df.duplicated(subset=["period"], keep=False)]
             if not duplicates.empty:
-                logger.warning(f"发现 {len(duplicates)} 条重复期号记录，保留最后一条")
+                logger.warning(
+                    f"发现 {len(duplicates)} 条重复期号记录，保留最后一条"
+                )
                 df = df.drop_duplicates(subset=["period"], keep="last")
 
             duration_ms = (time.time() - start_time) * 1000
@@ -449,16 +526,22 @@ class PL5DataCollectorV8:
                     ),
                 },
             )
-            logger.info(f"解析完成: 成功 {success_count} 条, 失败 {error_count} 条, 最终 {len(df)} 条")
+            logger.info(
+                f"解析完成: 成功 {success_count} 条, 失败 {error_count} 条, 最终 {len(df)} 条"
+            )
         else:
             duration_ms = (time.time() - start_time) * 1000
             structured_logger.log_operation_failure(
                 StructuredLogger.OPERATION_DATA_PARSE,
-                DataParseError("No valid records parsed from input data", record_count=0),
+                DataParseError(
+                    "No valid records parsed from input data", record_count=0
+                ),
                 duration_ms,
             )
             if validation_errors:
-                logger.warning(f"验证错误摘要 (前5条): {validation_errors[:5]}")
+                logger.warning(
+                    f"验证错误摘要 (前5条): {validation_errors[:5]}"
+                )
             logger.error("没有成功解析任何记录")
 
         return df
@@ -477,7 +560,9 @@ class PL5DataCollectorV8:
                 return None
 
             if file_size < 1000:
-                logger.warning(f"本地数据文件过小 ({file_size} bytes)，可能不完整")
+                logger.warning(
+                    f"本地数据文件过小 ({file_size} bytes)，可能不完整"
+                )
 
             with open(self.raw_data_path, "r", encoding="utf-8") as f:
                 raw_text = f.read()
@@ -529,7 +614,9 @@ class PL5DataCollectorV8:
         # 检查缓存
         cache_key = "update_data"
         current_time = time.time()
-        if cache_key in self.cache and current_time < self.cache_expiry.get(cache_key, 0):
+        if cache_key in self.cache and current_time < self.cache_expiry.get(
+            cache_key, 0
+        ):
             logger.info("使用缓存的更新数据")
             return self.cache[cache_key]
         logger.info("=" * 60)
@@ -537,7 +624,8 @@ class PL5DataCollectorV8:
         logger.info("=" * 60)
 
         structured_logger.log_operation_start(
-            StructuredLogger.OPERATION_DATA_FETCH, {"operation": "full_update_pipeline"}
+            StructuredLogger.OPERATION_DATA_FETCH,
+            {"operation": "full_update_pipeline"},
         )
         start_time = time.time()
 
@@ -553,7 +641,12 @@ class PL5DataCollectorV8:
                     source = "lecai"
                     logger.info(f"从网络获取数据成功: {len(df)} 条记录")
                 else:
-                    errors_encountered.append(("network_parse", "Network data parsed to empty DataFrame"))
+                    errors_encountered.append(
+                        (
+                            "network_parse",
+                            "Network data parsed to empty DataFrame",
+                        )
+                    )
         except NetworkError as e:
             errors_encountered.append(("network", str(e)))
             logger.error(f"从网络获取数据失败: {e.to_dict()}")
@@ -569,7 +662,9 @@ class PL5DataCollectorV8:
                     source = "local"
                     logger.info(f"从本地加载数据成功: {len(df)} 条记录")
                 else:
-                    errors_encountered.append(("local_load", "Local data is None or empty"))
+                    errors_encountered.append(
+                        ("local_load", "Local data is None or empty")
+                    )
             except DataError as e:
                 errors_encountered.append(("local_data", str(e)))
                 logger.error(f"本地数据加载失败: {e.to_dict()}")
@@ -590,11 +685,17 @@ class PL5DataCollectorV8:
                             "backup_restore",
                             f"Using backup from {backups[0].name}",
                         )
-                        logger.info(f"从备份恢复数据成功: {backups[0].name}, 记录数: {len(df)}")
+                        logger.info(
+                            f"从备份恢复数据成功: {backups[0].name}, 记录数: {len(df)}"
+                        )
                     else:
-                        errors_encountered.append(("backup_restore", "Backup restore returned empty"))
+                        errors_encountered.append(
+                            ("backup_restore", "Backup restore returned empty")
+                        )
                 else:
-                    errors_encountered.append(("no_backup", "No backups available"))
+                    errors_encountered.append(
+                        ("no_backup", "No backups available")
+                    )
             except Exception as e:
                 errors_encountered.append(("backup_error", str(e)))
                 logger.error(f"备份恢复失败: {str(e)}")
@@ -612,7 +713,9 @@ class PL5DataCollectorV8:
                 duration_ms,
             )
             raise DataLoadError(
-                "无法获取数据: 网络、本地和备份都失败", data_source="all", context={"errors": errors_encountered}
+                "无法获取数据: 网络、本地和备份都失败",
+                data_source="all",
+                context={"errors": errors_encountered},
             )
 
         # 保存到 processed 目录
@@ -629,7 +732,9 @@ class PL5DataCollectorV8:
         except Exception as e:
             logger.warning(f"创建备份失败（非致命）: {str(e)}")
             structured_logger.log_operation_warning(
-                StructuredLogger.OPERATION_DATA_FETCH, "Backup creation failed (non-fatal)", {"error": str(e)}
+                StructuredLogger.OPERATION_DATA_FETCH,
+                "Backup creation failed (non-fatal)",
+                {"error": str(e)},
             )
 
         try:

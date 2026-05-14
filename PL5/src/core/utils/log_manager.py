@@ -5,10 +5,8 @@
 提供日志清理、轮换和归档功能
 """
 
-import os
 import re
 import shutil
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
@@ -47,7 +45,12 @@ class LogManager:
             配置字典
         """
         default_config = {
-            "retention_days": {"app_logs": 7, "performance_logs": 7, "temp_files": 3, "test_files": 3},
+            "retention_days": {
+                "app_logs": 7,
+                "performance_logs": 7,
+                "temp_files": 3,
+                "test_files": 3,
+            },
             "archive_threshold": 7,
             "max_file_size_mb": 50,
             "compression_enabled": True,
@@ -85,7 +88,12 @@ class LogManager:
         Returns:
             摘要字典
         """
-        summary = {"total_files": 0, "total_size_mb": 0, "files_by_type": {}, "directories": []}
+        summary = {
+            "total_files": 0,
+            "total_size_mb": 0,
+            "files_by_type": {},
+            "directories": [],
+        }
 
         for item in self.log_dir.rglob("*"):
             if item.is_file():
@@ -99,9 +107,14 @@ class LogManager:
                     summary["files_by_type"][ext]["count"] += 1
                     summary["files_by_type"][ext]["size_mb"] += size_mb
                 else:
-                    summary["files_by_type"][ext] = {"count": 1, "size_mb": size_mb}
+                    summary["files_by_type"][ext] = {
+                        "count": 1,
+                        "size_mb": size_mb,
+                    }
             elif item.is_dir():
-                summary["directories"].append(str(item.relative_to(self.log_dir)))
+                summary["directories"].append(
+                    str(item.relative_to(self.log_dir))
+                )
 
         return summary
 
@@ -123,7 +136,7 @@ class LogManager:
                     mtime = datetime.fromtimestamp(item.stat().st_mtime)
                     if mtime < cutoff:
                         old_files.append(item)
-                except:
+                except Exception:
                     pass
 
         return old_files
@@ -155,7 +168,9 @@ class LogManager:
 
         return temp_files
 
-    def delete_files(self, files: List[Path], dry_run: bool = False) -> Tuple[int, float]:
+    def delete_files(
+        self, files: List[Path], dry_run: bool = False
+    ) -> Tuple[int, float]:
         """删除文件
 
         Args:
@@ -176,7 +191,9 @@ class LogManager:
                 size_mb = file_path.stat().st_size / (1024 * 1024)
 
                 if dry_run:
-                    print(f"[Dry Run] Would delete: {file_path} ({size_mb:.2f} MB)")
+                    print(
+                        f"[Dry Run] Would delete: {file_path} ({size_mb:.2f} MB)"
+                    )
                 else:
                     file_path.unlink()
                     print(f"Deleted: {file_path} ({size_mb:.2f} MB)")
@@ -188,7 +205,9 @@ class LogManager:
 
         return deleted_count, freed_space_mb
 
-    def archive_files(self, files: List[Path], dry_run: bool = False) -> Tuple[int, float]:
+    def archive_files(
+        self, files: List[Path], dry_run: bool = False
+    ) -> Tuple[int, float]:
         """归档文件
 
         Args:
@@ -214,7 +233,9 @@ class LogManager:
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
 
                 if dry_run:
-                    print(f"[Dry Run] Would archive: {file_path} -> {dest_path}")
+                    print(
+                        f"[Dry Run] Would archive: {file_path} -> {dest_path}"
+                    )
                 else:
                     shutil.move(str(file_path), str(dest_path))
                     print(f"Archived: {file_path} -> {dest_path}")
@@ -226,7 +247,9 @@ class LogManager:
 
         return archived_count, archived_space_mb
 
-    def clean_old_logs(self, days: Optional[int] = None, dry_run: bool = False) -> Dict:
+    def clean_old_logs(
+        self, days: Optional[int] = None, dry_run: bool = False
+    ) -> Dict:
         """清理旧日志
 
         Args:
@@ -341,9 +364,15 @@ class LogManager:
             # 根据文件名分类
             dest_dir = None
 
-            if "prediction" in file_path.name.lower() or "verification" in file_path.name.lower():
+            if (
+                "prediction" in file_path.name.lower()
+                or "verification" in file_path.name.lower()
+            ):
                 dest_dir = self.log_dir / "predictions"
-            elif "report" in file_path.name.lower() or "training" in file_path.name.lower():
+            elif (
+                "report" in file_path.name.lower()
+                or "training" in file_path.name.lower()
+            ):
                 dest_dir = self.log_dir / "reports"
             elif "performance" in file_path.name.lower():
                 dest_dir = self.log_dir / "performance"
@@ -361,14 +390,21 @@ class LogManager:
                 dest_path = dest_dir / file_path.name
 
                 if dry_run:
-                    print(f"[Dry Run] Would move: {file_path.name} -> {dest_dir.name}/")
+                    print(
+                        f"[Dry Run] Would move: {file_path.name} -> {dest_dir.name}/"
+                    )
                 else:
                     try:
                         # 先尝试重命名
                         if dest_path.exists():
                             # 如果目标文件已存在，添加时间戳
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            dest_path = dest_dir / f"{file_path.stem}_{timestamp}{file_path.suffix}"
+                            timestamp = datetime.now().strftime(
+                                "%Y%m%d_%H%M%S"
+                            )
+                            dest_path = (
+                                dest_dir
+                                / f"{file_path.stem}_{timestamp}{file_path.suffix}"
+                            )
 
                         shutil.move(str(file_path), str(dest_path))
                         print(f"Moved: {file_path.name} -> {dest_dir.name}/")
@@ -420,7 +456,9 @@ class LogManager:
             print(f"清理后状态:")
             print(f"  总文件数: {summary_after['total_files']}")
             print(f"  总大小: {summary_after['total_size_mb']:.2f} MB")
-            print(f"  释放空间: {summary_before['total_size_mb'] - summary_after['total_size_mb']:.2f} MB")
+            print(
+                f"  释放空间: {summary_before['total_size_mb'] - summary_after['total_size_mb']:.2f} MB"
+            )
             print(f"{'=' * 80}")
 
         return results
@@ -431,12 +469,24 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="PL5系统日志管理工具")
-    parser.add_argument("--dry-run", action="store_true", help="仅显示要执行的操作，不实际执行")
-    parser.add_argument("--summary", action="store_true", help="显示日志文件摘要")
-    parser.add_argument("--clean-temp", action="store_true", help="仅清理临时文件")
-    parser.add_argument("--clean-old", type=int, help="清理超过指定天数的旧日志")
-    parser.add_argument("--organize", action="store_true", help="整理日志目录结构")
-    parser.add_argument("--full-cleanup", action="store_true", help="执行完整的日志清理")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="仅显示要执行的操作，不实际执行"
+    )
+    parser.add_argument(
+        "--summary", action="store_true", help="显示日志文件摘要"
+    )
+    parser.add_argument(
+        "--clean-temp", action="store_true", help="仅清理临时文件"
+    )
+    parser.add_argument(
+        "--clean-old", type=int, help="清理超过指定天数的旧日志"
+    )
+    parser.add_argument(
+        "--organize", action="store_true", help="整理日志目录结构"
+    )
+    parser.add_argument(
+        "--full-cleanup", action="store_true", help="执行完整的日志清理"
+    )
 
     args = parser.parse_args()
 
@@ -470,7 +520,9 @@ def main():
 
     else:
         # 默认显示摘要
-        print("请指定操作: --summary, --clean-temp, --clean-old N, --organize, --full-cleanup")
+        print(
+            "请指定操作: --summary, --clean-temp, --clean-old N, --organize, --full-cleanup"
+        )
 
 
 if __name__ == "__main__":

@@ -3,10 +3,8 @@
 V10.0: Stacking+HMM+Copula+BSTS+Mamba+iTransformer + 贝叶斯不确定性量化
 """
 
-import logging
 import smtplib
 import numpy as np
-import pandas as pd
 from datetime import datetime
 from .email_sender import EmailSender, generate_html_report
 from src.core.utils.logger import logger
@@ -29,16 +27,22 @@ def _format_verification_report(verification_results: dict) -> str:
     for key, label in round_labels.items():
         if key in verification_results:
             vr = verification_results[key]
-            ts = vr.get("verification_time", vr.get("optimization_time", "未知"))
+            ts = vr.get(
+                "verification_time", vr.get("optimization_time", "未知")
+            )
             next_p = vr.get("next_period", "未知")
 
             if key == "deep_strategy":
                 best_strat = vr.get("best_strategy", "未知")
                 best_score = vr.get("best_score", 0)
                 lines.append(f"  [{label}] 时间: {ts}")
-                lines.append(f"    最佳策略: {best_strat}, 得分: {best_score:.4f}")
+                lines.append(
+                    f"    最佳策略: {best_strat}, 得分: {best_score:.4f}"
+                )
             else:
-                predictions = vr.get("predictions", vr.get("verification_predictions", {}))
+                predictions = vr.get(
+                    "predictions", vr.get("verification_predictions", {})
+                )
                 lines.append(f"  [{label}] 时间: {ts}, 预测期号: {next_p}")
                 for pos in ["wan", "qian", "bai", "shi", "ge"]:
                     if pos in predictions and "top_k" in predictions[pos]:
@@ -70,7 +74,13 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
     logger.info(f"开始时间: {time.strftime('%H:%M:%S')}")
 
     positions = ["wan", "qian", "bai", "shi", "ge"]
-    position_names = {"wan": "万位", "qian": "千位", "bai": "百位", "shi": "十位", "ge": "个位"}
+    position_names = {
+        "wan": "万位",
+        "qian": "千位",
+        "bai": "百位",
+        "shi": "十位",
+        "ge": "个位",
+    }
 
     # ─────────────────────────────────────────
     # 1. 加载数据 + 特征工程（始终需要，用于生成分析数据）
@@ -85,7 +95,9 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
     if df is None or len(df) == 0:
         logger.error("无法加载数据，终止分析")
         return None
-    logger.info(f"  成功加载 {len(df)} 条历史记录 (最新期号: {df['period'].iloc[-1]})")
+    logger.info(
+        f"  成功加载 {len(df)} 条历史记录 (最新期号: {df['period'].iloc[-1]})"
+    )
 
     engineer = FeatureEngineer()
 
@@ -104,23 +116,33 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
                     cfg_data = json.load(f)
                 if "best_config" in cfg_data:
                     select_top = cfg_data["best_config"].get("select_top")
-                    feature_selection_method = cfg_data["best_config"].get("feature_selection_method")
+                    feature_selection_method = cfg_data["best_config"].get(
+                        "feature_selection_method"
+                    )
                 else:
                     select_top = cfg_data.get("select_top")
-                    feature_selection_method = cfg_data.get("feature_selection_method")
+                    feature_selection_method = cfg_data.get(
+                        "feature_selection_method"
+                    )
                 logger.info(
                     f"  从 {config_dir.name}/best_feature_config.json 加载特征配置: select_top={select_top}, method={feature_selection_method}"
                 )
                 break
             except Exception as cfg_err:
-                logger.warning(f"  读取 {config_dir.name}/best_feature_config.json 失败: {cfg_err}")
+                logger.warning(
+                    f"  读取 {config_dir.name}/best_feature_config.json 失败: {cfg_err}"
+                )
 
     df_features = engineer.extract_all_features(
-        df, select_top=select_top, feature_selection_method=feature_selection_method
+        df,
+        select_top=select_top,
+        feature_selection_method=feature_selection_method,
     )
 
     feature_cols = [
-        c for c in df_features.columns if c not in ["period", "date", "full_number", "parse_line"] + positions
+        c
+        for c in df_features.columns
+        if c not in ["period", "date", "full_number", "parse_line"] + positions
     ]
     logger.info(f"  特征工程完成: {len(feature_cols)} 个特征")
 
@@ -144,7 +166,11 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
 
         old_feature_count = 0
         need_retrain = False
-        if model_loaded and hasattr(predictor, "feature_cols") and predictor.feature_cols:
+        if (
+            model_loaded
+            and hasattr(predictor, "feature_cols")
+            and predictor.feature_cols
+        ):
             old_feature_count = len(predictor.feature_cols)
             new_feature_count = len(feature_cols)
             if old_feature_count != new_feature_count:
@@ -160,7 +186,10 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
             and getattr(predictor, "bayesian_quantifier", None) is not None
         )
         if model_loaded and not v10_complete:
-            logger.warning("  V10模块不完整 (缺少Mamba/iTransformer/Bayesian)，" "将重新训练以获得完整的6模型融合能力")
+            logger.warning(
+                "  V10模块不完整 (缺少Mamba/iTransformer/Bayesian)，"
+                "将重新训练以获得完整的6模型融合能力"
+            )
             need_retrain = True
 
         from src.core.models.incremental_learning import (
@@ -183,7 +212,9 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
                 if not model_loaded:
                     reasons.append("模型文件不存在")
                 if model_loaded and old_feature_count != len(feature_cols):
-                    reasons.append(f"特征维度变化({old_feature_count}->{len(feature_cols)})")
+                    reasons.append(
+                        f"特征维度变化({old_feature_count}->{len(feature_cols)})"
+                    )
                 if not v10_complete:
                     reasons.append("V10新模块缺失")
                 if should_perform_incremental_update():
@@ -197,7 +228,12 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
             logger.info(f"  使用训练策略: {strategy}")
             logger.info(f"  训练参数: {params}")
 
-            predictor.fit(df_features, feature_cols, parallel=True, incremental=strategy != "deep")
+            predictor.fit(
+                df_features,
+                feature_cols,
+                parallel=True,
+                incremental=strategy != "deep",
+            )
             predictor.save_models()
             update_training_timestamp(strategy)
 
@@ -208,7 +244,9 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
         latest_features = df_features[feature_cols].iloc[-1].values
         recent_original_data = {pos: df[pos].values for pos in positions}
 
-        predictions = predictor.predict(latest_features, recent_original_data=recent_original_data, top_k=8)
+        predictions = predictor.predict(
+            latest_features, recent_original_data=recent_original_data, top_k=8
+        )
 
         logger.info("  模型推理完成")
         for pos in positions:
@@ -237,23 +275,39 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
                 float((pos_data % 3 == 1).sum() / 30),
                 float((pos_data % 3 == 2).sum() / 30),
             ],
-            "trend": "上升" if pos_data.tail(5).mean() > pos_data.head(25).mean() else "下降",
+            "trend": (
+                "上升"
+                if pos_data.tail(5).mean() > pos_data.head(25).mean()
+                else "下降"
+            ),
             "mean": float(pos_data.mean()),
             "std": float(pos_data.std()),
         }
 
     # Copula 分析（使用真实模型数据）
     copula_data = {"mean_tau": 0.0, "strongest_pair": "N/A", "max_tau": 0.0}
-    if hasattr(predictor, "copula_model") and predictor.copula_model is not None:
-        if hasattr(predictor.copula_model, "kendall_tau") and predictor.copula_model.kendall_tau is not None:
+    if (
+        hasattr(predictor, "copula_model")
+        and predictor.copula_model is not None
+    ):
+        if (
+            hasattr(predictor.copula_model, "kendall_tau")
+            and predictor.copula_model.kendall_tau is not None
+        ):
             tau = predictor.copula_model.kendall_tau
-            copula_data = {"mean_tau": float(np.mean(np.abs(tau))), "max_tau": 0.0, "strongest_pair": "N/A"}
+            copula_data = {
+                "mean_tau": float(np.mean(np.abs(tau))),
+                "max_tau": 0.0,
+                "strongest_pair": "N/A",
+            }
             max_tau = 0.0
             for i in range(len(positions)):
                 for j in range(i + 1, len(positions)):
                     if abs(tau[i, j]) > max_tau:
                         max_tau = abs(tau[i, j])
-                        copula_data["strongest_pair"] = f"{positions[i]}-{positions[j]}"
+                        copula_data["strongest_pair"] = (
+                            f"{positions[i]}-{positions[j]}"
+                        )
             copula_data["max_tau"] = float(max_tau)
 
     # HMM 状态（使用真实模型输出）
@@ -271,7 +325,13 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
                             state_idx = int(states[-1]) % len(state_names_map)
                             state = state_names_map[state_idx]
                             if hasattr(hmm, "get_state_probabilities"):
-                                state_prob = float(np.max(hmm.get_state_probabilities(recent_data)))
+                                state_prob = float(
+                                    np.max(
+                                        hmm.get_state_probabilities(
+                                            recent_data
+                                        )
+                                    )
+                                )
                             else:
                                 state_prob = 0.5
                         else:
@@ -325,7 +385,9 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
     from pathlib import Path
     import json
 
-    training_info_path = Path(__file__).parent.parent / "logs" / "training_info.json"
+    training_info_path = (
+        Path(__file__).parent.parent / "logs" / "training_info.json"
+    )
     training_info = {}
     if training_info_path.exists():
         with open(training_info_path, "r", encoding="utf-8") as f:
@@ -417,7 +479,9 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
         top_3 = pred["top_k"][:3]
 
         # 从 full_distribution 提取 top 概率
-        full_dist = pred.get("full_distribution", pred.get("probabilities", []))
+        full_dist = pred.get(
+            "full_distribution", pred.get("probabilities", [])
+        )
         top_probs = []
         for idx_val in top_3:
             if isinstance(full_dist, list) and idx_val < len(full_dist):
@@ -460,10 +524,14 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
     # ─────────────────────────────────────────
     logger.info("\n[5] 发送邮件...")
 
-    html_report = generate_html_report(period, predictions, analysis_data, len(df), str(df["period"].iloc[-1]))
+    html_report = generate_html_report(
+        period, predictions, analysis_data, len(df), str(df["period"].iloc[-1])
+    )
 
     # 读取邮箱配置 — 优先从 config/ 目录读取，兼容旧路径
-    config_path_new = Path(__file__).parent.parent.parent / "config" / "email_config.json"
+    config_path_new = (
+        Path(__file__).parent.parent.parent / "config" / "email_config.json"
+    )
     config_path_old = Path(__file__).parent.parent.parent / "email_config.json"
     if config_path_new.exists():
         with open(config_path_new, "r", encoding="utf-8") as f:
@@ -472,7 +540,9 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
         auth_code = email_config.get("auth_code", "your_auth_code")
         recipient_email = email_config.get("to_email", sender_email)
     elif config_path_old.exists():
-        logger.warning(f"邮件配置使用旧路径(建议迁移至 config/ 目录): {config_path_old}")
+        logger.warning(
+            f"邮件配置使用旧路径(建议迁移至 config/ 目录): {config_path_old}"
+        )
         with open(config_path_old, "r", encoding="utf-8") as f:
             email_config = json.load(f)
         sender_email = email_config.get("from_email", "your_email@qq.com")
@@ -508,12 +578,20 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
             email_sent = True
             break
         except smtplib.SMTPAuthenticationError as auth_err:
-            logger.error(f"  SMTP认证失败（账号或授权码错误），不再重试: {auth_err}")
+            logger.error(
+                f"  SMTP认证失败（账号或授权码错误），不再重试: {auth_err}"
+            )
             break
         except smtplib.SMTPException as smtp_err:
             if attempt < max_retries - 1:
-                delay = retry_delays[attempt] if attempt < len(retry_delays) else 30
-                logger.warning(f"  SMTP错误第{attempt+1}次，{delay}秒后重试: {smtp_err}")
+                delay = (
+                    retry_delays[attempt]
+                    if attempt < len(retry_delays)
+                    else 30
+                )
+                logger.warning(
+                    f"  SMTP错误第{attempt+1}次，{delay}秒后重试: {smtp_err}"
+                )
                 time.sleep(delay)
             else:
                 logger.error(f"  SMTP发送失败，已达最大重试次数: {smtp_err}")
@@ -557,7 +635,9 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
 
     # 检查是否在20:15前完成（邮件发送时间为20:15）
     current_time = time.localtime()
-    if current_time.tm_hour < 20 or (current_time.tm_hour == 20 and current_time.tm_min < 15):
+    if current_time.tm_hour < 20 or (
+        current_time.tm_hour == 20 and current_time.tm_min < 15
+    ):
         logger.info("✓ 预测和邮件发送在20:15前完成")
     else:
         logger.warning("⚠ 预测和邮件发送超过20:15")

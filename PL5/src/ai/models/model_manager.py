@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional
 
 from .base import BaseLLM, LLMFactory
-from ..ai_types import LLMConfig, LLMType
+from ..ai_types import LLMConfig
 
 
 class ModelManager:
@@ -131,7 +131,9 @@ class ModelManager:
         Returns:
             模型信息列表
         """
-        return [self.get_model_info(model_id) for model_id in self._models.keys()]
+        return [
+            self.get_model_info(model_id) for model_id in self._models.keys()
+        ]
 
 
 # 全局模型管理器实例

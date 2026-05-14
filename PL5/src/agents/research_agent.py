@@ -2,10 +2,9 @@
 研究分析智能体 - 自动分析历史数据发现新规律
 """
 
-import asyncio
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 
 from .base_agent import BaseAgent, AgentTask, AgentResult
@@ -29,7 +28,9 @@ class ResearchAgent(BaseAgent):
         self.rag_system = PL5KnowledgeRAG()
         self.analysis_history = []
 
-    async def analyze_historical_patterns(self, df: pd.DataFrame, feature_cols: List[str]) -> Dict[str, Any]:
+    async def analyze_historical_patterns(
+        self, df: pd.DataFrame, feature_cols: List[str]
+    ) -> Dict[str, Any]:
         """分析历史模式
 
         Args:
@@ -56,7 +57,9 @@ class ResearchAgent(BaseAgent):
         logger.info("[ResearchAgent] 历史模式分析完成")
         return analysis_result
 
-    async def _analyze_basic_statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
+    async def _analyze_basic_statistics(
+        self, df: pd.DataFrame
+    ) -> Dict[str, Any]:
         """分析基本统计信息
 
         Args:
@@ -91,15 +94,21 @@ class ResearchAgent(BaseAgent):
             模式分析结果
         """
         patterns = {
-            "consecutive_patterns": await self._detect_consecutive_patterns(df),
+            "consecutive_patterns": await self._detect_consecutive_patterns(
+                df
+            ),
             "repeat_patterns": await self._detect_repeat_patterns(df),
-            "alternating_patterns": await self._detect_alternating_patterns(df),
+            "alternating_patterns": await self._detect_alternating_patterns(
+                df
+            ),
             "trend_patterns": await self._detect_trend_patterns(df),
         }
 
         return patterns
 
-    async def _detect_consecutive_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
+    async def _detect_consecutive_patterns(
+        self, df: pd.DataFrame
+    ) -> Dict[str, Any]:
         """检测连续模式
 
         Args:
@@ -155,7 +164,9 @@ class ResearchAgent(BaseAgent):
 
         return count
 
-    async def _detect_repeat_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
+    async def _detect_repeat_patterns(
+        self, df: pd.DataFrame
+    ) -> Dict[str, Any]:
         """检测重复模式
 
         Args:
@@ -181,7 +192,9 @@ class ResearchAgent(BaseAgent):
 
         return repeat_patterns
 
-    async def _detect_alternating_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
+    async def _detect_alternating_patterns(
+        self, df: pd.DataFrame
+    ) -> Dict[str, Any]:
         """检测交替模式
 
         Args:
@@ -203,7 +216,11 @@ class ResearchAgent(BaseAgent):
 
             alternating_patterns[pos] = {
                 "alternating_count": alternating_count,
-                "alternating_ratio": float(alternating_count / (len(data) - 2)) if len(data) > 2 else 0.0,
+                "alternating_ratio": (
+                    float(alternating_count / (len(data) - 2))
+                    if len(data) > 2
+                    else 0.0
+                ),
             }
 
         return alternating_patterns
@@ -234,7 +251,13 @@ class ResearchAgent(BaseAgent):
             trend_patterns[pos] = {
                 "increasing_count": increasing_count,
                 "decreasing_count": decreasing_count,
-                "trend_bias": float((increasing_count - decreasing_count) / (len(data) - 1)) if len(data) > 1 else 0.0,
+                "trend_bias": (
+                    float(
+                        (increasing_count - decreasing_count) / (len(data) - 1)
+                    )
+                    if len(data) > 1
+                    else 0.0
+                ),
             }
 
         return trend_patterns
@@ -257,7 +280,9 @@ class ResearchAgent(BaseAgent):
             std = np.std(data)
             threshold = 2.0  # 2倍标准差
 
-            anomaly_indices = np.where(np.abs(data - mean) > threshold * std)[0]
+            anomaly_indices = np.where(np.abs(data - mean) > threshold * std)[
+                0
+            ]
             anomaly_values = data[anomaly_indices]
 
             anomalies[pos] = {
@@ -289,7 +314,11 @@ class ResearchAgent(BaseAgent):
 
             trends[pos] = {
                 "trend_slope": float(slope),
-                "trend_direction": "increasing" if slope > 0 else "decreasing" if slope < 0 else "stable",
+                "trend_direction": (
+                    "increasing"
+                    if slope > 0
+                    else "decreasing" if slope < 0 else "stable"
+                ),
             }
 
         return trends
@@ -314,7 +343,9 @@ class ResearchAgent(BaseAgent):
 
         return correlations
 
-    async def generate_research_report(self, analysis_result: Dict[str, Any]) -> str:
+    async def generate_research_report(
+        self, analysis_result: Dict[str, Any]
+    ) -> str:
         """生成研究报告
 
         Args:
@@ -338,7 +369,9 @@ class ResearchAgent(BaseAgent):
 
         # 模式分析
         report_parts.append("## 模式分析")
-        for pattern_type, patterns in analysis_result["pattern_analysis"].items():
+        for pattern_type, patterns in analysis_result[
+            "pattern_analysis"
+        ].items():
             report_parts.append(f"### {pattern_type}")
             for pos, pattern in patterns.items():
                 report_parts.append(f"- {pos}位: {pattern}")
@@ -355,13 +388,17 @@ class ResearchAgent(BaseAgent):
         # 趋势分析
         report_parts.append("## 趋势分析")
         for pos, trend in analysis_result["trend_analysis"].items():
-            report_parts.append(f"- {pos}位: 趋势={trend['trend_direction']}, 斜率={trend['trend_slope']:.4f}")
+            report_parts.append(
+                f"- {pos}位: 趋势={trend['trend_direction']}, 斜率={trend['trend_slope']:.4f}"
+            )
         report_parts.append("")
 
         # 相关性分析
         report_parts.append("## 相关性分析")
         sorted_correlations = sorted(
-            analysis_result["correlation_analysis"].items(), key=lambda x: abs(x[1]), reverse=True
+            analysis_result["correlation_analysis"].items(),
+            key=lambda x: abs(x[1]),
+            reverse=True,
         )
         for pair, corr in sorted_correlations[:5]:
             report_parts.append(f"- {pair}: {corr:.4f}")
@@ -394,28 +431,37 @@ class ResearchAgent(BaseAgent):
         try:
             if task.task_type == "analyze_patterns":
                 result = await self.analyze_historical_patterns(
-                    task.params.get("data"), task.params.get("feature_cols", [])
+                    task.params.get("data"),
+                    task.params.get("feature_cols", []),
                 )
                 return AgentResult(
                     task_id=task.task_id,
                     success=True,
                     data=result,
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                 )
             elif task.task_type == "generate_report":
-                report = await self.generate_research_report(task.params.get("analysis_result"))
+                report = await self.generate_research_report(
+                    task.params.get("analysis_result")
+                )
                 return AgentResult(
                     task_id=task.task_id,
                     success=True,
                     data={"report": report},
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                 )
             else:
                 return AgentResult(
                     task_id=task.task_id,
                     success=False,
                     data={},
-                    execution_time=(datetime.now() - start_time).total_seconds(),
+                    execution_time=(
+                        datetime.now() - start_time
+                    ).total_seconds(),
                     error_message=f"Unknown task type: {task.task_type}",
                 )
         except Exception as e:
@@ -429,7 +475,10 @@ class ResearchAgent(BaseAgent):
 
     def validate(self, task: AgentTask) -> bool:
         """验证任务参数是否合法"""
-        required_params = {"analyze_patterns": ["data"], "generate_report": ["analysis_result"]}
+        required_params = {
+            "analyze_patterns": ["data"],
+            "generate_report": ["analysis_result"],
+        }
 
         task_type = task.task_type
         if task_type not in required_params:

@@ -7,7 +7,6 @@ from typing import Dict, Any, List
 from datetime import datetime
 import logging
 import pandas as pd
-import numpy as np
 
 from .base_agent import BaseAgent, AgentTask, AgentResult
 
@@ -88,14 +87,23 @@ class DataProcessingAgent(BaseAgent):
 
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            return AgentResult(task_id=task.task_id, success=True, data=result_data, execution_time=execution_time)
+            return AgentResult(
+                task_id=task.task_id,
+                success=True,
+                data=result_data,
+                execution_time=execution_time,
+            )
 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.error(f"[{self.name}] 任务执行失败: {str(e)}")
 
             return AgentResult(
-                task_id=task.task_id, success=False, data={}, execution_time=execution_time, error_message=str(e)
+                task_id=task.task_id,
+                success=False,
+                data={},
+                execution_time=execution_time,
+                error_message=str(e),
             )
 
     async def _fetch_data(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,7 +117,9 @@ class DataProcessingAgent(BaseAgent):
 
         try:
             # 添加超时保护
-            result = await asyncio.wait_for(self._fetch_from_source(source), timeout=60)  # 60秒超时
+            result = await asyncio.wait_for(
+                self._fetch_from_source(source), timeout=60
+            )  # 60秒超时
 
             logger.info(f"[{self.name}] 数据采集完成: {len(result)} 条记录")
 
@@ -117,7 +127,12 @@ class DataProcessingAgent(BaseAgent):
             cache_key = f"raw_data_{datetime.now().strftime('%Y%m%d')}"
             self.data_cache[cache_key] = result
 
-            return {"data": result, "record_count": len(result), "sources": [source], "cache_key": cache_key}
+            return {
+                "data": result,
+                "record_count": len(result),
+                "sources": [source],
+                "cache_key": cache_key,
+            }
 
         except asyncio.TimeoutError:
             logger.error(f"[{self.name}] 数据采集超时")
@@ -144,7 +159,9 @@ class DataProcessingAgent(BaseAgent):
 
         return df
 
-    def _merge_data_sources(self, data_list: List[pd.DataFrame]) -> pd.DataFrame:
+    def _merge_data_sources(
+        self, data_list: List[pd.DataFrame]
+    ) -> pd.DataFrame:
         """合并多个数据源的数据"""
         merged = pd.concat(data_list, ignore_index=True)
         # 去重（基于期号）
@@ -161,11 +178,17 @@ class DataProcessingAgent(BaseAgent):
 
         # 使用线程池执行
         loop = asyncio.get_event_loop()
-        cleaned_data = await loop.run_in_executor(self.executor, self._clean_data_sync, data)
+        cleaned_data = await loop.run_in_executor(
+            self.executor, self._clean_data_sync, data
+        )
 
         logger.info(f"[{self.name}] 数据清洗完成")
 
-        return {"data": cleaned_data, "record_count": len(cleaned_data), "cleaned": True}
+        return {
+            "data": cleaned_data,
+            "record_count": len(cleaned_data),
+            "cleaned": True,
+        }
 
     def _clean_data_sync(self, data: pd.DataFrame) -> pd.DataFrame:
         """同步数据清洗"""
@@ -186,7 +209,9 @@ class DataProcessingAgent(BaseAgent):
 
         return df
 
-    async def _extract_features(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_features(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """特征工程（支持并行）"""
         data = params.get("data")
         feature_types = params.get("feature_types", "all")
@@ -213,13 +238,18 @@ class DataProcessingAgent(BaseAgent):
 
         engineer = FeatureEngineer()
 
-        features = await loop.run_in_executor(self.executor, engineer.extract_all_features, data)
+        features = await loop.run_in_executor(
+            self.executor, engineer.extract_all_features, data
+        )
 
         # 缓存结果
         self.feature_cache[cache_key] = features
 
         feature_cols = [
-            c for c in features.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in features.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
 
         logger.info(f"[{self.name}] 特征工程完成: {len(feature_cols)} 个特征")
@@ -258,7 +288,9 @@ class DataProcessingAgent(BaseAgent):
                 gaps.append((periods[i - 1], periods[i]))
 
         validation_results["period_gaps"] = gaps
-        validation_results["is_valid"] = len(gaps) == 0 and data.isnull().sum().sum() == 0
+        validation_results["is_valid"] = (
+            len(gaps) == 0 and data.isnull().sum().sum() == 0
+        )
 
         return validation_results
 
@@ -323,7 +355,11 @@ class DataProcessingAgent(BaseAgent):
             return {
                 "agent": "data",
                 "confidence": 0.8,
-                "recommendation": "sufficient_data" if record_count >= 100 else "collect_more_data",
+                "recommendation": (
+                    "sufficient_data"
+                    if record_count >= 100
+                    else "collect_more_data"
+                ),
                 "quality_score": quality_score,
                 "record_count": record_count,
                 "issues": issues,
@@ -342,7 +378,12 @@ class DataProcessingAgent(BaseAgent):
         try:
             return {
                 "agent": "data",
-                "suggestions": ["增加数据采集频率", "优化特征提取算法", "实现数据缓存机制", "添加数据验证步骤"],
+                "suggestions": [
+                    "增加数据采集频率",
+                    "优化特征提取算法",
+                    "实现数据缓存机制",
+                    "添加数据验证步骤",
+                ],
                 "priority": "medium",
             }
         except Exception as e:

@@ -42,9 +42,15 @@ class DetailFormatter(logging.Formatter):
     """详细格式 - 用于文件"""
 
     def format(self, record: logging.LogRecord) -> str:
-        time_str = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
+        time_str = datetime.fromtimestamp(record.created).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         # 使用模块名作为来源标识，若为 PL5.xxx 则截取 xxx 部分
-        source = record.name.replace("PL5.", "", 1) if record.name.startswith("PL5.") else record.name
+        source = (
+            record.name.replace("PL5.", "", 1)
+            if record.name.startswith("PL5.")
+            else record.name
+        )
         return f"{time_str} | {record.levelname:8} | {source:20} | {record.getMessage()}"
 
 
@@ -72,11 +78,15 @@ def _get_root_logger() -> logging.Logger:
     import io
 
     if hasattr(sys.stdout, "buffer"):
-        console.setStream(io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8"))
+        console.setStream(
+            io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+        )
     pl5.addHandler(console)
 
     # 文件 handler（轮转）
-    file_handler = RotatingFileHandler(SYSTEM_LOG, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
+    file_handler = RotatingFileHandler(
+        SYSTEM_LOG, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(DetailFormatter())
     pl5.addHandler(file_handler)
@@ -85,13 +95,24 @@ def _get_root_logger() -> logging.Logger:
     python_root = logging.getLogger()
     # 避免重复添加（可能有第三方库已经设置了 handler）
     has_file = any(
-        isinstance(h, RotatingFileHandler) and h.baseFilename == str(SYSTEM_LOG) for h in python_root.handlers
+        isinstance(h, RotatingFileHandler)
+        and h.baseFilename == str(SYSTEM_LOG)
+        for h in python_root.handlers
     )
     if not has_file:
         # 添加同一个文件 handler，但使用不同的 formatter（包含 logger name）
-        root_fh = RotatingFileHandler(SYSTEM_LOG, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
+        root_fh = RotatingFileHandler(
+            SYSTEM_LOG,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
         root_fh.setLevel(logging.WARNING)  # 非 PL5 日志只记录 WARNING 及以上
-        root_fh.setFormatter(logging.Formatter("%(asctime)s | %(levelname)8s | %(name)-20s | %(message)s"))
+        root_fh.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)8s | %(name)-20s | %(message)s"
+            )
+        )
         python_root.addHandler(root_fh)
 
     _ROOT_LOGGER = pl5
@@ -238,7 +259,14 @@ def log_execution_time(func_name: str):
 def log_performance_metric(metric_name, value, unit=""):
     """记录性能指标（兼容旧版）"""
     get_logger().info(f"Performance metric: {metric_name} = {value} {unit}")
-    log_structured("INFO", "metrics", f"{metric_name}={value}{unit}", metric=metric_name, value=value, unit=unit)
+    log_structured(
+        "INFO",
+        "metrics",
+        f"{metric_name}={value}{unit}",
+        metric=metric_name,
+        value=value,
+        unit=unit,
+    )
 
 
 def log_system_status(status_message):

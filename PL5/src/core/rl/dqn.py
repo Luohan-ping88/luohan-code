@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import Tuple, Optional
+from typing import Optional
 from .replay_buffer import ReplayBuffer
 
 
@@ -55,10 +55,16 @@ class DQNAgent:
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
 
-        self.q_network = QNetwork(state_dim, action_dim, hidden_dim).to(self.device)
-        self.target_network = QNetwork(state_dim, action_dim, hidden_dim).to(self.device)
+        self.q_network = QNetwork(state_dim, action_dim, hidden_dim).to(
+            self.device
+        )
+        self.target_network = QNetwork(state_dim, action_dim, hidden_dim).to(
+            self.device
+        )
         self.target_network.load_state_dict(self.q_network.state_dict())
 
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=lr)
@@ -81,7 +87,12 @@ class DQNAgent:
         return torch.argmax(q_values).item()
 
     def store_transition(
-        self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
     ) -> None:
         """
         存储经验
@@ -95,19 +106,27 @@ class DQNAgent:
         if len(self.replay_buffer) < self.batch_size:
             return None
 
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = (
+            self.replay_buffer.sample(self.batch_size)
+        )
 
         states_tensor = torch.FloatTensor(states).to(self.device)
         actions_tensor = torch.LongTensor(actions).unsqueeze(1).to(self.device)
-        rewards_tensor = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+        rewards_tensor = (
+            torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+        )
         next_states_tensor = torch.FloatTensor(next_states).to(self.device)
         dones_tensor = torch.FloatTensor(dones).unsqueeze(1).to(self.device)
 
         current_q = self.q_network(states_tensor).gather(1, actions_tensor)
 
         with torch.no_grad():
-            next_q = self.target_network(next_states_tensor).max(1)[0].unsqueeze(1)
-            target_q = rewards_tensor + self.gamma * next_q * (1 - dones_tensor)
+            next_q = (
+                self.target_network(next_states_tensor).max(1)[0].unsqueeze(1)
+            )
+            target_q = rewards_tensor + self.gamma * next_q * (
+                1 - dones_tensor
+            )
 
         loss = self.loss_fn(current_q, target_q)
 

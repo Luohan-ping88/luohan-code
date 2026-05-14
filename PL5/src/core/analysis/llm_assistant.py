@@ -5,10 +5,8 @@ LLM辅助分析模块
 
 import json
 import logging
-import time
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +87,7 @@ class LLMAssistant:
         """分析历史模式和预测结果"""
 
         if not self.client:
-            return LLMAnalysisResult(
-                success=False, error="LLM客户端未初始化"
-            )
+            return LLMAnalysisResult(success=False, error="LLM客户端未初始化")
 
         prompt = self._build_pattern_analysis_prompt(history_data, prediction)
 
@@ -99,7 +95,10 @@ class LLMAssistant:
             response = self.client.ChatCompletion.create(
                 model=self.config.model,
                 messages=[
-                    {"role": "system", "content": "你是一个彩票预测分析专家。"},
+                    {
+                        "role": "system",
+                        "content": "你是一个彩票预测分析专家。",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=self.config.max_tokens,
@@ -121,16 +120,18 @@ class LLMAssistant:
             return LLMAnalysisResult(success=False, error=str(e))
 
     def generate_strategy(
-        self, evaluation_metrics: Dict[str, Any], historical_performance: Dict[str, Any]
+        self,
+        evaluation_metrics: Dict[str, Any],
+        historical_performance: Dict[str, Any],
     ) -> LLMAnalysisResult:
         """生成优化策略建议"""
 
         if not self.client:
-            return LLMAnalysisResult(
-                success=False, error="LLM客户端未初始化"
-            )
+            return LLMAnalysisResult(success=False, error="LLM客户端未初始化")
 
-        prompt = self._build_strategy_prompt(evaluation_metrics, historical_performance)
+        prompt = self._build_strategy_prompt(
+            evaluation_metrics, historical_performance
+        )
 
         try:
             response = self.client.ChatCompletion.create(
@@ -166,9 +167,7 @@ class LLMAssistant:
         """解释预测结果"""
 
         if not self.client:
-            return LLMAnalysisResult(
-                success=False, error="LLM客户端未初始化"
-            )
+            return LLMAnalysisResult(success=False, error="LLM客户端未初始化")
 
         prompt = self._build_explanation_prompt(prediction, features)
 
@@ -203,7 +202,9 @@ class LLMAssistant:
     ) -> str:
         """构建模式分析提示"""
 
-        recent_history = history_data[-20:] if len(history_data) > 20 else history_data
+        recent_history = (
+            history_data[-20:] if len(history_data) > 20 else history_data
+        )
 
         history_str = "\n".join(
             [
@@ -219,8 +220,8 @@ class LLMAssistant:
 
         pred_str = "\n".join(
             [
-                f"{pos}: 预测 {pred.get(pos, {}).get('top_k', [])} "
-                f"(概率: {pred.get(pos, {}).get('probabilities', [])})"
+                f"{pos}: 预测 {prediction.get(pos, {}).get('top_k', [])} "
+                f"(概率: {prediction.get(pos, {}).get('probabilities', [])})"
                 for pos in ["wan", "qian", "bai", "shi", "ge"]
             ]
         )
@@ -244,12 +245,18 @@ class LLMAssistant:
         return prompt
 
     def _build_strategy_prompt(
-        self, evaluation_metrics: Dict[str, Any], historical_performance: Dict[str, Any]
+        self,
+        evaluation_metrics: Dict[str, Any],
+        historical_performance: Dict[str, Any],
     ) -> str:
         """构建策略生成提示"""
 
-        metrics_str = json.dumps(evaluation_metrics, indent=2, ensure_ascii=False)
-        perf_str = json.dumps(historical_performance, indent=2, ensure_ascii=False)
+        metrics_str = json.dumps(
+            evaluation_metrics, indent=2, ensure_ascii=False
+        )
+        perf_str = json.dumps(
+            historical_performance, indent=2, ensure_ascii=False
+        )
 
         prompt = f"""基于以下评估指标和历史表现，生成优化策略：
 
@@ -305,7 +312,15 @@ class LLMAssistant:
             line = line.strip()
             if any(
                 marker in line
-                for marker in ["建议", "推荐", "注意", "建议:", "1.", "2.", "3."]
+                for marker in [
+                    "建议",
+                    "推荐",
+                    "注意",
+                    "建议:",
+                    "1.",
+                    "2.",
+                    "3.",
+                ]
             ):
                 clean_line = line.lstrip("0123456789.、) ").strip()
                 if clean_line and len(clean_line) > 5:
@@ -326,7 +341,9 @@ class LLMAnalysisOrchestrator:
     ) -> Dict[str, Any]:
         """综合分析并提供建议"""
 
-        pattern_analysis = self.assistant.analyze_pattern(history_data, prediction)
+        pattern_analysis = self.assistant.analyze_pattern(
+            history_data, prediction
+        )
 
         suggestions = []
         if pattern_analysis.success:

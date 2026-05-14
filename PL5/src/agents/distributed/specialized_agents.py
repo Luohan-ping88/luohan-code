@@ -3,14 +3,18 @@
 实现各种专门功能的智能体
 """
 
-import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from enum import Enum
 
-from .protocol import AgentCapability, AgentMessage, MessageType, MessagePriority
-from .base_agent import BaseAgent, CollaborativeAgent, MasterAgent, AgentTask, TaskResult
+from .protocol import (
+    AgentCapability,
+)
+from .base_agent import (
+    CollaborativeAgent,
+    MasterAgent,
+    TaskResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,17 +74,25 @@ class PredictionAgent(CollaborativeAgent):
     async def _predict(self, position: str, data: List[Any]) -> Dict[str, Any]:
         """执行预测"""
         try:
-            from src.core.models.transformer_predictor import TimeSeriesTransformer
+            from src.core.models.transformer_predictor import (
+                TimeSeriesTransformer,
+            )
             import numpy as np
 
             if len(data) < 20:
                 return {"prediction": list(range(10)), "confidence": 0.5}
 
             arr_data = np.array(data)
-            transformer = TimeSeriesTransformer(d_model=32, n_heads=4, n_layers=2)
+            transformer = TimeSeriesTransformer(
+                d_model=32, n_heads=4, n_layers=2
+            )
 
-            result = transformer.fit(arr_data, seq_len=min(20, len(data) - 1), epochs=5)
-            prediction = transformer.predict(arr_data, seq_len=min(20, len(data) - 1))
+            result = transformer.fit(
+                arr_data, seq_len=min(20, len(data) - 1), epochs=5
+            )
+            prediction = transformer.predict(
+                arr_data, seq_len=min(20, len(data) - 1)
+            )
 
             return {
                 "prediction": prediction["top_k"],
@@ -160,7 +172,9 @@ class AnalysisAgent(CollaborativeAgent):
         self.register_handler("pattern_analysis", handle_pattern_analysis)
         self.register_handler("strategy_suggestion", handle_strategy)
 
-    async def analyze_patterns(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def analyze_patterns(
+        self, data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """分析数据模式"""
         patterns = []
         frequencies = {}
@@ -171,7 +185,9 @@ class AnalysisAgent(CollaborativeAgent):
                     freq_key = f"{key}_{value}"
                     frequencies[freq_key] = frequencies.get(freq_key, 0) + 1
 
-        sorted_freq = sorted(frequencies.items(), key=lambda x: x[1], reverse=True)
+        sorted_freq = sorted(
+            frequencies.items(), key=lambda x: x[1], reverse=True
+        )
         top_patterns = [
             {"pattern": p[0], "frequency": p[1]} for p in sorted_freq[:10]
         ]
@@ -183,23 +199,29 @@ class AnalysisAgent(CollaborativeAgent):
             "timestamp": datetime.now().isoformat(),
         }
 
-    async def generate_strategy(self, evaluation: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_strategy(
+        self, evaluation: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """生成策略建议"""
         suggestions = []
 
         accuracy = evaluation.get("accuracy", 0.5)
         if accuracy < 0.4:
-            suggestions.append({
-                "type": "warning",
-                "message": "准确率偏低，建议增加模型复杂度",
-                "action": "increase_model_depth",
-            })
+            suggestions.append(
+                {
+                    "type": "warning",
+                    "message": "准确率偏低，建议增加模型复杂度",
+                    "action": "increase_model_depth",
+                }
+            )
         elif accuracy > 0.6:
-            suggestions.append({
-                "type": "success",
-                "message": "当前策略表现良好",
-                "action": "maintain",
-            })
+            suggestions.append(
+                {
+                    "type": "success",
+                    "message": "当前策略表现良好",
+                    "action": "maintain",
+                }
+            )
 
         return {
             "suggestions": suggestions,
@@ -273,7 +295,9 @@ class DataCollectionAgent(CollaborativeAgent):
             data = collector.fetch_historical_data(count=count)
 
             return {
-                "data": data if isinstance(data, list) else data.to_dict("records"),
+                "data": (
+                    data if isinstance(data, list) else data.to_dict("records")
+                ),
                 "count": len(data) if hasattr(data, "__len__") else 0,
                 "source": "local",
             }

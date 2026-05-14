@@ -89,7 +89,11 @@ class ToolResult:
         if hasattr(data, "to_dict"):
             return data.to_dict()
         if hasattr(data, "__dict__"):
-            return {k: ToolResult._serialize_data(v) for k, v in data.__dict__.items() if not k.startswith("_")}
+            return {
+                k: ToolResult._serialize_data(v)
+                for k, v in data.__dict__.items()
+                if not k.startswith("_")
+            }
         return str(data)
 
     @classmethod
@@ -106,7 +110,13 @@ class ToolResult:
             metadata=meta if meta else {},
         )
 
-    def add_error(self, code: str, message: str, severity: str = "error", details: Optional[Dict] = None):
+    def add_error(
+        self,
+        code: str,
+        message: str,
+        severity: str = "error",
+        details: Optional[Dict] = None,
+    ):
         """追加一条错误信息并标记失败"""
         self.errors.append(
             ErrorInfo(
@@ -209,13 +219,17 @@ class ToolRegistry:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def register(self, tool_class: Type["BaseTool"], name: Optional[str] = None) -> Type["BaseTool"]:
+    def register(
+        self, tool_class: Type["BaseTool"], name: Optional[str] = None
+    ) -> Type["BaseTool"]:
         """注册一个工具类"""
         reg_name = name or getattr(tool_class, "name", None)
         if not reg_name:
             raise ValueError(f"工具类 {tool_class.__name__} 缺少 name 属性")
         self._tools[reg_name] = tool_class
-        logger.debug(f"[ToolRegistry] 已注册工具: {reg_name} ({tool_class.__name__})")
+        logger.debug(
+            f"[ToolRegistry] 已注册工具: {reg_name} ({tool_class.__name__})"
+        )
         return tool_class
 
     def get(self, name: str) -> Optional[Type["BaseTool"]]:
@@ -235,11 +249,19 @@ class ToolRegistry:
 
     def list_by_layer(self, layer: ToolLayer) -> Dict[str, Type["BaseTool"]]:
         """按层级筛选工具"""
-        return {name: cls for name, cls in self._tools.items() if getattr(cls, "layer", ToolLayer.CORE) == layer}
+        return {
+            name: cls
+            for name, cls in self._tools.items()
+            if getattr(cls, "layer", ToolLayer.CORE) == layer
+        }
 
     def list_by_tag(self, tag: str) -> Dict[str, Type["BaseTool"]]:
         """按标签筛选工具"""
-        return {name: cls for name, cls in self._tools.items() if tag in getattr(cls, "tags", [])}
+        return {
+            name: cls
+            for name, cls in self._tools.items()
+            if tag in getattr(cls, "tags", [])
+        }
 
     def clear(self):
         """清空注册表（主要用于测试）"""
@@ -251,7 +273,11 @@ class ToolRegistry:
 
     def list_ai_tools(self) -> Dict[str, Type["BaseTool"]]:
         """返回适合AI调用的工具"""
-        return {k: v for k, v in self._tools.items() if hasattr(v, "ai_friendly_schema")}
+        return {
+            k: v
+            for k, v in self._tools.items()
+            if hasattr(v, "ai_friendly_schema")
+        }
 
     def get_ai_tool_info(self, tool_name: str) -> Optional[Dict]:
         """返回工具的AI友好信息"""
@@ -268,7 +294,11 @@ class ToolRegistry:
 
     def list_by_ability(self, ability: str) -> Dict[str, Type["BaseTool"]]:
         """按能力类别过滤工具"""
-        return {name: cls for name, cls in self._tools.items() if ability in getattr(cls, "tags", [])}
+        return {
+            name: cls
+            for name, cls in self._tools.items()
+            if ability in getattr(cls, "tags", [])
+        }
 
 
 _global_registry: Optional[ToolRegistry] = None
@@ -355,7 +385,6 @@ class BaseTool(ABC):
         Returns:
             ToolResult 标准化结果
         """
-        pass
 
     def validate(self, **kwargs) -> Tuple[bool, List[ErrorInfo]]:
         """验证输入参数
@@ -407,7 +436,8 @@ class BaseTool(ABC):
                             ErrorInfo(
                                 code="VALIDATION_TYPE",
                                 message=(
-                                    f"参数 '{key}' 类型不匹配: " f"期望 {expected_type}, 实际 {type(value).__name__}"
+                                    f"参数 '{key}' 类型不匹配: "
+                                    f"期望 {expected_type}, 实际 {type(value).__name__}"
                                 ),
                                 severity="warning",
                             )
@@ -418,7 +448,9 @@ class BaseTool(ABC):
     async def execute_async(self, ctx: ToolContext, **kwargs) -> ToolResult:
         """异步执行（默认使用线程池包装同步 execute）"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: self.execute(ctx, **kwargs))
+        return await loop.run_in_executor(
+            None, lambda: self.execute(ctx, **kwargs)
+        )
 
     def get_info(self) -> Dict:
         """返回工具信息描述，用于发现和文档生成"""
@@ -431,7 +463,11 @@ class BaseTool(ABC):
         return {
             "name": self.name,
             "description": self.description,
-            "layer": self.layer.value if isinstance(self.layer, ToolLayer) else str(self.layer),
+            "layer": (
+                self.layer.value
+                if isinstance(self.layer, ToolLayer)
+                else str(self.layer)
+            ),
             "tags": list(self.tags),
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
@@ -447,7 +483,9 @@ class BaseTool(ABC):
         """提供参数示例"""
         examples = {}
         if self.input_schema and "properties" in self.input_schema:
-            for param_name, param_schema in self.input_schema["properties"].items():
+            for param_name, param_schema in self.input_schema[
+                "properties"
+            ].items():
                 if "example" in param_schema:
                     examples[param_name] = param_schema["example"]
         return examples
@@ -455,16 +493,25 @@ class BaseTool(ABC):
     @property
     def ai_friendly_schema(self) -> Dict:
         """返回大模型友好的schema"""
-        schema = {"name": self.name, "description": self.description, "parameters": {}}
+        schema = {
+            "name": self.name,
+            "description": self.description,
+            "parameters": {},
+        }
         if self.input_schema and "properties" in self.input_schema:
-            for param_name, param_schema in self.input_schema["properties"].items():
+            for param_name, param_schema in self.input_schema[
+                "properties"
+            ].items():
                 schema["parameters"][param_name] = {
                     "type": param_schema.get("type", "string"),
                     "description": param_schema.get("description", ""),
-                    "required": param_name in self.input_schema.get("required", []),
+                    "required": param_name
+                    in self.input_schema.get("required", []),
                 }
                 if "example" in param_schema:
-                    schema["parameters"][param_name]["example"] = param_schema["example"]
+                    schema["parameters"][param_name]["example"] = param_schema[
+                        "example"
+                    ]
         return schema
 
     def run_safe(self, ctx: ToolContext, **kwargs) -> ToolResult:

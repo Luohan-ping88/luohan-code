@@ -4,7 +4,10 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 
-from ..ai_types import MemoryConfig, MemoryType, ConversationMessage, ExecutionRecord
+from ..ai_types import (
+    MemoryConfig,
+    MemoryType,
+)
 
 
 class BaseMemory(ABC):
@@ -33,7 +36,6 @@ class BaseMemory(ABC):
         Returns:
             是否添加成功
         """
-        pass
 
     @abstractmethod
     def get(self, key: Any = None) -> Optional[Any]:
@@ -45,7 +47,6 @@ class BaseMemory(ABC):
         Returns:
             记忆项
         """
-        pass
 
     @abstractmethod
     def get_all(self) -> List[Any]:
@@ -54,7 +55,6 @@ class BaseMemory(ABC):
         Returns:
             记忆项列表
         """
-        pass
 
     @abstractmethod
     def remove(self, key: Any) -> bool:
@@ -66,7 +66,6 @@ class BaseMemory(ABC):
         Returns:
             是否移除成功
         """
-        pass
 
     @abstractmethod
     def clear(self) -> bool:
@@ -75,7 +74,6 @@ class BaseMemory(ABC):
         Returns:
             是否清空成功
         """
-        pass
 
     @abstractmethod
     def size(self) -> int:
@@ -84,7 +82,6 @@ class BaseMemory(ABC):
         Returns:
             记忆项数量
         """
-        pass
 
     def _check_expiry(self, item: Any) -> bool:
         """检查记忆项是否过期
@@ -145,7 +142,9 @@ class MemoryFactory:
     """
 
     @staticmethod
-    def create_memory(memory_type: MemoryType, config: MemoryConfig) -> BaseMemory:
+    def create_memory(
+        memory_type: MemoryType, config: MemoryConfig
+    ) -> BaseMemory:
         """创建记忆实例
 
         Args:
@@ -193,7 +192,9 @@ class MemoryManager:
         """
         self._memories[name] = memory
 
-    def create_and_add_memory(self, name: str, memory_type: MemoryType, config: MemoryConfig) -> BaseMemory:
+    def create_and_add_memory(
+        self, name: str, memory_type: MemoryType, config: MemoryConfig
+    ) -> BaseMemory:
         """创建并添加记忆实例
 
         Args:
@@ -254,5 +255,9 @@ class MemoryManager:
         """
         stats = {}
         for name, memory in self._memories.items():
-            stats[name] = {"type": memory.memory_type.value, "size": memory.size(), "max_size": memory.max_size}
+            stats[name] = {
+                "type": memory.memory_type.value,
+                "size": memory.size(),
+                "max_size": memory.max_size,
+            }
         return stats

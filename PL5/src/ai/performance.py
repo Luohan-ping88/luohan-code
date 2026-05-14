@@ -69,7 +69,10 @@ class SimpleCache:
 
             item = self._cache[key]
             # 检查是否过期
-            if item.ttl is not None and time.time() - item.timestamp > item.ttl:
+            if (
+                item.ttl is not None
+                and time.time() - item.timestamp > item.ttl
+            ):
                 del self._cache[key]
                 self._evictions += 1
                 self._misses += 1
@@ -91,13 +94,17 @@ class SimpleCache:
 
             # 如果缓存已满，删除最旧的项
             if len(self._cache) >= self.max_size:
-                oldest_key = min(self._cache, key=lambda k: self._cache[k].timestamp)
+                oldest_key = min(
+                    self._cache, key=lambda k: self._cache[k].timestamp
+                )
                 del self._cache[oldest_key]
                 self._evictions += 1
 
             # 设置缓存
             self._cache[key] = CacheItem(
-                value=value, timestamp=time.time(), ttl=ttl if ttl is not None else self.default_ttl
+                value=value,
+                timestamp=time.time(),
+                ttl=ttl if ttl is not None else self.default_ttl,
             )
 
     def delete(self, key: str) -> bool:
@@ -149,7 +156,10 @@ class SimpleCache:
 
             item = self._cache[key]
             # 检查是否过期
-            if item.ttl is not None and time.time() - item.timestamp > item.ttl:
+            if (
+                item.ttl is not None
+                and time.time() - item.timestamp > item.ttl
+            ):
                 del self._cache[key]
                 self._evictions += 1
                 return False
@@ -193,7 +203,10 @@ class SimpleCache:
         """清理过期的缓存项"""
         expired_keys = []
         for key, item in self._cache.items():
-            if item.ttl is not None and time.time() - item.timestamp > item.ttl:
+            if (
+                item.ttl is not None
+                and time.time() - item.timestamp > item.ttl
+            ):
                 expired_keys.append(key)
 
         for key in expired_keys:
@@ -224,7 +237,12 @@ class ShardedCache:
     使用多个缓存实例来提高并发性能。
     """
 
-    def __init__(self, num_shards: int = 8, max_size_per_shard: int = 1000, default_ttl: int = 3600):
+    def __init__(
+        self,
+        num_shards: int = 8,
+        max_size_per_shard: int = 1000,
+        default_ttl: int = 3600,
+    ):
         """初始化分片缓存
 
         Args:
@@ -233,7 +251,10 @@ class ShardedCache:
             default_ttl: 默认过期时间（秒）
         """
         self.num_shards = num_shards
-        self.shards = [SimpleCache(max_size=max_size_per_shard, default_ttl=default_ttl) for _ in range(num_shards)]
+        self.shards = [
+            SimpleCache(max_size=max_size_per_shard, default_ttl=default_ttl)
+            for _ in range(num_shards)
+        ]
 
     def _get_shard(self, key: str) -> SimpleCache:
         """根据键获取对应的分片
@@ -505,7 +526,9 @@ class RateLimiter:
         with self._lock:
             # 清理过期的调用记录
             now = time.time()
-            self.calls = [call for call in self.calls if now - call < self.period]
+            self.calls = [
+                call for call in self.calls if now - call < self.period
+            ]
 
             # 检查是否超过限制
             if len(self.calls) < self.max_calls:
@@ -568,21 +591,30 @@ class PerformanceMonitor:
             执行时间（秒）
         """
         with self._lock:
-            if name not in self.metrics or self.metrics[name]["start_time"] is None:
+            if (
+                name not in self.metrics
+                or self.metrics[name]["start_time"] is None
+            ):
                 return 0
 
             execution_time = time.time() - self.metrics[name]["start_time"]
             self.metrics[name]["count"] += 1
             self.metrics[name]["total_time"] += execution_time
-            self.metrics[name]["min_time"] = min(self.metrics[name]["min_time"], execution_time)
-            self.metrics[name]["max_time"] = max(self.metrics[name]["max_time"], execution_time)
+            self.metrics[name]["min_time"] = min(
+                self.metrics[name]["min_time"], execution_time
+            )
+            self.metrics[name]["max_time"] = max(
+                self.metrics[name]["max_time"], execution_time
+            )
             self.metrics[name]["start_time"] = None
 
             # 存储执行时间
             self._execution_times[name].append(execution_time)
             # 限制存储的执行时间数量
             if len(self._execution_times[name]) > 1000:
-                self._execution_times[name] = self._execution_times[name][-1000:]
+                self._execution_times[name] = self._execution_times[name][
+                    -1000:
+                ]
 
             # 记录到文件
             if self.log_file:
@@ -624,7 +656,9 @@ class PerformanceMonitor:
                 if len(self._execution_times.get(name, [])) > 1:
                     import statistics
 
-                    metric["std_dev"] = statistics.stdev(self._execution_times[name])
+                    metric["std_dev"] = statistics.stdev(
+                        self._execution_times[name]
+                    )
                 else:
                     metric["std_dev"] = 0
             else:
@@ -982,7 +1016,9 @@ class AsyncTaskQueue:
                 async with self._semaphore:
                     task_future = asyncio.create_task(self._execute_task(task))
                     self._tasks.add(task_future)
-                    task_future.add_done_callback(lambda f: self._tasks.remove(f))
+                    task_future.add_done_callback(
+                        lambda f: self._tasks.remove(f)
+                    )
 
     async def _execute_task(self, task):
         """执行单个任务
@@ -1040,7 +1076,9 @@ class LoadBalancer:
         self.services = {}
         self.health_checks = {}
 
-    def register_service(self, service_id: str, service_url: str, weight: int = 1):
+    def register_service(
+        self, service_id: str, service_url: str, weight: int = 1
+    ):
         """注册服务
 
         Args:
@@ -1048,7 +1086,12 @@ class LoadBalancer:
             service_url: 服务URL
             weight: 服务权重
         """
-        self.services[service_id] = {"url": service_url, "weight": weight, "health": True, "last_check": time.time()}
+        self.services[service_id] = {
+            "url": service_url,
+            "weight": weight,
+            "health": True,
+            "last_check": time.time(),
+        }
         # 启动健康检查
         self.health_checks[service_id] = self._start_health_check(service_id)
 
@@ -1071,7 +1114,11 @@ class LoadBalancer:
             服务URL
         """
         # 过滤健康的服务
-        healthy_services = [(service_id, info) for service_id, info in self.services.items() if info["health"]]
+        healthy_services = [
+            (service_id, info)
+            for service_id, info in self.services.items()
+            if info["health"]
+        ]
 
         if not healthy_services:
             return None
@@ -1112,7 +1159,9 @@ class LoadBalancer:
                     import aiohttp
 
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(f"{service_info['url']}/api/health") as response:
+                        async with session.get(
+                            f"{service_info['url']}/api/health"
+                        ) as response:
                             service_info["health"] = response.status == 200
                 except Exception:
                     service_info["health"] = False
@@ -1139,7 +1188,11 @@ class AutoScaler:
     """
 
     def __init__(
-        self, min_instances: int = 1, max_instances: int = 10, cpu_threshold: float = 0.7, memory_threshold: float = 0.8
+        self,
+        min_instances: int = 1,
+        max_instances: int = 10,
+        cpu_threshold: float = 0.7,
+        memory_threshold: float = 0.8,
     ):
         """初始化自动扩展器
 
@@ -1178,11 +1231,21 @@ class AutoScaler:
         decision = {"action": "no_change", "instances": current_instances}
 
         # 扩展逻辑
-        if cpu_usage > self.cpu_threshold or memory_usage > self.memory_threshold:
+        if (
+            cpu_usage > self.cpu_threshold
+            or memory_usage > self.memory_threshold
+        ):
             if current_instances < self.max_instances:
                 new_instance_id = self._create_instance()
-                decision = {"action": "scale_up", "instances": current_instances + 1, "instance_id": new_instance_id}
-        elif cpu_usage < self.cpu_threshold * 0.5 and memory_usage < self.memory_threshold * 0.5:
+                decision = {
+                    "action": "scale_up",
+                    "instances": current_instances + 1,
+                    "instance_id": new_instance_id,
+                }
+        elif (
+            cpu_usage < self.cpu_threshold * 0.5
+            and memory_usage < self.memory_threshold * 0.5
+        ):
             if current_instances > self.min_instances:
                 removed_instance_id = self._remove_instance()
                 decision = {
@@ -1203,7 +1266,11 @@ class AutoScaler:
         self.instance_counter += 1
 
         # 这里只是模拟创建实例，实际应该启动一个新的服务实例
-        self.instances[instance_id] = {"id": instance_id, "status": "running", "created_at": time.time()}
+        self.instances[instance_id] = {
+            "id": instance_id,
+            "status": "running",
+            "created_at": time.time(),
+        }
 
         return instance_id
 
@@ -1217,7 +1284,9 @@ class AutoScaler:
             return None
 
         # 移除最早创建的实例
-        oldest_instance = min(self.instances.items(), key=lambda x: x[1]["created_at"])
+        oldest_instance = min(
+            self.instances.items(), key=lambda x: x[1]["created_at"]
+        )
         instance_id = oldest_instance[0]
         del self.instances[instance_id]
 

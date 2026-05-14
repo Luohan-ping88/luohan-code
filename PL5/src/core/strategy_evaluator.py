@@ -13,11 +13,10 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Optional
 from datetime import datetime
 
-from src.core.config import DATA_DIR, MODELS_DIR
+from src.core.config import MODELS_DIR
 from src.core.models.enhanced_predictor import EnhancedPL5Predictor
 from src.core.data.collector import PL5DataCollector
 from src.core.features.engineer import FeatureEngineer
@@ -29,7 +28,17 @@ _STRATEGY_HISTORY_PATH = MODELS_DIR / "strategy_evaluation_history.json"
 # 位置名称（与 EnhancedPL5Predictor.POSITIONS 一致）
 POSITION_NAMES = ["wan", "qian", "bai", "shi", "ge"]
 # 排除列（非特征列）
-NON_FEATURE_COLS = ["period", "date", "full_number", "parse_line", "wan", "qian", "bai", "shi", "ge"]
+NON_FEATURE_COLS = [
+    "period",
+    "date",
+    "full_number",
+    "parse_line",
+    "wan",
+    "qian",
+    "bai",
+    "shi",
+    "ge",
+]
 
 
 class StrategyEvaluator:
@@ -55,7 +64,9 @@ class StrategyEvaluator:
         """保存策略评估历史"""
         try:
             with open(_STRATEGY_HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.evaluation_history, f, indent=2, ensure_ascii=False)
+                json.dump(
+                    self.evaluation_history, f, indent=2, ensure_ascii=False
+                )
         except Exception as e:
             logger.error(f"保存策略评估历史失败: {e}")
 
@@ -65,42 +76,72 @@ class StrategyEvaluator:
             "default": {
                 "name": "默认策略",
                 "description": "使用所有模型的默认权重",
-                "model_weights": {"stacking": 0.4, "hmm": 0.2, "copula": 0.2, "bsts": 0.2},
+                "model_weights": {
+                    "stacking": 0.4,
+                    "hmm": 0.2,
+                    "copula": 0.2,
+                    "bsts": 0.2,
+                },
                 "feature_selection": "all",
                 "ensemble_method": "weighted_average",
             },
             "stacking_dominant": {
                 "name": "Stacking主导策略",
                 "description": "Stacking模型权重更高",
-                "model_weights": {"stacking": 0.7, "hmm": 0.1, "copula": 0.1, "bsts": 0.1},
+                "model_weights": {
+                    "stacking": 0.7,
+                    "hmm": 0.1,
+                    "copula": 0.1,
+                    "bsts": 0.1,
+                },
                 "feature_selection": "all",
                 "ensemble_method": "weighted_average",
             },
             "hmm_dominant": {
                 "name": "HMM主导策略",
                 "description": "HMM模型权重更高",
-                "model_weights": {"stacking": 0.1, "hmm": 0.7, "copula": 0.1, "bsts": 0.1},
+                "model_weights": {
+                    "stacking": 0.1,
+                    "hmm": 0.7,
+                    "copula": 0.1,
+                    "bsts": 0.1,
+                },
                 "feature_selection": "all",
                 "ensemble_method": "weighted_average",
             },
             "copula_dominant": {
                 "name": "Copula主导策略",
                 "description": "Copula模型权重更高",
-                "model_weights": {"stacking": 0.1, "hmm": 0.1, "copula": 0.7, "bsts": 0.1},
+                "model_weights": {
+                    "stacking": 0.1,
+                    "hmm": 0.1,
+                    "copula": 0.7,
+                    "bsts": 0.1,
+                },
                 "feature_selection": "all",
                 "ensemble_method": "weighted_average",
             },
             "rfe_features": {
                 "name": "RFE特征选择策略",
                 "description": "使用RFE选择的特征",
-                "model_weights": {"stacking": 0.4, "hmm": 0.2, "copula": 0.2, "bsts": 0.2},
+                "model_weights": {
+                    "stacking": 0.4,
+                    "hmm": 0.2,
+                    "copula": 0.2,
+                    "bsts": 0.2,
+                },
                 "feature_selection": "rfe",
                 "ensemble_method": "weighted_average",
             },
             "voting_ensemble": {
                 "name": "投票集成策略",
                 "description": "使用投票而非加权平均",
-                "model_weights": {"stacking": 0.25, "hmm": 0.25, "copula": 0.25, "bsts": 0.25},
+                "model_weights": {
+                    "stacking": 0.25,
+                    "hmm": 0.25,
+                    "copula": 0.25,
+                    "bsts": 0.25,
+                },
                 "feature_selection": "all",
                 "ensemble_method": "voting",
             },
@@ -108,7 +149,10 @@ class StrategyEvaluator:
         return strategies
 
     def _build_feature_matrix(
-        self, df_raw: pd.DataFrame, feature_cols: List[str], select_top: Optional[int] = None
+        self,
+        df_raw: pd.DataFrame,
+        feature_cols: List[str],
+        select_top: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         对原始数据提取特征，返回包含特征列的 DataFrame。
@@ -118,11 +162,18 @@ class StrategyEvaluator:
             feature_cols: 特征列名列表
             select_top: 传给 extract_all_features 的 select_top，None 表示全量特征
         """
-        df_features = self.engineer.extract_all_features(df_raw, select_top=select_top)
+        df_features = self.engineer.extract_all_features(
+            df_raw, select_top=select_top
+        )
         return df_features
 
     def evaluate_strategy(
-        self, strategy_name: str, strategy: Dict, df_raw: pd.DataFrame, feature_cols: List[str], test_window: int = 20
+        self,
+        strategy_name: str,
+        strategy: Dict,
+        df_raw: pd.DataFrame,
+        feature_cols: List[str],
+        test_window: int = 20,
     ) -> Dict:
         """
         评估单个策略的效果（逐期回测）。
@@ -142,20 +193,31 @@ class StrategyEvaluator:
             test_start_idx = n_total - test_window
 
             if test_start_idx < 100:
-                logger.warning(f"测试窗口 {test_window} 过大（数据仅 {n_total} 行），缩小至可用范围")
+                logger.warning(
+                    f"测试窗口 {test_window} 过大（数据仅 {n_total} 行），缩小至可用范围"
+                )
                 test_start_idx = max(0, n_total - max(5, n_total - 100))
                 test_window = n_total - test_start_idx
 
             # 加载模型（只需加载一次）
             if not self.predictor.load_models():
                 logger.warning("模型加载失败")
-                return {"strategy_name": strategy_name, "success": False, "error": "模型加载失败"}
+                return {
+                    "strategy_name": strategy_name,
+                    "success": False,
+                    "error": "模型加载失败",
+                }
 
             # 应用策略配置
             self._apply_strategy_config(strategy)
 
             # 回测策略效果
-            results = {"strategy_name": strategy_name, "strategy_config": strategy, "positions": {}, "overall": {}}
+            results = {
+                "strategy_name": strategy_name,
+                "strategy_config": strategy,
+                "positions": {},
+                "overall": {},
+            }
 
             total_top1_hits = 0
             total_top3_hits = 0
@@ -163,7 +225,9 @@ class StrategyEvaluator:
             total_top8_hits = 0
 
             for pos in POSITION_NAMES:
-                pos_results = self._backtest_position(pos, df_raw, test_start_idx, test_window, feature_cols)
+                pos_results = self._backtest_position(
+                    pos, df_raw, test_start_idx, test_window, feature_cols
+                )
                 results["positions"][pos] = pos_results
 
                 total_top1_hits += pos_results["top1_hits"]
@@ -174,10 +238,18 @@ class StrategyEvaluator:
             # 计算总体指标
             total_tests = test_window * 5
             results["overall"] = {
-                "top1_accuracy": total_top1_hits / total_tests if total_tests > 0 else 0,
-                "top3_accuracy": total_top3_hits / total_tests if total_tests > 0 else 0,
-                "top5_accuracy": total_top5_hits / total_tests if total_tests > 0 else 0,
-                "top8_accuracy": total_top8_hits / total_tests if total_tests > 0 else 0,
+                "top1_accuracy": (
+                    total_top1_hits / total_tests if total_tests > 0 else 0
+                ),
+                "top3_accuracy": (
+                    total_top3_hits / total_tests if total_tests > 0 else 0
+                ),
+                "top5_accuracy": (
+                    total_top5_hits / total_tests if total_tests > 0 else 0
+                ),
+                "top8_accuracy": (
+                    total_top8_hits / total_tests if total_tests > 0 else 0
+                ),
                 "total_tests": total_tests,
                 "top1_hits": total_top1_hits,
                 "top3_hits": total_top3_hits,
@@ -200,16 +272,24 @@ class StrategyEvaluator:
 
         except Exception as e:
             logger.error(f"评估策略 {strategy_name} 失败: {e}", exc_info=True)
-            return {"strategy_name": strategy_name, "success": False, "error": str(e)}
+            return {
+                "strategy_name": strategy_name,
+                "success": False,
+                "error": str(e),
+            }
 
     def _apply_strategy_config(self, strategy: Dict):
         """应用策略配置到预测器"""
         # 这里可以根据策略配置调整预测器的行为
         # 例如：调整模型权重、特征选择等
-        pass
 
     def _backtest_position(
-        self, position: str, df_raw: pd.DataFrame, test_start_idx: int, test_window: int, feature_cols: List[str]
+        self,
+        position: str,
+        df_raw: pd.DataFrame,
+        test_start_idx: int,
+        test_window: int,
+        feature_cols: List[str],
     ) -> Dict:
         """
         回测单个位置。
@@ -238,17 +318,23 @@ class StrategyEvaluator:
             df_train = df_raw.iloc[:target_idx]
 
             if len(df_train) < 50:
-                logger.debug(f"位置 {position} 第 {i} 期: 训练数据不足 ({len(df_train)} 行), 跳过")
+                logger.debug(
+                    f"位置 {position} 第 {i} 期: 训练数据不足 ({len(df_train)} 行), 跳过"
+                )
                 continue
 
             try:
                 # 提取特征（与生产预测路径一致：select_top=None，避免RFE选出不同特征导致维度不匹配）
-                logger.info(f"_backtest_position: 调用 extract_all_features 时 select_top=None（特征漂移已修复）")
+                logger.info(
+                    f"_backtest_position: 调用 extract_all_features 时 select_top=None（特征漂移已修复）"
+                )
                 df_features = self.engineer.extract_all_features(
                     df_train, select_top=None, feature_selection_method="rfe"
                 )
                 if df_features.empty or len(df_features) == 0:
-                    logger.debug(f"位置 {position} 第 {i} 期: 特征提取结果为空, 跳过")
+                    logger.debug(
+                        f"位置 {position} 第 {i} 期: 特征提取结果为空, 跳过"
+                    )
                     continue
 
                 # 取最后一行的特征向量
@@ -269,11 +355,15 @@ class StrategyEvaluator:
                             features_list.append(0.0)
 
                 if len(features_list) == 0:
-                    logger.debug(f"位置 {position} 第 {i} 期: 特征数为 0, 跳过")
+                    logger.debug(
+                        f"位置 {position} 第 {i} 期: 特征数为 0, 跳过"
+                    )
                     continue
 
                 features = np.array(features_list, dtype=np.float64)
-                logger.info(f"_backtest_position: 提取的特征维度: {len(features)}")
+                logger.info(
+                    f"_backtest_position: 提取的特征维度: {len(features)}"
+                )
 
                 # 准备最近的原始数据，用于 HMM 等时序模型
                 recent_original_data = {}
@@ -281,7 +371,9 @@ class StrategyEvaluator:
                     if pos_name in df_train.columns:
                         # 取最近 20 期的数据，用于 HMM 预测
                         recent_data = (
-                            df_train[pos_name].values[-20:] if len(df_train) >= 20 else df_train[pos_name].values
+                            df_train[pos_name].values[-20:]
+                            if len(df_train) >= 20
+                            else df_train[pos_name].values
                         )
                         recent_original_data[pos_name] = recent_data
 
@@ -295,12 +387,16 @@ class StrategyEvaluator:
                 )
 
                 if position not in predictions:
-                    logger.debug(f"位置 {position} 第 {i} 期: 预测结果中无该位置, 跳过")
+                    logger.debug(
+                        f"位置 {position} 第 {i} 期: 预测结果中无该位置, 跳过"
+                    )
                     continue
 
                 pos_pred = predictions[position]
                 if "top_k" not in pos_pred:
-                    logger.debug(f"位置 {position} 第 {i} 期: 预测结果中无 top_k, 跳过")
+                    logger.debug(
+                        f"位置 {position} 第 {i} 期: 预测结果中无 top_k, 跳过"
+                    )
                     continue
 
                 top_k = pos_pred["top_k"]
@@ -319,12 +415,15 @@ class StrategyEvaluator:
             except Exception as e:
                 predict_errors += 1
                 logger.debug(
-                    f"位置 {position} 第 {i} 期 (target_idx={target_idx}) 预测失败: " f"{type(e).__name__}: {e}"
+                    f"位置 {position} 第 {i} 期 (target_idx={target_idx}) 预测失败: "
+                    f"{type(e).__name__}: {e}"
                 )
                 continue
 
         if predict_errors > 0:
-            logger.warning(f"位置 {position} 回测完成: {predict_errors}/{test_window} 期预测出错")
+            logger.warning(
+                f"位置 {position} 回测完成: {predict_errors}/{test_window} 期预测出错"
+            )
 
         return {
             "top1_hits": top1_hits,
@@ -339,7 +438,9 @@ class StrategyEvaluator:
             "top8_accuracy": top8_hits / total_tests if total_tests > 0 else 0,
         }
 
-    def evaluate_all_strategies(self, test_window: int = 20, target_duration_minutes: int = 45) -> Dict:
+    def evaluate_all_strategies(
+        self, test_window: int = 20, target_duration_minutes: int = 45
+    ) -> Dict:
         """评估所有策略（智能动态调整版本）"""
         logger.info("=" * 80)
         logger.info("开始评估所有策略（智能动态调整版本）")
@@ -351,7 +452,9 @@ class StrategyEvaluator:
         # 加载原始数据
         df_raw = self.collector.load_processed_data()
         if df_raw is None or len(df_raw) < 100:
-            logger.error(f"数据不足: {len(df_raw) if df_raw is not None else 0} 行")
+            logger.error(
+                f"数据不足: {len(df_raw) if df_raw is not None else 0} 行"
+            )
             return {
                 "timestamp": datetime.now().isoformat(),
                 "test_window": test_window,
@@ -375,10 +478,14 @@ class StrategyEvaluator:
         logger.info(f"提取特征：使用前 {len(df_train_1)} 期数据")
 
         # 提取特征（与生产预测路径一致：select_top=None，避免RFE选出不同特征子集）
-        df_features_1 = self.engineer.extract_all_features(df_train_1, select_top=None, feature_selection_method="rfe")
+        df_features_1 = self.engineer.extract_all_features(
+            df_train_1, select_top=None, feature_selection_method="rfe"
+        )
 
         # 确定特征列
-        feature_cols = [col for col in df_features_1.columns if col not in NON_FEATURE_COLS]
+        feature_cols = [
+            col for col in df_features_1.columns if col not in NON_FEATURE_COLS
+        ]
         logger.info(f"特征列数: {len(feature_cols)}")
 
         strategies = self.define_strategies()
@@ -387,7 +494,12 @@ class StrategyEvaluator:
         # 先评估所有策略（1期）
         for strategy_name, strategy in strategies.items():
             result = self._evaluate_strategy_simple(
-                strategy_name, strategy, df_raw, df_features_1, test_start_idx_1, test_window_1
+                strategy_name,
+                strategy,
+                df_raw,
+                df_features_1,
+                test_start_idx_1,
+                test_window_1,
             )
             results[strategy_name] = result
 
@@ -408,7 +520,9 @@ class StrategyEvaluator:
 
             # 根据剩余时间动态调整窗口大小
             if remaining_time > 30:
-                test_window_2 = min(10, n_total // 10)  # 至少10期，最多总数据的1/10
+                test_window_2 = min(
+                    10, n_total // 10
+                )  # 至少10期，最多总数据的1/10
             elif remaining_time > 20:
                 test_window_2 = min(5, n_total // 20)  # 5期
             else:
@@ -423,7 +537,11 @@ class StrategyEvaluator:
 
                 # 使用原来的回测方法
                 result_deep = self.evaluate_strategy(
-                    best_name, strategies[best_name], df_raw, feature_cols, test_window_2
+                    best_name,
+                    strategies[best_name],
+                    df_raw,
+                    feature_cols,
+                    test_window_2,
                 )
                 results[best_name] = result_deep
 
@@ -474,7 +592,11 @@ class StrategyEvaluator:
             # 加载模型（只需加载一次）
             if not self.predictor.load_models():
                 logger.warning("模型加载失败")
-                return {"strategy_name": strategy_name, "success": False, "error": "模型加载失败"}
+                return {
+                    "strategy_name": strategy_name,
+                    "success": False,
+                    "error": "模型加载失败",
+                }
 
             # 应用策略配置
             self._apply_strategy_config(strategy)
@@ -505,7 +627,11 @@ class StrategyEvaluator:
             df_train = df_raw.iloc[:target_idx]
             for pos_name in POSITION_NAMES:
                 if pos_name in df_train.columns:
-                    recent_data = df_train[pos_name].values[-20:] if len(df_train) >= 20 else df_train[pos_name].values
+                    recent_data = (
+                        df_train[pos_name].values[-20:]
+                        if len(df_train) >= 20
+                        else df_train[pos_name].values
+                    )
                     recent_original_data[pos_name] = recent_data
 
             # 调用 predict
@@ -518,7 +644,12 @@ class StrategyEvaluator:
             )
 
             # 统计命中情况
-            results = {"strategy_name": strategy_name, "strategy_config": strategy, "positions": {}, "overall": {}}
+            results = {
+                "strategy_name": strategy_name,
+                "strategy_config": strategy,
+                "positions": {},
+                "overall": {},
+            }
 
             total_top1_hits = 0
             total_top3_hits = 0
@@ -583,7 +714,11 @@ class StrategyEvaluator:
 
         except Exception as e:
             logger.error(f"评估策略 {strategy_name} 失败: {e}", exc_info=True)
-            return {"strategy_name": strategy_name, "success": False, "error": str(e)}
+            return {
+                "strategy_name": strategy_name,
+                "success": False,
+                "error": str(e),
+            }
 
     def _find_best_strategy(self, results: Dict) -> Dict:
         """找出最佳策略"""
@@ -596,7 +731,11 @@ class StrategyEvaluator:
                 score = result["overall"].get("top3_accuracy", 0)
                 if score > best_score:
                     best_score = score
-                    best_strategy = {"name": strategy_name, "score": score, "details": result}
+                    best_strategy = {
+                        "name": strategy_name,
+                        "score": score,
+                        "details": result,
+                    }
 
         return best_strategy
 
@@ -614,13 +753,17 @@ class StrategyEvaluator:
         report.append(f"测试窗口: {evaluation_result.get('test_window')} 期\n")
 
         # 表头
-        report.append(f"{'策略名称':<20} {'Top-1':<8} {'Top-3':<8} {'Top-5':<8} {'Top-8':<8} {'状态':<10}")
+        report.append(
+            f"{'策略名称':<20} {'Top-1':<8} {'Top-3':<8} {'Top-5':<8} {'Top-8':<8} {'状态':<10}"
+        )
         report.append("-" * 80)
 
         for strategy_name, result in strategies.items():
             if result.get("success", False):
                 overall = result.get("overall", {})
-                marker = " 🏆" if best and best.get("name") == strategy_name else ""
+                marker = (
+                    " 🏆" if best and best.get("name") == strategy_name else ""
+                )
                 report.append(
                     f"{strategy_name:<20} "
                     f"{overall.get('top1_accuracy', 0):.4f}{'':<4} "

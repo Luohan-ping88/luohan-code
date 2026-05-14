@@ -9,7 +9,6 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-import numpy as np
 
 
 class FeatureCacheManager:
@@ -136,7 +135,11 @@ class FeatureCacheManager:
             "hits": self._hit_count,
             "misses": self._miss_count,
             "hit_rate": self._hit_count / total if total > 0 else 0.0,
-            "utilization": len(self._cache) / self._max_size if self._max_size > 0 else 0.0,
+            "utilization": (
+                len(self._cache) / self._max_size
+                if self._max_size > 0
+                else 0.0
+            ),
         }
 
     def __len__(self):

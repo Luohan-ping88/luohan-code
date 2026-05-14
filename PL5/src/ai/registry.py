@@ -4,7 +4,6 @@
 """
 
 from typing import Dict, List, Optional, Callable
-from dataclasses import dataclass
 import threading
 
 from .ai_types import ToolInfo, ToolCategory, ToolResult
@@ -34,7 +33,10 @@ class ToolRegistry:
             tool_info: 工具信息
             tool_function: 工具执行函数
         """
-        self._tools[tool_info.name] = {"info": tool_info, "function": tool_function}
+        self._tools[tool_info.name] = {
+            "info": tool_info,
+            "function": tool_function,
+        }
 
         # 按分类索引
         if tool_info.category not in self._tools_by_category:
@@ -134,10 +136,16 @@ class ToolRegistry:
         try:
             result = tool_function(parameters)
             if not isinstance(result, ToolResult):
-                return ToolResult(success=False, error=f"Tool '{name}' returned invalid result type")
+                return ToolResult(
+                    success=False,
+                    error=f"Tool '{name}' returned invalid result type",
+                )
             return result
         except Exception as e:
-            return ToolResult(success=False, error=f"Tool '{name}' execution failed: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=f"Tool '{name}' execution failed: {str(e)}",
+            )
 
     def get_stats(self) -> Dict:
         """获取注册表统计信息
@@ -145,7 +153,11 @@ class ToolRegistry:
         Returns:
             统计信息
         """
-        stats = {"total_tools": len(self._tools), "tools_by_category": {}, "tools_by_tag": {}}
+        stats = {
+            "total_tools": len(self._tools),
+            "tools_by_category": {},
+            "tools_by_tag": {},
+        }
 
         for category, tools in self._tools_by_category.items():
             stats["tools_by_category"][category.value] = len(tools)
@@ -178,7 +190,11 @@ def reset_registry() -> None:
 
 
 def register_tool(
-    name: str, description: str, parameters: List, category: ToolCategory = ToolCategory.CUSTOM, tags: List[str] = None
+    name: str,
+    description: str,
+    parameters: List,
+    category: ToolCategory = ToolCategory.CUSTOM,
+    tags: List[str] = None,
 ) -> Callable:
     """工具注册装饰器
 
@@ -213,7 +229,13 @@ def register_tool(
             # 支持字典格式
             tool_parameters.append(ToolParameter(**param))
 
-    tool_info = ToolInfo(name=name, description=description, parameters=tool_parameters, category=category, tags=tags)
+    tool_info = ToolInfo(
+        name=name,
+        description=description,
+        parameters=tool_parameters,
+        category=category,
+        tags=tags,
+    )
 
     def decorator(func):
         registry = get_registry()

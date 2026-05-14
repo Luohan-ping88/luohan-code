@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .base import (
-    BaseTool,
     ErrorInfo,
     ToolContext,
     ToolResult,
@@ -66,7 +65,9 @@ class WorkflowStep:
             "parallel_group": self.parallel_group,
         }
         if self.condition is not None:
-            d["condition"] = f"{self.condition.__module__}.{self.condition.__qualname__}"
+            d["condition"] = (
+                f"{self.condition.__module__}.{self.condition.__qualname__}"
+            )
         else:
             d["condition"] = None
         return d
@@ -247,7 +248,9 @@ class Workflow:
         反序列化后条件分支中的 condition 将设为 None，
         需要调用方手动重新设置。
         """
-        wf = cls(name=data.get("name", ""), description=data.get("description", ""))
+        wf = cls(
+            name=data.get("name", ""), description=data.get("description", "")
+        )
         wf.state = data.get("state", {})
         for sd in data.get("steps", []):
             step = WorkflowStep(
@@ -262,8 +265,14 @@ class Workflow:
             )
             if sd.get("is_branch"):
                 step.is_branch = True
-                step.args["__true_steps__"] = [WorkflowStep(**ts) for ts in sd.get("branch_true_steps", [])]
-                step.args["__false_steps__"] = [WorkflowStep(**fs) for fs in sd.get("branch_false_steps", [])]
+                step.args["__true_steps__"] = [
+                    WorkflowStep(**ts)
+                    for ts in sd.get("branch_true_steps", [])
+                ]
+                step.args["__false_steps__"] = [
+                    WorkflowStep(**fs)
+                    for fs in sd.get("branch_false_steps", [])
+                ]
             wf.add_step(step)
         return wf
 
@@ -271,7 +280,11 @@ class Workflow:
         return len(self.steps)
 
     def __repr__(self) -> str:
-        return f"Workflow(name={self.name!r}, " f"steps={len(self.steps)}, " f"description={self.description!r})"
+        return (
+            f"Workflow(name={self.name!r}, "
+            f"steps={len(self.steps)}, "
+            f"description={self.description!r})"
+        )
 
 
 # ── 执行引擎 ──────────────────────────────────────────────────
@@ -332,7 +345,9 @@ class WorkflowEngine:
         self.default_timeout: float = 300.0
         self.execution_history: List[Dict] = []
 
-    async def execute_async(self, workflow: Workflow, ctx: ToolContext) -> WorkflowResult:
+    async def execute_async(
+        self, workflow: Workflow, ctx: ToolContext
+    ) -> WorkflowResult:
         """异步执行工作流
 
         使用 asyncio 并发执行并行组内的步骤，
@@ -365,7 +380,9 @@ class WorkflowEngine:
         )
 
         has_parallel_groups = any(s.parallel_group for s in workflow.steps)
-        has_branches = any(getattr(s, "is_branch", False) for s in workflow.steps)
+        has_branches = any(
+            getattr(s, "is_branch", False) for s in workflow.steps
+        )
 
         try:
             if has_branches:
@@ -399,7 +416,9 @@ class WorkflowEngine:
                 )
                 last_output = self._extract_last_output(results)
         except Exception as e:
-            logger.exception(f"[WorkflowEngine] 工作流 '{workflow.name}' 异常终止")
+            logger.exception(
+                f"[WorkflowEngine] 工作流 '{workflow.name}' 异常终止"
+            )
             errors.append(
                 ErrorInfo(
                     code="WORKFLOW_EXCEPTION",
@@ -410,7 +429,9 @@ class WorkflowEngine:
             )
 
         total_ms = (time.time() - start_time) * 1000
-        all_success = all(r.success for r in results.values()) if results else False
+        all_success = (
+            all(r.success for r in results.values()) if results else False
+        )
 
         wf_result = WorkflowResult(
             success=all_success and len(errors) == 0,
@@ -468,11 +489,17 @@ class WorkflowEngine:
             if loop.is_running():
                 import concurrent.futures
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, self.execute_async(workflow, ctx))
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=1
+                ) as pool:
+                    future = pool.submit(
+                        asyncio.run, self.execute_async(workflow, ctx)
+                    )
                     return future.result()
             else:
-                return loop.run_until_complete(self.execute_async(workflow, ctx))
+                return loop.run_until_complete(
+                    self.execute_async(workflow, ctx)
+                )
         except RuntimeError:
             return asyncio.run(self.execute_async(workflow, ctx))
 
@@ -507,12 +534,15 @@ class WorkflowEngine:
             named_outputs[step_key] = step_result.data
 
             if not step_result.success and not step.continue_on_error:
-                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 失败且未设置 continue_on_error，中止工作流")
+                logger.warning(
+                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 失败且未设置 continue_on_error，中止工作流"
+                )
                 break
 
         total_ms = (time.time() - start_time) * 1000
         return WorkflowResult(
-            success=all(r.success for r in results.values()) and len(errors) == 0,
+            success=all(r.success for r in results.values())
+            and len(errors) == 0,
             results=results,
             final_output=last_output,
             execution_log=execution_log,
@@ -540,7 +570,9 @@ class WorkflowEngine:
             parallel_groups = self._group_by_parallel(flat_steps)
             linear_steps = [s for s in flat_steps if s.parallel_group is None]
             for step in linear_steps:
-                step_key = getattr(step, "_internal_id", f"step_{len(results)}")
+                step_key = getattr(
+                    step, "_internal_id", f"step_{len(results)}"
+                )
                 step_result = self._execute_single_step(
                     step,
                     step_key,
@@ -558,7 +590,12 @@ class WorkflowEngine:
 
             for group_name, group_steps in parallel_groups.items():
                 group_results = self._execute_parallel(
-                    group_steps, ctx, named_outputs, last_output, execution_log, errors
+                    group_steps,
+                    ctx,
+                    named_outputs,
+                    last_output,
+                    execution_log,
+                    errors,
                 )
                 results.update(group_results)
                 for sk, sr in group_results.items():
@@ -566,7 +603,9 @@ class WorkflowEngine:
                     last_output = sr.data
         else:
             for step in flat_steps:
-                step_key = getattr(step, "_internal_id", f"step_{len(results)}")
+                step_key = getattr(
+                    step, "_internal_id", f"step_{len(results)}"
+                )
                 step_result = self._execute_single_step(
                     step,
                     step_key,
@@ -584,7 +623,8 @@ class WorkflowEngine:
 
         total_ms = (time.time() - start_time) * 1000
         return WorkflowResult(
-            success=all(r.success for r in results.values()) and len(errors) == 0,
+            success=all(r.success for r in results.values())
+            and len(errors) == 0,
             results=results,
             final_output=last_output,
             execution_log=execution_log,
@@ -628,7 +668,9 @@ class WorkflowEngine:
                     results[step_key] = step_result
                 except Exception as e:
                     step = futures[future]
-                    step_key = getattr(step, "_internal_id", f"parallel_err_{id(step)}")
+                    step_key = getattr(
+                        step, "_internal_id", f"parallel_err_{id(step)}"
+                    )
                     err_result = ToolResult.error_result(
                         f"并行步骤异常: {str(e)}",
                         code="PARALLEL_STEP_ERROR",
@@ -692,7 +734,9 @@ class WorkflowEngine:
             parallel_groups = self._group_by_parallel(flat_steps)
             linear_steps = [s for s in flat_steps if s.parallel_group is None]
             for step in linear_steps:
-                step_key = getattr(step, "_internal_id", f"step_{len(results)}")
+                step_key = getattr(
+                    step, "_internal_id", f"step_{len(results)}"
+                )
                 step_result = await self._async_execute_single_step(
                     step,
                     step_key,
@@ -723,7 +767,9 @@ class WorkflowEngine:
                     last_output = sr.data
         else:
             for step in flat_steps:
-                step_key = getattr(step, "_internal_id", f"step_{len(results)}")
+                step_key = getattr(
+                    step, "_internal_id", f"step_{len(results)}"
+                )
                 step_result = await self._async_execute_single_step(
                     step,
                     step_key,
@@ -758,7 +804,9 @@ class WorkflowEngine:
         for item in order_preserved:
             if item["type"] == "single":
                 step = item["step"]
-                step_key = getattr(step, "_internal_id", f"step_{len(results)}")
+                step_key = getattr(
+                    step, "_internal_id", f"step_{len(results)}"
+                )
                 step_result = await self._async_execute_single_step(
                     step,
                     step_key,
@@ -803,7 +851,9 @@ class WorkflowEngine:
 
         async def _bounded_run(step: WorkflowStep) -> Tuple[str, ToolResult]:
             async with semaphore:
-                step_key = getattr(step, "_internal_id", f"async_parallel_{id(step)}")
+                step_key = getattr(
+                    step, "_internal_id", f"async_parallel_{id(step)}"
+                )
                 result = await self._async_execute_single_step(
                     step,
                     step_key,
@@ -820,7 +870,9 @@ class WorkflowEngine:
 
         for i, outcome in enumerate(completed):
             step = steps[i]
-            step_key = getattr(step, "_internal_id", f"async_parallel_{id(step)}")
+            step_key = getattr(
+                step, "_internal_id", f"async_parallel_{id(step)}"
+            )
             if isinstance(outcome, Exception):
                 err_result = ToolResult.error_result(
                     f"异步并行步骤异常: {str(outcome)}",
@@ -875,7 +927,9 @@ class WorkflowEngine:
                         "status": "skipped",
                         "reason": "condition_evaluated_false",
                         "end_time": time.time(),
-                        "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                        "elapsed_ms": round(
+                            (time.time() - step_start) * 1000, 2
+                        ),
                     }
                 )
                 skipped_result = ToolResult.success_result(
@@ -927,12 +981,16 @@ class WorkflowEngine:
                 break
             except _StepTimeoutError as e:
                 last_error = e
-                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试超时")
+                logger.warning(
+                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试超时"
+                )
                 if attempt <= step.retry_count:
                     time.sleep(step.retry_delay)
             except Exception as e:
                 last_error = e
-                logger.warning(f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试异常: {e}")
+                logger.warning(
+                    f"[WorkflowEngine] 步骤 '{step.tool_name}' 第 {attempt} 次尝试异常: {e}"
+                )
                 if attempt <= step.retry_count:
                     time.sleep(step.retry_delay)
 
@@ -955,7 +1013,9 @@ class WorkflowEngine:
                     "elapsed_ms": round((time.time() - step_start) * 1000, 2),
                 }
             )
-            return ToolResult.error_result(err_msg, code="STEP_EXECUTION_FAILED")
+            return ToolResult.error_result(
+                err_msg, code="STEP_EXECUTION_FAILED"
+            )
 
         elapsed_ms = (time.time() - step_start) * 1000
         log_entry.update(
@@ -966,7 +1026,9 @@ class WorkflowEngine:
                 "elapsed_ms": round(elapsed_ms, 2),
                 "end_time": time.time(),
                 "output_keys": (
-                    list(result.data.keys()) if isinstance(result.data, dict) else type(result.data).__name__
+                    list(result.data.keys())
+                    if isinstance(result.data, dict)
+                    else type(result.data).__name__
                 ),
             }
         )
@@ -1016,7 +1078,9 @@ class WorkflowEngine:
                         "status": "skipped",
                         "reason": "condition_evaluated_false",
                         "end_time": time.time(),
-                        "elapsed_ms": round((time.time() - step_start) * 1000, 2),
+                        "elapsed_ms": round(
+                            (time.time() - step_start) * 1000, 2
+                        ),
                     }
                 )
                 return ToolResult.success_result(
@@ -1096,7 +1160,9 @@ class WorkflowEngine:
                     "elapsed_ms": round((time.time() - step_start) * 1000, 2),
                 }
             )
-            return ToolResult.error_result(err_msg, code="STEP_EXECUTION_FAILED")
+            return ToolResult.error_result(
+                err_msg, code="STEP_EXECUTION_FAILED"
+            )
 
         elapsed_ms = (time.time() - step_start) * 1000
         log_entry.update(
@@ -1148,7 +1214,9 @@ class WorkflowEngine:
                     ref_name = val.split(".")[0]
                     ref_path = val[len(ref_name) + 1 :]
                     if ref_name in named_outputs:
-                        return self._get_nested(named_outputs[ref_name], ref_path)
+                        return self._get_nested(
+                            named_outputs[ref_name], ref_path
+                        )
                     if ref_name == "$prev":
                         return self._get_nested(source_output, ref_path)
                 if val.startswith("$") and val not in ("$prev",):
@@ -1196,7 +1264,11 @@ class WorkflowEngine:
                         use_true = True
                 else:
                     use_true = True
-                chosen = step.args.get("__true_steps__", []) if use_true else step.args.get("__false_steps__", [])
+                chosen = (
+                    step.args.get("__true_steps__", [])
+                    if use_true
+                    else step.args.get("__false_steps__", [])
+                )
                 for cs in chosen:
                     cs_copy = copy.deepcopy(cs)
                     flattened.append(cs_copy)
@@ -1205,7 +1277,9 @@ class WorkflowEngine:
         return flattened
 
     @staticmethod
-    def _group_by_parallel(steps: List[WorkflowStep]) -> Dict[str, List[WorkflowStep]]:
+    def _group_by_parallel(
+        steps: List[WorkflowStep],
+    ) -> Dict[str, List[WorkflowStep]]:
         """按 parallel_group 分组"""
         groups: Dict[str, List[WorkflowStep]] = {}
         for step in steps:
@@ -1220,7 +1294,10 @@ class WorkflowEngine:
         current_group = None
         for step in steps:
             if step.parallel_group:
-                if current_group is None or current_group["group_name"] != step.parallel_group:
+                if (
+                    current_group is None
+                    or current_group["group_name"] != step.parallel_group
+                ):
                     if current_group is not None:
                         result.append(current_group)
                     current_group = {
@@ -1372,7 +1449,9 @@ class BuiltInWorkflows:
                     "actual_results": "$config.recent_actuals",
                 },
                 continue_on_error=True,
-                condition=lambda state: state.get("has_evaluation_data", False),
+                condition=lambda state: state.get(
+                    "has_evaluation_data", False
+                ),
             )
         )
         return wf
@@ -1579,7 +1658,9 @@ class BuiltInWorkflows:
             description="诊断检查流程: 并行执行模型/权重/缓存诊断",
         )
         wf.add_parallel(
-            WorkflowStep(tool_name="model_analyzer", args={"load_model": True}),
+            WorkflowStep(
+                tool_name="model_analyzer", args={"load_model": True}
+            ),
             WorkflowStep(tool_name="weight_analyzer", args={}),
             WorkflowStep(tool_name="cache", args={"operation": "stats"}),
         )
@@ -1632,5 +1713,8 @@ class BuiltInWorkflows:
         if callable(method):
             return method()
         available = list(BuiltInWorkflows.list_templates().keys())
-        logger.warning(f"[BuiltInWorkflows] 未找到模板 '{name}'，" f"可用模板: {available}")
+        logger.warning(
+            f"[BuiltInWorkflows] 未找到模板 '{name}'，"
+            f"可用模板: {available}"
+        )
         return None

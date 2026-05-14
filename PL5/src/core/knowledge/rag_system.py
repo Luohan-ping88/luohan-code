@@ -2,8 +2,7 @@
 RAG 知识检索系统
 """
 
-from typing import Dict, Any, List, Optional
-import numpy as np
+from typing import Dict, Any, List
 
 
 class PL5KnowledgeRAG:
@@ -17,7 +16,9 @@ class PL5KnowledgeRAG:
         """添加模式到知识库"""
         self.patterns.append(pattern)
 
-    def search_similar_patterns(self, query: Dict[str, Any], top_k: int = 5) -> List[Dict[str, Any]]:
+    def search_similar_patterns(
+        self, query: Dict[str, Any], top_k: int = 5
+    ) -> List[Dict[str, Any]]:
         """搜索相似模式"""
         # 简化实现，返回空列表
         return []

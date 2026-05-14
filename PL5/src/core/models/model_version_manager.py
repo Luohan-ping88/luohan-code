@@ -14,7 +14,7 @@ import logging
 import pickle
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
@@ -73,9 +73,21 @@ def _compute_checksum(data_dict: Dict[str, Any]) -> str:
             # 对于StackingEnsemble，只保存关键信息而不是完整对象
             safe_data[key] = {
                 "type": "StackingEnsemble",
-                "base_config": value.get("base_config", {}) if isinstance(value, dict) else {},
-                "meta_config": value.get("meta_config", {}) if isinstance(value, dict) else {},
-                "_fitted": value.get("_fitted", False) if isinstance(value, dict) else False,
+                "base_config": (
+                    value.get("base_config", {})
+                    if isinstance(value, dict)
+                    else {}
+                ),
+                "meta_config": (
+                    value.get("meta_config", {})
+                    if isinstance(value, dict)
+                    else {}
+                ),
+                "_fitted": (
+                    value.get("_fitted", False)
+                    if isinstance(value, dict)
+                    else False
+                ),
             }
         elif key in ("feature_cols", "model_version", "timestamp"):
             # 简单字段直接保存
@@ -88,7 +100,9 @@ def _compute_checksum(data_dict: Dict[str, Any]) -> str:
             safe_data[key] = {"type": type(value).__name__}
 
     # 计算哈希
-    serialized = json.dumps(safe_data, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    serialized = json.dumps(
+        safe_data, sort_keys=True, ensure_ascii=False
+    ).encode("utf-8")
     return hashlib.sha256(serialized).hexdigest()
 
 
@@ -129,14 +143,18 @@ class ModelVersionManager:
                 with open(self.version_log_path, "r", encoding="utf-8") as f:
                     self._change_logs = json.load(f)
             except Exception as e:
-                logger.warning(f"[VersionManager] 加载变更日志失败: {e}, 将创建新日志")
+                logger.warning(
+                    f"[VersionManager] 加载变更日志失败: {e}, 将创建新日志"
+                )
                 self._change_logs = []
 
     def _save_change_logs(self):
         """持久化变更日志"""
         try:
             with open(self.version_log_path, "w", encoding="utf-8") as f:
-                json.dump(self._change_logs[-500:], f, ensure_ascii=False, indent=2)
+                json.dump(
+                    self._change_logs[-500:], f, ensure_ascii=False, indent=2
+                )
         except Exception as e:
             logger.error(f"[VersionManager] 保存变更日志失败: {e}")
 
@@ -175,7 +193,9 @@ class ModelVersionManager:
         training_samples: int = 0,
     ) -> Dict[str, Any]:
         """将模型数据包装为 V10.0 完整格式"""
-        meta = self.build_v10_metadata(model_data, performance_metrics, training_samples)
+        meta = self.build_v10_metadata(
+            model_data, performance_metrics, training_samples
+        )
         v10_data = dict(model_data)
         v10_data["metadata"] = asdict(meta)
         checksum = _compute_checksum(v10_data)
@@ -187,7 +207,10 @@ class ModelVersionManager:
         """检测模型数据版本"""
         if "_v10_checksum" in state and "metadata" in state:
             meta = state.get("metadata", {})
-            if isinstance(meta, dict) and meta.get("version") == CURRENT_VERSION:
+            if (
+                isinstance(meta, dict)
+                and meta.get("version") == CURRENT_VERSION
+            ):
                 return CURRENT_VERSION
         if "model_version" in state:
             return str(state.get("model_version", "V9.0"))
@@ -206,7 +229,9 @@ class ModelVersionManager:
         training_samples = 0
         stacking = v9_state.get("stacking", {})
         if isinstance(stacking, dict) and stacking:
-            training_samples = max(len(feature_cols) * 100, len(feature_cols) * 50)
+            training_samples = max(
+                len(feature_cols) * 100, len(feature_cols) * 50
+            )
 
         meta = ModelMetadata(
             version=CURRENT_VERSION,
@@ -238,10 +263,14 @@ class ModelVersionManager:
             )
         )
 
-        logger.info(f"[VersionManager] 迁移完成 | checksum: {checksum_after[:16]}...")
+        logger.info(
+            f"[VersionManager] 迁移完成 | checksum: {checksum_after[:16]}..."
+        )
         return v10_state
 
-    def validate_model_integrity(self, model_path: Optional[Path] = None) -> Dict[str, Any]:
+    def validate_model_integrity(
+        self, model_path: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """
         校验模型文件完整性和必要字段
 
@@ -279,14 +308,21 @@ class ModelVersionManager:
 
         result["version"] = self.detect_version(state)
 
-        required_fields_v10 = ["stacking", "hmm_models", "copula_model", "bsts_models"]
+        required_fields_v10 = [
+            "stacking",
+            "hmm_models",
+            "copula_model",
+            "bsts_models",
+        ]
         for rf in required_fields_v10:
             if rf not in state:
                 result["errors"].append(f"Missing required field: {rf}")
 
         if result["version"] == CURRENT_VERSION:
             if "metadata" not in state:
-                result["warnings"].append("V10.0 format missing 'metadata' field")
+                result["warnings"].append(
+                    "V10.0 format missing 'metadata' field"
+                )
             else:
                 meta = state["metadata"]
                 result["metadata"] = meta
@@ -300,9 +336,13 @@ class ModelVersionManager:
                 if not meta.get("created_at"):
                     result["warnings"].append("Missing created_at in metadata")
                 if not meta.get("model_params_hash"):
-                    result["warnings"].append("Missing model_params_hash in metadata")
+                    result["warnings"].append(
+                        "Missing model_params_hash in metadata"
+                    )
         else:
-            result["warnings"].append(f"Legacy format detected ({result['version']}), consider migration")
+            result["warnings"].append(
+                f"Legacy format detected ({result['version']}), consider migration"
+            )
 
         stacking = state.get("stacking", {})
         if not isinstance(stacking, dict) or len(stacking) == 0:
@@ -323,7 +363,9 @@ class ModelVersionManager:
         """创建模型备份，返回备份文件名"""
         src_path = model_path or (self.models_dir / MODEL_FILENAME)
         if not src_path.exists():
-            logger.warning(f"[VersionManager] 无法备份, 文件不存在: {src_path}")
+            logger.warning(
+                f"[VersionManager] 无法备份, 文件不存在: {src_path}"
+            )
             return ""
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -365,7 +407,9 @@ class ModelVersionManager:
                     "filename": bp.name,
                     "path": str(bp),
                     "size_kb": round(stat.st_size / 1024, 1),
-                    "created_time": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "created_time": datetime.fromtimestamp(
+                        stat.st_ctime
+                    ).isoformat(),
                 }
             )
         return backups
@@ -379,12 +423,18 @@ class ModelVersionManager:
 
         target_path = self.models_dir / MODEL_FILENAME
 
-        validation_before = self.validate_model_integrity(target_path) if target_path.exists() else None
+        validation_before = (
+            self.validate_model_integrity(target_path)
+            if target_path.exists()
+            else None
+        )
 
         try:
             if target_path.exists():
                 current_backup = self.create_backup(target_path)
-                logger.info(f"[VersionManager] 回滚前自动备份当前版本: {current_backup}")
+                logger.info(
+                    f"[VersionManager] 回滚前自动备份当前版本: {current_backup}"
+                )
 
             shutil.copy2(backup_path, target_path)
 
@@ -394,18 +444,34 @@ class ModelVersionManager:
                 VersionChangeLog(
                     timestamp=datetime.now().isoformat(),
                     operation="rollback",
-                    from_version=validation_before.get("version") if validation_before else "unknown",
+                    from_version=(
+                        validation_before.get("version")
+                        if validation_before
+                        else "unknown"
+                    ),
                     to_version=validation_after.get("version"),
                     operator="system",
                     description=f"Rolled back to backup: {backup_filename}",
                     checksum_before=(
-                        validation_before.get("metadata", {}).get("checksum", "") if validation_before else ""
+                        validation_before.get("metadata", {}).get(
+                            "checksum", ""
+                        )
+                        if validation_before
+                        else ""
                     ),
-                    checksum_after=validation_after.get("metadata", {}).get("checksum", "") if validation_after else "",
+                    checksum_after=(
+                        validation_after.get("metadata", {}).get(
+                            "checksum", ""
+                        )
+                        if validation_after
+                        else ""
+                    ),
                 )
             )
 
-            logger.info(f"[VersionManager] 回滚成功: {backup_filename} -> {target_path}")
+            logger.info(
+                f"[VersionManager] 回滚成功: {backup_filename} -> {target_path}"
+            )
             return True
         except Exception as e:
             logger.error(f"[VersionManager] 回滚失败: {e}")
@@ -425,7 +491,10 @@ class ModelVersionManager:
                     candidate = bk
                     break
                 meta = state.get("metadata", {})
-                if isinstance(meta, dict) and meta.get("version") == version_str:
+                if (
+                    isinstance(meta, dict)
+                    and meta.get("version") == version_str
+                ):
                     candidate = bk
                     break
             except Exception:

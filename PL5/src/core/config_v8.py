@@ -49,7 +49,11 @@ MODEL_CONFIG: Dict[str, Any] = {
 }
 
 # 训练配置
-TRAINING_CONFIG: Dict[str, Any] = {"test_size": 0.2, "random_state": 42, "n_splits": 5}
+TRAINING_CONFIG: Dict[str, Any] = {
+    "test_size": 0.2,
+    "random_state": 42,
+    "n_splits": 5,
+}
 
 # 特征配置
 FEATURE_CONFIG: Dict[str, Any] = {
@@ -74,7 +78,9 @@ def setup_logging(name: str) -> logging.Logger:
         console_handler.setLevel(logging.INFO)
 
         # 格式化器
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         console_handler.setFormatter(formatter)
 
         logger.addHandler(console_handler)

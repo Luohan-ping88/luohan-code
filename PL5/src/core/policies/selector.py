@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 import logging
 import numpy as np
-from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -34,7 +33,9 @@ class ContextFeatures:
     temporal_features: Dict[str, Any] = field(default_factory=dict)
     custom_features: Dict[str, Any] = field(default_factory=dict)
 
-    def to_vector(self, feature_order: Optional[List[str]] = None) -> np.ndarray:
+    def to_vector(
+        self, feature_order: Optional[List[str]] = None
+    ) -> np.ndarray:
         """将特征转换为向量"""
         all_features = {**self.numerical_features}
         if feature_order:
@@ -92,11 +93,15 @@ class ContextFeatureExtractor:
         if not self._is_fitted or not features.numerical_features:
             return features
 
-        numerical_array = np.array(list(features.numerical_features.values())).reshape(1, -1)
+        numerical_array = np.array(
+            list(features.numerical_features.values())
+        ).reshape(1, -1)
         scaled_array = self.scaler.transform(numerical_array)
 
         scaled_features = ContextFeatures(
-            numerical_features=dict(zip(features.numerical_features.keys(), scaled_array[0])),
+            numerical_features=dict(
+                zip(features.numerical_features.keys(), scaled_array[0])
+            ),
             categorical_features=features.categorical_features,
             temporal_features=features.temporal_features,
             custom_features=features.custom_features,
@@ -107,10 +112,15 @@ class ContextFeatureExtractor:
 class ContextAwareSelector:
     """上下文感知策略选择器"""
 
-    def __init__(self, selection_strategy: SelectionStrategy = SelectionStrategy.BEST_MATCH):
+    def __init__(
+        self,
+        selection_strategy: SelectionStrategy = SelectionStrategy.BEST_MATCH,
+    ):
         self.selection_strategy = selection_strategy
         self.feature_extractor = ContextFeatureExtractor()
-        self._policy_contexts: Dict[str, Tuple[str, ContextFeatures, Dict[str, float]]] = {}
+        self._policy_contexts: Dict[
+            str, Tuple[str, ContextFeatures, Dict[str, float]]
+        ] = {}
         self._confidence_threshold = 0.5
 
     def register_policy_context(
@@ -137,7 +147,9 @@ class ContextAwareSelector:
         )
         logger.info(f"策略 {policy_name} v{policy_version} 上下文特征已注册")
 
-    def calculate_similarity(self, context1: ContextFeatures, context2: ContextFeatures) -> float:
+    def calculate_similarity(
+        self, context1: ContextFeatures, context2: ContextFeatures
+    ) -> float:
         """
         计算两个上下文之间的相似度
 
@@ -194,7 +206,9 @@ class ContextAwareSelector:
         return max(0.0, min(1.0, confidence))
 
     def match_policies(
-        self, current_context: ContextFeatures, policy_performances: Optional[Dict[str, Dict[str, float]]] = None
+        self,
+        current_context: ContextFeatures,
+        policy_performances: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> List[PolicyMatch]:
         """
         匹配策略
@@ -209,7 +223,12 @@ class ContextAwareSelector:
         policy_performances = policy_performances or {}
         matches = []
 
-        for key, (name, version, context, weights) in self._policy_contexts.items():
+        for key, (
+            name,
+            version,
+            context,
+            weights,
+        ) in self._policy_contexts.items():
             similarity = self.calculate_similarity(current_context, context)
             perf = policy_performances.get(name, {})
             confidence = self.calculate_confidence(similarity, perf, weights)

@@ -3,7 +3,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, AsyncQueue
+from typing import Dict, Any, Optional, AsyncQueue
 from datetime import datetime
 from enum import Enum, auto
 import asyncio
@@ -65,7 +65,11 @@ class Message:
                 "priority": self.header.priority.value,
                 "created_at": self.header.created_at.isoformat(),
                 "correlation_id": self.header.correlation_id,
-                "timestamp": self.header.timestamp.isoformat() if self.header.timestamp else None,
+                "timestamp": (
+                    self.header.timestamp.isoformat()
+                    if self.header.timestamp
+                    else None
+                ),
             },
             "content": self.content,
             "metadata": self.metadata,
@@ -82,9 +86,17 @@ class Message:
             priority=MessagePriority(data["header"]["priority"]),
             created_at=datetime.fromisoformat(data["header"]["created_at"]),
             correlation_id=data["header"]["correlation_id"],
-            timestamp=datetime.fromisoformat(data["header"]["timestamp"]) if data["header"].get("timestamp") else None,
+            timestamp=(
+                datetime.fromisoformat(data["header"]["timestamp"])
+                if data["header"].get("timestamp")
+                else None
+            ),
         )
-        return cls(header=header, content=data["content"], metadata=data.get("metadata", {}))
+        return cls(
+            header=header,
+            content=data["content"],
+            metadata=data.get("metadata", {}),
+        )
 
 
 class MessageQueue:
@@ -106,9 +118,13 @@ class MessageQueue:
         """发送消息"""
         try:
             if message.header.receiver_id:
-                queue = await self.get_or_create_queue(message.header.receiver_id)
+                queue = await self.get_or_create_queue(
+                    message.header.receiver_id
+                )
                 await queue.put(message)
-                logger.debug(f"消息发送成功: {message.header.message_id} -> {message.header.receiver_id}")
+                logger.debug(
+                    f"消息发送成功: {message.header.message_id} -> {message.header.receiver_id}"
+                )
                 return True
             else:
                 await self.broadcast(message)
@@ -126,7 +142,9 @@ class MessageQueue:
                 except asyncio.QueueFull:
                     logger.warning(f"队列满: {agent_id}, 消息丢弃")
 
-    async def receive_message(self, agent_id: str, timeout: Optional[float] = None) -> Optional[Message]:
+    async def receive_message(
+        self, agent_id: str, timeout: Optional[float] = None
+    ) -> Optional[Message]:
         """接收消息"""
         queue = await self.get_or_create_queue(agent_id)
         try:
@@ -198,7 +216,9 @@ class CommunicationProtocol:
             async with self._lock:
                 self._pending_requests.pop(message_id, None)
 
-    async def send_response(self, request: Message, content: Dict[str, Any], success: bool = True) -> bool:
+    async def send_response(
+        self, request: Message, content: Dict[str, Any], success: bool = True
+    ) -> bool:
         """发送响应"""
         header = MessageHeader(
             sender_id=request.header.receiver_id or "unknown",
@@ -232,10 +252,17 @@ class CommunicationProtocol:
         return await self.message_queue.send_message(ack_message)
 
     async def send_broadcast(
-        self, sender_id: str, content: Dict[str, Any], priority: MessagePriority = MessagePriority.NORMAL
+        self,
+        sender_id: str,
+        content: Dict[str, Any],
+        priority: MessagePriority = MessagePriority.NORMAL,
     ) -> bool:
         """广播消息"""
-        header = MessageHeader(sender_id=sender_id, message_type=MessageType.BROADCAST, priority=priority)
+        header = MessageHeader(
+            sender_id=sender_id,
+            message_type=MessageType.BROADCAST,
+            priority=priority,
+        )
         message = Message(header=header, content=content)
         await self.message_queue.broadcast(message)
         return True
@@ -249,15 +276,22 @@ class CommunicationProtocol:
     ) -> bool:
         """发送通知"""
         header = MessageHeader(
-            sender_id=sender_id, receiver_id=receiver_id, message_type=MessageType.NOTIFICATION, priority=priority
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            message_type=MessageType.NOTIFICATION,
+            priority=priority,
         )
         message = Message(header=header, content=content)
         return await self.message_queue.send_message(message)
 
-    async def listen(self, agent_id: str, handler, timeout: Optional[float] = None) -> None:
+    async def listen(
+        self, agent_id: str, handler, timeout: Optional[float] = None
+    ) -> None:
         """监听消息队列"""
         while True:
-            message = await self.message_queue.receive_message(agent_id, timeout=timeout)
+            message = await self.message_queue.receive_message(
+                agent_id, timeout=timeout
+            )
             if message:
                 await handler(message)
             else:

@@ -9,10 +9,8 @@ import os
 import shutil
 import json
 import time
-import logging
 import hashlib
 import zipfile
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -55,13 +53,19 @@ class BackupManager:
         }
 
         # 自动备份策略
-        self.auto_backup = {"enabled": True, "interval": 24, "last_backup": None}  # 小时
+        self.auto_backup = {
+            "enabled": True,
+            "interval": 24,
+            "last_backup": None,
+        }  # 小时
 
         logger.info(f"备份管理器初始化完成，备份目录: {self.backup_dir}")
         if self.encryption:
             logger.info("备份加密功能已启用")
 
-    def create_backup(self, backup_name: Optional[str] = None) -> Dict[str, Any]:
+    def create_backup(
+        self, backup_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """创建备份
 
         Args:
@@ -133,7 +137,12 @@ class BackupManager:
 
         except Exception as e:
             logger.error(f"创建备份失败: {str(e)}")
-            return {"backup_id": "error", "timestamp": datetime.now().isoformat(), "status": "failed", "error": str(e)}
+            return {
+                "backup_id": "error",
+                "timestamp": datetime.now().isoformat(),
+                "status": "failed",
+                "error": str(e),
+            }
 
     def restore_backup(self, backup_id: str) -> Dict[str, Any]:
         """恢复备份
@@ -190,7 +199,9 @@ class BackupManager:
                 if backup_item_path.exists():
                     try:
                         # 先备份当前数据（以防恢复失败）
-                        temp_backup = Path(f"{item_path}_temp_{int(time.time())}")
+                        temp_backup = Path(
+                            f"{item_path}_temp_{int(time.time())}"
+                        )
                         if item_path.exists():
                             if item_path.is_dir():
                                 shutil.copytree(item_path, temp_backup)
@@ -235,7 +246,9 @@ class BackupManager:
                                     shutil.copy2(temp_backup, item_path)
                                 logger.info(f"恢复临时备份成功")
                             except Exception as restore_e:
-                                logger.error(f"恢复临时备份失败: {str(restore_e)}")
+                                logger.error(
+                                    f"恢复临时备份失败: {str(restore_e)}"
+                                )
 
                         restore_result["items"][item_name] = f"失败: {str(e)}"
                         logger.error(f"恢复 {item_name} 失败: {str(e)}")
@@ -487,7 +500,9 @@ class BackupManager:
             return True
 
         last_backup_time = datetime.fromisoformat(last_backup)
-        time_since_last_backup = (datetime.now() - last_backup_time).total_seconds() / 3600  # 小时
+        time_since_last_backup = (
+            datetime.now() - last_backup_time
+        ).total_seconds() / 3600  # 小时
 
         return time_since_last_backup >= self.auto_backup["interval"]
 

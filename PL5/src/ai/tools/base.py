@@ -47,7 +47,6 @@ class BaseTool(ABC):
         Returns:
             工具执行结果
         """
-        pass
 
     def get_info(self) -> ToolInfo:
         """获取工具信息
@@ -57,7 +56,9 @@ class BaseTool(ABC):
         """
         return self.tool_info
 
-    def validate_parameters(self, parameters: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate_parameters(
+        self, parameters: Dict[str, Any]
+    ) -> tuple[bool, Optional[str]]:
         """验证参数
 
         Args:
@@ -79,14 +80,19 @@ class BaseTool(ABC):
                     return False, f"Parameter {param.name} must be a string"
                 elif param.type == "int" and not isinstance(value, int):
                     return False, f"Parameter {param.name} must be an integer"
-                elif param.type == "float" and not isinstance(value, (int, float)):
+                elif param.type == "float" and not isinstance(
+                    value, (int, float)
+                ):
                     return False, f"Parameter {param.name} must be a number"
                 elif param.type == "bool" and not isinstance(value, bool):
                     return False, f"Parameter {param.name} must be a boolean"
                 elif param.type == "list" and not isinstance(value, list):
                     return False, f"Parameter {param.name} must be a list"
                 elif param.type == "dict" and not isinstance(value, dict):
-                    return False, f"Parameter {param.name} must be a dictionary"
+                    return (
+                        False,
+                        f"Parameter {param.name} must be a dictionary",
+                    )
 
         return True, None
 
@@ -108,7 +114,9 @@ class BaseTool(ABC):
         try:
             return self.run(parameters)
         except Exception as e:
-            return ToolResult(success=False, error=f"Tool execution failed: {str(e)}")
+            return ToolResult(
+                success=False, error=f"Tool execution failed: {str(e)}"
+            )
 
     @classmethod
     def get_tool_class_info(cls) -> ToolInfo:

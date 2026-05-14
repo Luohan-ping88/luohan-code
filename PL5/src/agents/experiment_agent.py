@@ -2,14 +2,12 @@
 实验设计智能体 - 负责实验设计、特征选择、模型对比实验
 """
 
-import asyncio
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from datetime import datetime
 import logging
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
-from pathlib import Path
 
 from .base_agent import BaseAgent, AgentTask, AgentResult
 
@@ -119,31 +117,52 @@ class ExperimentDesignAgent(BaseAgent):
 
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            return AgentResult(task_id=task.task_id, success=True, data=result_data, execution_time=execution_time)
+            return AgentResult(
+                task_id=task.task_id,
+                success=True,
+                data=result_data,
+                execution_time=execution_time,
+            )
 
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             logger.error(f"[{self.name}] 任务执行失败: {str(e)}")
 
             return AgentResult(
-                task_id=task.task_id, success=False, data={}, execution_time=execution_time, error_message=str(e)
+                task_id=task.task_id,
+                success=False,
+                data={},
+                execution_time=execution_time,
+                error_message=str(e),
             )
 
-    async def _feature_selection(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _feature_selection(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """特征选择"""
         data = params.get("data")
         target_col = params.get("target_col")
-        method = params.get("method", "importance")  # importance, correlation, mutual_info
+        method = params.get(
+            "method", "importance"
+        )  # importance, correlation, mutual_info
         n_features = params.get("n_features", 50)
 
-        logger.info(f"[{self.name}] 开始特征选择: method={method}, n_features={n_features}")
+        logger.info(
+            f"[{self.name}] 开始特征选择: method={method}, n_features={n_features}"
+        )
 
         if method == "importance":
-            selected_features = await self._select_by_importance(data, target_col, n_features)
+            selected_features = await self._select_by_importance(
+                data, target_col, n_features
+            )
         elif method == "correlation":
-            selected_features = await self._select_by_correlation(data, target_col, n_features)
+            selected_features = await self._select_by_correlation(
+                data, target_col, n_features
+            )
         elif method == "mutual_info":
-            selected_features = await self._select_by_mutual_info(data, target_col, n_features)
+            selected_features = await self._select_by_mutual_info(
+                data, target_col, n_features
+            )
         else:
             raise ValueError(f"未知的特征选择方法: {method}")
 
@@ -151,22 +170,31 @@ class ExperimentDesignAgent(BaseAgent):
             "selected_features": selected_features,
             "method": method,
             "n_features": len(selected_features),
-            "feature_scores": self.feature_importance_cache.get(target_col, {}),
+            "feature_scores": self.feature_importance_cache.get(
+                target_col, {}
+            ),
         }
 
-    async def _select_by_importance(self, data: pd.DataFrame, target_col: str, n_features: int) -> List[str]:
+    async def _select_by_importance(
+        self, data: pd.DataFrame, target_col: str, n_features: int
+    ) -> List[str]:
         """基于特征重要性选择"""
         from sklearn.ensemble import RandomForestClassifier
 
         # 准备数据
         feature_cols = [
-            c for c in data.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in data.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
         X = data[feature_cols].fillna(0)
         y = data[target_col]
 
         # 训练随机森林获取重要性
-        rf = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
+        rf = RandomForestClassifier(
+            n_estimators=50, random_state=42, n_jobs=-1
+        )
         rf.fit(X, y)
 
         # 获取重要性
@@ -174,15 +202,22 @@ class ExperimentDesignAgent(BaseAgent):
         self.feature_importance_cache[target_col] = importances
 
         # 选择Top-N
-        sorted_features = sorted(importances.items(), key=lambda x: x[1], reverse=True)
+        sorted_features = sorted(
+            importances.items(), key=lambda x: x[1], reverse=True
+        )
         selected = [f for f, _ in sorted_features[:n_features]]
 
         return selected
 
-    async def _select_by_correlation(self, data: pd.DataFrame, target_col: str, n_features: int) -> List[str]:
+    async def _select_by_correlation(
+        self, data: pd.DataFrame, target_col: str, n_features: int
+    ) -> List[str]:
         """基于相关性选择"""
         feature_cols = [
-            c for c in data.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in data.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
 
         correlations = {}
@@ -192,17 +227,24 @@ class ExperimentDesignAgent(BaseAgent):
                 correlations[col] = corr
 
         # 选择Top-N
-        sorted_features = sorted(correlations.items(), key=lambda x: x[1], reverse=True)
+        sorted_features = sorted(
+            correlations.items(), key=lambda x: x[1], reverse=True
+        )
         selected = [f for f, _ in sorted_features[:n_features]]
 
         return selected
 
-    async def _select_by_mutual_info(self, data: pd.DataFrame, target_col: str, n_features: int) -> List[str]:
+    async def _select_by_mutual_info(
+        self, data: pd.DataFrame, target_col: str, n_features: int
+    ) -> List[str]:
         """基于互信息选择"""
         from sklearn.feature_selection import mutual_info_classif
 
         feature_cols = [
-            c for c in data.columns if c not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
+            c
+            for c in data.columns
+            if c
+            not in ["period", "full_number", "wan", "qian", "bai", "shi", "ge"]
         ]
         X = data[feature_cols].fillna(0)
         y = data[target_col]
@@ -212,12 +254,16 @@ class ExperimentDesignAgent(BaseAgent):
 
         # 选择Top-N
         feature_scores = dict(zip(feature_cols, mi_scores))
-        sorted_features = sorted(feature_scores.items(), key=lambda x: x[1], reverse=True)
+        sorted_features = sorted(
+            feature_scores.items(), key=lambda x: x[1], reverse=True
+        )
         selected = [f for f, _ in sorted_features[:n_features]]
 
         return selected
 
-    async def _design_experiment(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _design_experiment(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """设计实验"""
         base_config = params.get("base_config")
         variants = params.get("variants", [])
@@ -241,7 +287,10 @@ class ExperimentDesignAgent(BaseAgent):
             self.experiments[exp_id] = exp_config
             experiments.append({"experiment_id": exp_id, "config": exp_config})
 
-        return {"experiments": experiments, "total_experiments": len(experiments)}
+        return {
+            "experiments": experiments,
+            "total_experiments": len(experiments),
+        }
 
     async def _run_experiment(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """运行实验"""
@@ -259,22 +308,46 @@ class ExperimentDesignAgent(BaseAgent):
                 X = (
                     data[feature_set]
                     if feature_set
-                    else data.drop(columns=["period", "full_number", "wan", "qian", "bai", "shi", "ge"])
+                    else data.drop(
+                        columns=[
+                            "period",
+                            "full_number",
+                            "wan",
+                            "qian",
+                            "bai",
+                            "shi",
+                            "ge",
+                        ]
+                    )
                 )
 
                 # 运行交叉验证
-                cv_results = await self._run_cross_validation(X, data, experiment_config.cv_folds, model_config)
+                cv_results = await self._run_cross_validation(
+                    X, data, experiment_config.cv_folds, model_config
+                )
 
-                results.append({"feature_set": feature_set, "model_config": model_config, "cv_results": cv_results})
+                results.append(
+                    {
+                        "feature_set": feature_set,
+                        "model_config": model_config,
+                        "cv_results": cv_results,
+                    }
+                )
 
         return {
             "experiment_name": experiment_config.name,
             "results": results,
-            "best_result": max(results, key=lambda x: x["cv_results"]["mean_accuracy"]),
+            "best_result": max(
+                results, key=lambda x: x["cv_results"]["mean_accuracy"]
+            ),
         }
 
     async def _run_cross_validation(
-        self, X: pd.DataFrame, data: pd.DataFrame, n_folds: int, model_config: Dict
+        self,
+        X: pd.DataFrame,
+        data: pd.DataFrame,
+        n_folds: int,
+        model_config: Dict,
     ) -> Dict[str, Any]:
         """运行交叉验证"""
         from sklearn.model_selection import TimeSeriesSplit
@@ -300,7 +373,11 @@ class ExperimentDesignAgent(BaseAgent):
 
             scores.append(np.mean(fold_scores))
 
-        return {"mean_accuracy": np.mean(scores), "std_accuracy": np.std(scores), "fold_scores": scores}
+        return {
+            "mean_accuracy": np.mean(scores),
+            "std_accuracy": np.std(scores),
+            "fold_scores": scores,
+        }
 
     async def _compare_models(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """模型对比"""
@@ -326,9 +403,15 @@ class ExperimentDesignAgent(BaseAgent):
             comparison_results[model_name] = model_results
 
         # 找出最佳模型
-        best_model = max(comparison_results.items(), key=lambda x: x[1].get("accuracy", 0))
+        best_model = max(
+            comparison_results.items(), key=lambda x: x[1].get("accuracy", 0)
+        )
 
-        return {"comparison": comparison_results, "best_model": best_model[0], "best_score": best_model[1]}
+        return {
+            "comparison": comparison_results,
+            "best_model": best_model[0],
+            "best_score": best_model[1],
+        }
 
     async def _evaluate_accuracy(self, model, data: pd.DataFrame) -> float:
         """评估模型准确率"""
@@ -345,20 +428,30 @@ class ExperimentDesignAgent(BaseAgent):
             return {"analysis": "无实验结果"}
 
         # 统计分析
-        accuracies = [r.get("metrics", {}).get("accuracy", 0) for r in experiment_results]
+        accuracies = [
+            r.get("metrics", {}).get("accuracy", 0) for r in experiment_results
+        ]
 
         analysis = {
             "mean_accuracy": np.mean(accuracies),
             "std_accuracy": np.std(accuracies),
             "min_accuracy": np.min(accuracies),
             "max_accuracy": np.max(accuracies),
-            "best_experiment": max(experiment_results, key=lambda x: x.get("metrics", {}).get("accuracy", 0)),
-            "worst_experiment": min(experiment_results, key=lambda x: x.get("metrics", {}).get("accuracy", 0)),
+            "best_experiment": max(
+                experiment_results,
+                key=lambda x: x.get("metrics", {}).get("accuracy", 0),
+            ),
+            "worst_experiment": min(
+                experiment_results,
+                key=lambda x: x.get("metrics", {}).get("accuracy", 0),
+            ),
         }
 
         return analysis
 
-    async def _recommend_config(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _recommend_config(
+        self, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """推荐最佳配置"""
         history = params.get("history", [])
         constraints = params.get("constraints", {})
@@ -374,6 +467,12 @@ class ExperimentDesignAgent(BaseAgent):
         # 应用约束
         recommended = best_config.copy()
         if "max_features" in constraints:
-            recommended["n_features"] = min(recommended.get("n_features", 100), constraints["max_features"])
+            recommended["n_features"] = min(
+                recommended.get("n_features", 100), constraints["max_features"]
+            )
 
-        return {"recommendation": recommended, "confidence": 0.8, "based_on": len(history)}
+        return {
+            "recommendation": recommended,
+            "confidence": 0.8,
+            "based_on": len(history),
+        }

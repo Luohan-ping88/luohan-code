@@ -1042,7 +1042,16 @@ class EnhancedPL5Predictor:
         resource_usage: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
+        # 过滤掉非数值类型的特征列
+        numeric_cols = [
+            col for col in feature_cols
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col])
+        ]
+        if len(numeric_cols) != len(feature_cols):
+            dropped = set(feature_cols) - set(numeric_cols)
+            logger.warning(f"移除非数值特征列: {dropped}")
+        
+        X = df[numeric_cols].fillna(0).values
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 

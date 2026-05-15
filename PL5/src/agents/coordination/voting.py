@@ -33,9 +33,9 @@ class VoteStatus(Enum):
 @dataclass
 class Vote:
     """单个投票"""
-    vote_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     voter_id: str
     choice: Any
+    vote_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     weight: float = 1.0
     timestamp: datetime = field(default_factory=datetime.now)
     confidence: float = 1.0
@@ -45,10 +45,10 @@ class Vote:
 @dataclass
 class VotingSession:
     """投票会话"""
-    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     topic: str
     description: str
     options: List[Any]
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     strategy: VotingStrategy = VotingStrategy.MAJORITY
     status: VoteStatus = VoteStatus.PENDING
     created_at: datetime = field(default_factory=datetime.now)

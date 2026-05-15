@@ -3,12 +3,14 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, AsyncQueue
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum, auto
 import asyncio
 import uuid
 import logging
+
+# AsyncQueue 已在 asyncio 模块中，不再从 typing 导入
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +35,10 @@ class MessagePriority(Enum):
 @dataclass
 class MessageHeader:
     """消息头部"""
-    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     sender_id: str
-    receiver_id: Optional[str] = None
     message_type: MessageType
+    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    receiver_id: Optional[str] = None
     priority: MessagePriority = MessagePriority.NORMAL
     created_at: datetime = field(default_factory=datetime.now)
     correlation_id: Optional[str] = None
@@ -71,10 +73,10 @@ class Message:
     def from_dict(cls, data: Dict[str, Any]) -> 'Message':
         """从字典创建消息"""
         header = MessageHeader(
-            message_id=data['header']['message_id'],
             sender_id=data['header']['sender_id'],
-            receiver_id=data['header']['receiver_id'],
             message_type=MessageType[data['header']['message_type']],
+            message_id=data['header']['message_id'],
+            receiver_id=data['header']['receiver_id'],
             priority=MessagePriority(data['header']['priority']),
             created_at=datetime.fromisoformat(data['header']['created_at']),
             correlation_id=data['header']['correlation_id'],
@@ -87,11 +89,11 @@ class MessageQueue:
     """消息队列管理器"""
 
     def __init__(self, max_size: int = 1000):
-        self.queues: Dict[str, AsyncQueue[Message]] = {}
+        self.queues: Dict[str, asyncio.Queue[Message]] = {}
         self.max_size = max_size
         self._lock = asyncio.Lock()
 
-    async def get_or_create_queue(self, agent_id: str) -> AsyncQueue[Message]:
+    async def get_or_create_queue(self, agent_id: str) -> asyncio.Queue[Message]:
         """获取或创建智能体的消息队列"""
         async with self._lock:
             if agent_id not in self.queues:

@@ -88,6 +88,32 @@ class PL5Tool(BaseTool):
                 error=f"PL5工具执行失败: {str(e)}"
             )
     
+    def get_schema(self) -> Dict[str, Any]:
+        """获取工具的JSON Schema定义
+        
+        Returns:
+            工具的JSON Schema定义
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category.value,
+            "tags": self.tags,
+            "version": self.version,
+            "parameters": [
+                {
+                    "name": param.name,
+                    "type": param.type,
+                    "description": param.description,
+                    "required": param.required,
+                    "enum": param.enum,
+                    "default": param.default,
+                    "example": param.example
+                }
+                for param in self.tool_info.parameters
+            ]
+        }
+    
     def execute(self, parameters: Dict[str, Any]) -> ToolResult:
         """执行PL5工具
         

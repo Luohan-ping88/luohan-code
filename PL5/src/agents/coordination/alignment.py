@@ -34,9 +34,9 @@ class GoalPriority(Enum):
 @dataclass
 class Milestone:
     """目标里程碑"""
-    milestone_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     description: str
+    milestone_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     target_date: Optional[datetime] = None
     completion_criteria: Dict[str, Any] = field(default_factory=dict)
     completed_at: Optional[datetime] = None
@@ -58,9 +58,9 @@ class Milestone:
 @dataclass
 class AlignmentGoal:
     """对齐目标"""
-    goal_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     description: str
+    goal_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     status: GoalStatus = GoalStatus.PENDING
     priority: GoalPriority = GoalPriority.MEDIUM
     created_at: datetime = field(default_factory=datetime.now)

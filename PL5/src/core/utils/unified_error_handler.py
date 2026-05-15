@@ -519,3 +519,6 @@ def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,))
             return last_error
         return wrapper
     return decorator
+
+# 保持向后兼容
+UnifiedErrorHandler = ErrorHandler

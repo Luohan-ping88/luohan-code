@@ -711,3 +711,4 @@ class PL5DataCollectorV8:
 
 # 保持向后兼容
 PL5DataCollector = PL5DataCollectorV8
+DataCollector = PL5DataCollectorV8

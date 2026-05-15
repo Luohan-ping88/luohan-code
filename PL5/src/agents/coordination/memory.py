@@ -26,9 +26,9 @@ class MemoryType(Enum):
 @dataclass
 class MemoryItem:
     """记忆项"""
-    memory_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     memory_type: MemoryType
     content: Dict[str, Any]
+    memory_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     tags: Set[str] = field(default_factory=set)
     importance: float = 0.5
     created_at: datetime = field(default_factory=datetime.now)
@@ -72,9 +72,9 @@ class MemoryItem:
     def from_dict(cls, data: Dict[str, Any]) -> 'MemoryItem':
         """从字典创建"""
         return cls(
-            memory_id=data['memory_id'],
             memory_type=MemoryType[data['memory_type']],
             content=data['content'],
+            memory_id=data['memory_id'],
             tags=set(data.get('tags', [])),
             importance=data.get('importance', 0.5),
             created_at=datetime.fromisoformat(data['created_at']),

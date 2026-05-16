@@ -244,6 +244,22 @@ class FeatureImportanceAnalyzer:
         selected_features = [feature_cols[i] for i in range(len(feature_cols)) if selector.get_support()[i]]
         logger.info(f"基于模型的特征选择完成，选择了 {len(selected_features)} 个特征")
         return selected_features
+    
+    def select_top_features_cached(self, importance_scores: Dict[str, float], 
+                                   n_features: int) -> List[str]:
+        """
+        【V10.5深度优化】使用缓存的特征重要性分数选择特征
+        
+        Args:
+            importance_scores: 缓存的特征重要性分数
+            n_features: 要选择的特征数量
+            
+        Returns:
+            选择的特征列表
+        """
+        # 按重要性排序
+        sorted_features = sorted(importance_scores.items(), key=lambda x: x[1], reverse=True)
+        return [f for f, _ in sorted_features[:n_features]]
 
 
 class FeatureCacheManager:
@@ -734,6 +750,15 @@ class FeatureEngineerV9:
             (100, 'model_based', True)
         ]
         self.cache.prewarm(df, common_configs)
+
+    def _compute_rfe_importance_cache_key(self, df: pd.DataFrame, feature_cols: List[str]) -> str:
+        """【V10.5深度优化】计算RFE特征选择的缓存key"""
+        import hashlib
+        if len(df) == 0:
+            return "empty_df"
+        data_hash = hashlib.md5(df.values.tobytes()).hexdigest()[:12]
+        features_hash = hashlib.md5(str(sorted(feature_cols)).encode()).hexdigest()[:8]
+        return f"rfe_{data_hash}_{features_hash}"
 
     # ===================== 特征计算方法（向量化优化） =====================
 
@@ -1495,6 +1520,10 @@ class FeatureEngineerV9:
         basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
         selected_features = []
         
+        # 【V10.5深度优化】添加RFE重要性缓存
+        # 检查是否可以使用缓存的特征重要性
+        rfe_cache_key = self._compute_rfe_importance_cache_key(df, feature_cols)
+        
         # 暂时禁用并行计算，避免卡住
         # if self.enable_parallel:
         #     logger.info("并行执行特征选择...")
@@ -1518,10 +1547,29 @@ class FeatureEngineerV9:
         #     for pos_features in results:
         #         selected_features.extend(pos_features)
         # else:
+        # 【V10.5深度优化】检查并使用缓存的特征重要性
+        if not hasattr(self, '_rfe_importance_cache'):
+            self._rfe_importance_cache = {}
+        
+        cached_importance = self._rfe_importance_cache.get(rfe_cache_key)
+        
         for pos in POSITIONS:
             y = df[pos]
             if method == 'rfe':
-                pos_features = self.importance_analyzer.rfe_feature_selection(df, y, optimal_features_per_pos)
+                # 【V10.5深度优化】尝试使用缓存的特征重要性
+                if cached_importance is not None and pos in cached_importance:
+                    logger.info(f"  {pos}: 使用缓存的特征重要性")
+                    pos_features = self.importance_analyzer.select_top_features_cached(
+                        cached_importance[pos], 
+                        optimal_features_per_pos
+                    )
+                else:
+                    pos_features = self.importance_analyzer.rfe_feature_selection(df, y, optimal_features_per_pos)
+                    # 缓存特征重要性
+                    if cached_importance is None:
+                        cached_importance = {}
+                    cached_importance[pos] = self.importance_analyzer.importance_scores.copy()
+                    self._rfe_importance_cache[rfe_cache_key] = cached_importance
             elif method == 'model_based':
                 pos_features = self.importance_analyzer.model_based_feature_selection(df, y, optimal_features_per_pos)
             else:

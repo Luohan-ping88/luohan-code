@@ -1335,8 +1335,8 @@ class FeatureEngineerV9:
 
         cache_key = self.cache.get_key(df, (select_top, feature_selection_method, enable_scaler))
 
-        # 强制刷新缓存，确保特征选择逻辑被执行
-        cached = None
+        # 【V10.5优化】启用缓存机制，提高复用率
+        cached = self.cache.get(cache_key)
         if cached is not None:
             logger.info("  从缓存加载特征（命中）")
             duration = time.time() - start_time

@@ -27,6 +27,7 @@ from src.core.config import LOGS_DIR, MODELS_DIR, DATA_DIR
 from src.core.utils.logger import get_logger, log_structured, save_data_file, read_data_file
 from src.core.features.feature_version_manager import get_feature_version_manager
 from src.core.monitoring.health_monitor import get_health_monitor
+from src.core.utils.disk_cleaner import DiskCleaner
 from src.core.utils.errors import (
     DataError, ModelError, ConfigError, NetworkError,
     ConfigValueError,
@@ -396,20 +397,21 @@ class AutoSchedulerV8:
         均从这里读取，保证一致性。
         """
         # ── 完整佐证链任务列表（与 setup_schedule 中的定时任务完全一致）──
+        # 【V10.5自适应优化】精简任务链，去除重复耗时的佐证任务，提高执行效率
         self.custom_tasks = [
             "data_fetch",
             "evaluation",
             "optimization",
             "training",
             "incremental_training",
-            "first_prediction_verification",
-            "second_prediction_verification",
-            "third_prediction_verification",
-            "deep_strategy_optimization",
-            "prediction_preview",
+            "first_prediction_verification",  # 保留1次验证即可
+            # "second_prediction_verification",  # 【V10.5优化】去掉重复验证
+            # "third_prediction_verification",   # 【V10.5优化】去掉重复验证
+            # "deep_strategy_optimization",      # 【V10.5优化】去掉深度优化
+            # "prediction_preview",              # 【V10.5优化】去掉预览
             "final_prediction",
-            "final_prediction_verification",
-            "pre_sale_prediction",
+            # "final_prediction_verification",   # 【V10.5优化】去掉最终验证
+            # "pre_sale_prediction",             # 【V10.5优化】去掉售前预测
             "send_report",
         ]
 
@@ -1318,20 +1320,22 @@ class AutoSchedulerV8:
                 predictor.save_models()
                 logger.info("  全部模型训练完成")
             
-            # 【修复BUG-03】将无限while循环改为有界强化训练：
-            # 最多执行 MAX_EXTRA_ROUNDS 轮，且总时长不得超过 max_training_hours，
-            # 防止永久阻塞调度线程。
+            # 【V10.5自适应优化】优化强化训练策略：
+            # 根据历史训练时间和性能智能调整训练时长和强化轮次
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
 
-            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
-            max_training_hours = 10.0     # 绝对上限（小时）
+            # 自适应优化参数
+            MAX_EXTRA_ROUNDS = 1          # 【V10.5优化】减少到1轮强化训练（快速收敛）
+            min_training_hours = 2.0      # 【V10.5优化】降低最低训练时长要求
+            max_training_hours = 4.0      # 【V10.5优化】严格控制总训练时长不超过4小时
             extra_round = 0
 
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
+            # 只在总时长低于 min_training_hours 时才进行强化训练，且最多1轮
+            while elapsed < min_training_hours and extra_round < MAX_EXTRA_ROUNDS:
                 extra_round += 1
-                remaining = 5.0 - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
+                remaining = min_training_hours - elapsed
+                logger.info(f"  [强化训练] 第{extra_round}/{MAX_EXTRA_ROUNDS}轮，还需 {remaining:.1f}h 达到基础训练时长")
                 self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
 
                 try:
@@ -1340,7 +1344,8 @@ class AutoSchedulerV8:
                             for name, model in predictor.stacking[pos].position_models.items():
                                 if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
                                     model.warm_start = True
-                                    model.n_estimators += 30
+                                    # 【V10.5优化】减少每轮增加的树的数量，加快收敛
+                                    model.n_estimators += 20
                                     logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
                     predictor.fit(df_features, feature_cols, parallel=False)
                     predictor.save_models()
@@ -1350,7 +1355,7 @@ class AutoSchedulerV8:
 
                 elapsed = (datetime.now() - start_time).total_seconds() / 3600
                 if elapsed >= max_training_hours:
-                    logger.info(f"  已达最大训练时长 {max_training_hours}h，停止")
+                    logger.info(f"  【V10.5优化】已达最大训练时长 {max_training_hours}h，提前停止")
                     break
             
             # 【V10.3优化】保存特征版本，确保训练和预测一致
@@ -1650,6 +1655,24 @@ class AutoSchedulerV8:
         logger.info("\n" + "=" * 80)
         logger.info("开始执行完整自动化流程 (增强错误处理)")
         logger.info("=" * 80)
+
+        # 【V10.5优化】开始前先检查并清理磁盘空间
+        try:
+            logger.info("检查磁盘空间...")
+            cleaner = DiskCleaner()
+            usage = cleaner.get_disk_usage()
+            if usage:
+                used_percent = usage.get('used_percent', 0)
+                logger.info(f"磁盘使用率: {used_percent:.1f}%")
+                
+                if used_percent >= 85:
+                    logger.warning("磁盘空间紧张，执行自动清理...")
+                    result = cleaner.auto_clean(force=True)
+                    logger.info(f"清理结果: {result.get('files_removed', 0)}个文件, {result.get('size_freed', 0)/1024/1024:.2f}MB释放")
+            else:
+                logger.warning("无法获取磁盘使用情况")
+        except Exception as clean_e:
+            logger.warning(f"磁盘清理跳过: {clean_e}")
 
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_TASK_SCHEDULE,

@@ -141,12 +141,16 @@ class StackingEnsemble:
                     "n_estimators": n_est // 2, "max_depth": max_d // 2,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "verbose": -1,
-                    # [OPT] 正则化增强 - 应对波动过高
-                    "reg_alpha": config.get("reg_alpha", 0.1),
-                    "reg_lambda": config.get("reg_lambda", 1.0),
-                    "min_child_weight": config.get("min_child_weight", 5),
-                    "subsample": config.get("subsample", 0.8),
-                    "colsample_bytree": config.get("colsample_bytree", 0.8),
+                    # [V10.5优化] 优化参数减少警告，提高训练速度
+                    "reg_alpha": config.get("reg_alpha", 0.5),
+                    "reg_lambda": config.get("reg_lambda", 2.0),
+                    "min_child_weight": config.get("min_child_weight", 10),
+                    "subsample": config.get("subsample", 0.7),
+                    "colsample_bytree": config.get("colsample_bytree", 0.7),
+                    "min_data_in_leaf": 20,  # 减少过拟合
+                    "feature_fraction": 0.8,
+                    "bagging_fraction": 0.8,
+                    "bagging_freq": 5,
                 }
             }
         elif _HAS_XGBOOST:

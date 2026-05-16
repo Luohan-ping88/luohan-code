@@ -40,6 +40,33 @@ class FeatureCacheManager:
         data_hash = hash_obj.hexdigest()[:16]
         tag_hash = hashlib.md5(str(extra_tags).encode()).hexdigest()[:8]
         return f"{data_hash}_{tag_hash}"
+    
+    def get_data_key(self, df: pd.DataFrame) -> str:
+        """
+        获取基础数据缓存key（只基于数据内容，不包含配置参数）
+        用于相同数据不同配置的场景复用基础特征计算结果
+        """
+        core_cols = ['period']
+        if 'full_number' in df.columns:
+            core_cols.append('full_number')
+        
+        hash_obj = hashlib.sha256()
+        for col in core_cols:
+            if col in df.columns:
+                values = df[col].values.tobytes()
+                hash_obj.update(values)
+                hash_obj.update(str(len(df)).encode())
+        
+        return hash_obj.hexdigest()[:16]
+    
+    def get_config_key(self, df: pd.DataFrame, select_top: Optional[int]) -> str:
+        """
+        获取配置相关的缓存key（数据+选择配置）
+        用于特征选择后的最终特征缓存
+        """
+        data_hash = self.get_data_key(df)
+        select_hash = hashlib.md5(str(select_top).encode()).hexdigest()[:8]
+        return f"{data_hash}_selected_{select_hash}"
 
     def get(self, key: str) -> Optional[pd.DataFrame]:
         """获取缓存"""

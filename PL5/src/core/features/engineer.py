@@ -265,6 +265,25 @@ class FeatureCacheManager:
         data_hash = _compute_data_hash(df, core_cols)
         tag_hash = hashlib.md5(str(extra_tags).encode()).hexdigest()[:8]
         return f"{data_hash}_{tag_hash}"
+    
+    def get_data_key(self, df: pd.DataFrame) -> str:
+        """
+        获取基础数据缓存key（只基于数据内容，不包含配置参数）
+        用于相同数据不同配置的场景复用基础特征计算结果
+        """
+        core_cols = ['period']
+        if 'full_number' in df.columns:
+            core_cols.append('full_number')
+        return _compute_data_hash(df, core_cols)
+    
+    def get_config_key(self, df: pd.DataFrame, select_top: Optional[int]) -> str:
+        """
+        获取配置相关的缓存key（数据+选择配置）
+        用于特征选择后的最终特征缓存
+        """
+        data_hash = self.get_data_key(df)
+        select_hash = hashlib.md5(str(select_top).encode()).hexdigest()[:8]
+        return f"{data_hash}_selected_{select_hash}"
 
     def get(self, key: str) -> Optional[pd.DataFrame]:
         """获取缓存"""
@@ -1333,67 +1352,78 @@ class FeatureEngineerV9:
         start_time = time.time()
         logger.info("V10.0 特征工程开始（高性能优化版）...")
 
-        cache_key = self.cache.get_key(df, (select_top, feature_selection_method, enable_scaler))
+        # 【V10.5深度优化】两级缓存策略
+        # Level 1: 基础特征缓存（不包含select_top）
+        # Level 2: 特征选择后的缓存（包含select_top）
+        base_cache_key = self.cache.get_data_key(df)
+        final_cache_key = self.cache.get_key(df, (select_top, feature_selection_method, enable_scaler))
 
-        # 【V10.5优化】启用缓存机制，提高复用率
-        cached = self.cache.get(cache_key)
+        # 首先尝试获取最终结果缓存
+        cached = self.cache.get(final_cache_key)
         if cached is not None:
-            logger.info("  从缓存加载特征（命中）")
+            logger.info("  从缓存加载特征（最终结果命中）")
             duration = time.time() - start_time
             logger.info(f"V10.0 特征工程完成（缓存）: {cached.shape[1]} 列, 耗时: {duration:.3f}s")
             return cached
 
-        enabled_features = (
-            self.config.get_enabled_features() if self.config
-            else list(FeatureConfig.DEFAULT_CONFIG.keys())
-        )
-        logger.info(f"启用的特征类型: {enabled_features}, 并行={'开启' if self.enable_parallel else '关闭'}")
+        # 尝试获取基础特征缓存（不包含特征选择）
+        base_cached = self.cache.get(base_cache_key)
+        if base_cached is not None:
+            logger.info("  从缓存加载基础特征（命中）")
+            result_df = base_cached.copy()
+            # 【V10.5优化】跳过特征计算，直接进行特征选择
+        else:
+            # 没有缓存，需要完整计算
+            enabled_features = (
+                self.config.get_enabled_features() if self.config
+                else list(FeatureConfig.DEFAULT_CONFIG.keys())
+            )
+            logger.info(f"启用的特征类型: {enabled_features}, 并行={'开启' if self.enable_parallel else '关闭'}")
+            result_df = df.copy()
 
-        result_df = df.copy()
+            feature_groups = [
+                ('fibonacci', 'fibonacci'),
+                ('markov', 'markov'),
+                ('fourier', 'fourier'),
+                ('extreme', 'extreme'),
+                ('pattern', 'pattern'),
+                ('momentum', 'momentum'),
+                ('entropy', 'entropy'),
+                ('chaos', 'chaos'),
+                ('cross_correlation', 'cross_correlation'),
+                ('garch', 'garch'),
+                ('granger', 'granger'),
+                ('time_series', 'time_series'),
+                ('statistical', 'statistical'),
+                ('nonlinear', 'nonlinear'),
+                ('pattern_recognition', 'pattern_recognition'),
+                ('pl5_specific', 'pl5_specific'),
+                ('deep_learning', 'deep_learning'),
+            ]
 
-        feature_groups = [
-            ('fibonacci', 'fibonacci'),
-            ('markov', 'markov'),
-            ('fourier', 'fourier'),
-            ('extreme', 'extreme'),
-            ('pattern', 'pattern'),
-            ('momentum', 'momentum'),
-            ('entropy', 'entropy'),
-            ('chaos', 'chaos'),
-            ('cross_correlation', 'cross_correlation'),
-            ('garch', 'garch'),
-            ('granger', 'granger'),
-            ('time_series', 'time_series'),
-            ('statistical', 'statistical'),
-            ('nonlinear', 'nonlinear'),
-            ('pattern_recognition', 'pattern_recognition'),
-            ('pl5_specific', 'pl5_specific'),
-            ('deep_learning', 'deep_learning'),
-        ]
+            active_groups = [(cfg_key, method_name) for cfg_key, method_name in feature_groups
+                             if cfg_key in enabled_features]
 
-        active_groups = [(cfg_key, method_name) for cfg_key, method_name in feature_groups
-                         if cfg_key in enabled_features]
-
-        # 暂时禁用并行计算，避免卡住
-        # if self.enable_parallel and len(active_groups) >= 3:
-        #     logger.info(f"  并行计算 {len(active_groups)} 个特征组 (n_jobs={self.n_jobs})...")
-        #     results = Parallel(n_jobs=self.n_jobs, prefer='threads')(
-        #         delayed(self._compute_feature_group)(result_df.copy(), method_name)
-        #         for _, method_name in active_groups
-        #     )
-        # 
-        #     base_cols = set(result_df.columns)
-        #     for partial_result in results:
-        #         new_cols = [c for c in partial_result.columns if c not in base_cols]
-        #         if new_cols:
-        #             for col in new_cols:
-        #                 result_df[col] = partial_result[col]
-        #             base_cols.update(new_cols)
-        # else:
-        for cfg_key, method_name in active_groups:
-            t0 = time.time()
-            result_df = self._compute_feature_group(result_df, method_name)
-            logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
+            # 暂时禁用并行计算，避免卡住
+            # if self.enable_parallel and len(active_groups) >= 3:
+            #     logger.info(f"  并行计算 {len(active_groups)} 个特征组 (n_jobs={self.n_jobs})...")
+            #     results = Parallel(n_jobs=self.n_jobs, prefer='threads')(
+            #         delayed(self._compute_feature_group)(result_df.copy(), method_name)
+            #         for _, method_name in active_groups
+            #     )
+            # 
+            #     base_cols = set(result_df.columns)
+            #     for partial_result in results:
+            #         new_cols = [c for c in partial_result.columns if c not in base_cols]
+            #         if new_cols:
+            #             for col in new_cols:
+            #                 result_df[col] = partial_result[col]
+            #             base_cols.update(new_cols)
+            # else:
+            for cfg_key, method_name in active_groups:
+                t0 = time.time()
+                result_df = self._compute_feature_group(result_df, method_name)
+                logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
 
         logger.info(f"extract_all_features: select_top={select_top}, type={type(select_top)}")
         if select_top is not None:
@@ -1418,7 +1448,11 @@ class FeatureEngineerV9:
                 if warnings_list:
                     logger.warning(f"  漂移警告: {self.drift_detector.get_drift_report()}")
 
-        self.cache.put(cache_key, result_df)
+        # 【V10.5深度优化】两级缓存保存
+        # 保存基础特征缓存（不包含特征选择）
+        self.cache.put(base_cache_key, result_df)
+        # 保存最终结果缓存（包含特征选择和其他配置）
+        self.cache.put(final_cache_key, result_df)
 
         importance_path = MODELS_DIR / f"feature_importance_v9_{feature_selection_method}.pkl"
         self.importance_analyzer.save_importance(importance_path)

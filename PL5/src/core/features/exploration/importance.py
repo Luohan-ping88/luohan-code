@@ -31,6 +31,11 @@ class FeatureImportanceEvaluator:
         self.importance_results: Dict[str, Dict[str, float]] = {}
         self._shap_available = False
         self._lime_available = False
+        
+        # 【V10.5优化】添加特征重要性缓存
+        self._importance_cache: Dict[str, Dict[str, float]] = {}
+        self._cache_timestamps: Dict[str, float] = {}
+        self._cache_max_age_hours = 24  # 缓存有效期24小时
 
         try:
             import shap
@@ -44,6 +49,39 @@ class FeatureImportanceEvaluator:
             self._lime_available = True
         except ImportError:
             logger.warning("LIME库未安装，LIME特征重要性不可用")
+    
+    def _compute_cache_key(self, X: pd.DataFrame, y: pd.Series, method: str) -> str:
+        """计算缓存key（基于数据内容）"""
+        import hashlib
+        hash_obj = hashlib.sha256()
+        
+        # 使用特征列名和数据形状作为key的一部分
+        cols_str = '_'.join(sorted(X.columns))
+        hash_obj.update(cols_str.encode())
+        
+        # 使用数据hash
+        if len(X) > 0:
+            hash_obj.update(str(X.shape).encode())
+            # 使用前几行和后几行的数据摘要
+            sample_data = pd.concat([X.head(5), X.tail(5)]).to_csv(index=False)
+            hash_obj.update(sample_data.encode())
+        
+        # 使用目标变量
+        if len(y) > 0:
+            y_sample = ','.join(map(str, y.head(10).tolist()))
+            hash_obj.update(y_sample.encode())
+        
+        hash_obj.update(method.encode())
+        return hash_obj.hexdigest()[:16]
+    
+    def _is_cache_valid(self, cache_key: str) -> bool:
+        """检查缓存是否有效（未过期）"""
+        if cache_key not in self._importance_cache:
+            return False
+        
+        import time
+        age_hours = (time.time() - self._cache_timestamps.get(cache_key, 0)) / 3600
+        return age_hours <= self._cache_max_age_hours
 
     def evaluate(
         self,
@@ -52,6 +90,7 @@ class FeatureImportanceEvaluator:
         method: str = 'model_based',
         model: Optional[BaseEstimator] = None,
         feature_cols: Optional[List[str]] = None,
+        use_cache: bool = True,
         **kwargs
     ) -> Dict[str, float]:
         """
@@ -63,6 +102,7 @@ class FeatureImportanceEvaluator:
             method: 评估方法 ('shap', 'lime', 'permutation', 'model_based')
             model: 可选的模型对象，若不提供则使用默认的RandomForest
             feature_cols: 要评估的特征列，默认使用所有数值列
+            use_cache: 是否使用缓存（默认启用）
             **kwargs: 各方法的额外参数
 
         Returns:
@@ -75,6 +115,13 @@ class FeatureImportanceEvaluator:
             feature_cols = [col for col in X.columns if np.issubdtype(X[col].dtype, np.number)]
 
         X_features = X[feature_cols].fillna(0)
+        
+        # 【V10.5优化】尝试从缓存获取
+        if use_cache:
+            cache_key = self._compute_cache_key(X_features, y, method)
+            if self._is_cache_valid(cache_key):
+                logger.info(f"[特征重要性] 从缓存加载（方法: {method}）")
+                return self._importance_cache[cache_key]
 
         if method == 'shap':
             importance = self._shap_importance(X_features, y, model, **kwargs)
@@ -88,6 +135,14 @@ class FeatureImportanceEvaluator:
             raise ValueError(f"未知方法: {method}")
 
         self.importance_results[method] = importance
+        
+        # 【V10.5优化】保存到缓存
+        if use_cache:
+            import time
+            self._importance_cache[cache_key] = importance
+            self._cache_timestamps[cache_key] = time.time()
+            logger.info(f"[特征重要性] 保存到缓存（方法: {method}）")
+        
         return importance
 
     def _model_based_importance(

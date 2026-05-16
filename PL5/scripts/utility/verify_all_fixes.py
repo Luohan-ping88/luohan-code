@@ -1,6 +1,7 @@
 """全面验证修复后的日循环逻辑"""
 import sys
-sys.path.insert(0, 'e:/PL5')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from datetime import datetime, timedelta
 
 print("=" * 70)

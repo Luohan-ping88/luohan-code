@@ -291,9 +291,6 @@ def main():
     """主函数"""
     checker = PerfectSystemChecker()
     checker.run_all_checks()
-    
-    print("\nPress Enter to exit...")
-    input()
 
 
 if __name__ == "__main__":

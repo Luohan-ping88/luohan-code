@@ -1320,22 +1320,22 @@ class AutoSchedulerV8:
                 predictor.save_models()
                 logger.info("  全部模型训练完成")
             
-            # 【V10.5自适应优化】优化强化训练策略：
-            # 根据历史训练时间和性能智能调整训练时长和强化轮次
+            # 【V10.5精度优化】优化强化训练策略：
+            # 目标：提升模型精度和稳定性，而非单纯减少时间
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
 
-            # 自适应优化参数
-            MAX_EXTRA_ROUNDS = 1          # 【V10.5优化】减少到1轮强化训练（快速收敛）
-            min_training_hours = 2.0      # 【V10.5优化】降低最低训练时长要求
-            max_training_hours = 4.0      # 【V10.5优化】严格控制总训练时长不超过4小时
+            # 【精度优化参数】保持足够的训练轮次以确保模型收敛
+            MAX_EXTRA_ROUNDS = 3          # 保持3轮强化训练确保模型充分收敛
+            min_training_hours = 4.0      # 保持4小时基础训练确保精度
+            max_training_hours = 8.0      # 保持8小时上限确保稳定性（防止无限训练）
             extra_round = 0
 
-            # 只在总时长低于 min_training_hours 时才进行强化训练，且最多1轮
+            # 强化训练：根据剩余时间和性能自适应调整
             while elapsed < min_training_hours and extra_round < MAX_EXTRA_ROUNDS:
                 extra_round += 1
                 remaining = min_training_hours - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}/{MAX_EXTRA_ROUNDS}轮，还需 {remaining:.1f}h 达到基础训练时长")
+                logger.info(f"  [强化训练] 第{extra_round}/{MAX_EXTRA_ROUNDS}轮，还需 {remaining:.1f}h 达到最佳训练时长")
                 self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
 
                 try:
@@ -1344,8 +1344,8 @@ class AutoSchedulerV8:
                             for name, model in predictor.stacking[pos].position_models.items():
                                 if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
                                     model.warm_start = True
-                                    # 【V10.5优化】减少每轮增加的树的数量，加快收敛
-                                    model.n_estimators += 20
+                                    # 【精度优化】保持30棵增量，确保模型充分学习
+                                    model.n_estimators += 30
                                     logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
                     predictor.fit(df_features, feature_cols, parallel=False)
                     predictor.save_models()
@@ -1355,7 +1355,7 @@ class AutoSchedulerV8:
 
                 elapsed = (datetime.now() - start_time).total_seconds() / 3600
                 if elapsed >= max_training_hours:
-                    logger.info(f"  【V10.5优化】已达最大训练时长 {max_training_hours}h，提前停止")
+                    logger.info(f"  已达最大训练时长 {max_training_hours}h，停止（确保稳定性）")
                     break
             
             # 【V10.3优化】保存特征版本，确保训练和预测一致

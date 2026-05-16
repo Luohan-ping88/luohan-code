@@ -1447,15 +1447,16 @@ class FeatureEngineerV9:
         n_total_features = len(feature_cols)
         
         # 计算最优特征数：避免过拟合，同时保留足够信息
-        # 经验法则：样本数 / 10 作为上限，但至少保留20个，最多不超过总数的30%
+        # 【V10.5精度优化】增加特征数量以提升预测精度
+        # 经验法则：样本数 / 5 作为上限（比之前更宽松），保留更多特征
         optimal_features_per_pos = min(
-            max(20, n_samples // 100),  # 至少20个，基于样本数
+            max(30, n_samples // 50),  # 至少30个，基于样本数（从20提升到30）
             n_total_features // len(POSITIONS),  # 每个位置的平均数
-            50  # 上限50个
+            80  # 上限80个（从50提升到80）
         )
         
-        logger.info(f"智能特征选择: 数据量={n_samples}, 总特征={n_total_features}, "
-                   f"每位置选择约{optimal_features_per_pos}个特征")
+        logger.info(f"【精度优化】智能特征选择: 数据量={n_samples}, 总特征={n_total_features}, "
+                   f"每位置选择约{optimal_features_per_pos}个特征（提升预测精度）")
 
         basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
         selected_features = []

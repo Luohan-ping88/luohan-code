@@ -118,7 +118,13 @@ class ModelConfig:
             'stacking': {
                 'base_config': {'n_estimators': 100, 'max_depth': 12, 'random_state': 42, 'n_jobs': -1, 'learning_rate': 0.1},
                 'meta_config': {'type': 'logistic', 'C': 1.0, 'max_iter': 500, 'l1_ratio': 0.5, 'alpha': 0.0001, 'cv_folds': 5, 'auto_select': True, 'enable_meta_features': True},
-                'model_weights': {'stacking': 0.40, 'hmm': 0.15, 'copula': 0.25, 'bayesian': 0.20}
+                # 【V10.5精度优化】优化模型权重：增强集成模型权重，提升稳定性
+                'model_weights': {
+                    'stacking': 0.45,    # 集成模型权重提升（稳定性最强）
+                    'hmm': 0.15,         # 时序模式识别
+                    'copula': 0.25,       # 联合概率调整
+                    'bayesian': 0.15     # 不确定性估计（降低权重提升稳定性）
+                }
             },
             'hmm': {'n_states': 4, 'n_mixtures': 2, 'auto_select': False, 'criterion': 'bic', 'max_states': 8, 'min_states': 2, 'max_iterations': 50, 'convergence_tol': 1e-6},
             'copula': {'type': 'gaussian', 'regularization': 1e-6, 'auto_select': False},

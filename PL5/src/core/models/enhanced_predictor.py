@@ -520,6 +520,22 @@ class EnhancedPL5Predictor:
             "bayesian": {"alpha": 1.5, "beta": 4.0}
         }
 
+    def _ensure_numeric(self, X: np.ndarray) -> np.ndarray:
+        """【V10.5深度优化】确保数据为数值类型，处理日期等非数值列"""
+        if X.dtype == object or not np.issubdtype(X.dtype, np.number):
+            try:
+                X = X.astype(np.float64)
+            except (ValueError, TypeError):
+                valid_mask = []
+                for col in range(X.shape[1]):
+                    try:
+                        X[:, col].astype(np.float64)
+                        valid_mask.append(True)
+                    except (ValueError, TypeError):
+                        valid_mask.append(False)
+                X = X[:, valid_mask].astype(np.float64)
+        return X
+
     def fit(self, df: pd.DataFrame, feature_cols: List[str],
             parallel: bool = True, incremental: bool = False) -> "EnhancedPL5Predictor":
         """训练增强模型
@@ -565,6 +581,7 @@ class EnhancedPL5Predictor:
                     incremental = False
             
             X = df[feature_cols].fillna(0).values
+            X = self._ensure_numeric(X)
             actual_dim = X.shape[1]
 
             if actual_dim == 0:
@@ -798,6 +815,7 @@ class EnhancedPL5Predictor:
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
         X = df[feature_cols].fillna(0).values
+        X = self._ensure_numeric(X)
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 

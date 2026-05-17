@@ -254,6 +254,7 @@ class AutoSchedulerV8:
         """使用默认配置"""
         defaults = ConfigSafeLoader.DEFAULT_CONFIG_VALUES.get('scheduler_config', {})
         self.config = {
+            'pl5_detection_optimization_time': defaults.get('pl5_detection_optimization_time', '22:00'),  # PL5检测审查优化
             'data_fetch_time': defaults.get('data_fetch_time', '22:15'),  # 开奖后获取数据
             'evaluation_time': defaults.get('evaluation_time', '22:15'),  # 模型评估和调优
             'optimization_start': defaults.get('optimization_start', '22:45'),  # 策略优化
@@ -397,6 +398,7 @@ class AutoSchedulerV8:
         """
         # ── 完整佐证链任务列表（与 setup_schedule 中的定时任务完全一致）──
         self.custom_tasks = [
+            "pl5_detection_optimization",
             "data_fetch",
             "evaluation",
             "optimization",
@@ -415,6 +417,7 @@ class AutoSchedulerV8:
 
         # ── 任务名 → (显示名称, 处理函数) ──
         self.task_map = {
+            'pl5_detection_optimization':    ('任务0:  PL5检测审查优化',   self.task_pl5_detection_optimization),
             'data_fetch':                    ('任务1:  数据获取',          self.task_fetch_data),
             'evaluation':                    ('任务2:  评估分析',          self.task_evaluate),
             'optimization':                  ('任务3:  策略优化',          self.task_optimize),
@@ -1453,6 +1456,85 @@ class AutoSchedulerV8:
                 start_time, 
                 datetime.now(), 
                 error_msg
+            )
+            return False
+    
+    def task_pl5_detection_optimization(self):
+        """PL5检测审查与性能优化（22:00）"""
+        logger.info("=" * 80)
+        logger.info("【任务0】PL5检测审查与性能优化")
+        logger.info("=" * 80)
+        self.log_status("PL5检测优化", "开始执行", 0)
+        
+        start_time = datetime.now()
+        task_name = "pl5_detection_optimization"
+        
+        if self.workflow_enabled and self.orchestrator:
+            self.orchestrator.start_task(task_name)
+        
+        try:
+            # 导入我们创建的脚本
+            script_path = Path(__file__).parent.parent / 'scripts' / 'pl5_detection_optimization.py'
+            
+            if not script_path.exists():
+                logger.warning(f"脚本文件不存在: {script_path}")
+                raise FileNotFoundError(f"优化脚本不存在: {script_path}")
+            
+            self.log_status("PL5检测优化", "执行检测审查", 20)
+            logger.info("  执行PL5检测审查脚本...")
+            
+            # 执行脚本
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, str(script_path)],
+                capture_output=True,
+                text=True,
+                cwd=str(ROOT_DIR)
+            )
+            
+            # 记录输出
+            if result.stdout:
+                logger.info(f"  脚本输出:\n{result.stdout}")
+            if result.stderr:
+                logger.warning(f"  脚本警告:\n{result.stderr}")
+            
+            if result.returncode == 0:
+                self.log_status("PL5检测优化", "完成", 100)
+                logger.info("  PL5检测审查与性能优化完成")
+                
+                if self.workflow_enabled and self.orchestrator:
+                    self.orchestrator.complete_task(task_name, {
+                        "status": "success",
+                        "duration": (datetime.now() - start_time).total_seconds()
+                    })
+                
+                self.history_manager.add_task_record(
+                    task_name, "SUCCESS", start_time, datetime.now()
+                )
+                return True
+            else:
+                error_msg = f"优化脚本执行失败，返回码: {result.returncode}"
+                logger.error(error_msg)
+                self.log_status("PL5检测优化", f"失败: {error_msg}", 0)
+                
+                if self.workflow_enabled and self.orchestrator:
+                    self.orchestrator.fail_task(task_name, error_msg)
+                
+                self.history_manager.add_task_record(
+                    task_name, "FAILED", start_time, datetime.now(), error_msg
+                )
+                return False
+                
+        except Exception as e:
+            error_msg = f"PL5检测审查与性能优化失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.log_status("PL5检测优化", f"失败: {str(e)}", 0)
+            
+            if self.workflow_enabled and self.orchestrator:
+                self.orchestrator.fail_task(task_name, error_msg)
+            
+            self.history_manager.add_task_record(
+                task_name, "FAILED", start_time, datetime.now(), error_msg
             )
             return False
     
@@ -2576,6 +2658,7 @@ class AutoSchedulerV8:
         logger.info("=" * 80)
         
         # 【V10.1修复】从配置文件读取所有时间点，默认时间与客户配置保持一致
+        pl5_detection_optimization_time = self.config.get('pl5_detection_optimization_time', '22:00')
         data_fetch_time = self.config.get('data_fetch_time', '22:15')
         evaluation_time = self.config.get('evaluation_time', '22:15')
         optimization_start = self.config.get('optimization_start', '22:45')
@@ -2592,6 +2675,10 @@ class AutoSchedulerV8:
         final_prediction_verification_time = self.config.get('final_prediction_verification_time', '19:00')
         pre_sale_prediction_time = self.config.get('pre_sale_prediction_time', '20:00')
         email_send_time = self.config.get('email_send_time', '20:15')
+        
+        # 任务0: PL5检测审查与性能优化 (22:00)
+        schedule.every().day.at(pl5_detection_optimization_time).do(lambda: self._schedule_thread_wrapper(self.task_pl5_detection_optimization))
+        logger.info(f"[OK] {pl5_detection_optimization_time} - PL5检测审查与性能优化")
         
         # 任务1: 自动获取开奖数据 (22:15)
         schedule.every().day.at(data_fetch_time).do(lambda: self._schedule_thread_wrapper(self.task_fetch_data))

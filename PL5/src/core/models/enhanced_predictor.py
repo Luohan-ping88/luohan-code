@@ -11,7 +11,34 @@ import pickle
 import logging
 import time
 from datetime import datetime
+from functools import wraps
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from sklearn.base import clone
+
+# 【V10.5优化】训练超时装饰器
+def timeout(seconds=7200):
+    """训练超时装饰器 - 默认2小时"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = None
+            error = None
+            
+            try:
+                result = func(*args, **kwargs)
+            except Exception as e:
+                error = e
+            
+            elapsed = time.time() - start
+            if elapsed > seconds:
+                raise TimeoutError(f"训练超时: {elapsed:.1f}秒 > {seconds}秒")
+            
+            if error:
+                raise error
+            return result
+        return wrapper
+    return decorator
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.model_selection import TimeSeriesSplit, cross_val_score
@@ -521,18 +548,21 @@ class EnhancedPL5Predictor:
         }
 
     def _ensure_numeric(self, X: np.ndarray) -> np.ndarray:
-        """【V10.5深度优化】确保数据为数值类型，处理日期等非数值列"""
-        if X.dtype == object or not np.issubdtype(X.dtype, np.number):
+        """【V10.5深度优化】确保数据为数值类型，高效处理日期等非数值列"""
+        if np.issubdtype(X.dtype, np.number):
+            return X
+        if X.dtype == object:
             try:
                 X = X.astype(np.float64)
+                return X
             except (ValueError, TypeError):
-                valid_mask = []
+                valid_mask = np.zeros(X.shape[1], dtype=bool)
                 for col in range(X.shape[1]):
                     try:
-                        X[:, col].astype(np.float64)
-                        valid_mask.append(True)
+                        float(X[0, col])
+                        valid_mask[col] = True
                     except (ValueError, TypeError):
-                        valid_mask.append(False)
+                        pass
                 X = X[:, valid_mask].astype(np.float64)
         return X
 
@@ -563,6 +593,11 @@ class EnhancedPL5Predictor:
             {"data_rows": len(df), "feature_count": len(feature_cols), "parallel": parallel, "incremental": incremental}
         )
         start_time = time.time()
+        
+        # 【V10.5优化】训练超时配置
+        TRAINING_TIMEOUT = 43200  # 12小时
+        PROGRESS_REPORT_INTERVAL = 300  # 5分钟报告一次进度
+        last_progress_time = start_time
 
         try:
             logger.debug(f"[训练步骤] 开始训练 - {datetime.now().strftime('%H:%M:%S')}")
@@ -626,15 +661,30 @@ class EnhancedPL5Predictor:
                             logger.debug(f"[训练步骤] 提交位置 {pos} 训练任务")
                         futures[future] = pos
 
+                    completed = 0
+                    total = len(futures)
                     for future in as_completed(futures):
                         pos = futures[future]
                         try:
+                            # 【V10.5优化】检查训练超时
+                            elapsed = time.time() - start_time
+                            if elapsed > TRAINING_TIMEOUT:
+                                raise TimeoutError(f"训练超时: {elapsed:.1f}秒 > {TRAINING_TIMEOUT}秒")
+                            
+                            # 【V10.5优化】定期报告进度
+                            current_time = time.time()
+                            if current_time - last_progress_time > PROGRESS_REPORT_INTERVAL:
+                                elapsed = current_time - start_time
+                                logger.info(f"[训练进度] 已运行{elapsed:.1f}秒, 位置训练完成 {completed}/{total}")
+                                last_progress_time = current_time
+                            
                             result = future.result()
                             self.stacking[pos] = result['stacking']
                             self.hmm_models[pos] = result['hmm']
                             self.bsts_models[pos] = result['bsts']
                             logger.debug(f"[训练步骤] 位置 {pos} 训练完成 - {datetime.now().strftime('%H:%M:%S')}")
                             logger.info(f"[EnhancedPredictor] 位置 {pos} 训练完成")
+                            completed += 1
                         except Exception as e:
                             logger.error(
                                 f"[EnhancedPredictor] 位置 {pos} 训练失败: {e}",
@@ -652,8 +702,20 @@ class EnhancedPL5Predictor:
                 from src.core.utils.resource_manager import get_resource_manager
                 resource_usage = get_resource_manager().get_resource_usage()
                 
-                for pos in POSITIONS:
+                for idx, pos in enumerate(POSITIONS):
                     try:
+                        # 【V10.5优化】检查训练超时
+                        elapsed = time.time() - start_time
+                        if elapsed > TRAINING_TIMEOUT:
+                            raise TimeoutError(f"训练超时: {elapsed:.1f}秒 > {TRAINING_TIMEOUT}秒")
+                        
+                        # 【V10.5优化】定期报告进度
+                        current_time = time.time()
+                        if current_time - last_progress_time > PROGRESS_REPORT_INTERVAL:
+                            elapsed = current_time - start_time
+                            logger.info(f"[训练进度] 已运行{elapsed:.1f}秒, 位置训练完成 {idx}/{len(POSITIONS)}")
+                            last_progress_time = current_time
+                        
                         logger.debug(f"[训练步骤] 开始训练位置 {pos} - {datetime.now().strftime('%H:%M:%S')}")
                         if incremental and pos in self.stacking:
                             # 增量学习：只更新现有模型
@@ -666,6 +728,7 @@ class EnhancedPL5Predictor:
                         self.hmm_models[pos] = result['hmm']
                         self.bsts_models[pos] = result['bsts']
                         logger.debug(f"[训练步骤] 位置 {pos} 训练完成 - {datetime.now().strftime('%H:%M:%S')}")
+                        logger.info(f"[EnhancedPredictor] 位置 {pos} 训练完成")
                     except Exception as e:
                         raise ModelTrainingError(
                             f"Position {pos} training failed: {e}",
@@ -2292,6 +2355,23 @@ class EnhancedPL5Predictor:
         start_time = time.time()
 
         try:
+            # 【V10.5优化】保存前验证路径和权限
+            if not self.models_dir.exists():
+                logger.info(f"[模型保存] 创建模型目录: {self.models_dir}")
+                self.models_dir.mkdir(parents=True, exist_ok=True)
+            
+            if not self.models_dir.is_dir():
+                raise IOError(f"模型路径不是目录: {self.models_dir}")
+            
+            # 测试目录可写权限
+            test_file = self.models_dir / ".test_write"
+            try:
+                test_file.touch()
+                test_file.unlink()
+            except Exception as e:
+                raise IOError(f"模型目录不可写: {self.models_dir}, 错误: {e}")
+            
+            logger.info(f"[模型保存] 路径和权限检查通过: {self.models_dir}")
             if auto_backup and save_path.exists():
                 backup_name = self.version_manager.create_backup(save_path)
                 if backup_name:

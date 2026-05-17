@@ -385,7 +385,7 @@ class FeatureDriftDetector:
     def fit(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None):
         """记录训练数据的特征统计量"""
         cols = feature_cols or [c for c in df.columns
-                                if c not in ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
+                                if c not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
         for col in cols:
             if col not in df.columns or not np.issubdtype(df[col].dtype, np.number):
                 continue
@@ -1482,6 +1482,11 @@ class FeatureEngineerV9:
         importance_path = MODELS_DIR / f"feature_importance_v9_{feature_selection_method}.pkl"
         self.importance_analyzer.save_importance(importance_path)
 
+        # 【V10.5优化】确保删除日期列，避免字符串转换错误
+        if 'date' in result_df.columns:
+            logger.info(f"删除日期列: date")
+            result_df = result_df.drop('date', axis=1)
+        
         duration = time.time() - start_time
         logger.info(f"V10.0 特征工程完成: {result_df.shape[1]} 列, 耗时: {duration:.2f}s | 缓存统计: {self.cache.stats}")
         return result_df

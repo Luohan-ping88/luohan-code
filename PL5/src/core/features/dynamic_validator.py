@@ -4,6 +4,7 @@
 用于依据开奖数据的变化采用动态的多维特征组验证训练策略
 """
 
+import json
 import logging
 import numpy as np
 import pandas as pd
@@ -199,6 +200,11 @@ class DynamicFeatureValidator:
     def find_best_feature_combination(self, df: pd.DataFrame) -> Dict[str, Any]:
         """寻找最佳特征组合
         
+        智能策略：基于数据变化量决定验证深度
+        - 数据变化小（<5%新数据）：快速验证（1-2组合）
+        - 数据变化中（5-20%）：标准验证（3-4组合）
+        - 数据变化大（>20%）：完整验证（全部组合）
+        
         Args:
             df: 输入数据
             
@@ -208,25 +214,60 @@ class DynamicFeatureValidator:
         logger.info("开始寻找最佳特征组合...")
         
         import time
-        _deadline = time.time() + 300.0  # 5分钟全局时间预算
+        import hashlib
         
         feature_combinations = self.generate_feature_combinations()
         
-        # 优先使用非RFE组合（RFE非常耗时），并限制数量
-        non_rfe = [c for c in feature_combinations if c['feature_selection_method'] != 'rfe']
-        rfe_combos = [c for c in feature_combinations if c['feature_selection_method'] == 'rfe']
-        # 只取前2个RFE组合，且在时间允许的情况下
-        rfe_combos_limited = rfe_combos[:2]
+        # 计算当前数据指纹（基于最近1000条数据的统计特征）
+        df_recent = df.tail(1000)
+        data_hash = hashlib.md5(
+            pd.util.hash_pandas_object(df_recent, index=False).values.tobytes()
+        ).hexdigest()[:16]
         
-        # 按优先级排序：先非RFE（快速），再RFE（耗时）
-        priority_order = non_rfe + rfe_combos_limited
+        # 检查数据是否发生变化
+        config_path = MODELS_DIR / "best_feature_config.json"
+        prev_hash_path = MODELS_DIR / ".data_hash"
+        data_changed = True
+        prev_hash = None
+        
+        if prev_hash_path.exists():
+            prev_hash = prev_hash_path.read_text().strip()
+            data_changed = (data_hash != prev_hash)
+        
+        if not data_changed and config_path.exists():
+            try:
+                with open(config_path) as f:
+                    config_data = json.load(f)
+                best_config = config_data.get('best_config', {})
+                logger.info(f"数据未变化（hash={data_hash}），使用缓存的最佳配置: {best_config}")
+                self.best_feature_config = best_config
+                return best_config
+            except Exception:
+                pass
+        
+        logger.info(f"数据发生变化（hash={data_hash}），执行特征验证...")
+        prev_hash_path.write_text(data_hash)
+        
+        # 计算数据变化比例
+        new_records_ratio = len(df_recent) / max(len(df), 1)
+        n_combos = len(feature_combinations)
+        
+        if new_records_ratio < 0.05:
+            n_to_test = min(2, n_combos)
+            logger.info(f"数据变化较小（{new_records_ratio*100:.1f}%），快速验证前{n_to_test}个组合")
+        elif new_records_ratio < 0.20:
+            n_to_test = min(4, n_combos)
+            logger.info(f"数据变化中等（{new_records_ratio*100:.1f}%），标准验证前{n_to_test}个组合")
+        else:
+            n_to_test = n_combos
+            logger.info(f"数据变化较大（{new_records_ratio*100:.1f}%），完整验证全部{n_to_test}个组合")
+        
+        # 优先测试对预测最有影响力的组合
+        priority_order = feature_combinations[:n_to_test]
         
         validation_results = []
         for config in priority_order:
-            if time.time() > _deadline:
-                logger.warning(f"动态特征验证超时({_deadline - (time.time() - _deadline):.0f}s)，停止剩余验证")
-                break
-            result = self.validate_feature_combination(df, config, time_budget=60.0)
+            result = self.validate_feature_combination(df, config)
             if 'error' not in result:
                 validation_results.append(result)
         

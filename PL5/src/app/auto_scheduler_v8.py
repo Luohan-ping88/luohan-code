@@ -1172,7 +1172,7 @@ class AutoSchedulerV8:
                         for name, model in predictor.stacking[pos].position_models.items():
                             if hasattr(model, 'warm_start'):
                                 model.warm_start = True
-                                model.n_estimators += 10  # 少量增加树的数量
+                                model.n_estimators += 30  # 适量增加树的数量
                                 logger.info(f"    {pos}/{name}: 增量增加至 {model.n_estimators} 棵树")
                 
                 # 执行增量训练
@@ -1303,7 +1303,7 @@ class AutoSchedulerV8:
                             for name, model in predictor.stacking[pos].position_models.items():
                                 if hasattr(model, 'warm_start'):
                                     model.warm_start = True
-                                    model.n_estimators += 20  # 增加更多树以延长训练时间
+                                    model.n_estimators += 30  # 增加更多树以提升精度
                                     logger.info(f"    {pos}/{name}: 增量增加至 {model.n_estimators} 棵树")
                     predictor.save_models()
                     logger.info("  增量更新完成")
@@ -1324,11 +1324,11 @@ class AutoSchedulerV8:
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
 
-            MAX_EXTRA_ROUNDS = 1          # 最多额外强化轮次
+            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
             max_training_hours = 10.0     # 绝对上限（小时）
             extra_round = 0
 
-            while elapsed < 2.0 and extra_round < MAX_EXTRA_ROUNDS:
+            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
                 extra_round += 1
                 remaining = 5.0 - elapsed
                 logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
@@ -1340,7 +1340,7 @@ class AutoSchedulerV8:
                             for name, model in predictor.stacking[pos].position_models.items():
                                 if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
                                     model.warm_start = True
-                                    model.n_estimators += 10
+                                    model.n_estimators += 30
                                     logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
                     predictor.fit(df_features, feature_cols, parallel=False)
                     predictor.save_models()

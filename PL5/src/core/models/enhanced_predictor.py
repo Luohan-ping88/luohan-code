@@ -76,7 +76,7 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 100,
+        "n_estimators": 200,
         "max_depth": 10,         # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
         "random_state": 42,
         "n_jobs": -1,
@@ -360,11 +360,11 @@ class StackingEnsemble:
         """
         candidates = {}
 
-        _tscv_folds = min(self.meta_config.get("cv_folds", 3), 3)
+        _tscv_folds = self.meta_config.get("cv_folds", 5)
 
         lr_standard = LogisticRegression(
             C=self.meta_config.get("C", 1.0),
-            max_iter=self.meta_config.get("max_iter", 200),
+            max_iter=self.meta_config.get("max_iter", 500),
             solver="lbfgs", random_state=42,
         )
         scores_lr = cross_val_score(lr_standard, meta_X, y, cv=TimeSeriesSplit(n_splits=_tscv_folds))
@@ -375,11 +375,19 @@ class StackingEnsemble:
             penalty="elasticnet",
             alpha=self.meta_config.get("alpha", 0.0001),
             l1_ratio=self.meta_config.get("l1_ratio", 0.5),
-            max_iter=self.meta_config.get("max_iter", 500),
+            max_iter=self.meta_config.get("max_iter", 1000),
             random_state=42, warm_start=True,
         )
         scores_sgd = cross_val_score(sgd_elastic, meta_X, y, cv=TimeSeriesSplit(n_splits=_tscv_folds))
         candidates["elasticnet"] = (sgd_elastic, float(np.mean(scores_sgd)))
+
+        lr_strong = LogisticRegression(
+            C=self.meta_config.get("C", 1.0) * 0.1,
+            max_iter=self.meta_config.get("max_iter", 500) * 2,
+            solver="lbfgs", random_state=42,
+        )
+        scores_strong = cross_val_score(lr_strong, meta_X, y, cv=TimeSeriesSplit(n_splits=_tscv_folds))
+        candidates["logistic_strong_reg"] = (lr_strong, float(np.mean(scores_strong)))
 
         best_type = max(candidates.keys(), key=lambda k: candidates[k][1])
         best_model, best_score = candidates[best_type]
@@ -790,7 +798,7 @@ class EnhancedPL5Predictor:
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
         _pos_start = time.time()
-        _POS_TIME_BUDGET = 120.0  # 每个位置最多2分钟（大幅缩减以加快训练）
+        _POS_TIME_BUDGET = 600.0
         X = df[feature_cols].fillna(0).values
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
@@ -813,12 +821,10 @@ class EnhancedPL5Predictor:
         stacking = StackingEnsemble(model_config=self._mc)
         
         # 手动训练单个位置，避免训练所有位置
-        cv_folds = stacking.meta_config.get("cv_folds", 3)
-        # 固定为3折以加速训练
-        cv_folds = min(cv_folds, 3)
+        cv_folds = stacking.meta_config.get("cv_folds", 5)
         # 根据资源使用情况调整交叉验证折数
         if high_resource_usage:
-            cv_folds = max(2, cv_folds - 1)
+            cv_folds = max(3, cv_folds - 2)
             logger.info(f"调整交叉验证折数: {cv_folds}")
         
         tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -845,7 +851,7 @@ class EnhancedPL5Predictor:
                 # 为支持早停的模型设置参数
                 if 'n_estimators' in clf.get_params():
                     params = {
-                        'n_estimators': 100,
+                        'n_estimators': 200,
                         'verbose': 0
                     }
                     # 只有支持早停的模型才添加early_stopping_rounds参数
@@ -886,10 +892,10 @@ class EnhancedPL5Predictor:
         stacking.position_models[pos] = base_fitted
         
         enable_extra = stacking.meta_config.get("enable_meta_features", True)
-        # 根据资源使用情况或时间预算禁用额外特征
-        if high_resource_usage or (time.time() - _pos_start > _POS_TIME_BUDGET * 0.5):
+        # 根据资源使用情况调整是否启用额外特征
+        if high_resource_usage:
             enable_extra = False
-            logger.info("禁用额外特征以降低计算复杂度")
+            logger.info("资源使用较高，禁用额外特征以降低计算复杂度")
         
         if enable_extra:
             meta_X = stacking._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
@@ -897,12 +903,12 @@ class EnhancedPL5Predictor:
             meta_X = raw_meta_X
         
         auto_select = stacking.meta_config.get("auto_select", True)
-        # 根据资源使用情况或时间预算禁用自动选择
-        if high_resource_usage or (time.time() - _pos_start > _POS_TIME_BUDGET * 0.6):
+        # 根据资源使用情况调整是否自动选择元学习器
+        if high_resource_usage:
             auto_select = False
-            logger.info("禁用自动选择元学习器以降低计算复杂度")
+            logger.info("资源使用较高，禁用自动选择元学习器以降低计算复杂度")
         
-        if auto_select and (time.time() - _pos_start < _POS_TIME_BUDGET * 0.5):
+        if auto_select:
             best_clf, best_score, selected_type = stacking._select_best_meta_learner(meta_X, y, pos)
         else:
             best_clf = stacking._build_meta_learner(stacking.meta_config)
@@ -929,11 +935,13 @@ class EnhancedPL5Predictor:
         best_hmm = None
         best_hmm_score = -float('inf')
         
-        # 尝试不同的HMM参数组合（限时3分钟）
-        hmm_deadline = _pos_start + 180.0
+        # 尝试不同的HMM参数组合
+        hmm_deadline = _pos_start + 600.0  # 最多10分钟
         if not high_resource_usage:
-            state_options = [hmm_n_states]
-            mixture_options = [hmm_n_mixtures]
+            state_options = [hmm_n_states - 1, hmm_n_states, hmm_n_states + 1]
+            state_options = [s for s in state_options if s >= 2 and s <= 8]
+            mixture_options = [hmm_n_mixtures, hmm_n_mixtures + 1]
+            mixture_options = [m for m in mixture_options if m >= 1 and m <= 3]
             
             for n_states in state_options:
                 for n_mixtures in mixture_options:

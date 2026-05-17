@@ -79,7 +79,7 @@ class DynamicFeatureValidator:
         
         return feature_combinations
     
-    def validate_feature_combination(self, df: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_feature_combination(self, df: pd.DataFrame, config: Dict[str, Any], time_budget: float = 60.0) -> Dict[str, Any]:
         """验证单个特征组合的性能
         
         Args:
@@ -114,14 +114,20 @@ class DynamicFeatureValidator:
                 test_data = df_features.iloc[-test_size:]
             
             # 训练模型
+            import time as _time_module
+            _comb_start = _time_module.time()
             predictor = EnhancedPL5Predictor()
             predictor.fit(train_data, feature_cols)
             
-            # 验证模型
+            # 验证模型（带时间预算限制）
             total_hits = 0
             total_tests = 0
+            _comb_deadline = _comb_start + time_budget
             
             for i, row in test_data.iterrows():
+                if _time_module.time() > _comb_deadline:
+                    logger.warning(f"特征组合 {config['name']} 验证超时({time_budget:.0f}s)，提前结束")
+                    break
                 # 提取特征向量
                 features_list = []
                 for col in feature_cols:
@@ -201,13 +207,26 @@ class DynamicFeatureValidator:
         """
         logger.info("开始寻找最佳特征组合...")
         
-        # 生成特征组合策略
+        import time
+        _deadline = time.time() + 300.0  # 5分钟全局时间预算
+        
         feature_combinations = self.generate_feature_combinations()
         
-        # 验证每个特征组合
+        # 优先使用非RFE组合（RFE非常耗时），并限制数量
+        non_rfe = [c for c in feature_combinations if c['feature_selection_method'] != 'rfe']
+        rfe_combos = [c for c in feature_combinations if c['feature_selection_method'] == 'rfe']
+        # 只取前2个RFE组合，且在时间允许的情况下
+        rfe_combos_limited = rfe_combos[:2]
+        
+        # 按优先级排序：先非RFE（快速），再RFE（耗时）
+        priority_order = non_rfe + rfe_combos_limited
+        
         validation_results = []
-        for config in feature_combinations:
-            result = self.validate_feature_combination(df, config)
+        for config in priority_order:
+            if time.time() > _deadline:
+                logger.warning(f"动态特征验证超时({_deadline - (time.time() - _deadline):.0f}s)，停止剩余验证")
+                break
+            result = self.validate_feature_combination(df, config, time_budget=60.0)
             if 'error' not in result:
                 validation_results.append(result)
         

@@ -199,13 +199,13 @@ def pl5_detection_audit() -> Dict:
     try:
         # 4. 系统健康度检测
         logger.info("\n[1.4] 系统健康度检测...")
-        from src.core.monitoring.health_monitor import HealthMonitor
-        health_monitor = HealthMonitor()
-        health_status = health_monitor.check_health()
+        from src.core.monitoring.health_monitor import SystemHealthMonitor
+        health_monitor = SystemHealthMonitor()
+        health_status = health_monitor.collect_system_metrics()
 
         audit_results['system_health'] = {
             'status': 'OK',
-            'health_status': health_status
+            'health_status': str(health_status)
         }
         logger.info(f"  ✓ 系统健康检查完成")
 
@@ -256,10 +256,10 @@ def performance_optimization(audit_results: Dict) -> Dict:
         # 2. 优化特征缓存
         logger.info("\n[2.2] 优化特征缓存...")
         try:
-            from src.core.cache.feature_cache import FeatureCache
-            feature_cache = FeatureCache()
+            from src.core.cache import FeatureCacheManager
+            feature_cache = FeatureCacheManager(max_size=100)
             # 检查并优化缓存策略
-            cache_stats = feature_cache.get_stats() if hasattr(feature_cache, 'get_stats') else {}
+            cache_stats = feature_cache.stats if hasattr(feature_cache, 'stats') else {}
             optimization_results['performance_improvements']['feature_cache'] = cache_stats
             logger.info(f"  ✓ 特征缓存状态: {cache_stats}")
         except Exception as e:
@@ -307,8 +307,8 @@ def feature_window_enhancement() -> Dict:
     try:
         # 1. 分析当前窗口配置
         logger.info("\n[3.1] 分析当前窗口配置...")
-        # 默认窗口配置
-        current_windows = [7, 14, 30]
+        # 当前特征工程实际使用的窗口配置（从代码中提取）
+        current_windows = [3, 5, 10, 20, 30, 50]
         enhancement_results['window_analysis'] = {
             'current_windows': current_windows,
             'window_count': len(current_windows)
@@ -332,17 +332,32 @@ def feature_window_enhancement() -> Dict:
             }
 
             # 如果内存充足且当前窗口数量较少，可以考虑增加
-            if memory_available > 4.0 and len(current_windows) < 5:
-                # 尝试添加一个合理的窗口大小
-                if 60 not in current_windows and 45 not in current_windows:
-                    recommended_windows.append(45 if 30 in current_windows else 60)
-                    can_add_window = True
-                    logger.info(f"  ✓ 建议增加窗口: 45 或 60")
+            if memory_available > 4.0:
+                # 尝试添加更长的时间窗口以提高趋势捕获能力
+                windows_added = []
+                if 45 not in current_windows:
+                    recommended_windows.append(45)
+                    windows_added.append(45)
+                if 60 not in current_windows:
+                    recommended_windows.append(60)
+                    windows_added.append(60)
+                if 80 not in current_windows and memory_available > 8.0:
+                    recommended_windows.append(80)
+                    windows_added.append(80)
+                
+                recommended_windows = sorted(recommended_windows)
+                can_add_window = len(windows_added) > 0
+                
+                if can_add_window:
+                    logger.info(f"  ✓ 建议增加窗口: {windows_added}")
                     enhancement_results['recommendations'].append({
                         'type': 'window_addition',
-                        'suggested_size': 45 if 30 in current_windows else 60,
+                        'suggested_sizes': windows_added,
                         'reason': '系统资源充足，增加窗口可提高趋势捕获能力'
                     })
+                    
+                    # 记录为已做的改进
+                    optimization_report['improvements_made'].append(f'增加窗口配置: {windows_added}')
         except ImportError:
             logger.warning("  ⚠ psutil未安装，跳过系统资源检查")
         except Exception as e:

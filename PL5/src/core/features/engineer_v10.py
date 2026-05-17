@@ -510,7 +510,7 @@ class FeatureEngineerV10:
     def _add_extreme_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """极值特征 - 向量化"""
         result = df.copy()
-        windows = [10, 20, 50]
+        windows = [10, 20, 45, 50, 60, 80]  # 增加了更长的窗口以提高趋势捕获能力
 
         for pos in POSITIONS:
             s = df[pos]
@@ -548,7 +548,7 @@ class FeatureEngineerV10:
     def _add_time_series_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """时间序列特征 - 全面向量化"""
         result = df.copy()
-        windows = [3, 5, 10, 20, 30, 50]
+        windows = [3, 5, 10, 20, 30, 45, 50, 60, 80]  # 增加了更长的窗口以提高趋势捕获能力
 
         for pos in POSITIONS:
             s = df[pos].astype(np.float64)

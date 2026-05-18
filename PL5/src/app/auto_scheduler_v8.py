@@ -36,6 +36,7 @@ from src.core.utils.errors import (
 )
 from src.core.workflow import IntelligentWorkflowOrchestrator
 from src.core.workflow.intelligent_time_scheduler import IntelligentTimeScheduler, TimeStrategy
+from src.core.workflow.intelligent_orchestration import get_orchestration_manager
 
 logger = get_logger('scheduler')
 
@@ -254,21 +255,9 @@ class AutoSchedulerV8:
         """使用默认配置"""
         defaults = ConfigSafeLoader.DEFAULT_CONFIG_VALUES.get('scheduler_config', {})
         self.config = {
-            'pl5_detection_optimization_time': defaults.get('pl5_detection_optimization_time', '22:00'),  # PL5检测审查优化
-            'data_fetch_time': defaults.get('data_fetch_time', '22:15'),  # 开奖后获取数据
-            'evaluation_time': defaults.get('evaluation_time', '22:15'),  # 模型评估和调优
-            'optimization_start': defaults.get('optimization_start', '22:45'),  # 策略优化
-            'training_start': defaults.get('training_start', '00:30'),  # 深度训练
-            'incremental_training_time': defaults.get('incremental_training_time', '08:00'),  # 增量训练
-            'incremental_training_morning': defaults.get('incremental_training_morning', '08:00'),  # 上午增量训练
-            'first_prediction_verification': defaults.get('first_prediction_verification', '10:00'),  # 首次预测验证
-            'incremental_training_noon': defaults.get('incremental_training_noon', '12:00'),  # 中午增量训练
-            'incremental_training_afternoon': defaults.get('incremental_training_afternoon', '14:00'),  # 下午增量训练
-            'deep_strategy_optimization': defaults.get('deep_strategy_optimization', '16:00'),  # 深度策略优化
-            'prediction_preview': defaults.get('prediction_preview', '17:00'),  # 预测预生成
-            'final_prediction_time': defaults.get('final_prediction_time', '18:00'),  # 最终预测
-            'final_prediction_verification_time': defaults.get('final_prediction_verification_time', '19:00'),  # 最终预测验证
-            'pre_sale_prediction_time': defaults.get('pre_sale_prediction_time', '20:00'),  # 售前最终预测
+            'use_intelligent_orchestration': True,  # 使用智能编排
+            'training_window_start': '21:55',       # 训练窗口开始时间
+            'training_window_end': '21:00',         # 训练窗口结束时间（第二天）
             'training_deadline': '17:00',
             'email_send_time': defaults.get('email_send_time', '20:15'),
             'enabled': True,
@@ -2652,12 +2641,96 @@ class AutoSchedulerV8:
         t.start()
     
     def setup_schedule(self):
-        """设置定时任务 - 从配置读取时间（完整佐证流程）"""
+        """设置定时任务 - 智能编排模式（锚点时间 + 实时编排）"""
         logger.info("=" * 80)
-        logger.info("设置定时任务（完整佐证流程）")
+        logger.info("设置定时任务（智能编排模式）")
         logger.info("=" * 80)
         
-        # 【V10.1修复】从配置文件读取所有时间点，默认时间与客户配置保持一致
+        # 检查是否启用智能编排
+        use_intelligent_orchestration = self.config.get('use_intelligent_orchestration', False)
+        
+        if use_intelligent_orchestration:
+            logger.info("[智能编排] 启用智能编排模式")
+            
+            # 获取智能编排管理器
+            orchestration_manager = get_orchestration_manager(self)
+            
+            # 注册所有任务到编排管理器
+            logger.info("[智能编排] 注册任务到编排管理器...")
+            task_priorities = {
+                'pl5_detection_optimization': 1,
+                'data_fetch': 2,
+                'evaluation': 3,
+                'optimization': 4,
+                'training': 5,
+                'incremental_training': 6,
+                'first_prediction_verification': 7,
+                'second_prediction_verification': 8,
+                'third_prediction_verification': 9,
+                'deep_strategy_optimization': 10,
+                'prediction_preview': 11,
+                'final_prediction': 12,
+                'final_prediction_verification': 13,
+                'pre_sale_prediction': 14,
+                'send_report': 15
+            }
+            
+            task_dependencies = {
+                'pl5_detection_optimization': [],
+                'data_fetch': ['pl5_detection_optimization'],
+                'evaluation': ['data_fetch'],
+                'optimization': ['evaluation'],
+                'training': ['optimization'],
+                'incremental_training': ['training'],
+                'first_prediction_verification': ['incremental_training'],
+                'second_prediction_verification': ['first_prediction_verification'],
+                'third_prediction_verification': ['second_prediction_verification'],
+                'deep_strategy_optimization': ['third_prediction_verification'],
+                'prediction_preview': ['deep_strategy_optimization'],
+                'final_prediction': ['prediction_preview'],
+                'final_prediction_verification': ['final_prediction'],
+                'pre_sale_prediction': ['final_prediction_verification'],
+                'send_report': ['pre_sale_prediction']
+            }
+            
+            for task_name, (display_name, handler) in self.task_map.items():
+                if task_name in task_priorities:
+                    orchestration_manager.register_task(
+                        task_name,
+                        handler,
+                        priority=task_priorities[task_name],
+                        dependencies=task_dependencies.get(task_name, [])
+                    )
+                    logger.info(f"[OK] 已注册任务: {display_name}, 优先级: {task_priorities[task_name]}")
+            
+            # 锚点时间设置 - 只设置开始时间，结束时间由编排器自动管理
+            training_window_start = self.config.get('training_window_start', '21:55')
+            training_window_end = self.config.get('training_window_end', '21:00')
+            
+            # 启动智能编排管理器
+            orchestration_manager.start()
+            logger.info(f"[OK] 智能编排管理器已启动")
+            logger.info(f"[OK] 训练窗口: 每天 {training_window_start} 开始 - 次日 {training_window_end} 结束")
+            
+            # 只保留一个简单的定时任务来确保系统不会完全停止（可选）
+            email_send_time = self.config.get('email_send_time', '20:15')
+            schedule.every().day.at(email_send_time).do(
+                lambda: self._schedule_thread_wrapper(self.task_send_report)
+            )
+            logger.info(f"[OK] {email_send_time} - 发送训练报告和最终预测到邮箱")
+            
+        else:
+            # 兼容模式 - 使用原有的固定时间调度
+            logger.info("[兼容模式] 使用传统定时任务调度")
+            self._setup_legacy_schedule()
+        
+        logger.info("=" * 80)
+        logger.info("调度设置完成！")
+        logger.info("=" * 80)
+    
+    def _setup_legacy_schedule(self):
+        """设置传统定时任务（兼容模式）"""
+        # 【V10.1修复】从配置文件读取所有时间点
         pl5_detection_optimization_time = self.config.get('pl5_detection_optimization_time', '22:00')
         data_fetch_time = self.config.get('data_fetch_time', '22:15')
         evaluation_time = self.config.get('evaluation_time', '22:15')
@@ -2666,9 +2739,9 @@ class AutoSchedulerV8:
         incremental_training_morning = self.config.get('incremental_training_morning', '08:00')
         first_prediction_verification = self.config.get('first_prediction_verification', '10:00')
         incremental_training_noon = self.config.get('incremental_training_noon', '12:00')
-        second_prediction_verification = self.config.get('second_prediction_verification', '13:00')      # 【佐证链修复】二次预测验证
+        second_prediction_verification = self.config.get('second_prediction_verification', '13:00')
         incremental_training_afternoon = self.config.get('incremental_training_afternoon', '14:00')
-        third_prediction_verification = self.config.get('third_prediction_verification', '15:00')        # 【佐证链修复】三次预测验证
+        third_prediction_verification = self.config.get('third_prediction_verification', '15:00')
         deep_strategy_optimization = self.config.get('deep_strategy_optimization', '16:00')
         prediction_preview = self.config.get('prediction_preview', '17:00')
         final_prediction_time = self.config.get('final_prediction_time', '18:00')
@@ -2684,7 +2757,7 @@ class AutoSchedulerV8:
         schedule.every().day.at(data_fetch_time).do(lambda: self._schedule_thread_wrapper(self.task_fetch_data))
         logger.info(f"[OK] {data_fetch_time} - 自动获取开奖数据")
         
-        # 任务2: 评估预测逻辑与命中情况 (22:15) - 评估在训练之前
+        # 任务2: 评估预测逻辑与命中情况 (22:15)
         schedule.every().day.at(evaluation_time).do(lambda: self._schedule_thread_wrapper(self.task_evaluate))
         logger.info(f"[OK] {evaluation_time} - 评估预测逻辑与命中情况")
         
@@ -2696,57 +2769,53 @@ class AutoSchedulerV8:
         schedule.every().day.at(training_start).do(lambda: self._schedule_thread_wrapper(self.task_train))
         logger.info(f"[OK] {training_start} - 开始深度训练")
         
-        # 任务5: 进行增量训练（上午） (08:00) - 首次佐证前的增量学习
+        # 任务5: 进行增量训练（上午） (08:00)
         schedule.every().day.at(incremental_training_morning).do(lambda: self._schedule_thread_wrapper(self.task_incremental_train))
-        logger.info(f"[OK] {incremental_training_morning} - 进行增量训练（上午）- 首次佐证")
+        logger.info(f"[OK] {incremental_training_morning} - 进行增量训练（上午）")
         
-        # 任务6: 首次预测验证 (10:00) - 首次佐证，验证推理逻辑
+        # 任务6: 首次预测验证 (10:00)
         schedule.every().day.at(first_prediction_verification).do(lambda: self._schedule_thread_wrapper(self.task_first_prediction_verification))
-        logger.info(f"[OK] {first_prediction_verification} - 首次预测验证（首次佐证）")
+        logger.info(f"[OK] {first_prediction_verification} - 首次预测验证")
         
-        # 任务7: 进行增量训练（中午） (12:00) - 二次佐证前的增量学习
+        # 任务7: 进行增量训练（中午） (12:00)
         schedule.every().day.at(incremental_training_noon).do(lambda: self._schedule_thread_wrapper(self.task_incremental_train))
-        logger.info(f"[OK] {incremental_training_noon} - 进行增量训练（中午）- 二次佐证前训练")
+        logger.info(f"[OK] {incremental_training_noon} - 进行增量训练（中午）")
         
-        # 【佐证链修复】任务7b: 二次预测验证 (13:00) - 二次佐证
+        # 任务7b: 二次预测验证 (13:00)
         schedule.every().day.at(second_prediction_verification).do(lambda: self._schedule_thread_wrapper(self.task_second_prediction_verification))
-        logger.info(f"[OK] {second_prediction_verification} - 二次预测验证（二次佐证）")
+        logger.info(f"[OK] {second_prediction_verification} - 二次预测验证")
         
-        # 任务8: 进行增量训练（下午） (14:00) - 三次佐证前的增量学习
+        # 任务8: 进行增量训练（下午） (14:00)
         schedule.every().day.at(incremental_training_afternoon).do(lambda: self._schedule_thread_wrapper(self.task_incremental_train))
-        logger.info(f"[OK] {incremental_training_afternoon} - 进行增量训练（下午）- 三次佐证前训练")
+        logger.info(f"[OK] {incremental_training_afternoon} - 进行增量训练（下午）")
         
-        # 【佐证链修复】任务8b: 三次预测验证 (15:00) - 三次佐证
+        # 任务8b: 三次预测验证 (15:00)
         schedule.every().day.at(third_prediction_verification).do(lambda: self._schedule_thread_wrapper(self.task_third_prediction_verification))
-        logger.info(f"[OK] {third_prediction_verification} - 三次预测验证（三次佐证）")
+        logger.info(f"[OK] {third_prediction_verification} - 三次预测验证")
         
-        # 任务9: 深度策略优化 (16:00) - 四次佐证
+        # 任务9: 深度策略优化 (16:00)
         schedule.every().day.at(deep_strategy_optimization).do(lambda: self._schedule_thread_wrapper(self.task_deep_strategy_optimization))
-        logger.info(f"[OK] {deep_strategy_optimization} - 深度策略优化（四次佐证）")
+        logger.info(f"[OK] {deep_strategy_optimization} - 深度策略优化")
         
-        # 任务10: 预测结果预生成 (17:00) - 五次佐证
+        # 任务10: 预测结果预生成 (17:00)
         schedule.every().day.at(prediction_preview).do(lambda: self._schedule_thread_wrapper(self.task_prediction_preview))
-        logger.info(f"[OK] {prediction_preview} - 预测结果预生成（五次佐证）")
+        logger.info(f"[OK] {prediction_preview} - 预测结果预生成")
         
         # 任务11: 生成最终预测结果 (18:00)
         schedule.every().day.at(final_prediction_time).do(lambda: self._schedule_thread_wrapper(self.task_final_prediction))
         logger.info(f"[OK] {final_prediction_time} - 生成最终预测结果")
         
-        # 任务12: 验证最终预测结果 (19:00) - 六次佐证
+        # 任务12: 验证最终预测结果 (19:00)
         schedule.every().day.at(final_prediction_verification_time).do(lambda: self._schedule_thread_wrapper(self.task_final_prediction_verification))
-        logger.info(f"[OK] {final_prediction_verification_time} - 验证最终预测结果（六次佐证）")
+        logger.info(f"[OK] {final_prediction_verification_time} - 验证最终预测结果")
         
         # 任务13: 售前最终预测 (20:00)
         schedule.every().day.at(pre_sale_prediction_time).do(lambda: self._schedule_thread_wrapper(self.task_pre_sale_prediction))
         logger.info(f"[OK] {pre_sale_prediction_time} - 售前最终预测")
         
-        # 任务14: 发送训练报告和最终预测到邮箱 (20:00)
+        # 任务14: 发送训练报告和最终预测到邮箱
         schedule.every().day.at(email_send_time).do(lambda: self._schedule_thread_wrapper(self.task_send_report))
         logger.info(f"[OK] {email_send_time} - 发送训练报告和最终预测到邮箱")
-        
-        logger.info("=" * 80)
-        logger.info("完整佐证流程已设置完成！")
-        logger.info("=" * 80)
     
     def check_intelligent_scheduling(self):
         if not self.workflow_enabled or not self.orchestrator:

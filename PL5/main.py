@@ -80,8 +80,14 @@ def cmd_train(args):
     # 与 scheduler 训练路径保持一致：不限制 select_top，确保模型的 76 个训练特征全部存在
     df_features = engineer.extract_all_features(df, select_top=None)
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-    feature_cols = [c for c in df_features.columns
-                   if c not in ['period', 'full_number'] + positions]
+    # 确保只选择数值列，排除字符串/日期列
+    feature_cols = []
+    exclude_cols = ['period', 'date', 'full_number', 'parse_line'] + positions
+    for c in df_features.columns:
+        if c not in exclude_cols:
+            dtype = str(df_features[c].dtype)
+            if dtype != 'object' and 'datetime' not in dtype:
+                feature_cols.append(c)
     logger.info(f"特征工程完成: {len(feature_cols)} 个特征")
 
     predictor = EnhancedPL5Predictor()
@@ -145,10 +151,16 @@ def cmd_predict(args):
     model_loaded = predictor.load_models()
 
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+    exclude_cols = ['period', 'date', 'full_number', 'parse_line'] + positions
     if not model_loaded:
         logger.warning("未找到已训练模型，执行即时训练...")
-        feature_cols = [c for c in df_features.columns
-                       if c not in ['period', 'full_number'] + positions]
+        # 确保只选择数值列
+        feature_cols = []
+        for c in df_features.columns:
+            if c not in exclude_cols:
+                dtype = str(df_features[c].dtype)
+                if dtype != 'object' and 'datetime' not in dtype:
+                    feature_cols.append(c)
         predictor.fit(df_features, feature_cols, parallel=False)
         predictor.save_models()
         latest_features = df_features[feature_cols].iloc[-1].values
@@ -158,15 +170,25 @@ def cmd_predict(args):
             missing = [c for c in predictor.feature_cols if c not in df_features.columns]
             if missing:
                 logger.warning(f"模型特征列中有 {len(missing)} 个缺失，重新提取特征")
-                feature_cols = [c for c in df_features.columns
-                               if c not in ['period', 'full_number'] + positions]
+                # 确保只选择数值列
+                feature_cols = []
+                for c in df_features.columns:
+                    if c not in exclude_cols:
+                        dtype = str(df_features[c].dtype)
+                        if dtype != 'object' and 'datetime' not in dtype:
+                            feature_cols.append(c)
             else:
                 feature_cols = predictor.feature_cols
                 logger.info(f"[cmd_predict] 使用模型训练时的 {len(feature_cols)} 个特征列（特征漂移已修复）")
             latest_features = df_features[feature_cols].iloc[-1].values
         else:
-            feature_cols = [c for c in df_features.columns
-                           if c not in ['period', 'full_number'] + positions]
+            # 确保只选择数值列
+            feature_cols = []
+            for c in df_features.columns:
+                if c not in exclude_cols:
+                    dtype = str(df_features[c].dtype)
+                    if dtype != 'object' and 'datetime' not in dtype:
+                        feature_cols.append(c)
             latest_features = df_features[feature_cols].iloc[-1].values
     recent_data = {pos: df[pos].values for pos in positions}
     predictions = predictor.predict(latest_features, recent_data, top_k=8)

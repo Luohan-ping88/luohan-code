@@ -549,6 +549,22 @@ class EnhancedPL5Predictor:
         try:
             logger.debug(f"[训练步骤] 开始训练 - {datetime.now().strftime('%H:%M:%S')}")
             
+            # 确保只使用数值列，排除字符串/日期列
+            numeric_feature_cols = []
+            for col in feature_cols:
+                if col in df.columns:
+                    dtype = str(df[col].dtype)
+                    if dtype != 'object' and 'datetime' not in dtype:
+                        numeric_feature_cols.append(col)
+            
+            # 记录差异
+            if len(numeric_feature_cols) != len(feature_cols):
+                excluded = set(feature_cols) - set(numeric_feature_cols)
+                logger.warning(f"排除 {len(excluded)} 个非数值特征列: {list(excluded)}")
+            
+            # 更新 feature_cols 为过滤后的数值列
+            feature_cols = numeric_feature_cols
+            
             # 检查是否为增量学习
             if incremental:
                 logger.debug(f"[训练步骤] 执行增量学习 - {datetime.now().strftime('%H:%M:%S')}")
@@ -795,7 +811,21 @@ class EnhancedPL5Predictor:
     def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
+        # 确保只使用数值列，排除字符串/日期列
+        numeric_feature_cols = []
+        for col in feature_cols:
+            if col in df.columns:
+                dtype = str(df[col].dtype)
+                if dtype != 'object' and 'datetime' not in dtype:
+                    numeric_feature_cols.append(col)
+        
+        # 记录差异
+        if len(numeric_feature_cols) != len(feature_cols):
+            excluded = set(feature_cols) - set(numeric_feature_cols)
+            logger.warning(f"排除 {len(excluded)} 个非数值特征列: {list(excluded)}")
+        
+        # 使用过滤后的数值列
+        X = df[numeric_feature_cols].fillna(0).values
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 

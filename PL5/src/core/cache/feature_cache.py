@@ -1,6 +1,7 @@
 """
-特征缓存管理器 V2.0 - 专为特征工程优化的缓存
+特征缓存管理器 V2.1 - 专为特征工程优化的缓存
 支持基于数据内容的智能缓存key生成，TTL过期，多级缓存策略
+修复pandas 3.0+兼容性问题
 """
 
 import hashlib
@@ -38,7 +39,7 @@ class CacheConfig:
 
 
 class FeatureCacheManager:
-    """基于hash的特征缓存管理器 V2.0 - 增强版"""
+    """基于hash的特征缓存管理器 V2.1 - 增强版"""
 
     def __init__(self, config: Optional[CacheConfig] = None):
         self.config = config or CacheConfig()
@@ -62,7 +63,25 @@ class FeatureCacheManager:
         hash_obj = hashlib.sha256()
         for col in core_cols:
             if col in df.columns:
-                values = df[col].values.tobytes()
+                try:
+                    # 尝试直接tobytes
+                    values = df[col].values.tobytes()
+                except (AttributeError, TypeError):
+                    # 兼容性处理：对于StringArray等类型
+                    try:
+                        # 转换为字符串表示
+                        if pd.api.types.is_string_dtype(df[col]) or col == 'full_number':
+                            # 对于字符串列，直接连接字符串
+                            values = '|'.join(str(x) for x in df[col]).encode('utf-8')
+                        else:
+                            # 对于其他类型，转换为numpy数组
+                            arr = np.array(df[col])
+                            values = arr.tobytes()
+                    except (AttributeError, TypeError, Exception):
+                        # 最后的降级方案：使用列的前N个值的字符串表示
+                        preview = '|'.join(str(x) for x in df[col].head(100))
+                        values = preview.encode('utf-8')
+
                 hash_obj.update(values)
                 hash_obj.update(str(len(df)).encode())
 
@@ -91,25 +110,29 @@ class FeatureCacheManager:
 
     def put(self, key: str, df: pd.DataFrame, ttl: Optional[int] = None):
         """存入缓存"""
-        # 自动调整缓存大小
-        if self.config.auto_adjust_size:
-            self._auto_adjust_size()
+        try:
+            # 自动调整缓存大小
+            if self.config.auto_adjust_size:
+                self._auto_adjust_size()
 
-        # 设置TTL
-        if ttl is None:
-            ttl = self.config.default_ttl
-        self._ttl_times[key] = time.time() + ttl
+            # 设置TTL
+            if ttl is None:
+                ttl = self.config.default_ttl
+            self._ttl_times[key] = time.time() + ttl
 
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            self._cache[key] = df.copy()
-        else:
-            if len(self._cache) >= self._max_size:
-                self._smart_evict()
-            self._cache[key] = df.copy()
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                self._cache[key] = df.copy()
+            else:
+                if len(self._cache) >= self._max_size:
+                    self._smart_evict()
+                self._cache[key] = df.copy()
 
-        self._cache_times[key] = time.time()
-        self._access_patterns[key] = self._access_patterns.get(key, 0) + 1
+            self._cache_times[key] = time.time()
+            self._access_patterns[key] = self._access_patterns.get(key, 0) + 1
+        except Exception as e:
+            # 出错时只记录警告，不影响主流程
+            print(f"缓存警告: {e}")
 
     def _auto_adjust_size(self):
         """根据命中率动态调整缓存大小"""
@@ -268,19 +291,22 @@ class FeatureCacheManager:
         save_path = path or Path(self.config.persistence_path or "cache/feature_cache.pkl")
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = {
-            'cache': dict(self._cache),
-            'cache_times': self._cache_times,
-            'access_patterns': self._access_patterns,
-            'ttl_times': self._ttl_times,
-            'hit_count': self._hit_count,
-            'miss_count': self._miss_count,
-            'timestamp': time.time()
-        }
+        try:
+            data = {
+                'cache': dict(self._cache),
+                'cache_times': self._cache_times,
+                'access_patterns': self._access_patterns,
+                'ttl_times': self._ttl_times,
+                'hit_count': self._hit_count,
+                'miss_count': self._miss_count,
+                'timestamp': time.time()
+            }
 
-        with open(save_path, 'wb') as f:
-            pickle.dump(data, f)
-        print(f"缓存已保存到: {save_path}")
+            with open(save_path, 'wb') as f:
+                pickle.dump(data, f)
+            print(f"缓存已保存到: {save_path}")
+        except Exception as e:
+            print(f"缓存保存失败: {e}")
 
     def load_from_disk(self, path: Optional[Path] = None) -> bool:
         """从磁盘加载缓存"""

@@ -1,407 +1,488 @@
-"""模型评估和自动调优模块
-
-评估模型性能并自动调整参数，以提高预测准确性和系统效率。
+"""
+模型评估器 V2.0 - 增强版
+支持交叉验证、多指标评估、模型对比分析
 """
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import cross_val_score, TimeSeriesSplit
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
+from dataclasses import dataclass, field
+from enum import Enum
+import json
+import pickle
+from collections import defaultdict
 
-from src.core.utils.logger import logger
+from sklearn.model_selection import KFold, TimeSeriesSplit
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    confusion_matrix, classification_report
+)
 
 
-class ModelEvaluator:
-    """模型评估器"""
-    
-    def __init__(self, 
-                 target_accuracy_8: float = 0.95,  # 8码准确率目标
-                 target_accuracy_5: float = 0.70,  # 5码准确率目标
-                 target_accuracy_3: float = 0.50,  # 3码准确率目标
-                 evaluation_window: int = 30  # 评估窗口大小
-                 ):
-        """初始化模型评估器
-        
-        Args:
-            target_accuracy_8: 8码准确率目标
-            target_accuracy_5: 5码准确率目标
-            target_accuracy_3: 3码准确率目标
-            evaluation_window: 评估窗口大小
-        """
-        self.target_accuracy_8 = target_accuracy_8
-        self.target_accuracy_5 = target_accuracy_5
-        self.target_accuracy_3 = target_accuracy_3
-        self.evaluation_window = evaluation_window
-        self.evaluation_history = []
-    
-    def evaluate_prediction(self, 
-                           prediction: Dict[str, List[int]], 
-                           actual: Dict[str, int]) -> Dict[str, Any]:
-        """评估单个预测结果
-        
-        Args:
-            prediction: 预测结果
-            actual: 实际结果
-            
-        Returns:
-            Dict: 评估结果
-        """
-        evaluation = {
-            'timestamp': datetime.now().isoformat(),
-            'positions': {},
-            'overall': {}
+class EvaluationMetric(Enum):
+    """评估指标"""
+    ACCURACY = "accuracy"
+    PRECISION = "precision"
+    RECALL = "recall"
+    F1 = "f1"
+    TOP_K_ACCURACY = "top_k_accuracy"
+
+
+@dataclass
+class CrossValidationConfig:
+    """交叉验证配置"""
+    n_splits: int = 5
+    use_time_series_split: bool = True
+    shuffle: bool = False
+    random_state: int = 42
+
+
+@dataclass
+class EvaluationResult:
+    """评估结果"""
+    model_name: str
+    timestamp: str
+    cv_scores: Dict[str, List[float]] = field(default_factory=dict)
+    mean_scores: Dict[str, float] = field(default_factory=dict)
+    std_scores: Dict[str, float] = field(default_factory=dict)
+    fold_details: List[Dict] = field(default_factory=list)
+    overall_metrics: Dict[str, float] = field(default_factory=dict)
+    confusion_matrices: Dict[str, np.ndarray] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            'model_name': self.model_name,
+            'timestamp': self.timestamp,
+            'cv_scores': {k: [float(v) for v in vs] for k, vs in self.cv_scores.items()},
+            'mean_scores': {k: float(v) for k, v in self.mean_scores.items()},
+            'std_scores': {k: float(v) for k, v in self.std_scores.items()},
+            'fold_details': self.fold_details,
+            'overall_metrics': {k: float(v) if isinstance(v, (int, float, np.number)) else v
+                               for k, v in self.overall_metrics.items()},
+            'confusion_matrices': {k: v.tolist() for k, v in self.confusion_matrices.items()},
+            'metadata': self.metadata
         }
-        
-        total_correct_8 = 0
-        total_correct_5 = 0
-        total_correct_3 = 0
-        total_positions = 0
-        
-        for pos, pred_numbers in prediction.items():
-            if pos in actual:
-                actual_number = actual[pos]
-                correct_8 = actual_number in pred_numbers[:8]
-                correct_5 = actual_number in pred_numbers[:5]
-                correct_3 = actual_number in pred_numbers[:3]
-                
-                evaluation['positions'][pos] = {
-                    'predicted': pred_numbers,
-                    'actual': actual_number,
-                    'correct_8': correct_8,
-                    'correct_5': correct_5,
-                    'correct_3': correct_3
+
+
+class EnhancedModelEvaluator:
+    """增强的模型评估器"""
+
+    def __init__(self, cv_config: Optional[CrossValidationConfig] = None):
+        self.cv_config = cv_config or CrossValidationConfig()
+        self.evaluation_history: List[EvaluationResult] = []
+
+    def evaluate_with_cross_validation(
+        self,
+        model,
+        X: np.ndarray,
+        y: np.ndarray,
+        model_name: str = "model",
+        metrics: List[EvaluationMetric] = None,
+        top_k: int = 3
+    ) -> EvaluationResult:
+        """
+        使用交叉验证评估模型
+
+        Args:
+            model: 要评估的模型
+            X: 特征数据
+            y: 标签数据
+            model_name: 模型名称
+            metrics: 评估指标列表
+            top_k: Top-K准确率中的K值
+
+        Returns:
+            EvaluationResult: 评估结果
+        """
+        if metrics is None:
+            metrics = [
+                EvaluationMetric.ACCURACY,
+                EvaluationMetric.PRECISION,
+                EvaluationMetric.RECALL,
+                EvaluationMetric.F1
+            ]
+
+        print(f"\n开始使用交叉验证评估模型: {model_name}")
+        print(f"数据形状: X={X.shape}, y={y.shape}")
+        print(f"交叉验证折数: {self.cv_config.n_splits}")
+
+        # 创建交叉验证器
+        if self.cv_config.use_time_series_split:
+            kfold = TimeSeriesSplit(n_splits=self.cv_config.n_splits)
+        else:
+            kfold = KFold(
+                n_splits=self.cv_config.n_splits,
+                shuffle=self.cv_config.shuffle,
+                random_state=self.cv_config.random_state
+            )
+
+        # 存储每折的结果
+        cv_scores = {metric.value: [] for metric in metrics}
+        fold_details = []
+        confusion_matrices = {}
+
+        for fold_idx, (train_idx, val_idx) in enumerate(kfold.split(X)):
+            print(f"\n第 {fold_idx + 1}/{self.cv_config.n_splits} 折...")
+
+            X_train, X_val = X[train_idx], X[val_idx]
+            y_train, y_val = y[train_idx], y[val_idx]
+
+            # 训练模型
+            try:
+                model.fit(X_train, y_train)
+
+                # 预测
+                if hasattr(model, 'predict'):
+                    y_pred = model.predict(X_val)
+                else:
+                    raise ValueError("模型没有predict方法")
+
+                # 计算各项指标
+                fold_metrics = {}
+
+                for metric in metrics:
+                    if metric == EvaluationMetric.ACCURACY:
+                        score = accuracy_score(y_val, y_pred)
+                    elif metric == EvaluationMetric.PRECISION:
+                        score = precision_score(y_val, y_pred, average='macro', zero_division=0)
+                    elif metric == EvaluationMetric.RECALL:
+                        score = recall_score(y_val, y_pred, average='macro', zero_division=0)
+                    elif metric == EvaluationMetric.F1:
+                        score = f1_score(y_val, y_pred, average='macro', zero_division=0)
+                    elif metric == EvaluationMetric.TOP_K_ACCURACY:
+                        # Top-K准确率
+                        if hasattr(model, 'predict_proba'):
+                            probas = model.predict_proba(X_val)
+                            top_k_preds = np.argsort(probas, axis=1)[:, -top_k:]
+                            score = np.mean([y_val[i] in top_k_preds[i] for i in range(len(y_val))])
+                        else:
+                            score = 0.0
+                    else:
+                        score = 0.0
+
+                    cv_scores[metric.value].append(score)
+                    fold_metrics[metric.value] = score
+
+                # 计算混淆矩阵
+                cm = confusion_matrix(y_val, y_pred)
+                confusion_matrices[f'fold_{fold_idx}'] = cm
+
+                # 保存折的详细信息
+                fold_details.append({
+                    'fold': fold_idx,
+                    'train_size': len(train_idx),
+                    'val_size': len(val_idx),
+                    'metrics': fold_metrics,
+                    'accuracy': accuracy_score(y_val, y_pred)
+                })
+
+                print(f"  准确率: {fold_metrics.get('accuracy', 0):.4f}")
+
+            except Exception as e:
+                print(f"  错误: 第{fold_idx}折训练失败: {e}")
+                for metric in metrics:
+                    cv_scores[metric.value].append(0.0)
+
+        # 计算平均值和标准差
+        mean_scores = {metric: np.mean(scores) for metric, scores in cv_scores.items()}
+        std_scores = {metric: np.std(scores) for metric, scores in cv_scores.items()}
+
+        # 创建评估结果
+        result = EvaluationResult(
+            model_name=model_name,
+            timestamp=datetime.now().isoformat(),
+            cv_scores=cv_scores,
+            mean_scores=mean_scores,
+            std_scores=std_scores,
+            fold_details=fold_details,
+            confusion_matrices=confusion_matrices,
+            metadata={
+                'n_splits': self.cv_config.n_splits,
+                'data_shape': X.shape,
+                'top_k': top_k
+            }
+        )
+
+        self.evaluation_history.append(result)
+        self._print_evaluation_summary(result)
+
+        return result
+
+    def compare_models(
+        self,
+        models: Dict[str, Any],
+        X: np.ndarray,
+        y: np.ndarray,
+        metrics: List[EvaluationMetric] = None
+    ) -> pd.DataFrame:
+        """
+        对比多个模型的性能
+
+        Args:
+            models: 模型字典 {name: model}
+            X: 特征数据
+            y: 标签数据
+            metrics: 评估指标
+
+        Returns:
+            DataFrame: 对比结果
+        """
+        if metrics is None:
+            metrics = [
+                EvaluationMetric.ACCURACY,
+                EvaluationMetric.PRECISION,
+                EvaluationMetric.RECALL,
+                EvaluationMetric.F1
+            ]
+
+        print("\n" + "=" * 80)
+        print("模型性能对比")
+        print("=" * 80)
+
+        results = []
+
+        for model_name, model in models.items():
+            print(f"\n评估模型: {model_name}")
+            try:
+                result = self.evaluate_with_cross_validation(
+                    model, X, y, model_name, metrics
+                )
+
+                results.append({
+                    'model': model_name,
+                    'accuracy': result.mean_scores.get('accuracy', 0),
+                    'accuracy_std': result.std_scores.get('accuracy', 0),
+                    'precision': result.mean_scores.get('precision', 0),
+                    'recall': result.mean_scores.get('recall', 0),
+                    'f1': result.mean_scores.get('f1', 0),
+                    'cv_folds': self.cv_config.n_splits
+                })
+            except Exception as e:
+                print(f"  模型 {model_name} 评估失败: {e}")
+                results.append({
+                    'model': model_name,
+                    'accuracy': 0,
+                    'accuracy_std': 0,
+                    'precision': 0,
+                    'recall': 0,
+                    'f1': 0,
+                    'cv_folds': self.cv_config.n_splits
+                })
+
+        # 创建对比DataFrame
+        df = pd.DataFrame(results)
+        df = df.sort_values('accuracy', ascending=False)
+
+        print("\n" + "=" * 80)
+        print("模型排名（按准确率）")
+        print("=" * 80)
+        print(df.to_string(index=False))
+
+        return df
+
+    def analyze_prediction_errors(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        top_n: int = 10
+    ) -> Dict:
+        """
+        分析预测错误
+
+        Returns:
+            Dict: 错误分析结果
+        """
+        errors = np.where(y_true != y_pred)[0]
+        error_rate = len(errors) / len(y_true) if len(y_true) > 0 else 0
+
+        # 分析每个类别的错误
+        class_errors = defaultdict(list)
+        for idx in errors:
+            true_label = y_true[idx]
+            pred_label = y_pred[idx]
+            class_errors[true_label].append(pred_label)
+
+        # 统计每个类别的错误模式
+        error_patterns = {}
+        for true_label, pred_labels in class_errors.items():
+            unique_preds, counts = np.unique(pred_labels, return_counts=True)
+            error_patterns[int(true_label)] = {
+                'total_errors': len(pred_labels),
+                'common_mistakes': {
+                    int(p): int(c) for p, c in zip(unique_preds, counts)
                 }
-                
-                total_correct_8 += correct_8
-                total_correct_5 += correct_5
-                total_correct_3 += correct_3
-                total_positions += 1
-        
-        if total_positions > 0:
-            accuracy_8 = total_correct_8 / total_positions
-            accuracy_5 = total_correct_5 / total_positions
-            accuracy_3 = total_correct_3 / total_positions
-            
-            evaluation['overall'] = {
-                'accuracy_8': accuracy_8,
-                'accuracy_5': accuracy_5,
-                'accuracy_3': accuracy_3,
-                'total_positions': total_positions,
-                'target_accuracy_8': self.target_accuracy_8,
-                'target_accuracy_5': self.target_accuracy_5,
-                'target_accuracy_3': self.target_accuracy_3,
-                'meets_target_8': accuracy_8 >= self.target_accuracy_8,
-                'meets_target_5': accuracy_5 >= self.target_accuracy_5,
-                'meets_target_3': accuracy_3 >= self.target_accuracy_3
             }
-        
-        self.evaluation_history.append(evaluation)
-        if len(self.evaluation_history) > self.evaluation_window:
-            self.evaluation_history = self.evaluation_history[-self.evaluation_window:]
-        
-        return evaluation
-    
-    def evaluate_model(self, 
-                      model, 
-                      X: np.ndarray, 
-                      y: np.ndarray, 
-                      cv: int = 5) -> Dict[str, Any]:
-        """评估模型性能
-        
-        Args:
-            model: 模型实例
-            X: 特征数据
-            y: 目标数据
-            cv: 交叉验证折数
-            
-        Returns:
-            Dict: 评估结果
-        """
-        tscv = TimeSeriesSplit(n_splits=cv)
-        
-        # 计算准确率
-        accuracy_scores = cross_val_score(model, X, y, cv=tscv, scoring='accuracy')
-        
-        # 计算精确率、召回率和F1分数
-        precision_scores = cross_val_score(model, X, y, cv=tscv, scoring='precision_macro')
-        recall_scores = cross_val_score(model, X, y, cv=tscv, scoring='recall_macro')
-        f1_scores = cross_val_score(model, X, y, cv=tscv, scoring='f1_macro')
-        
+
         return {
-            'accuracy': {
-                'mean': np.mean(accuracy_scores),
-                'std': np.std(accuracy_scores),
-                'scores': accuracy_scores.tolist()
-            },
-            'precision': {
-                'mean': np.mean(precision_scores),
-                'std': np.std(precision_scores),
-                'scores': precision_scores.tolist()
-            },
-            'recall': {
-                'mean': np.mean(recall_scores),
-                'std': np.std(recall_scores),
-                'scores': recall_scores.tolist()
-            },
-            'f1': {
-                'mean': np.mean(f1_scores),
-                'std': np.std(f1_scores),
-                'scores': f1_scores.tolist()
-            }
+            'total_errors': len(errors),
+            'error_rate': error_rate,
+            'accuracy': 1 - error_rate,
+            'class_errors': error_patterns,
+            'error_indices': errors.tolist()[:top_n]  # 只返回前N个错误的索引
         }
-    
-    def get_evaluation_summary(self) -> Dict[str, Any]:
-        """获取评估摘要
-        
-        Returns:
-            Dict: 评估摘要
-        """
+
+    def generate_evaluation_report(
+        self,
+        result: EvaluationResult,
+        output_path: Optional[Path] = None
+    ) -> str:
+        """生成评估报告"""
+        report_lines = [
+            "=" * 80,
+            "模型评估报告",
+            "=" * 80,
+            f"模型名称: {result.model_name}",
+            f"评估时间: {result.timestamp}",
+            f"数据形状: {result.metadata.get('data_shape', 'N/A')}",
+            "",
+            "交叉验证结果:",
+            "-" * 40
+        ]
+
+        for metric, mean_score in result.mean_scores.items():
+            std_score = result.std_scores.get(metric, 0)
+            cv_values = result.cv_scores.get(metric, [])
+
+            report_lines.append(
+                f"{metric.upper()}: {mean_score:.4f} ± {std_score:.4f}"
+            )
+            report_lines.append(
+                f"  各折得分: {[f'{s:.4f}' for s in cv_values]}"
+            )
+
+        report_lines.extend([
+            "",
+            "各折详细结果:",
+            "-" * 40
+        ])
+
+        for fold_detail in result.fold_details:
+            report_lines.append(
+                f"第{fold_detail['fold']}折: 准确率={fold_detail['accuracy']:.4f}"
+            )
+
+        report = "\n".join(report_lines)
+
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(report)
+            print(f"评估报告已保存: {output_path}")
+
+        return report
+
+    def save_evaluation_history(
+        self,
+        output_path: Path
+    ):
+        """保存评估历史"""
+        history_data = [result.to_dict() for result in self.evaluation_history]
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(history_data, f, indent=2, ensure_ascii=False, default=str)
+
+        print(f"评估历史已保存: {output_path}")
+
+    def load_evaluation_history(
+        self,
+        input_path: Path
+    ) -> bool:
+        """加载评估历史"""
+        if not input_path.exists():
+            print(f"评估历史文件不存在: {input_path}")
+            return False
+
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                history_data = json.load(f)
+
+            self.evaluation_history = []
+            for data in history_data:
+                result = EvaluationResult(
+                    model_name=data['model_name'],
+                    timestamp=data['timestamp'],
+                    cv_scores=data['cv_scores'],
+                    mean_scores=data['mean_scores'],
+                    std_scores=data['std_scores'],
+                    fold_details=data['fold_details'],
+                    confusion_matrices={k: np.array(v) for k, v in data['confusion_matrices'].items()},
+                    metadata=data['metadata']
+                )
+                self.evaluation_history.append(result)
+
+            print(f"评估历史已加载: {len(self.evaluation_history)} 条记录")
+            return True
+
+        except Exception as e:
+            print(f"加载评估历史失败: {e}")
+            return False
+
+    def _print_evaluation_summary(self, result: EvaluationResult):
+        """打印评估摘要"""
+        print("\n" + "=" * 80)
+        print(f"评估完成: {result.model_name}")
+        print("=" * 80)
+
+        print("\n平均分数:")
+        for metric, score in result.mean_scores.items():
+            std = result.std_scores.get(metric, 0)
+            print(f"  {metric.upper()}: {score:.4f} ± {std:.4f}")
+
+        # 找出最佳折
+        if result.fold_details:
+            best_fold = max(result.fold_details, key=lambda x: x['accuracy'])
+            worst_fold = min(result.fold_details, key=lambda x: x['accuracy'])
+
+            print(f"\n最佳折: 第{best_fold['fold']}折 (准确率: {best_fold['accuracy']:.4f})")
+            print(f"最差折: 第{worst_fold['fold']}折 (准确率: {worst_fold['accuracy']:.4f})")
+
+    def get_best_model(self) -> Optional[EvaluationResult]:
+        """获取评估历史中最佳模型"""
         if not self.evaluation_history:
-            return {
-                'message': 'No evaluation history available'
+            return None
+
+        best_result = max(
+            self.evaluation_history,
+            key=lambda r: r.mean_scores.get('accuracy', 0)
+        )
+
+        return best_result
+
+    def get_performance_trend(self) -> pd.DataFrame:
+        """获取性能趋势"""
+        if not self.evaluation_history:
+            return pd.DataFrame()
+
+        trend_data = []
+        for result in self.evaluation_history:
+            row = {
+                'timestamp': result.timestamp,
+                'model_name': result.model_name,
+                'accuracy': result.mean_scores.get('accuracy', 0),
+                'precision': result.mean_scores.get('precision', 0),
+                'recall': result.mean_scores.get('recall', 0),
+                'f1': result.mean_scores.get('f1', 0)
             }
-        
-        recent_evaluations = self.evaluation_history[-self.evaluation_window:]
-        
-        overall_accuracies_8 = []
-        overall_accuracies_5 = []
-        overall_accuracies_3 = []
-        
-        for eval_result in recent_evaluations:
-            if 'overall' in eval_result:
-                overall_accuracies_8.append(eval_result['overall'].get('accuracy_8', 0))
-                overall_accuracies_5.append(eval_result['overall'].get('accuracy_5', 0))
-                overall_accuracies_3.append(eval_result['overall'].get('accuracy_3', 0))
-        
-        return {
-            'evaluation_count': len(recent_evaluations),
-            'average_accuracy_8': np.mean(overall_accuracies_8) if overall_accuracies_8 else 0,
-            'average_accuracy_5': np.mean(overall_accuracies_5) if overall_accuracies_5 else 0,
-            'average_accuracy_3': np.mean(overall_accuracies_3) if overall_accuracies_3 else 0,
-            'target_accuracy_8': self.target_accuracy_8,
-            'target_accuracy_5': self.target_accuracy_5,
-            'target_accuracy_3': self.target_accuracy_3,
-            'meets_target_8': np.mean(overall_accuracies_8) >= self.target_accuracy_8 if overall_accuracies_8 else False,
-            'meets_target_5': np.mean(overall_accuracies_5) >= self.target_accuracy_5 if overall_accuracies_5 else False,
-            'meets_target_3': np.mean(overall_accuracies_3) >= self.target_accuracy_3 if overall_accuracies_3 else False
-        }
-    
-    def suggest_hyperparameters(self, 
-                               current_params: Dict[str, Any], 
-                               performance: Dict[str, Any]) -> Dict[str, Any]:
-        """根据性能建议超参数调整
-        
-        Args:
-            current_params: 当前超参数
-            performance: 模型性能
-            
-        Returns:
-            Dict: 建议的超参数
-        """
-        suggested_params = current_params.copy()
-        
-        # 根据准确率调整参数
-        accuracy = performance.get('accuracy', {}).get('mean', 0)
-        
-        if accuracy < 0.5:
-            # 准确率较低，增加模型复杂度
-            if 'n_layers' in suggested_params:
-                suggested_params['n_layers'] = min(suggested_params['n_layers'] + 1, 6)
-            if 'd_model' in suggested_params:
-                suggested_params['d_model'] = min(suggested_params['d_model'] * 2, 128)
-            if 'epochs' in suggested_params:
-                suggested_params['epochs'] = min(suggested_params['epochs'] * 2, 200)
-        elif accuracy > 0.8:
-            # 准确率较高，可以减小模型复杂度以提高速度
-            if 'n_layers' in suggested_params and suggested_params['n_layers'] > 2:
-                suggested_params['n_layers'] -= 1
-            if 'd_model' in suggested_params and suggested_params['d_model'] > 16:
-                suggested_params['d_model'] = max(suggested_params['d_model'] // 2, 16)
-            if 'epochs' in suggested_params and suggested_params['epochs'] > 20:
-                suggested_params['epochs'] = max(suggested_params['epochs'] // 2, 20)
-        
-        return suggested_params
+            trend_data.append(row)
+
+        return pd.DataFrame(trend_data)
 
 
-class AutoTuner:
-    """自动调优器"""
-    
-    def __init__(self, 
-                 evaluator: ModelEvaluator,
-                 max_iterations: int = 10,  # 最大调优迭代次数
-                 improvement_threshold: float = 0.05  # 性能改进阈值
-                 ):
-        """初始化自动调优器
-        
-        Args:
-            evaluator: 模型评估器
-            max_iterations: 最大调优迭代次数
-            improvement_threshold: 性能改进阈值
-        """
-        self.evaluator = evaluator
-        self.max_iterations = max_iterations
-        self.improvement_threshold = improvement_threshold
-        self.tuning_history = []
-    
-    def tune_model(self, 
-                   model, 
-                   X: np.ndarray, 
-                   y: np.ndarray, 
-                   param_grid: Dict[str, List[Any]]) -> Dict[str, Any]:
-        """调优模型参数
-        
-        Args:
-            model: 模型实例
-            X: 特征数据
-            y: 目标数据
-            param_grid: 参数网格
-            
-        Returns:
-            Dict: 最佳参数和性能
-        """
-        best_score = -1
-        best_params = {}
-        
-        # 简单的网格搜索
-        from itertools import product
-        
-        # 生成参数组合
-        param_names = list(param_grid.keys())
-        param_values = list(param_grid.values())
-        param_combinations = product(*param_values)
-        
-        for i, params in enumerate(param_combinations):
-            if i >= self.max_iterations:
-                break
-            
-            # 设置参数
-            param_dict = dict(zip(param_names, params))
-            for key, value in param_dict.items():
-                setattr(model, key, value)
-            
-            # 评估模型
-            performance = self.evaluator.evaluate_model(model, X, y)
-            accuracy = performance.get('accuracy', {}).get('mean', 0)
-            
-            # 记录结果
-            self.tuning_history.append({
-                'params': param_dict,
-                'performance': performance
-            })
-            
-            # 更新最佳参数
-            if accuracy > best_score:
-                best_score = accuracy
-                best_params = param_dict
-                
-                logger.info(f"找到更好的参数: {param_dict}, 准确率: {accuracy:.4f}")
-        
-        return {
-            'best_params': best_params,
-            'best_score': best_score,
-            'tuning_history': self.tuning_history
-        }
-    
-    def get_tuning_summary(self) -> Dict[str, Any]:
-        """获取调优摘要
-        
-        Returns:
-            Dict: 调优摘要
-        """
-        if not self.tuning_history:
-            return {
-                'message': 'No tuning history available'
-            }
-        
-        best_entry = max(self.tuning_history, key=lambda x: x['performance'].get('accuracy', {}).get('mean', 0))
-        
-        return {
-            'tuning_iterations': len(self.tuning_history),
-            'best_params': best_entry['params'],
-            'best_accuracy': best_entry['performance'].get('accuracy', {}).get('mean', 0),
-            'improvement_threshold': self.improvement_threshold
-        }
-
-
-# 全局模型评估器和自动调优器实例
-model_evaluator = ModelEvaluator()
-auto_tuner = AutoTuner(model_evaluator)
-
-
-def get_model_evaluator() -> ModelEvaluator:
-    """获取模型评估器实例
-    
-    Returns:
-        ModelEvaluator: 模型评估器实例
-    """
-    return model_evaluator
-
-
-def get_auto_tuner() -> AutoTuner:
-    """获取自动调优器实例
-    
-    Returns:
-        AutoTuner: 自动调优器实例
-    """
-    return auto_tuner
-
-
-def evaluate_prediction(prediction: Dict[str, List[int]], 
-                       actual: Dict[str, int]) -> Dict[str, Any]:
-    """评估单个预测结果
-    
-    Args:
-        prediction: 预测结果
-        actual: 实际结果
-        
-    Returns:
-        Dict: 评估结果
-    """
-    return model_evaluator.evaluate_prediction(prediction, actual)
-
-
-def evaluate_model(model, 
-                  X: np.ndarray, 
-                  y: np.ndarray, 
-                  cv: int = 5) -> Dict[str, Any]:
-    """评估模型性能
-    
-    Args:
-        model: 模型实例
-        X: 特征数据
-        y: 目标数据
-        cv: 交叉验证折数
-        
-    Returns:
-        Dict: 评估结果
-    """
-    return model_evaluator.evaluate_model(model, X, y, cv)
-
-
-def get_evaluation_summary() -> Dict[str, Any]:
-    """获取评估摘要
-    
-    Returns:
-        Dict: 评估摘要
-    """
-    return model_evaluator.get_evaluation_summary()
-
-
-def tune_model(model, 
-               X: np.ndarray, 
-               y: np.ndarray, 
-               param_grid: Dict[str, List[Any]]) -> Dict[str, Any]:
-    """调优模型参数
-    
-    Args:
-        model: 模型实例
-        X: 特征数据
-        y: 目标数据
-        param_grid: 参数网格
-        
-    Returns:
-        Dict: 最佳参数和性能
-    """
-    return auto_tuner.tune_model(model, X, y, param_grid)
+# 便捷函数
+def quick_evaluate(
+    model,
+    X: np.ndarray,
+    y: np.ndarray,
+    model_name: str = "model",
+    n_splits: int = 5
+) -> EvaluationResult:
+    """快速评估模型"""
+    evaluator = EnhancedModelEvaluator(
+        cv_config=CrossValidationConfig(n_splits=n_splits)
+    )
+    return evaluator.evaluate_with_cross_validation(model, X, y, model_name)

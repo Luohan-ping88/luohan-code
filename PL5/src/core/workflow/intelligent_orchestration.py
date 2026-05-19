@@ -57,7 +57,11 @@ class IntelligentOrchestrationManager:
     ANCHOR_START_TIME = "21:55"  # 训练开始
     ANCHOR_END_TIME = "21:00"    # 第二天训练结束（售前前）
     
-    def __init__(self, scheduler_instance):
+    # 持久化配置
+    STATE_FILE = "orchestration_state.json"
+    HISTORY_FILE = "orchestration_history.json"
+    
+    def __init__(self, scheduler_instance, state_dir: str = None):
         self.scheduler = scheduler_instance
         self.tasks: Dict[str, OrchestrationTask] = {}
         self.lock = threading.RLock()
@@ -67,18 +71,37 @@ class IntelligentOrchestrationManager:
         self.history: List[Dict] = []
         self.max_history = 100
         
+        # 性能监控
+        self.performance_metrics = {
+            "total_tasks_executed": 0,
+            "tasks_success": 0,
+            "tasks_failed": 0,
+            "avg_execution_time": 0.0,
+            "total_execution_time": 0.0
+        }
+        
         # 工作状态管理
         self.in_training_window = False
         self.training_window_start = None
         self.training_window_end = None
         
+        # 状态目录
+        if state_dir:
+            self.state_dir = Path(state_dir)
+        else:
+            self.state_dir = Path(__file__).parent.parent.parent.parent / "logs"
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 尝试恢复状态
+        self._restore_state()
+        
         logger.info("智能编排管理器已初始化")
     
     def register_task(self, name: str, handler: Callable, priority: int = 1, 
-                     dependencies: List[str] = None):
+                     dependencies: List[str] = None, max_retries: int = 3):
         """注册一个任务到编排系统"""
         with self.lock:
-            task = OrchestrationTask(name, handler, priority, dependencies)
+            task = OrchestrationTask(name, handler, priority, dependencies, max_retries)
             self.tasks[name] = task
             logger.info(f"已注册任务: {name}, 优先级: {priority}")
     
@@ -200,8 +223,14 @@ class IntelligentOrchestrationManager:
             elapsed = (task.end_time - task.start_time).total_seconds()
             logger.info(f"任务完成: {task_name}, 耗时: {elapsed:.2f}秒")
             
+            # 更新性能指标
+            self._update_performance_metrics(elapsed, success=True)
+            
             # 记录历史
             self._add_to_history(task)
+            
+            # 保存状态
+            self._save_state()
             return True
             
         except Exception as e:
@@ -210,6 +239,9 @@ class IntelligentOrchestrationManager:
             task.end_time = datetime.now()
             elapsed = (task.end_time - task.start_time).total_seconds()
             logger.error(f"任务失败: {task_name}, 耗时: {elapsed:.2f}秒, 错误: {e}", exc_info=True)
+            
+            # 更新性能指标
+            self._update_performance_metrics(elapsed, success=False)
             
             # 重试
             if task.retries < task.max_retries:
@@ -221,7 +253,109 @@ class IntelligentOrchestrationManager:
                 return self._execute_single_task(task_name)
             
             self._add_to_history(task)
+            self._save_state()
             return False
+    
+    def _update_performance_metrics(self, elapsed: float, success: bool):
+        """更新性能监控指标"""
+        with self.lock:
+            self.performance_metrics["total_tasks_executed"] += 1
+            self.performance_metrics["total_execution_time"] += elapsed
+            
+            if success:
+                self.performance_metrics["tasks_success"] += 1
+            else:
+                self.performance_metrics["tasks_failed"] += 1
+            
+            total = self.performance_metrics["total_tasks_executed"]
+            if total > 0:
+                self.performance_metrics["avg_execution_time"] = (
+                    self.performance_metrics["total_execution_time"] / total
+                )
+    
+    def _save_state(self):
+        """保存编排器状态到文件"""
+        try:
+            state_data = {
+                "in_training_window": self.in_training_window,
+                "training_window_start": self.training_window_start.isoformat() if self.training_window_start else None,
+                "training_window_end": self.training_window_end.isoformat() if self.training_window_end else None,
+                "last_check_time": self.last_check_time.isoformat() if self.last_check_time else None,
+                "performance_metrics": self.performance_metrics,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            state_file = self.state_dir / self.STATE_FILE
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2, ensure_ascii=False)
+            
+            # 保存历史记录
+            history_file = self.state_dir / self.HISTORY_FILE
+            with open(history_file, "w", encoding="utf-8") as f:
+                json.dump(self.history, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            logger.error(f"保存状态失败: {e}")
+    
+    def _restore_state(self):
+        """从文件恢复编排器状态"""
+        try:
+            state_file = self.state_dir / self.STATE_FILE
+            if state_file.exists():
+                with open(state_file, "r", encoding="utf-8") as f:
+                    state_data = json.load(f)
+                
+                self.in_training_window = state_data.get("in_training_window", False)
+                
+                if state_data.get("training_window_start"):
+                    self.training_window_start = datetime.fromisoformat(state_data["training_window_start"])
+                if state_data.get("training_window_end"):
+                    self.training_window_end = datetime.fromisoformat(state_data["training_window_end"])
+                if state_data.get("last_check_time"):
+                    self.last_check_time = datetime.fromisoformat(state_data["last_check_time"])
+                
+                self.performance_metrics = state_data.get("performance_metrics", self.performance_metrics)
+                
+                logger.info("已从持久化存储恢复编排器状态")
+            
+            # 恢复历史记录
+            history_file = self.state_dir / self.HISTORY_FILE
+            if history_file.exists():
+                with open(history_file, "r", encoding="utf-8") as f:
+                    self.history = json.load(f)
+                
+                if len(self.history) > self.max_history:
+                    self.history = self.history[-self.max_history:]
+                
+                logger.info(f"已恢复 {len(self.history)} 条历史记录")
+                
+        except Exception as e:
+            logger.warning(f"恢复状态失败（可能是首次运行）: {e}")
+    
+    def clear_state(self):
+        """清除持久化状态"""
+        try:
+            state_file = self.state_dir / self.STATE_FILE
+            history_file = self.state_dir / self.HISTORY_FILE
+            
+            if state_file.exists():
+                state_file.unlink()
+            if history_file.exists():
+                history_file.unlink()
+            
+            with self.lock:
+                self.history = []
+                self.performance_metrics = {
+                    "total_tasks_executed": 0,
+                    "tasks_success": 0,
+                    "tasks_failed": 0,
+                    "avg_execution_time": 0.0,
+                    "total_execution_time": 0.0
+                }
+            
+            logger.info("已清除持久化状态")
+        except Exception as e:
+            logger.error(f"清除状态失败: {e}")
     
     def _add_to_history(self, task: OrchestrationTask):
         """添加到历史记录"""
@@ -315,16 +449,41 @@ class IntelligentOrchestrationManager:
             "training_window_end": self.training_window_end.isoformat() if self.training_window_end else None,
             "last_check_time": self.last_check_time.isoformat() if self.last_check_time else None,
             "tasks": self.get_all_task_status(),
-            "history_count": len(self.history)
+            "history_count": len(self.history),
+            "performance_metrics": self.performance_metrics.copy()
         }
+    
+    def get_performance_report(self) -> Dict:
+        """获取性能报告"""
+        with self.lock:
+            metrics = self.performance_metrics.copy()
+            success_rate = 0.0
+            if metrics["total_tasks_executed"] > 0:
+                success_rate = (metrics["tasks_success"] / metrics["total_tasks_executed"]) * 100
+            
+            return {
+                "metrics": metrics,
+                "success_rate": f"{success_rate:.2f}%",
+                "report_time": datetime.now().isoformat()
+            }
 
 
 # 单例实例
 _orchestration_manager_instance = None
 
-def get_orchestration_manager(scheduler_instance=None) -> IntelligentOrchestrationManager:
+def get_orchestration_manager(scheduler_instance=None, state_dir: str = None) -> IntelligentOrchestrationManager:
     """获取智能编排管理器单例"""
     global _orchestration_manager_instance
     if _orchestration_manager_instance is None and scheduler_instance is not None:
-        _orchestration_manager_instance = IntelligentOrchestrationManager(scheduler_instance)
+        _orchestration_manager_instance = IntelligentOrchestrationManager(scheduler_instance, state_dir)
     return _orchestration_manager_instance
+
+def reset_orchestration_manager():
+    """重置单例实例（用于测试）"""
+    global _orchestration_manager_instance
+    if _orchestration_manager_instance:
+        try:
+            _orchestration_manager_instance.stop()
+        except:
+            pass
+    _orchestration_manager_instance = None

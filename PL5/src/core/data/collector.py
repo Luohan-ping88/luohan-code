@@ -14,7 +14,14 @@ import time
 import hashlib
 import json
 import logging
+import re
+from urllib.parse import urlparse
 from .config import DATA_SOURCES, RAW_DATA_DIR, PROCESSED_DATA_DIR, PL5_CONFIG, setup_logging, MODELS_DIR
+
+# 安全配置
+ALLOWED_DOMAINS = {'17500.cn', 'localhost', '127.0.0.1'}
+MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10MB
+REQUEST_TIMEOUT = (10, 30)  # (connect timeout, read timeout) in seconds
 
 from src.core.utils.errors import (
     DataError, DataLoadError, DataValidationError, DataParseError,
@@ -29,9 +36,67 @@ from src.core.monitoring.performance_monitor import track_performance
 logger = setup_logging(__name__)
 
 
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
+# 安全验证函数
+# ════════════════════════════════════════════════════════════════
+
+def validate_url(url: str) -> bool:
+    """验证URL是否安全"""
+    try:
+        parsed = urlparse(url)
+        
+        # 只允许HTTP和HTTPS
+        if parsed.scheme not in ('http', 'https'):
+            logger.warning(f"拒绝不安全的URL scheme: {parsed.scheme}")
+            return False
+        
+        # 检查域名是否在白名单中
+        domain = parsed.netloc.split(':')[0]  # 移除端口号
+        if not any(allowed_domain in domain for allowed_domain in ALLOWED_DOMAINS):
+            logger.warning(f"拒绝未授权的域名: {domain}")
+            return False
+        
+        return True
+    except Exception as e:
+        logger.error(f"URL验证失败: {e}")
+        return False
+
+
+def validate_response_content(content: str) -> Tuple[bool, str]:
+    """验证响应内容是否合理"""
+    if not content:
+        return False, "内容为空"
+    
+    # 检查大小
+    if len(content.encode('utf-8')) > MAX_RESPONSE_SIZE:
+        return False, f"内容过大 ({len(content)} bytes)"
+    
+    # 检查是否包含预期的数据格式（期号和数字）
+    lines = content.strip().split('\n')
+    valid_lines = 0
+    for line in lines[:10]:  # 只检查前10行
+        parts = line.strip().split()
+        if len(parts) >= 8 and parts[0].isdigit():
+            valid_lines += 1
+    
+    if valid_lines == 0:
+        return False, "未找到有效的数据格式"
+    
+    return True, f"验证通过，找到 {valid_lines} 条有效样例数据"
+
+
+def sanitize_filename(filename: str) -> str:
+    """清理文件名，防止路径遍历攻击"""
+    # 移除路径分隔符和特殊字符
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    # 确保不包含路径遍历
+    sanitized = sanitized.replace('..', '_')
+    return sanitized
+
+
+# ════════════════════════════════════════════════════════════════
 # 装饰器 - 重试机制
-# ═══════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════
 
 def retry_on_failure(max_retries=3, delay=1, backoff=2, exceptions=(Exception,)):
     """重试装饰器 - 增强版，支持结构化日志和错误分类"""
@@ -239,13 +304,18 @@ class PL5DataCollectorV8:
     @retry_on_failure(max_retries=3, delay=2, backoff=2, 
                      exceptions=(requests.RequestException, TimeoutError))
     def fetch_from_network(self, source_name: str = 'lecai') -> Optional[str]:
-        """从网络获取数据（带重试机制和增强错误分类）"""
+        """从网络获取数据（安全增强版）"""
         source = self.data_sources.get(source_name)
         if not source or not source.get('enabled'):
             logger.warning(f"数据源 {source_name} 未启用")
             return None
         
         url = source.get('url')
+        
+        # 安全验证URL
+        if not validate_url(url):
+            raise NetworkError(f"不安全的URL被拒绝: {url}")
+        
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_DATA_FETCH,
             {"source": source_name, "url": url}
@@ -254,75 +324,75 @@ class PL5DataCollectorV8:
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': 'text/plain,text/html;q=0.9,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Connection': 'keep-alive'
         }
         
         try:
-            response = requests.get(
+            # 使用流式响应防止内存溢出
+            with requests.get(
                 url, 
                 headers=headers, 
-                timeout=(10, 30),
-                allow_redirects=True
-            )
-            response.encoding = 'utf-8'
-
-            if response.status_code == 200:
-                if len(response.text) < 100:
+                timeout=REQUEST_TIMEOUT,
+                allow_redirects=True,
+                stream=True
+            ) as response:
+                response.encoding = 'utf-8'
+                
+                # 检查状态码
+                if response.status_code != 200:
+                    if response.status_code == 403:
+                        raise NetworkHTTPError(
+                            f"Access forbidden (403)", url=url, status_code=403,
+                            severity=ErrorSeverity.ERROR_SEVERITY_HIGH
+                        )
+                    elif response.status_code == 404:
+                        raise NetworkHTTPError(
+                            f"Data not found (404)", url=url, status_code=404,
+                            severity=ErrorSeverity.ERROR_SEVERITY_HIGH
+                        )
+                    else:
+                        raise NetworkHTTPError(
+                            f"HTTP error: {response.status_code}", url=url, status_code=response.status_code
+                        )
+                
+                # 检查响应头中的Content-Length
+                content_length = response.headers.get('content-length')
+                if content_length and int(content_length) > MAX_RESPONSE_SIZE:
+                    raise NetworkError(f"响应过大: {content_length} bytes")
+                
+                # 读取响应
+                content = response.text
+                
+                # 验证响应内容
+                is_valid, validation_msg = validate_response_content(content)
+                if not is_valid:
+                    logger.warning(f"响应内容验证失败: {validation_msg}")
+                    return None
+                
+                if len(content) < 100:
                     structured_logger.log_operation_warning(
                         StructuredLogger.OPERATION_DATA_FETCH,
                         "Data content too short",
-                        {"content_length": len(response.text)}
+                        {"content_length": len(content)}
                     )
                     logger.warning(f"获取的数据内容过少，可能无效")
                     return None
                 
-                with open(self.raw_data_path, 'w', encoding='utf-8') as f:
-                    f.write(response.text)
+                # 安全写入文件
+                safe_path = RAW_DATA_DIR / sanitize_filename(self.raw_data_path.name)
+                with open(safe_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
                 
                 duration_ms = (time.time() - start_time) * 1000
                 structured_logger.log_operation_success(
                     StructuredLogger.OPERATION_DATA_FETCH,
                     duration_ms,
-                    {"content_length": len(response.text), "source": source_name}
+                    {"content_length": len(content), "source": source_name}
                 )
-                logger.info(f"数据获取成功，大小: {len(response.text)} 字符")
-                return response.text
-                
-            elif response.status_code == 403:
-                raise NetworkHTTPError(
-                    f"Access forbidden (403), may need to change User-Agent or IP",
-                    url=url, status_code=403,
-                    original_error=requests.RequestException("HTTP 403 Forbidden"),
-                    severity=ErrorSeverity.ERROR_SEVERITY_HIGH
-                )
-            elif response.status_code == 404:
-                raise NetworkHTTPError(
-                    f"Data not found (404), URL may have changed",
-                    url=url, status_code=404,
-                    original_error=requests.RequestException("HTTP 404 Not Found"),
-                    severity=ErrorSeverity.ERROR_SEVERITY_HIGH
-                )
-            elif response.status_code == 429:
-                retry_after = response.headers.get('Retry-After', '60')
-                raise NetworkHTTPError(
-                    f"Too many requests (429), please wait {retry_after} seconds before retrying",
-                    url=url, status_code=429,
-                    original_error=requests.RequestException("HTTP 429 Too Many Requests"),
-                    severity=ErrorSeverity.ERROR_SEVERITY_MEDIUM
-                )
-            elif response.status_code >= 500:
-                raise NetworkHTTPError(
-                    f"Server error ({response.status_code}), retry later",
-                    url=url, status_code=response.status_code,
-                    original_error=requests.RequestException(f"HTTP {response.status_code}")
-                )
-            else:
-                raise NetworkHTTPError(
-                    f"HTTP error: {response.status_code}",
-                    url=url, status_code=response.status_code
-                )
+                logger.info(f"数据获取成功，大小: {len(content)} 字符")
+                return content
                 
         except requests.Timeout as e:
             raise NetworkTimeoutError(

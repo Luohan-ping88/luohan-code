@@ -9,7 +9,7 @@
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union, Callable
 from scipy import stats
 from scipy.optimize import minimize
 from scipy.special import gamma, gammainc
@@ -35,15 +35,15 @@ class BaseCopula:
     
     def log_likelihood(self, data: np.ndarray) -> float:
         pdf_vals = self.pdf(data)
-        return np.sum(np.log(pdf_vals + 1e-10))
+        return float(np.sum(np.log(pdf_vals + 1e-10)))
 
 
 class GaussianCopula(BaseCopula):
     """高斯Copula"""
     
-    def __init__(self, correlation: Optional[np.ndarray] = None):
-        self.correlation = correlation
-        self.dimension = 0
+    def __init__(self, correlation: Optional[np.ndarray] = None) -> None:
+        self.correlation: Optional[np.ndarray] = correlation
+        self.dimension: int = 0
     
     def fit(self, data: np.ndarray) -> 'GaussianCopula':
         """
@@ -69,16 +69,16 @@ class GaussianCopula(BaseCopula):
         if u.ndim == 1:
             u = u.reshape(-1, 1)
         
-        z = stats.norm.ppf(np.clip(u, 1e-6, 1-1e-6))
+        z: np.ndarray = stats.norm.ppf(np.clip(u, 1e-6, 1-1e-6))
         
-        det_r = np.linalg.det(self.correlation)
+        det_r: float = float(np.linalg.det(self.correlation))
         
-        z_centered = z - z.mean(axis=0)
+        z_centered: np.ndarray = z - z.mean(axis=0)
         
         try:
-            inv_r = np.linalg.inv(self.correlation)
-            mahal = np.sum(z_centered @ inv_r * z_centered, axis=1)
-            pdf_val = np.exp(-0.5 * mahal) / (np.sqrt(det_r) * (2 * np.pi) ** (self.dimension / 2))
+            inv_r: np.ndarray = np.linalg.inv(self.correlation)
+            mahal: np.ndarray = np.sum(z_centered @ inv_r * z_centered, axis=1)
+            pdf_val: np.ndarray = np.exp(-0.5 * mahal) / (np.sqrt(det_r) * (2 * np.pi) ** (self.dimension / 2))
         except np.linalg.LinAlgError:
             pdf_val = np.ones(len(u)) * 0.1
         
@@ -86,25 +86,29 @@ class GaussianCopula(BaseCopula):
     
     def sample(self, n: int) -> np.ndarray:
         """采样"""
-        z = np.random.randn(n, self.dimension)
+        z: np.ndarray = np.random.randn(n, self.dimension)
         
         try:
-            L = np.linalg.cholesky(self.correlation)
+            L: np.ndarray = np.linalg.cholesky(self.correlation)
             z = z @ L.T
         except np.linalg.LinAlgError:
             pass
         
-        u = stats.norm.cdf(z)
+        u: np.ndarray = stats.norm.cdf(z)
         return u
 
 
 class TCopula(BaseCopula):
     """t-Copula (用于建模中度尾部相关)"""
     
-    def __init__(self, correlation: Optional[np.ndarray] = None, df: float = 4.0):
-        self.correlation = correlation
-        self.df = df
-        self.dimension = 0
+    def __init__(
+        self,
+        correlation: Optional[np.ndarray] = None,
+        df: float = 4.0
+    ) -> None:
+        self.correlation: Optional[np.ndarray] = correlation
+        self.df: float = df
+        self.dimension: int = 0
     
     def fit(self, data: np.ndarray) -> 'TCopula':
         """拟合t-Copula"""
@@ -125,21 +129,21 @@ class TCopula(BaseCopula):
         if u.ndim == 1:
             u = u.reshape(-1, 1)
         
-        z = stats.norm.ppf(np.clip(u, 1e-6, 1-1e-6))
+        z: np.ndarray = stats.norm.ppf(np.clip(u, 1e-6, 1-1e-6))
         
-        det_r = np.linalg.det(self.correlation)
+        det_r: float = float(np.linalg.det(self.correlation))
         
         try:
-            inv_r = np.linalg.inv(self.correlation)
-            mahal = np.sum(z @ inv_r * z, axis=1)
+            inv_r: np.ndarray = np.linalg.inv(self.correlation)
+            mahal: np.ndarray = np.sum(z @ inv_r * z, axis=1)
             
-            const = gamma((self.df + self.dimension) / 2) / (
+            const: float = gamma((self.df + self.dimension) / 2) / (
                 gamma(self.df / 2) * 
                 (np.pi * self.df) ** (self.dimension / 2) * 
                 np.sqrt(det_r)
             )
             
-            pdf_val = const * (1 + mahal / self.df) ** (-(self.df + self.dimension) / 2)
+            pdf_val: np.ndarray = const * (1 + mahal / self.df) ** (-(self.df + self.dimension) / 2)
         except np.linalg.LinAlgError:
             pdf_val = np.ones(len(u)) * 0.1
         
@@ -147,27 +151,27 @@ class TCopula(BaseCopula):
     
     def sample(self, n: int) -> np.ndarray:
         """采样"""
-        z = np.random.randn(n, self.dimension)
+        z: np.ndarray = np.random.randn(n, self.dimension)
         
         try:
-            L = np.linalg.cholesky(self.correlation)
+            L: np.ndarray = np.linalg.cholesky(self.correlation)
             z = z @ L.T
         except np.linalg.LinAlgError:
             pass
         
-        s = np.random.chisquare(self.df, n) / self.df
-        t = z / np.sqrt(s[:, np.newaxis])
+        s: np.ndarray = np.random.chisquare(self.df, n) / self.df
+        t: np.ndarray = z / np.sqrt(s[:, np.newaxis])
         
-        u = stats.t.cdf(t, df=self.df)
+        u: np.ndarray = stats.t.cdf(t, df=self.df)
         return u
 
 
 class GumbelCopula(BaseCopula):
     """Gumbel Copula (用于建模上尾相关)"""
     
-    def __init__(self, theta: float = 1.5):
-        self.theta = np.clip(theta, 1.0, 10.0)
-        self.dimension = 0
+    def __init__(self, theta: float = 1.5) -> None:
+        self.theta: float = float(np.clip(theta, 1.0, 10.0))
+        self.dimension: int = 0
     
     def fit(self, data: np.ndarray) -> 'GumbelCopula':
         """拟合Gumbel Copula"""
@@ -182,14 +186,14 @@ class GumbelCopula(BaseCopula):
     
     def _compute_kendall_tau(self, data: np.ndarray) -> float:
         """计算Kendall tau"""
-        n = len(data)
+        n: int = len(data)
         
-        concordant = 0
-        total = 0
+        concordant: int = 0
+        total: int = 0
         
         for i in range(n):
             for j in range(i + 1, n):
-                prod = 1
+                prod: float = 1.0
                 for d in range(self.dimension):
                     prod *= (data[i, d] - data[j, d])
                 
@@ -204,12 +208,12 @@ class GumbelCopula(BaseCopula):
         if u.ndim == 1:
             u = u.reshape(-1, 1)
         
-        n = len(u)
-        pdf_val = np.ones(n)
+        n: int = len(u)
+        pdf_val: np.ndarray = np.ones(n)
         
         for i in range(n):
-            prod = 1.0
-            sum_log = 0.0
+            prod: float = 1.0
+            sum_log: float = 0.0
             
             for d in range(self.dimension):
                 if u[i, d] < 1e-6 or u[i, d] > 1 - 1e-6:
@@ -219,7 +223,7 @@ class GumbelCopula(BaseCopula):
                 sum_log += (-np.log(u[i, d])) ** self.theta
             
             if prod > 1e-10 and sum_log > 1e-10:
-                log_term = (prod ** self.theta) / sum_log
+                log_term: float = (prod ** self.theta) / sum_log
                 pdf_val[i] = (
                     np.exp(-sum_log) * 
                     prod ** (self.theta - 1) * 
@@ -230,16 +234,16 @@ class GumbelCopula(BaseCopula):
     
     def sample(self, n: int) -> np.ndarray:
         """采样 (使用拒绝采样)"""
-        samples = []
-        dim = self.dimension
+        samples: List[np.ndarray] = []
+        dim: int = self.dimension
         
         while len(samples) < n:
-            z = np.random.exponential(1, dim)
-            v = np.random.exponential(1)
+            z: np.ndarray = np.random.exponential(1, dim)
+            v: float = np.random.exponential(1)
             
-            s = z / v ** (1 / self.theta)
+            s: np.ndarray = z / v ** (1 / self.theta)
             
-            u = np.exp(-s)
+            u: np.ndarray = np.exp(-s)
             
             if np.random.random() < 1 / self.theta:
                 samples.append(u)
@@ -259,21 +263,21 @@ class TailAwareCopula:
     
     def __init__(
         self,
-        copula_types: List[str] = None,
+        copula_types: Optional[List[str]] = None,
         enable_tail_boost: bool = True,
         tail_threshold: float = 0.1
-    ):
-        self.copula_types = copula_types or ['gaussian', 't', 'gumbel']
-        self.enable_tail_boost = enable_tail_boost
-        self.tail_threshold = tail_threshold
+    ) -> None:
+        self.copula_types: List[str] = copula_types or ['gaussian', 't', 'gumbel']
+        self.enable_tail_boost: bool = enable_tail_boost
+        self.tail_threshold: float = tail_threshold
         
         self.copulas: Dict[str, BaseCopula] = {}
         self.mixture_weights: np.ndarray = np.array([])
-        self.is_fitted = False
+        self.is_fitted: bool = False
         
         self._init_copulas()
     
-    def _init_copulas(self):
+    def _init_copulas(self) -> None:
         """初始化各类型Copula"""
         for copula_type in self.copula_types:
             if copula_type == 'gaussian':
@@ -294,26 +298,26 @@ class TailAwareCopula:
         """
         logger.info(f"开始拟合尾部敏感Copula，数据形状: {data.shape}")
         
-        n_samples = len(data)
-        n_components = len(self.copulas)
+        n_samples: int = len(data)
+        n_components: int = len(self.copulas)
         
-        weights = np.ones(n_components) / n_components
+        weights: np.ndarray = np.ones(n_components) / n_components
         
         for copula in self.copulas.values():
             copula.fit(data)
         
-        log_likelihood_history = []
+        log_likelihood_history: List[float] = []
         
         for iteration in range(max_iter):
-            responsibilities = np.zeros((n_samples, n_components))
+            responsibilities: np.ndarray = np.zeros((n_samples, n_components))
             
             for i, (name, copula) in enumerate(self.copulas.items()):
                 responsibilities[:, i] = weights[i] * copula.pdf(data)
             
-            row_sums = responsibilities.sum(axis=1, keepdims=True)
+            row_sums: np.ndarray = responsibilities.sum(axis=1, keepdims=True)
             responsibilities = responsibilities / (row_sums + 1e-10)
             
-            new_weights = responsibilities.mean(axis=0)
+            new_weights: np.ndarray = responsibilities.mean(axis=0)
             
             for i, (name, copula) in enumerate(self.copulas.items()):
                 if new_weights[i] > 0.01:
@@ -321,13 +325,13 @@ class TailAwareCopula:
             
             weights = new_weights
             
-            log_likelihood = 0
+            log_likelihood: float = 0.0
             for i, (name, copula) in enumerate(self.copulas.items()):
                 log_likelihood += weights[i] * np.sum(np.log(copula.pdf(data) + 1e-10))
             log_likelihood_history.append(log_likelihood)
             
             if len(log_likelihood_history) >= 2:
-                improvement = log_likelihood_history[-1] - log_likelihood_history[-2]
+                improvement: float = log_likelihood_history[-1] - log_likelihood_history[-2]
                 if abs(improvement) < tol:
                     logger.info(f"Copula拟合收敛于第 {iteration + 1} 次迭代")
                     break
@@ -352,7 +356,7 @@ class TailAwareCopula:
         if not self.is_fitted:
             return np.ones(len(u)) if u.ndim == 1 else np.ones(len(u[:, 0]))
         
-        pdf_vals = np.zeros(len(u))
+        pdf_vals: np.ndarray = np.zeros(len(u))
         
         for i, (name, copula) in enumerate(self.copulas.items()):
             pdf_vals += self.mixture_weights[i] * copula.pdf(u)
@@ -368,11 +372,11 @@ class TailAwareCopula:
         
         当概率较低时，增加其权重，使尾部特征更明显
         """
-        normalized = pdf_vals / (pdf_vals.max() + 1e-10)
+        normalized: np.ndarray = pdf_vals / (pdf_vals.max() + 1e-10)
         
-        tail_mask = normalized < self.tail_threshold
+        tail_mask: np.ndarray = normalized < self.tail_threshold
         
-        boost_factor = 1.0 + np.exp(-normalized * 10) * 0.5
+        boost_factor: np.ndarray = 1.0 + np.exp(-normalized * 10) * 0.5
         
         pdf_vals = pdf_vals * boost_factor
         
@@ -382,7 +386,7 @@ class TailAwareCopula:
     
     def predict_joint_probability(
         self,
-        marginals: np.ndarray,
+        marginals: Dict[int, np.ndarray],
         digit_combinations: Optional[np.ndarray] = None
     ) -> np.ndarray:
         """
@@ -396,22 +400,22 @@ class TailAwareCopula:
             各组合的联合概率
         """
         if not self.is_fitted:
-            joint = np.ones(10)
+            joint: np.ndarray = np.ones(10)
             for i in range(10):
                 for m in marginals.values():
                     if i < len(m):
                         joint[i] *= m[i]
             return joint / (joint.sum() + 1e-10)
         
-        n_dims = len(marginals)
+        n_dims: int = len(marginals)
         
         if digit_combinations is None:
             digit_combinations = np.array([[d] for d in range(10)])
         
-        joint_probs = np.zeros(len(digit_combinations))
+        joint_probs: np.ndarray = np.zeros(len(digit_combinations))
         
         for i, digits in enumerate(digit_combinations):
-            u = np.zeros(n_dims)
+            u: np.ndarray = np.zeros(n_dims)
             
             for d, (pos, m) in enumerate(marginals.items()):
                 if d < len(digits) and digits[d] < len(m):
@@ -432,16 +436,16 @@ class TailAwareCopula:
         if not self.is_fitted:
             return np.random.rand(n, len(self.mixture_weights))
         
-        n_components = len(self.copulas)
+        n_components: int = len(self.copulas)
         
-        component_choices = np.random.choice(
+        component_choices: np.ndarray = np.random.choice(
             n_components, size=n, p=self.mixture_weights
         )
         
-        samples = np.zeros((n, list(self.copulas.values())[0].dimension))
+        samples: np.ndarray = np.zeros((n, list(self.copulas.values())[0].dimension))
         
         for i, (name, copula) in enumerate(self.copulas.items()):
-            mask = component_choices == i
+            mask: np.ndarray = component_choices == i
             if mask.sum() > 0:
                 samples[mask] = copula.sample(mask.sum())
         
@@ -451,16 +455,16 @@ class TailAwareCopula:
         """
         获取各Copula的尾部依赖系数
         """
-        tail_dep = {}
+        tail_dep: Dict[str, float] = {}
         
-        if 'gaussian' in self.copulas and 'gaussian' in self.mixture_weights:
+        if 'gaussian' in self.copulas:
             corr = self.copulas['gaussian'].correlation
             if corr is not None and len(corr) >= 2:
-                rho = corr[0, 1]
+                rho: float = corr[0, 1]
                 tail_dep['gaussian'] = 0.0
         
-        if 't' in self.copulas and 't' in self.mixture_weights:
-            df = self.copulas['t'].df
+        if 't' in self.copulas:
+            df: float = self.copulas['t'].df
             rho = self.copulas['t'].correlation[0, 1] if hasattr(self.copulas['t'], 'correlation') else 0
             if df > 2:
                 tail_dep['t'] = 2 * stats.t.cdf(
@@ -470,7 +474,7 @@ class TailAwareCopula:
                 tail_dep['t'] = 0.0
         
         if 'gumbel' in self.copulas:
-            theta = self.copulas['gumbel'].theta
+            theta: float = self.copulas['gumbel'].theta
             tail_dep['gumbel'] = 2 - 2 ** (1 / theta)
         
         for cop_type in self.copulas:

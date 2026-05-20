@@ -11,9 +11,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 import pandas as pd
+from typing import Dict, List, Any, Tuple
 
 
-def test_integration_basic():
+def test_integration_basic() -> bool:
     """基础集成测试"""
     print("\n" + "="*60)
     print("测试1: 基础集成")
@@ -253,7 +254,7 @@ def test_feedback_update():
         return False
 
 
-def test_state_save_load():
+def test_state_save_load() -> bool:
     """状态保存/加载测试"""
     print("\n" + "="*60)
     print("测试6: 状态保存/加载")
@@ -338,7 +339,7 @@ def generate_mock_data(n_samples: int) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def run_integration_tests():
+def run_integration_tests() -> bool:
     """运行所有集成测试"""
     print("\n" + "="*60)
     print("PL5 优化模块集成测试")

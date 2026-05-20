@@ -3,7 +3,7 @@
 整合所有新优化的模块，提供统一的API
 """
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Callable, Union
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -32,8 +32,8 @@ class OptimizedPredictor:
         enable_feature_optimization: bool = True,
         enable_weight_optimization: bool = True,
         enable_model_optimization: bool = True,
-        config: Optional[Dict] = None
-    ):
+        config: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.config = config or {}
         
         self.enable_feature_optimization = enable_feature_optimization
@@ -53,7 +53,7 @@ class OptimizedPredictor:
         
         self._init_modules()
     
-    def _init_modules(self):
+    def _init_modules(self) -> None:
         """初始化各优化模块"""
         if self.enable_feature_optimization:
             self.feature_selector = AdaptiveFeatureSelector(
@@ -112,7 +112,7 @@ class OptimizedPredictor:
         feature_cols: List[str],
         fit_stacking: bool = True,
         fit_copula: bool = True
-    ):
+    ) -> None:
         """
         训练优化后的预测器
         
@@ -159,12 +159,22 @@ class OptimizedPredictor:
         """准备Copula数据"""
         try:
             data = np.zeros((len(df), len(self.POSITIONS)))
+            has_valid_data = False
             
             for i, pos in enumerate(self.POSITIONS):
                 if pos in df.columns:
                     values = df[pos].values.astype(float)
                     values = np.clip(values, 0, 9.5)
                     data[:, i] = values / 9.0
+                    has_valid_data = True
+            
+            if not has_valid_data:
+                logger.warning("Copula数据准备失败: 未找到有效位置列")
+                return None
+            
+            if len(df) < 10:
+                logger.warning("Copula数据准备失败: 数据量不足")
+                return None
             
             return data
         except Exception as e:
@@ -264,7 +274,7 @@ class OptimizedPredictor:
         self,
         predictions: Dict[str, List[int]],
         actual: Dict[str, int]
-    ):
+    ) -> None:
         """基于反馈更新模型"""
         if self.importance_tracker:
             logger.info("更新特征重要性...")
@@ -281,7 +291,7 @@ class OptimizedPredictor:
                 'hmm': actual.get('wan') in predictions.get('wan', [])[:3],
             })
     
-    def save(self, filepath: Path):
+    def save(self, filepath: Path) -> None:
         """保存模型状态"""
         import pickle
         
@@ -298,7 +308,7 @@ class OptimizedPredictor:
         
         logger.info(f"优化预测器状态已保存: {filepath}")
     
-    def load(self, filepath: Path):
+    def load(self, filepath: Path) -> None:
         """加载模型状态"""
         import pickle
         

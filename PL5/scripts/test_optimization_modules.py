@@ -14,6 +14,7 @@ import pandas as pd
 import sys
 import os
 from pathlib import Path
+from typing import Dict, List, Any, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -96,7 +97,7 @@ def test_feature_selector():
     return True
 
 
-def test_interaction_extractor():
+def test_interaction_extractor() -> bool:
     """测试特征交互提取器"""
     print("\n" + "="*60)
     print("测试2: FeatureInteractionExtractor")
@@ -164,7 +165,7 @@ def test_weight_fusion():
     return True
 
 
-def test_enhanced_stacking():
+def test_enhanced_stacking() -> bool:
     """测试增强Stacking集成"""
     print("\n" + "="*60)
     print("测试4: EnhancedStackingEnsemble")
@@ -270,7 +271,7 @@ def test_optimized_predictor():
     return True
 
 
-def run_all_tests():
+def run_all_tests() -> bool:
     """运行所有测试"""
     print("\n" + "="*60)
     print("PL5 优化模块综合测试")

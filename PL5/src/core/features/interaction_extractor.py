@@ -36,11 +36,11 @@ class FeatureInteractionExtractor:
         enable_temporal_cross: bool = True,
         enable_frequency_cross: bool = True,
         max_interaction_features: int = 50
-    ):
-        self.enable_position_cross = enable_position_cross
-        self.enable_temporal_cross = enable_temporal_cross
-        self.enable_frequency_cross = enable_frequency_cross
-        self.max_interaction_features = max_interaction_features
+    ) -> None:
+        self.enable_position_cross: bool = enable_position_cross
+        self.enable_temporal_cross: bool = enable_temporal_cross
+        self.enable_frequency_cross: bool = enable_frequency_cross
+        self.max_interaction_features: int = max_interaction_features
         
         self.digit_frequency_cache: Optional[pd.DataFrame] = None
         self.feature_stats: Dict[str, Dict[str, float]] = {}
@@ -61,33 +61,55 @@ class FeatureInteractionExtractor:
         
         if self.enable_position_cross:
             pos_features = self.extract_position_cross_features(df)
-            interaction_features.update(pos_features)
+            if pos_features:
+                interaction_features.update(pos_features)
+                logger.debug(f"提取了 {len(pos_features)} 个位置交叉特征")
+            else:
+                logger.warning("未能提取位置交叉特征，请检查数据列")
         
         if self.enable_temporal_cross:
             temp_features = self.extract_temporal_cross_features(df, lag_windows)
-            interaction_features.update(temp_features)
+            if temp_features:
+                interaction_features.update(temp_features)
+                logger.debug(f"提取了 {len(temp_features)} 个跨期交互特征")
+            else:
+                logger.warning(f"未能提取跨期交互特征，请确保存在 lag_{{1,2,...}}_{{位置}} 列")
         
         if self.enable_frequency_cross:
             freq_features = self.extract_frequency_cross_features(df)
-            interaction_features.update(freq_features)
+            if freq_features:
+                interaction_features.update(freq_features)
+                logger.debug(f"提取了 {len(freq_features)} 个频率交互特征")
+            else:
+                logger.warning("未能提取频率交互特征")
         
         if self.enable_position_cross:
             stats_features = self.extract_statistical_interactions(df)
-            interaction_features.update(stats_features)
+            if stats_features:
+                interaction_features.update(stats_features)
+                logger.debug(f"提取了 {len(stats_features)} 个统计交互特征")
         
-        if interaction_features:
-            max_features = min(len(interaction_features), self.max_interaction_features)
-            
-            sorted_features = sorted(
-                interaction_features.items(),
-                key=lambda x: abs(x[1]['importance']),
-                reverse=True
-            )[:max_features]
-            
-            for feat_name, feat_data in sorted_features:
-                result[feat_name] = feat_data['values']
-            
-            logger.info(f"提取了 {len(sorted_features)}/{len(interaction_features)} 个交互特征")
+        if not interaction_features:
+            logger.warning("未能提取任何交互特征")
+            return result
+        
+        max_features = min(len(interaction_features), self.max_interaction_features)
+        
+        sorted_features = sorted(
+            interaction_features.items(),
+            key=lambda x: abs(x[1]['importance']),
+            reverse=True
+        )[:max_features]
+        
+        for feat_name, feat_data in sorted_features:
+            values = feat_data['values']
+            if len(values) < len(result):
+                values = np.pad(values, (len(result) - len(values), 0), mode='edge')
+            elif len(values) > len(result):
+                values = values[:len(result)]
+            result[feat_name] = values
+        
+        logger.info(f"提取了 {len(sorted_features)}/{len(interaction_features)} 个交互特征")
         
         return result
     

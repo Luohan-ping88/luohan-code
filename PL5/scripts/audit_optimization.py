@@ -12,7 +12,7 @@
 import ast
 import inspect
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class CodeAuditChecker:
     """代码审核检查器"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path) -> None:
         self.project_root = project_root
         self.issues: List[Dict[str, Any]] = []
         self.warnings: List[Dict[str, Any]] = []
@@ -115,7 +115,7 @@ class CodeAuditChecker:
                 'message': f'语法错误: {e}'
             })
 
-    def check_type_annotations(self):
+    def check_type_annotations(self) -> None:
         """检查类型注解"""
         logger.info("检查类型注解...")
 
@@ -178,7 +178,7 @@ class CodeAuditChecker:
                     'message': f'try块({try_blocks}) 与 except块({except_blocks}) 数量不匹配'
                 })
 
-    def check_documentation(self):
+    def check_documentation(self) -> None:
         """检查文档"""
         logger.info("检查文档...")
 

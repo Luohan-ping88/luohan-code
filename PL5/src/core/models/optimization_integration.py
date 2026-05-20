@@ -11,7 +11,7 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union, Callable
 from pathlib import Path
 import logging
 import pickle
@@ -49,7 +49,7 @@ class OptimizationIntegrationMixin:
 
     POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
 
-    def __init_optimization_modules(self, config: Optional[Dict] = None):
+    def __init_optimization_modules(self, config: Optional[Dict[str, Any]] = None) -> None:
         """初始化优化模块"""
         if not OPTIMIZATION_MODULES_AVAILABLE:
             logger.warning("[优化集成] 优化模块不可用，将使用兼容模式")
@@ -76,7 +76,7 @@ class OptimizationIntegrationMixin:
 
         logger.info("[优化集成] 所有优化模块初始化完成")
 
-    def _init_feature_optimization(self):
+    def _init_feature_optimization(self) -> None:
         """初始化特征优化模块"""
         if not self._opt_config.get('optimization.feature_selection.enabled', True):
             logger.info("[优化集成] 特征优化已禁用")
@@ -107,7 +107,7 @@ class OptimizationIntegrationMixin:
 
         logger.info("[优化集成] 特征优化模块初始化完成")
 
-    def _init_weight_optimization(self):
+    def _init_weight_optimization(self) -> None:
         """初始化权重优化模块"""
         if not self._opt_config.get('optimization.fusion_strategy.enabled', True):
             logger.info("[优化集成] 权重融合已禁用")
@@ -129,7 +129,7 @@ class OptimizationIntegrationMixin:
 
         logger.info("[优化集成] 权重融合模块初始化完成")
 
-    def _init_model_optimization(self):
+    def _init_model_optimization(self) -> None:
         """初始化模型优化模块"""
         if not self._opt_config.get('optimization.ensemble.enabled', True):
             logger.info("[优化集成] 模型优化已禁用")
@@ -363,7 +363,7 @@ class OptimizationIntegrationMixin:
         self,
         predictions: Dict[str, List[int]],
         actual: Dict[str, int]
-    ):
+    ) -> None:
         """基于反馈更新优化模块"""
         if not OPTIMIZATION_MODULES_AVAILABLE:
             return
@@ -422,7 +422,7 @@ class OptimizationIntegrationMixin:
 
         return summary
 
-    def save_optimization_state(self, filepath: Path):
+    def save_optimization_state(self, filepath: Path) -> None:
         """保存优化模块状态"""
         if not OPTIMIZATION_MODULES_AVAILABLE:
             return
@@ -452,7 +452,7 @@ class OptimizationIntegrationMixin:
         except Exception as e:
             logger.warning(f"[优化集成] 保存优化状态失败: {e}")
 
-    def load_optimization_state(self, filepath: Path):
+    def load_optimization_state(self, filepath: Path) -> None:
         """加载优化模块状态"""
         if not OPTIMIZATION_MODULES_AVAILABLE:
             return
@@ -504,9 +504,9 @@ class OptimizedEnhancedPredictorAdapter:
 
     def __init__(
         self,
-        base_predictor,
-        config: Optional[Dict] = None
-    ):
+        base_predictor: Any,
+        config: Optional[Dict[str, Any]] = None
+    ) -> None:
         """
         Args:
             base_predictor: 基础预测器实例
@@ -525,7 +525,7 @@ class OptimizedEnhancedPredictorAdapter:
 
         logger.info("[适配器] 优化增强预测器适配器初始化完成")
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """代理所有未处理的方法到底层预测器"""
         return getattr(self.base_predictor, name)
 
@@ -534,7 +534,7 @@ class OptimizedEnhancedPredictorAdapter:
         df: pd.DataFrame,
         feature_cols: List[str],
         enable_optimization: bool = True,
-        **kwargs
+        **kwargs: Any
     ) -> 'OptimizedEnhancedPredictorAdapter':
         """
         训练预测器
@@ -566,7 +566,7 @@ class OptimizedEnhancedPredictorAdapter:
         recent_data: Optional[Dict[str, np.ndarray]] = None,
         top_k: int = 8,
         use_optimization: bool = True,
-        **kwargs
+        **kwargs: Any
     ) -> Dict[str, Dict[str, Any]]:
         """
         预测
@@ -640,7 +640,7 @@ class OptimizedEnhancedPredictorAdapter:
         self,
         predictions: Dict[str, List[int]],
         actual: Dict[str, int]
-    ):
+    ) -> None:
         """更新模型"""
         if hasattr(self.base_predictor, 'update_with_feedback'):
             try:

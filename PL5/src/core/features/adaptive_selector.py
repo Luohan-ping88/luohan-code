@@ -10,7 +10,7 @@
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Callable
 from collections import defaultdict
 import logging
 import pickle
@@ -36,7 +36,7 @@ class AdaptiveFeatureSelector:
         max_features_per_group: int = 3,
         warmup_periods: int = 10,
         selection_threshold: float = 0.05
-    ):
+    ) -> None:
         """
         Args:
             decay_factor: 指数衰减因子，控制历史重要性的衰减速度
@@ -60,7 +60,7 @@ class AdaptiveFeatureSelector:
         
         self._initialized = False
     
-    def register_group(self, group_name: str, features: List[str], max_select: Optional[int] = None):
+    def register_group(self, group_name: str, features: List[str], max_select: Optional[int] = None) -> None:
         """
         注册特征组
         
@@ -105,7 +105,7 @@ class AdaptiveFeatureSelector:
         
         return 'uncategorized'
     
-    def update(self, feature_importance: Dict[str, float], period: Optional[int] = None):
+    def update(self, feature_importance: Dict[str, float], period: Optional[int] = None) -> None:
         """
         更新特征重要性分数
         
@@ -144,7 +144,7 @@ class AdaptiveFeatureSelector:
         if self.period_count > self.warmup_periods:
             self._prune_features()
     
-    def _prune_features(self):
+    def _prune_features(self) -> None:
         """
         基于组约束进行特征剪枝
         
@@ -251,7 +251,7 @@ class AdaptiveFeatureSelector:
         
         return stats
     
-    def reset(self):
+    def reset(self) -> None:
         """重置选择器状态"""
         self.feature_scores.clear()
         self.feature_groups.clear()
@@ -261,7 +261,7 @@ class AdaptiveFeatureSelector:
         self._initialized = False
         logger.info("自适应特征选择器已重置")
     
-    def save(self, filepath: Path):
+    def save(self, filepath: Path) -> None:
         """保存选择器状态"""
         state = {
             'feature_scores': self.feature_scores,
@@ -280,7 +280,7 @@ class AdaptiveFeatureSelector:
         
         logger.info(f"自适应特征选择器状态已保存: {filepath}")
     
-    def load(self, filepath: Path):
+    def load(self, filepath: Path) -> None:
         """加载选择器状态"""
         with open(filepath, 'rb') as f:
             state = pickle.load(f)
@@ -314,7 +314,7 @@ class OnlineImportanceTracker:
     基于预测结果反馈在线更新特征重要性
     """
     
-    def __init__(self, n_positions: int = 5, window_size: int = 100):
+    def __init__(self, n_positions: int = 5, window_size: int = 100) -> None:
         self.n_positions = n_positions
         self.window_size = window_size
         
@@ -327,7 +327,7 @@ class OnlineImportanceTracker:
         predictions: Dict[str, List[int]],
         actual: Dict[str, int],
         top_k: int = 3
-    ):
+    ) -> None:
         """
         记录预测结果
         

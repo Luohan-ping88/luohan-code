@@ -1,0 +1,210 @@
+stacking:
+  base_config:
+    n_estimators: 5
+    max_depth: 10
+    random_state: 42
+    n_jobs: -1
+    learning_rate: 0.06
+  meta_config:
+    type: logistic
+    C: 1.0
+    max_iter: 50
+    l1_ratio: 0.5
+    alpha: 0.0001
+    cv_folds: 2
+    auto_select: false
+    enable_meta_features: false
+  model_weights:
+    stacking: 0.35
+    hmm: 0.15
+    copula: 0.25
+    bayesian: 0.15
+    mamba: 0.10
+
+hmm:
+  n_states: 4
+  n_mixtures: 2
+  auto_select: false
+  criterion: bic
+  max_states: 8
+  min_states: 2
+  max_iterations: 50
+  convergence_tol: 1e-6
+
+copula:
+  type: gaussian
+  regularization: 1e-6
+  auto_select: false
+
+bsts:
+  trend_window: 20
+  seasonality_period: null
+  outlier_threshold: 2.5
+  n_posterior_samples: 1000
+  confidence_level: 0.95
+  candidate_windows:
+  - 10
+  - 15
+  - 20
+  - 30
+  - 50
+  retrain_threshold: 0.3
+  max_history_length: 500
+  learning_rate: 0.3
+
+feature_engineering:
+  feature_groups:
+    fibonacci:
+      enabled: true
+      windows:
+      - 5
+      - 8
+      - 13
+    entropy:
+      enabled: false
+      windows:
+      - 10
+      - 20
+      - 30
+    markov:
+      enabled: true
+      order: 2
+    chaos:
+      enabled: false
+      hurst_windows:
+      - 10
+      - 20
+      - 50
+      lyapunov: true
+    fourier:
+      enabled: true
+      n_components: 3
+    cross_correlation:
+      enabled: false
+      max_lag: 5
+    extreme:
+      enabled: true
+      windows:
+      - 10
+      - 20
+    pattern:
+      enabled: true
+      patterns:
+      - consecutive
+      - repeat
+    momentum:
+      enabled: true
+      windows:
+      - 3
+      - 5
+    garch:
+      enabled: false
+      windows:
+      - 20
+      - 50
+    granger:
+      enabled: false
+      maxlag: 5
+  cache:
+    max_size: 10
+  scaler:
+    method: standard
+    robust_quantile_range:
+    - 25.0
+    - 75.0
+  drift_detection:
+    psi_threshold: 0.2
+    ks_threshold: 0.05
+  selection:
+    select_top: 100
+    method: rfe
+  parallel:
+    enable: true
+
+optimization:
+  feature_selection:
+    enabled: true
+    decay_factor: 0.95
+    min_importance: 0.01
+    max_features_per_group: 3
+    warmup_periods: 10
+    min_select: 20
+    max_select: 100
+  
+  feature_interaction:
+    enabled: true
+    enable_position_cross: true
+    enable_temporal_cross: true
+    enable_frequency_cross: true
+    max_interaction_features: 50
+    lag_windows:
+    - 1
+    - 2
+    - 3
+  
+  fusion_strategy:
+    type: context_aware
+    context_dim: 32
+    history_window: 30
+    confidence_temperature: 1.0
+    confidence_weighted: true
+  
+  ensemble:
+    diversity_threshold: 0.7
+    use_calibration: true
+    cv_folds: 5
+  
+  copula:
+    types:
+    - gaussian
+    - t
+    - gumbel
+    tail_boost: true
+    tail_threshold: 0.1
+    em_max_iter: 50
+    em_tolerance: 1.0e-4
+
+self_learning:
+  window: 10
+  retrain_threshold: 0.02
+  min_history: 3
+  volatility_factor: 3.0
+  warning_accuracy: 0.12
+  urgent_accuracy: 0.08
+  max_history_records: 200
+  max_suggestion_records: 500
+  comprehensive_score_weights:
+    accuracy: 0.4
+    hit_rate: 0.2
+    confidence: 0.2
+    stability: 0.2
+
+rl_optimizer:
+  state_dim: 32
+  action_dim: 4
+  actor_lr: 0.001
+  critic_lr: 0.005
+  gamma: 0.95
+  epsilon: 1.0
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+  batch_size: 32
+  memory_capacity: 10000
+  n_models: 4
+  performance_window: 30
+  thompson_sampling:
+    initial_alpha: 2.0
+    initial_beta: 3.0
+    n_arms: 5
+
+prediction:
+  top_k: 8
+  use_rl: true
+  use_uncertainty: true
+  parallel_training: true
+  prediction_cache_size: 200
+
+training:
+  test_size: 0.2
+  random_state: 42
+  n_splits: 5

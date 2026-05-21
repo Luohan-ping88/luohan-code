@@ -733,15 +733,37 @@ class FeatureEngineerV9:
         return result
 
     def _add_entropy_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """熵值特征 - 向量化版本（避免rolling apply）"""
+        """熵值特征 - 优先使用C++加速"""
         result = df.copy()
         windows = [10, 20, 30]
 
         for pos in POSITIONS:
+            data_list = df[pos].tolist()
             s = df[pos].values.astype(np.int32)
+            
             for window in windows:
                 if len(df) < window:
                     continue
+                
+                if self.cpp_available and self.cpp_calc:
+                    try:
+                        # C++加速的滚动熵值计算（使用频率统计）
+                        freq_matrix = self.cpp_calc.rolling_frequency(data_list, window, 10)
+                        entropies = np.zeros(len(df))
+                        for i in range(len(freq_matrix)):
+                            freqs = freq_matrix[i]
+                            non_zero = [f for f in freqs if f > 0]
+                            if non_zero:
+                                ent = -np.sum([f * np.log2(f) for f in non_zero])
+                                entropies[i] = ent
+                            else:
+                                entropies[i] = 0.0
+                        result[f'{pos}_entropy_{window}'] = entropies
+                        continue
+                    except Exception:
+                        pass
+                
+                # 回退到Python实现
                 entropies = np.full(len(df), np.nan)
                 for i in range(window - 1, len(df)):
                     window_vals = s[i - window + 1:i + 1]
@@ -792,7 +814,9 @@ class FeatureEngineerV9:
         for pos in POSITIONS:
             if self.cpp_available and self.cpp_calc:
                 try:
-                    hurst = self.cpp_calc.hurst_exponent(df[pos].values[-100:])
+                    # 使用正确的API名称
+                    data_list = df[pos].values.tolist()[-100:]
+                    hurst = self.cpp_calc.calculate_hurst(data_list)
                     result[f'{pos}_hurst'] = hurst
                 except Exception:
                     result[f'{pos}_hurst'] = 0.5
@@ -801,12 +825,26 @@ class FeatureEngineerV9:
         return result
 
     def _add_fourier_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """傅里叶特征 - 向量化"""
+        """傅里叶特征 - 优先使用C++加速"""
         result = df.copy()
         n_components = 3
 
         for pos in POSITIONS:
             if len(df) >= 20:
+                if self.cpp_available and self.cpp_calc:
+                    try:
+                        data_list = df[pos].values.tolist()[-20:]
+                        cpp_fft = self.cpp_calc.fft_transform(data_list)
+                        real_parts = cpp_fft[:n_components]
+                        imag_parts = [0.0] * n_components
+                        for i in range(n_components):
+                            result[f'{pos}_fft_real_{i}'] = real_parts[i] if i < len(real_parts) else 0.0
+                            result[f'{pos}_fft_imag_{i}'] = imag_parts[i] if i < len(imag_parts) else 0.0
+                        continue
+                    except Exception:
+                        pass
+                
+                # 回退到Python实现
                 fft_vals = fft(df[pos].values[-20:])
                 real_parts = np.real(fft_vals[:n_components])
                 imag_parts = np.imag(fft_vals[:n_components])
@@ -1023,9 +1061,23 @@ class FeatureEngineerV9:
             result[f'{pos}_freq_8'] = df[pos].apply(lambda x: freq_dict.get(8, 0))
             result[f'{pos}_freq_9'] = df[pos].apply(lambda x: freq_dict.get(9, 0))
             
-            # 2. 数字分布特征
-            result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
-            result[f'{pos}_std'] = df[pos].rolling(window=100, min_periods=1).std()
+            # 2. 数字分布特征（优先使用C++加速）
+            if self.cpp_available and self.cpp_calc:
+                try:
+                    data_list = df[pos].tolist()
+                    # C++加速的滚动均值和标准差
+                    cpp_means = self.cpp_calc.rolling_mean(data_list, 100)
+                    cpp_stds = self.cpp_calc.rolling_std(data_list, 100)
+                    result[f'{pos}_mean'] = cpp_means
+                    result[f'{pos}_std'] = cpp_stds
+                except Exception:
+                    # C++失败时回退到Python
+                    result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
+                    result[f'{pos}_std'] = df[pos].rolling(window=100, min_periods=1).std()
+            else:
+                # C++不可用时使用Python
+                result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
+                result[f'{pos}_std'] = df[pos].rolling(window=100, min_periods=1).std()
             result[f'{pos}_skew'] = df[pos].rolling(window=100, min_periods=1).skew()
             result[f'{pos}_kurt'] = df[pos].rolling(window=100, min_periods=1).kurt()
         
@@ -1125,24 +1177,43 @@ class FeatureEngineerV9:
         
         # 混沌复杂系统的随机特征：基于混沌理论的特征
         # 李雅普诺夫指数近似
-        def lyapunov_exponent_approx(series, window=10):
-            """近似计算李雅普诺夫指数"""
-            import numpy as np
-            result = []
-            for i in range(len(series)):
-                if i < window:
-                    result.append(0)
-                    continue
-                window_data = series.iloc[i-window:i].values
-                diffs = np.abs(np.diff(window_data))
-                if len(diffs) > 0:
-                    avg_diff = np.mean(diffs)
-                    result.append(avg_diff)
-                else:
-                    result.append(0)
-            return pd.Series(result, index=series.index)
-        
         for pos in POSITIONS:
+            if self.cpp_available and self.cpp_calc:
+                try:
+                    data_list = df[pos].tolist()
+                    # 计算滚动的Lyapunov指数
+                    lyapunov_values = []
+                    window = 10
+                    for i in range(len(data_list)):
+                        if i < window:
+                            lyapunov_values.append(0.0)
+                            continue
+                        window_data = data_list[i-window:i]
+                        lyap = self.cpp_calc.calculate_lyapunov(window_data)
+                        lyapunov_values.append(lyap)
+                    result[f'{pos}_lyapunov'] = lyapunov_values
+                    continue
+                except Exception:
+                    pass
+            
+            # 回退到Python实现
+            def lyapunov_exponent_approx(series, window=10):
+                """近似计算李雅普诺夫指数"""
+                import numpy as np
+                result = []
+                for i in range(len(series)):
+                    if i < window:
+                        result.append(0)
+                        continue
+                    window_data = series.iloc[i-window:i].values
+                    diffs = np.abs(np.diff(window_data))
+                    if len(diffs) > 0:
+                        avg_diff = np.mean(diffs)
+                        result.append(avg_diff)
+                    else:
+                        result.append(0)
+                return pd.Series(result, index=series.index)
+            
             result[f'{pos}_lyapunov'] = lyapunov_exponent_approx(df[pos])
         
         # 计算不可约特征：基于计算复杂性的特征

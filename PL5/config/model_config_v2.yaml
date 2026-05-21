@@ -203,8 +203,37 @@ prediction:
   use_uncertainty: true
   parallel_training: true
   prediction_cache_size: 200
+  architecture: V10
 
 training:
   test_size: 0.2
   random_state: 42
   n_splits: 5
+
+v11:
+  enabled: false
+  device: cpu
+  
+  mamba:
+    d_model: 256
+    n_layers: 6
+    seq_len: 50
+    d_state: 64
+    expand: 2
+    dropout: 0.1
+    lr: 1e-4
+  
+  diffusion:
+    enabled: true
+    num_timesteps: 100
+    noise_scale: 0.1
+    epochs: 10
+  
+  moe:
+    enabled: true
+    num_experts: 4
+    d_model: 128
+    epochs: 10
+  
+  causal:
+    enabled: true

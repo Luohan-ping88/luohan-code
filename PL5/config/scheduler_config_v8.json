@@ -20,5 +20,9 @@
   "enabled": true,
   "monitoring_enabled": true,
   "skip_recovery": true,
-  "last_completed_period": "2026079"
+  "last_completed_period": "2026079",
+  "v11_mode": {
+    "enabled": true,
+    "feature_mode": "v11_full"
+  }
 }

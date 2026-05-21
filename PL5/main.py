@@ -62,11 +62,13 @@ def check_environment():
 def cmd_train(args):
     """执行训练流程"""
     logger.info("=" * 60)
-    logger.info("PL5 V10.3 训练流程")
+    if getattr(args, 'v11', False):
+        logger.info("PL5 V11 训练流程（先进特征工程）")
+    else:
+        logger.info("PL5 V10.3 训练流程")
     logger.info("=" * 60)
 
     from src.core.data.collector import PL5DataCollector
-    from src.core.features.engineer import FeatureEngineer
     from src.core.models.enhanced_predictor import EnhancedPL5Predictor
 
     collector = PL5DataCollector()
@@ -76,12 +78,30 @@ def cmd_train(args):
         return False
     logger.info(f"数据加载完成: {len(df)} 条记录, 最新期号: {df['period'].iloc[-1]}")
 
-    engineer = FeatureEngineer()
-    # 与 scheduler 训练路径保持一致：不限制 select_top，确保模型的 76 个训练特征全部存在
+    # 根据参数选择特征工程模式
+    if getattr(args, 'v11', False):
+        from src.core.features.v11_engineer import V11FeatureEngineer
+        mode = getattr(args, 'v11_mode', 'v11_advanced')
+        engineer = V11FeatureEngineer(mode=mode)
+        logger.info(f"[V11] 使用V11先进特征工程，模式: {mode}")
+    else:
+        from src.core.features.engineer import FeatureEngineer
+        engineer = FeatureEngineer()
+        logger.info("[V10] 使用V10标准特征工程")
+
+    # 与 scheduler 训练路径保持一致：不限制 select_top，确保模型的训练特征全部存在
     df_features = engineer.extract_all_features(df, select_top=None)
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
     feature_cols = [c for c in df_features.columns
                    if c not in ['period', 'full_number'] + positions]
+    
+    # 获取特征摘要（V11模式）
+    feature_summary = None
+    if getattr(args, 'v11', False) and hasattr(engineer, 'get_feature_summary'):
+        feature_summary = engineer.get_feature_summary(df_features)
+        if feature_summary:
+            logger.info(f"[V11] 特征摘要: {feature_summary}")
+
     logger.info(f"特征工程完成: {len(feature_cols)} 个特征")
 
     predictor = EnhancedPL5Predictor()
@@ -94,13 +114,17 @@ def cmd_train(args):
     logger.info("模型已保存")
 
     import json
+    model_version = 'V11' if getattr(args, 'v11', False) else 'V10.3'
     training_info = {
-        'model_version': 'V10.3',
+        'model_version': model_version,
         'training_time': elapsed,
         'feature_count': len(feature_cols),
         'data_count': len(df),
         'latest_period': str(df['period'].iloc[-1]),
         'training_status': 'SUCCESS',
+        'feature_engineering': 'v11' if getattr(args, 'v11', False) else 'v10',
+        'v11_mode': getattr(args, 'v11_mode', None) if getattr(args, 'v11', False) else None,
+        'feature_summary': feature_summary,
         'models': {
             'stacking': True,
             'hmm': bool(predictor.hmm_models),
@@ -123,11 +147,13 @@ def cmd_train(args):
 def cmd_predict(args):
     """执行预测流程"""
     logger.info("=" * 60)
-    logger.info("PL5 V10.3 预测流程")
+    if getattr(args, 'v11', False):
+        logger.info("PL5 V11 预测流程（先进特征工程）")
+    else:
+        logger.info("PL5 V10.3 预测流程")
     logger.info("=" * 60)
 
     from src.core.data.collector import PL5DataCollector
-    from src.core.features.engineer import FeatureEngineer
     from src.core.models.enhanced_predictor import EnhancedPL5Predictor
 
     collector = PL5DataCollector()
@@ -136,9 +162,18 @@ def cmd_predict(args):
         logger.error("无法加载数据")
         return False
 
-    engineer = FeatureEngineer()
-    # 【关键修复】predict 时不限制 select_top，让 df_features 包含全量特征，
-    # 保证模型的 76 个训练特征全部存在（避免 RFE 选出 top-100 而遗漏部分训练特征）
+    # 根据参数选择特征工程模式
+    if getattr(args, 'v11', False):
+        from src.core.features.v11_engineer import V11FeatureEngineer
+        mode = getattr(args, 'v11_mode', 'v11_advanced')
+        engineer = V11FeatureEngineer(mode=mode)
+        logger.info(f"[V11] 使用V11先进特征工程，模式: {mode}")
+    else:
+        from src.core.features.engineer import FeatureEngineer
+        engineer = FeatureEngineer()
+        logger.info("[V10] 使用V10标准特征工程")
+
+    # predict时不限制 select_top，让 df_features 包含全量特征，
     df_features = engineer.extract_all_features(df, select_top=None)
 
     predictor = EnhancedPL5Predictor()
@@ -153,7 +188,6 @@ def cmd_predict(args):
         predictor.save_models()
         latest_features = df_features[feature_cols].iloc[-1].values
     else:
-        # 【关键修复】使用模型训练时保存的 feature_cols，避免 RFE 漂移
         if predictor.feature_cols and len(predictor.feature_cols) > 0:
             missing = [c for c in predictor.feature_cols if c not in df_features.columns]
             if missing:
@@ -162,7 +196,7 @@ def cmd_predict(args):
                                if c not in ['period', 'full_number'] + positions]
             else:
                 feature_cols = predictor.feature_cols
-                logger.info(f"[cmd_predict] 使用模型训练时的 {len(feature_cols)} 个特征列（特征漂移已修复）")
+                logger.info(f"[cmd_predict] 使用模型训练时的 {len(feature_cols)} 个特征列")
             latest_features = df_features[feature_cols].iloc[-1].values
         else:
             feature_cols = [c for c in df_features.columns
@@ -190,6 +224,7 @@ def cmd_predict(args):
         json.dump({
             'period': next_period,
             'predictions': {pos: predictions[pos] for pos in positions},
+            'feature_engineering': 'v11' if getattr(args, 'v11', False) else 'v10',
             'timestamp': datetime.now().isoformat()
         }, f, indent=2, ensure_ascii=False, default=str)
     logger.info(f"预测结果已保存: {result_path}")
@@ -295,17 +330,23 @@ def cmd_status(args):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description='PL5 V10.3 排列五智能预测系统',
+        description='PL5 V10.3 / V11 排列五智能预测系统',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python main.py train              # 执行训练
+  python main.py train              # 执行训练(V10模式)
+  python main.py train --v11        # 执行训练(V11先进特征工程)
   python main.py train --sequential # 顺序训练(不并行)
-  python main.py predict            # 执行预测
+  python main.py predict            # 执行预测(V10模式)
+  python main.py predict --v11      # 执行预测(V11先进特征工程)
   python main.py analyze            # 分析并发送邮件
   python main.py schedule           # 启动调度器
   python main.py schedule --once    # 执行单次完整流程
   python main.py status             # 查看系统状态
+
+V11模式说明:
+  --v11              启用V11先进特征工程
+  --v11-mode MODE    V11模式: v10(仅V10), v11_advanced(先进特征), v11_full(全部)
         """
     )
 
@@ -314,13 +355,29 @@ def main():
     train_parser = subparsers.add_parser('train', help='执行训练流程')
     train_parser.add_argument('--sequential', action='store_true',
                              help='顺序训练(不使用并行)')
+    train_parser.add_argument('--v11', action='store_true',
+                             help='启用V11先进特征工程')
+    train_parser.add_argument('--v11-mode', type=str, default='v11_advanced',
+                             choices=['v10', 'v11_advanced', 'v11_full'],
+                             help='V11模式选择')
 
-    subparsers.add_parser('predict', help='执行预测流程')
+    predict_parser = subparsers.add_parser('predict', help='执行预测流程')
+    predict_parser.add_argument('--v11', action='store_true',
+                               help='启用V11先进特征工程')
+    predict_parser.add_argument('--v11-mode', type=str, default='v11_advanced',
+                               choices=['v10', 'v11_advanced', 'v11_full'],
+                               help='V11模式选择')
+
     subparsers.add_parser('analyze', help='分析并发送邮件')
 
     schedule_parser = subparsers.add_parser('schedule', help='启动自动调度器')
     schedule_parser.add_argument('--once', action='store_true',
                                 help='执行单次完整流程后退出')
+    schedule_parser.add_argument('--v11', action='store_true',
+                                help='启用V11先进特征工程')
+    schedule_parser.add_argument('--v11-mode', type=str, default='v11_advanced',
+                                choices=['v10', 'v11_advanced', 'v11_full'],
+                                help='V11模式选择')
 
     subparsers.add_parser('status', help='查看系统状态')
 

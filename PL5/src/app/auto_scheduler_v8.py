@@ -271,9 +271,23 @@ class AutoSchedulerV8:
             'training_deadline': '17:00',
             'email_send_time': defaults.get('email_send_time', '20:15'),
             'enabled': True,
-            'monitoring_enabled': True
+            'monitoring_enabled': True,
+            'v11_mode': {
+                'enabled': False,
+                'feature_mode': 'v11_advanced'
+            }
         }
         self.save_config()
+    
+    def _is_v11_enabled(self):
+        """检查V11模式是否启用"""
+        v11_config = self.config.get('v11_mode', {})
+        return v11_config.get('enabled', False)
+    
+    def _get_v11_feature_mode(self):
+        """获取V11特征工程模式"""
+        v11_config = self.config.get('v11_mode', {})
+        return v11_config.get('feature_mode', 'v11_advanced')
     
     def save_config(self):
         """保存配置"""
@@ -1113,7 +1127,10 @@ class AutoSchedulerV8:
     def task_incremental_train(self):
         """执行增量训练（08:00-10:00）"""
         logger.info("=" * 80)
-        logger.info("【任务4.1】增量训练")
+        if self._is_v11_enabled():
+            logger.info("【任务4.1】增量训练 (V11模式)")
+        else:
+            logger.info("【任务4.1】增量训练")
         logger.info("=" * 80)
         self.log_status("增量训练", "开始执行", 0)
         
@@ -1125,7 +1142,6 @@ class AutoSchedulerV8:
         
         try:
             from src.core.data.collector import PL5DataCollector
-            from src.core.features.engineer import FeatureEngineer
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             
             self.log_status("增量训练", "加载数据", 10)
@@ -1136,19 +1152,33 @@ class AutoSchedulerV8:
             logger.info(f"  数据加载完成: {len(df)} 条记录")
             logger.info(f"  最新期号: {df['period'].iloc[-1]}")
             
-            self.log_status("增量训练", "动态特征验证", 20)
-            # 【V10.1修复】使用统一方法获取最佳特征配置
-            best_config = self._get_best_feature_config()
-            # 【V10.1修复】保存配置供后续预测任务使用
-            self._save_feature_config(best_config)
+            self.log_status("增量训练", "特征工程", 20)
             
-            self.log_status("增量训练", "特征工程", 30)
-            engineer = FeatureEngineer()
-            df_features = engineer.extract_all_features(
-                df,
-                select_top=best_config['select_top'],
-                feature_selection_method=best_config['feature_selection_method']
-            )
+            # 根据配置选择特征工程模式
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"  [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                df_features = engineer.extract_all_features(df, select_top=None)
+                feature_summary = None
+                if hasattr(engineer, 'get_feature_summary'):
+                    feature_summary = engineer.get_feature_summary(df_features)
+                    if feature_summary:
+                        logger.info(f"  [V11] 特征摘要: {feature_summary}")
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.1修复】使用统一方法获取最佳特征配置
+                best_config = self._get_best_feature_config()
+                # 【V10.1修复】保存配置供后续预测任务使用
+                self._save_feature_config(best_config)
+                logger.info(f"  [V10] 使用V10特征工程，配置: {best_config}")
+                engineer = FeatureEngineer()
+                df_features = engineer.extract_all_features(
+                    df,
+                    select_top=best_config['select_top'],
+                    feature_selection_method=best_config['feature_selection_method']
+                )
             
             feature_cols = [
                 col for col in df_features.columns
@@ -1193,14 +1223,23 @@ class AutoSchedulerV8:
             self.log_status("增量训练", "完成", 100)
             logger.info("  增量训练完成")
             
+            task_result = {
+                "training_type": "incremental",
+                "training_duration": elapsed,
+                "feature_count": len(feature_cols),
+                "data_count": len(df),
+                "v11_enabled": self._is_v11_enabled()
+            }
+            if self._is_v11_enabled():
+                task_result["v11_feature_mode"] = self._get_v11_feature_mode()
+                if 'feature_summary' in locals() and feature_summary:
+                    task_result["feature_summary"] = feature_summary
+            else:
+                if 'best_config' in locals():
+                    task_result["feature_config"] = best_config
+            
             if self.workflow_enabled and self.orchestrator:
-                self.orchestrator.complete_task(task_name, {
-                    "training_type": "incremental",
-                    "training_duration": elapsed,
-                    "feature_count": len(feature_cols),
-                    "data_count": len(df),
-                    "feature_config": best_config
-                })
+                self.orchestrator.complete_task(task_name, task_result)
             
             self.history_manager.add_task_record(
                 "incremental_training", 
@@ -1229,7 +1268,10 @@ class AutoSchedulerV8:
     def task_train(self):
         """对下一期进行深度训练（22:00-02:00）"""
         logger.info("=" * 80)
-        logger.info("【任务4】深度学习训练")
+        if self._is_v11_enabled():
+            logger.info("【任务4】深度学习训练 (V11模式)")
+        else:
+            logger.info("【任务4】深度学习训练")
         logger.info("=" * 80)
         self.log_status("深度学习", "开始执行", 0)
         
@@ -1241,7 +1283,6 @@ class AutoSchedulerV8:
         
         try:
             from src.core.data.collector import PL5DataCollector
-            from src.core.features.engineer import FeatureEngineer
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.self_learning import SelfLearningSystem
             
@@ -1254,20 +1295,35 @@ class AutoSchedulerV8:
             logger.info(f"  数据加载完成: {len(df)} 条记录")
             logger.info(f"  最新期号: {df['period'].iloc[-1]}")
             
-            self.log_status("深度学习", "动态特征验证", 15)
-            # 【V10.4修复】深度训练时强制执行动态特征验证
-            # 这是客户期望的核心功能：训练中智能动态应用多个特征组来检验训练最优效果
-            best_config = self._get_best_feature_config(force_validate=True)
-            # 【V10.1修复】保存配置供后续预测任务使用
-            self._save_feature_config(best_config)
+            self.log_status("深度学习", "特征工程", 15)
             
-            self.log_status("深度学习", "特征工程", 20)
-            engineer = FeatureEngineer()
-            df_features = engineer.extract_all_features(
-                df,
-                select_top=best_config['select_top'],
-                feature_selection_method=best_config['feature_selection_method']
-            )
+            best_config = None
+            # 根据配置选择特征工程模式
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"  [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                df_features = engineer.extract_all_features(df, select_top=None)
+                feature_summary = None
+                if hasattr(engineer, 'get_feature_summary'):
+                    feature_summary = engineer.get_feature_summary(df_features)
+                    if feature_summary:
+                        logger.info(f"  [V11] 特征摘要: {feature_summary}")
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.4修复】深度训练时强制执行动态特征验证
+                # 这是客户期望的核心功能：训练中智能动态应用多个特征组来检验训练最优效果
+                best_config = self._get_best_feature_config(force_validate=True)
+                # 【V10.1修复】保存配置供后续预测任务使用
+                self._save_feature_config(best_config)
+                logger.info(f"  [V10] 使用V10特征工程，配置: {best_config}")
+                engineer = FeatureEngineer()
+                df_features = engineer.extract_all_features(
+                    df,
+                    select_top=best_config['select_top'],
+                    feature_selection_method=best_config['feature_selection_method']
+                )
             
             feature_cols = [
                 col for col in df_features.columns
@@ -1358,11 +1414,12 @@ class AutoSchedulerV8:
             feature_manager = get_feature_version_manager()
             version_id = feature_manager.save_feature_version(
                 feature_cols=feature_cols,
-                feature_config=best_config,
+                feature_config=best_config if not self._is_v11_enabled() else None,
                 metadata={
                     "training_period": str(df['period'].iloc[-1]),
                     "data_count": len(df),
-                    "training_type": "deep_training"
+                    "training_type": "deep_training",
+                    "v11_enabled": self._is_v11_enabled()
                 }
             )
             logger.info(f"  特征版本已保存: {version_id}")
@@ -1377,13 +1434,18 @@ class AutoSchedulerV8:
             
             # 保存训练信息（【修复BUG-04】latest_period 强制转 str，防止 numpy.int64 序列化失败）
             training_info = {
-                'model_version': 'V10.3',
+                'model_version': 'V11' if self._is_v11_enabled() else 'V10.3',
                 'training_time': (datetime.now() - start_time).total_seconds(),
                 'feature_count': len(feature_cols),
                 'data_count': len(df),
                 'latest_period': str(df['period'].iloc[-1]),
-                'training_status': 'SUCCESS'
+                'training_status': 'SUCCESS',
+                'v11_enabled': self._is_v11_enabled()
             }
+            if self._is_v11_enabled():
+                training_info['v11_feature_mode'] = self._get_v11_feature_mode()
+                if 'feature_summary' in locals() and feature_summary:
+                    training_info['feature_summary'] = feature_summary
             
             training_info_path = LOGS_DIR / "training_info.json"
             with open(training_info_path, 'w', encoding='utf-8') as f:
@@ -1748,7 +1810,10 @@ class AutoSchedulerV8:
     def task_final_prediction(self):
         """生成最终预测结果 - 【V10.4修复】整合佐证结果"""
         logger.info("=" * 80)
-        logger.info("【任务11】生成最终预测结果")
+        if self._is_v11_enabled():
+            logger.info("【任务11】生成最终预测结果 (V11模式)")
+        else:
+            logger.info("【任务11】生成最终预测结果")
         logger.info("=" * 80)
         self.log_status("最终预测", "开始执行", 0)
         
@@ -1761,7 +1826,6 @@ class AutoSchedulerV8:
         try:
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.config import ModelConfig
-            from src.core.features.engineer import FeatureEngineer
             from src.core.data.collector import PL5DataCollector
             
             # 【V10.4新增】读取所有佐证结果
@@ -1777,19 +1841,28 @@ class AutoSchedulerV8:
             collector = PL5DataCollector()
             data = collector.load_processed_data()
             
-            # 【V10.1修复】使用与训练一致的特征配置
-            best_config = self._get_best_feature_config()
-            logger.info(f"[final_prediction] 使用特征配置: {best_config}")
-            
-            # 生成特征（使用与训练一致的特征配置）
-            engineer = FeatureEngineer(enable_parallel=False)
-            features = engineer.extract_all_features(
-                data,
-                select_top=best_config.get('select_top', None),
-                feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
-                detect_drift=False,
-                enable_scaler=False
-            )
+            # 根据配置选择特征工程模式
+            best_config = None
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"[final_prediction] [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                features = engineer.extract_all_features(data, select_top=None)
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.1修复】使用与训练一致的特征配置
+                best_config = self._get_best_feature_config()
+                logger.info(f"[final_prediction] [V10] 使用特征配置: {best_config}")
+                # 生成特征（使用与训练一致的特征配置）
+                engineer = FeatureEngineer(enable_parallel=False)
+                features = engineer.extract_all_features(
+                    data,
+                    select_top=best_config.get('select_top', None),
+                    feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
+                    detect_drift=False,
+                    enable_scaler=False
+                )
             
             # 加载模型并对齐特征
             model_config = ModelConfig()
@@ -1832,7 +1905,7 @@ class AutoSchedulerV8:
                 'latest_period': int(data['period'].iloc[-1]),
                 'next_period': str(int(data['period'].iloc[-1]) + 1),
                 'predictions': prediction,
-                'feature_config': best_config,
+                'v11_enabled': self._is_v11_enabled(),
                 # 【V10.4新增】佐证一致性信息
                 'verification_consistency': consistency_scores,
                 'verification_results_summary': {
@@ -1844,6 +1917,10 @@ class AutoSchedulerV8:
                     for k, v in verification_results.items() if v
                 }
             }
+            if self._is_v11_enabled():
+                prediction_info['v11_feature_mode'] = self._get_v11_feature_mode()
+            else:
+                prediction_info['feature_config'] = best_config
             
             prediction_path = LOGS_DIR / "final_prediction.json"
             with open(prediction_path, 'w', encoding='utf-8') as f:
@@ -2021,7 +2098,10 @@ class AutoSchedulerV8:
     def task_pre_sale_prediction(self):
         """售前最终预测（停售前1小时）"""
         logger.info("=" * 80)
-        logger.info("【任务13】售前最终预测")
+        if self._is_v11_enabled():
+            logger.info("【任务13】售前最终预测 (V11模式)")
+        else:
+            logger.info("【任务13】售前最终预测")
         logger.info("=" * 80)
         self.log_status("售前预测", "开始执行", 0)
         
@@ -2034,26 +2114,34 @@ class AutoSchedulerV8:
         try:
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.config import ModelConfig
-            from src.core.features.engineer import FeatureEngineer
             from src.core.data.collector import PL5DataCollector
             
             # 加载数据
             collector = PL5DataCollector()
             data = collector.load_processed_data()
             
-            # 【V10.1修复】使用与训练一致的特征配置
-            best_config = self._get_best_feature_config()
-            logger.info(f"[pre_sale_prediction] 使用特征配置: {best_config}")
-            
-            # 生成特征（使用与训练一致的特征配置）
-            engineer = FeatureEngineer(enable_parallel=False)
-            features = engineer.extract_all_features(
-                data,
-                select_top=best_config.get('select_top', None),
-                feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
-                detect_drift=False,
-                enable_scaler=False
-            )
+            # 根据配置选择特征工程模式
+            best_config = None
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"[pre_sale_prediction] [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                features = engineer.extract_all_features(data, select_top=None)
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.1修复】使用与训练一致的特征配置
+                best_config = self._get_best_feature_config()
+                logger.info(f"[pre_sale_prediction] [V10] 使用特征配置: {best_config}")
+                # 生成特征（使用与训练一致的特征配置）
+                engineer = FeatureEngineer(enable_parallel=False)
+                features = engineer.extract_all_features(
+                    data,
+                    select_top=best_config.get('select_top', None),
+                    feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
+                    detect_drift=False,
+                    enable_scaler=False
+                )
             
             # 加载模型并对齐特征
             model_config = ModelConfig()
@@ -2089,8 +2177,12 @@ class AutoSchedulerV8:
                 'latest_period': int(data['period'].iloc[-1]),
                 'next_period': str(int(data['period'].iloc[-1]) + 1),
                 'pre_sale_predictions': pre_sale_prediction,
-                'feature_config': best_config
+                'v11_enabled': self._is_v11_enabled()
             }
+            if self._is_v11_enabled():
+                pre_sale_info['v11_feature_mode'] = self._get_v11_feature_mode()
+            else:
+                pre_sale_info['feature_config'] = best_config
             
             pre_sale_path = LOGS_DIR / "pre_sale_prediction.json"
             with open(pre_sale_path, 'w', encoding='utf-8') as f:
@@ -2139,7 +2231,10 @@ class AutoSchedulerV8:
             output_file: 输出 JSON 文件名
         """
         logger.info("=" * 80)
-        logger.info(f"【{round_name}】执行预测验证")
+        if self._is_v11_enabled():
+            logger.info(f"【{round_name}】执行预测验证 (V11模式)")
+        else:
+            logger.info(f"【{round_name}】执行预测验证")
         logger.info("=" * 80)
         self.log_status(round_name, "开始执行", 0)
         
@@ -2151,7 +2246,6 @@ class AutoSchedulerV8:
         try:
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.config import ModelConfig
-            from src.core.features.engineer import FeatureEngineer
             from src.core.data.collector import PL5DataCollector
             from src.core.strategy_evaluator import StrategyEvaluator
             
@@ -2171,19 +2265,28 @@ class AutoSchedulerV8:
             data = collector.load_processed_data()
             logger.info(f"  原始数据: {len(data)} 条，最新期号: {int(data['period'].iloc[-1])}")
             
-            # 【V10.1修复】使用与训练一致的特征配置
-            best_config = self._get_best_feature_config()
-            logger.info(f"[{round_name}] 使用特征配置: {best_config}")
-            
-            # 3. 生成特征（使用与训练一致的特征配置）
-            engineer = FeatureEngineer(enable_parallel=False)
-            features = engineer.extract_all_features(
-                data,
-                select_top=best_config.get('select_top', None),
-                feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
-                detect_drift=False,
-                enable_scaler=False
-            )
+            # 3. 根据配置选择特征工程模式
+            best_config = None
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"[{round_name}] [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                features = engineer.extract_all_features(data, select_top=None)
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.1修复】使用与训练一致的特征配置
+                best_config = self._get_best_feature_config()
+                logger.info(f"[{round_name}] [V10] 使用特征配置: {best_config}")
+                # 生成特征（使用与训练一致的特征配置）
+                engineer = FeatureEngineer(enable_parallel=False)
+                features = engineer.extract_all_features(
+                    data,
+                    select_top=best_config.get('select_top', None),
+                    feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
+                    detect_drift=False,
+                    enable_scaler=False
+                )
             
             # 【V10.3优化】检查特征一致性
             logger.info(f"步骤3.1 [{round_name}]: 检查特征一致性...")
@@ -2244,8 +2347,12 @@ class AutoSchedulerV8:
                 'next_period': str(int(data['period'].iloc[-1]) + 1),
                 'predictions': prediction,
                 'strategy_evaluation': evaluation_result,
-                'feature_config': best_config
+                'v11_enabled': self._is_v11_enabled()
             }
+            if self._is_v11_enabled():
+                verification_info['v11_feature_mode'] = self._get_v11_feature_mode()
+            else:
+                verification_info['feature_config'] = best_config
             
             output_path = LOGS_DIR / output_file
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -2410,7 +2517,10 @@ class AutoSchedulerV8:
     def task_prediction_preview(self):
         """预测结果预生成（五次佐证）"""
         logger.info("=" * 80)
-        logger.info("【任务10】预测结果预生成（五次佐证）")
+        if self._is_v11_enabled():
+            logger.info("【任务10】预测结果预生成（五次佐证） (V11模式)")
+        else:
+            logger.info("【任务10】预测结果预生成（五次佐证）")
         logger.info("=" * 80)
         self.log_status("预测预生成", "开始执行", 0)
         
@@ -2423,7 +2533,6 @@ class AutoSchedulerV8:
         try:
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.config import ModelConfig
-            from src.core.features.engineer import FeatureEngineer
             from src.core.data.collector import PL5DataCollector
             from src.core.strategy_evaluator import StrategyEvaluator
             
@@ -2437,19 +2546,28 @@ class AutoSchedulerV8:
             collector = PL5DataCollector()
             data = collector.load_processed_data()
             
-            # 【V10.1修复】使用与训练一致的特征配置
-            best_config = self._get_best_feature_config()
-            logger.info(f"[prediction_preview] 使用特征配置: {best_config}")
-            
-            # 3. 生成特征（使用与训练一致的特征配置）
-            engineer = FeatureEngineer(enable_parallel=False)
-            features = engineer.extract_all_features(
-                data,
-                select_top=best_config.get('select_top', None),
-                feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
-                detect_drift=False,
-                enable_scaler=False
-            )
+            # 3. 根据配置选择特征工程模式
+            best_config = None
+            if self._is_v11_enabled():
+                from src.core.features.v11_engineer import V11FeatureEngineer
+                v11_mode = self._get_v11_feature_mode()
+                logger.info(f"[prediction_preview] [V11] 使用V11特征工程模式: {v11_mode}")
+                engineer = V11FeatureEngineer(mode=v11_mode)
+                features = engineer.extract_all_features(data, select_top=None)
+            else:
+                from src.core.features.engineer import FeatureEngineer
+                # 【V10.1修复】使用与训练一致的特征配置
+                best_config = self._get_best_feature_config()
+                logger.info(f"[prediction_preview] [V10] 使用特征配置: {best_config}")
+                # 生成特征（使用与训练一致的特征配置）
+                engineer = FeatureEngineer(enable_parallel=False)
+                features = engineer.extract_all_features(
+                    data,
+                    select_top=best_config.get('select_top', None),
+                    feature_selection_method=best_config.get('feature_selection_method', 'rfe'),
+                    detect_drift=False,
+                    enable_scaler=False
+                )
             # 【BUG-3修复】与其他任务保持一致，排除 period/full_number/parse_line
             feature_cols = [col for col in features.columns
                             if col not in ['period', 'date', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']]
@@ -2515,8 +2633,12 @@ class AutoSchedulerV8:
                 'previous_predictions': previous_predictions,
                 'consistency_scores': consistency_scores,
                 'strategy_evaluation': evaluation_result,
-                'feature_config': best_config
+                'v11_enabled': self._is_v11_enabled()
             }
+            if self._is_v11_enabled():
+                preview_info['v11_feature_mode'] = self._get_v11_feature_mode()
+            else:
+                preview_info['feature_config'] = best_config
             
             preview_path = LOGS_DIR / "prediction_preview.json"
             with open(preview_path, 'w', encoding='utf-8') as f:

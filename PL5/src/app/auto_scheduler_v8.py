@@ -441,6 +441,83 @@ class AutoSchedulerV8:
         }
         logger.info(f"[task_map] 已注册 {len(self.task_map)} 个任务, custom_tasks 共 {len(self.custom_tasks)} 步")
     
+    def _verify_prerequisite_tasks(self):
+        """
+        【关键修复】验证发送报告前的所有前置任务是否完成
+        
+        检查以下关键任务是否在当前日循环周期内成功完成：
+        - pre_sale_prediction (最终售前预测)
+        - final_prediction_verification (最终预测验证)
+        - final_prediction (最终预测)
+        
+        同时验证关键文件是否在当前日循环周期内生成
+        """
+        errors = []
+        warnings = []
+        
+        # 1. 获取当前日循环周期的时间范围
+        from datetime import time, timedelta
+        DATA_FETCH_TIME = time(22, 15)  # 日循环开始时间
+        SEND_REPORT_TIME = time(20, 15)  # 日循环结束时间
+        now = datetime.now()
+        
+        # 确定当前周期的起始时间
+        if now.time() >= DATA_FETCH_TIME:
+            cycle_start = datetime.combine(now.date(), DATA_FETCH_TIME)
+        else:
+            cycle_start = datetime.combine(now.date() - timedelta(days=1), DATA_FETCH_TIME)
+        
+        logger.info(f"当前日循环周期开始时间: {cycle_start}")
+        
+        # 2. 检查关键任务是否在当前周期内执行过（通过历史记录）
+        required_tasks = ["pre_sale_prediction", "final_prediction", "final_prediction_verification"]
+        for task_name in required_tasks:
+            task_executed = False
+            task_success = False
+            
+            # 检查历史记录
+            history = self.history_manager.get_task_history(task_name, limit=50)
+            for record in history:
+                # 将字符串时间转换为 datetime 对象
+                record_start = datetime.fromisoformat(record['start_time'])
+                if record_start >= cycle_start:
+                    task_executed = True
+                    task_success = record['status'] == "SUCCESS"
+                    break
+            
+            if not task_executed:
+                errors.append(f"关键任务 {task_name} 在当前日循环周期内尚未执行")
+            elif not task_success:
+                errors.append(f"关键任务 {task_name} 在当前日循环周期内执行失败")
+        
+        # 3. 验证关键预测文件是否存在且在当前周期内生成
+        key_files = [
+            ("pre_sale_prediction.json", "最终售前预测文件"),
+            ("final_prediction.json", "最终预测文件")
+        ]
+        
+        for filename, desc in key_files:
+            filepath = LOGS_DIR / filename
+            if not filepath.exists():
+                errors.append(f"{desc}不存在: {filename}")
+            else:
+                # 检查文件修改时间
+                mtime = datetime.fromtimestamp(filepath.stat().st_mtime)
+                if mtime < cycle_start:
+                    warnings.append(f"{desc}可能是旧的（修改时间: {mtime}）")
+                    logger.warning(f"  {desc}可能不是当前周期生成的")
+        
+        if warnings:
+            for warning in warnings:
+                logger.warning(warning)
+        
+        return {
+            'all_ok': len(errors) == 0,
+            'errors': errors,
+            'warnings': warnings,
+            'cycle_start': cycle_start
+        }
+    
     def load_current_status(self):
         """加载当前状态"""
         try:
@@ -1470,6 +1547,25 @@ class AutoSchedulerV8:
         start_time = datetime.now()
         task_name = "send_report"
         
+        # 【关键修复】验证前置任务是否完成
+        required_task_status = self._verify_prerequisite_tasks()
+        if not required_task_status['all_ok']:
+            logger.error(f"前置任务验证失败：{required_task_status['errors']}")
+            logger.error("中止发送报告，因为前置关键任务未完成")
+            
+            if self.workflow_enabled and self.orchestrator:
+                self.orchestrator.fail_task(task_name, f"前置任务未完成：{required_task_status['errors']}")
+            
+            self.history_manager.add_task_record(
+                "send_report",
+                "FAILED",
+                start_time,
+                datetime.now()
+            )
+            return False
+        
+        logger.info("✓ 所有前置关键任务验证通过")
+        
         if self.workflow_enabled and self.orchestrator:
             self.orchestrator.start_task(task_name)
 
@@ -1662,6 +1758,13 @@ class AutoSchedulerV8:
         results = {}
 
         try:
+            # 【关键修复】定义关键任务 - 如果这些任务失败，应该中止整个流程
+            critical_tasks = [
+                "data_fetch", 
+                "training", 
+                "pre_sale_prediction"
+            ]
+            
             for task_name in task_chain:
                 # 动态查找任务处理器（来自 task_map）
                 task_handler = self._get_task_handler(task_name)
@@ -1690,6 +1793,15 @@ class AutoSchedulerV8:
 
                     if not success:
                         logger.error(f"任务 {task_name} 执行失败")
+                        
+                        # 【关键修复】关键任务失败时中止流程
+                        if task_name in critical_tasks:
+                            logger.critical(f"关键任务 {task_name} 失败，中止整个日循环流程")
+                            # 标记剩余任务为 SKIPPED
+                            remaining_tasks = task_chain[task_chain.index(task_name)+1:]
+                            for rem_task in remaining_tasks:
+                                results[rem_task] = {"status": "SKIPPED", "reason": "critical_task_failed"}
+                            break  # 跳出任务循环
                 except DataError as e:
                     logger.error(f"[数据错误] 任务 {task_name}: {e.to_dict()}")
                     results[task_name] = {"status": "FAILED", "error_type": "DataError", "detail": str(e)}

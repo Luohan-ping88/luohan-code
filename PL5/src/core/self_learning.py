@@ -1101,6 +1101,14 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[OptimizationSuggestion]:
+        """Generate optimization suggestions.
+        
+        This is a compatibility wrapper around generate_structured_suggestions.
+        Returns a list of optimization suggestions based on recent performance.
+        """
+        return self.generate_structured_suggestions()
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

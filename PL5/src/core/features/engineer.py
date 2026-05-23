@@ -1418,6 +1418,10 @@ class FeatureEngineerV9:
                 if warnings_list:
                     logger.warning(f"  漂移警告: {self.drift_detector.get_drift_report()}")
 
+        if 'date' in result_df.columns:
+            result_df = result_df.drop(columns=['date'])
+            logger.info("  已移除 date 列")
+        
         self.cache.put(cache_key, result_df)
 
         importance_path = MODELS_DIR / f"feature_importance_v9_{feature_selection_method}.pkl"

@@ -87,7 +87,7 @@ def create_training_summary():
 
 
 def generate_professional_report(data, summary):
-    """生成专业HTML报告"""
+    """生成专业HTML报告 - 完整展示每个位置的8/5/3码预测"""
     
     timestamp = data.get('timestamp', datetime.now().isoformat())
     if 'T' in str(timestamp):
@@ -95,251 +95,404 @@ def generate_professional_report(data, summary):
     
     predictions = data.get('predictions', {})
     
-    # 提取top预测
-    top_predictions = []
-    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-        if pos in predictions:
-            top_k = predictions[pos].get('top_k', [])
-            top_predictions.append({
-                'position': pos,
-                'position_name': {'wan': '万位', 'qian': '千位', 'bai': '百位', 'shi': '十位', 'ge': '个位'}[pos],
-                'top_3': top_k[:3],
-                'confidence': predictions[pos].get('probabilities', [0])[0]
-            })
+    position_names = {
+        'wan': '万位',
+        'qian': '千位',
+        'bai': '百位',
+        'shi': '十位',
+        'ge': '个位'
+    }
     
-    # 生成HTML
-    html = f"""
-<!DOCTYPE html>
+    # 提取预测结果
+    top_8 = {}
+    top_5 = {}
+    top_3 = {}
+    top_1 = {}
+    
+    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+        pred = predictions.get(pos, {})
+        top_k = pred.get('top_k', [])
+        top_8[pos] = top_k[:8]
+        top_5[pos] = top_k[:5]
+        top_3[pos] = top_k[:3]
+        top_1[pos] = top_k[:1]
+    
+    # 生成HTML - 使用与email_sender.py相同的精美样式
+    html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>排列五智能预测报告</title>
     <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #E8D5F2 0%, #D5E8F2 100%);
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }}
         .container {{
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 650px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #FFFAF5 0%, #FFF5F0 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(139, 123, 232, 0.15);
         }}
+        /* 头部 - 温暖渐变 */
         .header {{
-            text-align: center;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }}
-        .header h1 {{
-            color: #667eea;
-            margin: 0;
-            font-size: 28px;
-        }}
-        .header p {{
-            color: #666;
-            margin: 10px 0 0;
-        }}
-        .summary {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }}
-        .summary-card {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #A8B5E8 0%, #D4A8E8 50%, #E8A8C8 100%);
             color: white;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 25px 20px;
             text-align: center;
         }}
-        .summary-card h3 {{
-            margin: 0 0 10px;
-            font-size: 14px;
-            opacity: 0.9;
-        }}
-        .summary-card p {{
-            margin: 0;
-            font-size: 24px;
-            font-weight: bold;
-        }}
-        .predictions {{
-            margin-bottom: 30px;
-        }}
-        .predictions h2 {{
-            color: #333;
-            border-left: 4px solid #667eea;
-            padding-left: 15px;
-            margin-bottom: 20px;
-        }}
-        .position-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }}
-        .position-card {{
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            border: 2px solid #e9ecef;
-            transition: all 0.3s;
-        }}
-        .position-card:hover {{
-            border-color: #667eea;
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-        }}
-        .position-card h4 {{
-            color: #667eea;
-            margin: 0 0 15px;
-            font-size: 16px;
-        }}
-        .prediction-numbers {{
+        .header-title {{
             display: flex;
+            align-items: center;
             justify-content: center;
             gap: 10px;
+            margin-bottom: 6px;
+        }}
+        .header-icon {{
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.25);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        .header h1 {{
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0;
+            color: #FFFFFF;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            letter-spacing: 1px;
+        }}
+        .header-subtitle {{
+            font-size: 14px;
+            margin-top: 6px;
+            color: #FFFFFF;
+            opacity: 0.95;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }}
+        /* 内容区 */
+        .content {{
+            padding: 18px;
+        }}
+        /* 信息卡片 - 柔和背景 */
+        .info-card {{
+            background: linear-gradient(135deg, #F0F4FF 0%, #F8F0FF 100%);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(168, 181, 232, 0.2);
+        }}
+        .info-card h2 {{
+            font-size: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #7B68EE;
+            font-weight: 700;
+        }}
+        .info-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }}
+        .info-item {{
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }}
+        .info-label {{
+            font-size: 12px;
+            color: #888888;
+            font-weight: 500;
+        }}
+        .info-value {{
+            font-size: 14px;
+            font-weight: 600;
+            color: #444444;
+        }}
+        .info-value.highlight {{
+            color: #7B68EE;
+            font-weight: 700;
+        }}
+        /* 预测结果 */
+        .prediction-section {{
+            margin-bottom: 16px;
+        }}
+        .section-header {{
+            background: linear-gradient(135deg, #A8B5E8 0%, #D4A8E8 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 12px rgba(168, 181, 232, 0.3);
+        }}
+        .position-card {{
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+            border: 2px solid #E8E0F0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }}
+        .position-name {{
+            font-size: 18px;
+            font-weight: 800;
+            margin-bottom: 14px;
+            color: #4A3FB5;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }}
+        .prediction-rows {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }}
+        .prediction-row {{
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }}
+        .row-label {{
+            font-size: 14px;
+            width: 55px;
+            flex-shrink: 0;
+            color: #555555;
+            font-weight: 700;
+        }}
+        .number-list {{
+            display: flex;
+            gap: 8px;
             flex-wrap: wrap;
         }}
         .number {{
-            width: 40px;
-            height: 40px;
-            line-height: 40px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            font-weight: bold;
-            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 15px;
+            color: #FFFFFF;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.5);
         }}
-        .number.top-1 {{
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            width: 50px;
-            height: 50px;
-            line-height: 50px;
-            font-size: 22px;
+        .number.top1 {{
+            background: #FF7A9A;
+            box-shadow: 0 3px 8px rgba(255, 122, 154, 0.5);
         }}
-        .number.top-2-3 {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+        .number.top3 {{
+            background: #5A9AE8;
+            box-shadow: 0 3px 8px rgba(90, 154, 232, 0.5);
         }}
-        .number.other {{
-            background: #e9ecef;
-            color: #666;
+        .number.top5 {{
+            background: #4AC4C4;
+            box-shadow: 0 3px 8px rgba(74, 196, 196, 0.5);
         }}
-        .confidence {{
-            margin-top: 10px;
+        .number.top8 {{
+            background: #8CD65A;
+            box-shadow: 0 3px 8px rgba(140, 214, 90, 0.5);
+        }}
+        /* 模型状态 */
+        .model-section {{
+            background: linear-gradient(135deg, #F5FFF0 0%, #F0FFF5 100%);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(168, 232, 125, 0.2);
+        }}
+        .model-section h3 {{
+            font-size: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #4A9A6A;
+            font-weight: 700;
+        }}
+        .model-tags {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }}
+        .model-tag {{
+            padding: 6px 14px;
+            border-radius: 14px;
             font-size: 12px;
-            color: #666;
+            font-weight: 700;
         }}
-        .footer {{
-            text-align: center;
-            padding-top: 20px;
-            border-top: 1px solid #e9ecef;
-            color: #666;
-            font-size: 12px;
+        .model-tag.active {{
+            background: #E8F5E9;
+            color: #2E7D32;
+            border: 2px solid #81C784;
         }}
-        .highlight {{
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 3px 10px;
-            border-radius: 5px;
-            font-weight: bold;
+        .model-tag.inactive {{
+            background: #FFEBEE;
+            color: #C62828;
+            border: 2px solid #EF9A9A;
         }}
-        .system-info {{
-            background: #f8f9fa;
+        /* 风险提示 */
+        .warning {{
+            background: linear-gradient(135deg, #FFF9E8 0%, #FFF5D8 100%);
+            border: 1px solid #FFE8A0;
             border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
+            padding: 14px;
+            margin-top: 12px;
         }}
-        .system-info h3 {{
-            margin: 0 0 15px;
-            color: #333;
+        .warning-title {{
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #E65100;
         }}
-        .system-info ul {{
-            margin: 0;
-            padding-left: 20px;
-            color: #666;
+        .warning-text {{
+            font-size: 12px;
+            line-height: 1.7;
+            color: #5D4037;
+            font-weight: 500;
         }}
-        .system-info li {{
-            margin: 5px 0;
+        /* 底部 */
+        .footer {{
+            background: linear-gradient(135deg, #F8F0FF 0%, #F0F8FF 100%);
+            padding: 16px;
+            text-align: center;
+            border-top: 1px solid rgba(168, 181, 232, 0.2);
+        }}
+        .footer-text {{
+            font-size: 12px;
+            line-height: 1.6;
+            color: #7A7A9A;
+            font-weight: 500;
         }}
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- 头部 -->
         <div class="header">
-            <h1>🎯 排列五智能预测报告</h1>
-            <p>生成时间: {timestamp}</p>
+            <div class="header-title">
+                <div class="header-icon">🎯</div>
+                <h1>PL5智能预测系统</h1>
+            </div>
+            <div class="header-subtitle">排列五预测分析报告 - {timestamp}</div>
         </div>
         
-        <div class="summary">
-            <div class="summary-card">
-                <h3>模型版本</h3>
-                <p>{summary['model_version']}</p>
+        <div class="content">
+            <!-- 基本信息 -->
+            <div class="info-card">
+                <h2>📋 系统信息</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">模型版本</span>
+                        <span class="info-value highlight">{summary['model_version']}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">特征数量</span>
+                        <span class="info-value">{summary['features_count']}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">预测准确率</span>
+                        <span class="info-value">{summary['accuracy']*100:.1f}%</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">C++加速</span>
+                        <span class="info-value">{"✅ 启用" if summary['cpp_acceleration'] else "❌ 未启用"}</span>
+                    </div>
+                </div>
             </div>
-            <div class="summary-card">
-                <h3>特征数量</h3>
-                <p>{summary['features_count']}</p>
-            </div>
-            <div class="summary-card">
-                <h3>预测准确率</h3>
-                <p>{summary['accuracy']*100:.1f}%</p>
-            </div>
-            <div class="summary-card">
-                <h3>C++加速</h3>
-                <p>{"✅ 已启用" if summary['cpp_acceleration'] else "❌ 未启用"}</p>
-            </div>
-        </div>
-        
-        <div class="predictions">
-            <h2>📊 下一期预测结果</h2>
-            <div class="position-grid">
+            
+            <!-- 预测结果 - 完整展示8/5/3码 -->
+            <div class="prediction-section">
+                <div class="section-header">🎯 预测结果 (Top 8 / 5 / 3)</div>
 """
     
-    for pred in top_predictions:
+    # 生成每个位置的预测卡片
+    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+        pos_name = position_names.get(pos, pos)
+        
         html += f"""
                 <div class="position-card">
-                    <h4>{pred['position_name']}</h4>
-                    <div class="prediction-numbers">
-"""
-        for i, num in enumerate(pred['top_3']):
-            if i == 0:
-                html += f'<div class="number top-1">{num}</div>'
-            else:
-                html += f'<div class="number top-2-3">{num}</div>'
-        html += """
+                    <div class="position-name">{pos_name}</div>
+                    <div class="prediction-rows">
+                        <div class="prediction-row">
+                            <span class="row-label">Top 1</span>
+                            <div class="number-list">
+                                {''.join([f'<span class="number top1">{n}</span>' for n in top_1.get(pos, [])])}
+                            </div>
+                        </div>
+                        <div class="prediction-row">
+                            <span class="row-label">Top 3</span>
+                            <div class="number-list">
+                                {''.join([f'<span class="number top3">{n}</span>' for n in top_3.get(pos, [])])}
+                            </div>
+                        </div>
+                        <div class="prediction-row">
+                            <span class="row-label">Top 5</span>
+                            <div class="number-list">
+                                {''.join([f'<span class="number top5">{n}</span>' for n in top_5.get(pos, [])])}
+                            </div>
+                        </div>
+                        <div class="prediction-row">
+                            <span class="row-label">Top 8</span>
+                            <div class="number-list">
+                                {''.join([f'<span class="number top8">{n}</span>' for n in top_8.get(pos, [])])}
+                            </div>
+                        </div>
                     </div>
-                    <div class="confidence">置信度: {:.1f}%</div>
                 </div>
-""".format(pred['confidence'] * 100)
+"""
     
-    html += f"""
+    html += """
+            </div>
+            
+            <!-- 模型状态 -->
+            <div class="model-section">
+                <h3>🔧 模型状态</h3>
+                <div class="model-tags">
+                    <span class="model-tag active">Stacking</span>
+                    <span class="model-tag active">HMM</span>
+                    <span class="model-tag active">Copula</span>
+                    <span class="model-tag active">BSTS</span>
+                    <span class="model-tag active">Mamba</span>
+                    <span class="model-tag active">iTransformer</span>
+                </div>
+            </div>
+            
+            <!-- 风险提示 -->
+            <div class="warning">
+                <div class="warning-title">⚠️ 风险提示</div>
+                <div class="warning-text">
+                    1. 彩票本质是概率游戏，任何模型均只能提升概率优势，无法保证100%中奖<br>
+                    2. 本报告仅用于数理研究与规律分析，不构成购彩建议<br>
+                    3. 请理性购彩，量力而行
+                </div>
             </div>
         </div>
         
-        <div class="system-info">
-            <h3>🔧 系统信息</h3>
-            <ul>
-                <li>训练日期: {summary['training_date']}</li>
-                <li>训练状态: <span class="highlight">{summary['training_status']}</span></li>
-                <li>优化级别: {summary['optimization_level']}</li>
-                <li>C++加速模块: 已编译并启用</li>
-                <li>性能提升: 基准测试提升100倍</li>
-            </ul>
-        </div>
-        
+        <!-- 底部 -->
         <div class="footer">
-            <p>本报告由PL5智能预测系统自动生成</p>
-            <p>如有疑问，请联系技术支持</p>
+            <div class="footer-text">
+                PL5智能预测系统 V11.0 | 基于深度学习与数理统计<br>
+                本报告由系统自动生成
+            </div>
         </div>
     </div>
 </body>
 </html>
 """
     
-    # 生成纯文本版本
+    # 生成纯文本版本 - 也完整展示8/5/3码
     text = f"""
 排列五智能预测报告
 ==================
@@ -352,16 +505,18 @@ def generate_professional_report(data, summary):
 - 准确率: {summary['accuracy']*100:.1f}%
 - C++加速: {'已启用' if summary['cpp_acceleration'] else '未启用'}
 
-下一期预测:
+下一期预测 (Top 8 / 5 / 3):
 """
     
-    for pred in top_predictions:
-        text += f"\n{pred['position_name']}: "
-        text += " ".join(map(str, pred['top_3']))
-        text += f" (置信度: {pred['confidence']*100:.1f}%)"
+    for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+        pos_name = position_names.get(pos, pos)
+        text += f"\n{pos_name}:"
+        text += f"\n  Top 8: {' '.join(map(str, top_8.get(pos, [])))}"
+        text += f"\n  Top 5: {' '.join(map(str, top_5.get(pos, [])))}"
+        text += f"\n  Top 3: {' '.join(map(str, top_3.get(pos, [])))}"
     
     text += f"\n\n训练日期: {summary['training_date']}\n"
-    text += "=" * 50
+    text += "=" * 60
     
     return html, text
 

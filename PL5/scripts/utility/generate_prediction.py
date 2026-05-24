@@ -1,11 +1,11 @@
 """
-生成本期排列五预测
+生成本期排列五预测 - 完整展示每个位置的8/5/3码预测
 """
 import sys
 sys.path.insert(0, '.')
 
 print('='*70)
-print('排列五高阶数理分析预测系统 - 本期预测')
+print('🎯 排列五智能预测系统 - 本期预测')
 print('='*70)
 print()
 
@@ -61,14 +61,42 @@ predictions = predictor.predict(latest, top_k=8)
 print('      预测生成完成')
 print()
 
-# 显示结果
-print('='*70)
-print('本期预测结果 (Top 8)')
-print('='*70)
+# 提取预测结果
+position_names = {
+    'wan': '万位',
+    'qian': '千位',
+    'bai': '百位',
+    'shi': '十位',
+    'ge': '个位'
+}
+
+top_8 = {}
+top_5 = {}
+top_3 = {}
+top_1 = {}
+
 for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-    nums = predictions[pos]['top_k']
-    probs = predictions[pos]['probabilities']
-    print(f'{pos:6s}: {nums}')
+    pred = predictions.get(pos, {})
+    top_k = pred.get('top_k', [])
+    top_8[pos] = top_k[:8]
+    top_5[pos] = top_k[:5]
+    top_3[pos] = top_k[:3]
+    top_1[pos] = top_k[:1]
+
+# 显示结果 - 完整展示每个位置的8/5/3码
+print('='*70)
+print('🎯 本期预测结果 (Top 8 / 5 / 3)')
+print('='*70)
+
+for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+    pos_name = position_names.get(pos, pos)
+    print(f"\n{pos_name}:")
+    print(f"  Top 8: {top_8.get(pos, [])}")
+    print(f"  Top 5: {top_5.get(pos, [])}")
+    print(f"  Top 3: {top_3.get(pos, [])}")
+    print(f"  Top 1: {top_1.get(pos, [])}")
+
+print()
 print('='*70)
 
 # 保存预测结果
@@ -90,9 +118,9 @@ with open(output_file, 'w', encoding='utf-8') as f:
     json.dump(result, f, ensure_ascii=False, indent=2)
 
 print()
-print(f'预测结果已保存到: {output_file}')
+print(f'✅ 预测结果已保存到: {output_file}')
 print()
-print('预测号码汇总:')
+print('📋 预测号码汇总:')
 print(f'万位: {predictions["wan"]["top_k"]}')
 print(f'千位: {predictions["qian"]["top_k"]}')
 print(f'百位: {predictions["bai"]["top_k"]}')

@@ -668,12 +668,29 @@ class FeatureEngineerV9:
                  cache_max_size: int = 50,
                  scaler_method: str = 'standard',
                  model_config: Optional[ModelConfig] = None):
-        self._mc = model_config or get_model_config()
+        self._mc = model_config
         self.config = FeatureConfig() if use_config else None
         self.importance_analyzer = FeatureImportanceAnalyzer()
         self.selected_features = None
 
-        fe_cfg = self._mc.feature_config()
+        # 安全地获取配置
+        fe_cfg = {}
+        if self._mc is not None and hasattr(self._mc, 'feature_config'):
+            try:
+                fe_cfg = self._mc.feature_config()
+            except Exception as e:
+                logger.warning(f"[FeatureEngineer] 无法获取ModelConfig: {e}")
+                fe_cfg = {}
+        
+        # 默认配置
+        if not fe_cfg:
+            fe_cfg = {
+                'parallel': {'enable': True},
+                'cache': {'max_size': cache_max_size},
+                'drift_detection': {'psi_threshold': 0.2, 'ks_threshold': 0.05},
+                'scaler': {'method': scaler_method, 'robust_quantile_range': [25.0, 75.0]}
+            }
+
         parallel_cfg = fe_cfg.get('parallel', {})
         self.enable_parallel = (enable_parallel and parallel_cfg.get('enable', True)
                                 if parallel_cfg else (enable_parallel and JOBLIB_AVAILABLE))

@@ -1,0 +1,37 @@
+[15:29:16] [INFO] ============================================================
+[15:29:16] [INFO] PL5 V11 训练流程（先进特征工程）
+[15:29:16] [INFO] ============================================================
+[15:29:16] [INFO] 性能监控器初始化完成
+2026-05-24 15:29:17,057 - src.core.data.collector - INFO - ============================================================
+2026-05-24 15:29:17,057 - src.core.data.collector - INFO - 开始更新数据 V8.0 (增强错误处理)
+2026-05-24 15:29:17,057 - src.core.data.collector - INFO - ============================================================
+2026-05-24 15:29:17,178 - src.core.data.collector - INFO - 数据获取成功，大小: 356775 字符
+2026-05-24 15:29:17,180 - src.core.data.collector - INFO - 开始解析 7609 行数据...
+2026-05-24 15:29:17,240 - src.core.data.collector - INFO - 解析完成: 成功 7609 条, 失败 0 条, 最终 7609 条
+2026-05-24 15:29:17,241 - src.core.data.collector - INFO - 从网络获取数据成功: 7609 条记录
+2026-05-24 15:29:17,258 - src.core.data.collector - INFO - 数据已保存到 processed 目录: /workspace/PL5/data/processed/pl5_processed.csv
+2026-05-24 15:29:17,273 - src.core.data.collector - INFO - 数据备份已更新: /workspace/PL5/data/raw/backups/pl5_backup.csv
+2026-05-24 15:29:17,274 - src.core.data.collector - INFO - 数据版本已保存: 20260524.152917, 记录数: 7609
+2026-05-24 15:29:17,274 - src.core.data.collector - INFO - ============================================================
+2026-05-24 15:29:17,274 - src.core.data.collector - INFO - 数据更新完成: 来源=lecai, 记录数=7609
+2026-05-24 15:29:17,274 - src.core.data.collector - INFO - ============================================================
+[15:29:17] [INFO] 数据加载完成: 7609 条记录, 最新期号: 2026134
+2026-05-24 15:29:17,369 - src.core.features.comprehensive_features - WARNING - 深度学习特征不可用: No module named 'torch'
+2026-05-24 15:29:17,375 - src.core.features.engineer - INFO - [feature_engineering V9] C++ accelerator loaded
+2026-05-24 15:29:17,375 - src.core.features.v11_engineer - INFO - [V11] 先进特征工程已初始化
+2026-05-24 15:29:17,375 - src.core.features.v11_engineer - INFO - [V11] 特征工程初始化完成，模式: v11_advanced
+[15:29:17] [INFO] [V11] 使用V11先进特征工程，模式: v11_advanced
+2026-05-24 15:29:17,375 - src.core.features.v11_engineer - INFO - [V11] 特征工程开始（模式: v11_advanced）...
+2026-05-24 15:29:17,375 - src.core.features.engineer - INFO - V10.0 特征工程开始（高性能优化版）...
+2026-05-24 15:29:17,376 - src.core.features.engineer - INFO - 启用的特征类型: ['fibonacci', 'markov', 'fourier', 'extreme', 'pattern', 'momentum', 'pl5_specific'], 并行=开启
+2026-05-24 15:29:17,392 - src.core.features.engineer - INFO -   fibonacci OK (0.016s)
+2026-05-24 15:29:17,399 - src.core.features.engineer - INFO -   markov OK (0.006s)
+2026-05-24 15:29:17,406 - src.core.features.engineer - INFO -   fourier OK (0.007s)
+2026-05-24 15:29:17,421 - src.core.features.engineer - INFO -   extreme OK (0.016s)
+2026-05-24 15:29:17,441 - src.core.features.engineer - INFO -   pattern OK (0.019s)
+2026-05-24 15:29:17,449 - src.core.features.engineer - INFO -   momentum OK (0.008s)
+2026-05-24 15:30:08,055 - src.core.features.engineer - INFO -   pl5_specific OK (50.606s)
+2026-05-24 15:30:08,055 - src.core.features.engineer - INFO - extract_all_features: select_top=None, type=<class 'NoneType'>
+2026-05-24 15:30:08,055 - src.core.features.engineer - INFO - select_top 为 None，跳过特征选择
+2026-05-24 15:30:08,072 - src.core.features.engineer - INFO - 特征重要性已保存: /workspace/PL5/src/models/feature_importance_v9_rfe.pkl
+2026-05-24 15:30:08,073 - src.core.features.engineer - INFO - V10.0 特征工程完成: 309 列, 耗时: 50.70s | 缓存统计: {'size': 1, 'max_size': 50, 'hits': 0, 'misses': 0, 'hit_rate': 0.0, 'recent_cache_times': {'8a44ebcdbbbc816b': 1779636608.0727274}}

@@ -1390,6 +1390,30 @@ class SelfLearningSystem:
         self.learning_history = []
         logger.info("[SelfLearning V10] Memory state flushed")
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """Generate optimization suggestions as text lines (for backward compatibility).
+
+        Returns:
+            List of suggestion strings.
+        """
+        structured = self.generate_structured_suggestions()
+        if not structured:
+            return ["System running stably, no urgent optimization needed"]
+
+        lines = []
+        urgent_count = sum(1 for s in structured if s.priority == SuggestionPriority.URGENT)
+        important_count = sum(1 for s in structured if s.priority == SuggestionPriority.IMPORTANT)
+
+        lines.append(f"Found {len(structured)} optimization suggestions "
+                    f"(Urgent:{urgent_count}, Important:{important_count})")
+
+        for i, sug in enumerate(structured, 1):
+            lines.append(f"[{i}] {sug.priority.color_tag} {sug.title}")
+            if sug.description:
+                lines.append(f"    {sug.description}")
+
+        return lines
+
     def get_summary(self) -> Dict[str, Any]:
         perf = self.evaluate_recent_performance()
         need_retrain, reason = self.should_trigger_retrain()

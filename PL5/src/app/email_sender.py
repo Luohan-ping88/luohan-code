@@ -1,6 +1,7 @@
 """
 邮件发送模块 - 发送预测报告到邮箱
 V10.0版本 - 全彩色清晰版
+支持环境变量配置
 """
 
 import smtplib
@@ -11,16 +12,24 @@ from email.header import Header
 from datetime import datetime
 import logging
 from src.core.utils.logger import logger
+from src.core.config.env_config import get_config
 
 
 class EmailSender:
     """邮件发送器"""
     
-    def __init__(self, sender_email: str, auth_code: str, smtp_server: str = "smtp.qq.com", smtp_port: int = 465):
-        self.sender_email = sender_email
-        self.auth_code = auth_code
-        self.smtp_server = smtp_server
-        self.smtp_port = smtp_port
+    def __init__(self, sender_email: str = None, auth_code: str = None, smtp_server: str = None, smtp_port: int = None):
+        """初始化邮件发送器
+        
+        如果参数未提供，会自动从环境变量读取
+        """
+        config = get_config()
+        email_config = config.email_config
+        
+        self.sender_email = sender_email or email_config['from_email']
+        self.auth_code = auth_code or email_config['auth_code']
+        self.smtp_server = smtp_server or email_config['smtp_server']
+        self.smtp_port = smtp_port or email_config['smtp_port']
     
     def send_report(self, recipient_email: str, subject: str, html_content: str, text_content: str = None):
         """发送报告邮件
@@ -469,12 +478,8 @@ def generate_html_report(period: str, predictions: dict, analysis_data: dict, da
 
 
 if __name__ == "__main__":
-    import os
-    
-    sender_email = os.environ.get('PL5_EMAIL', 'your_email@qq.com')
-    auth_code = os.environ.get('PL5_AUTH_CODE', 'your_auth_code')
-    
-    sender = EmailSender(sender_email, auth_code)
+    # 使用环境变量配置
+    sender = EmailSender()
     
     test_predictions = {
         'wan': {'top_k': [1, 5, 0, 7, 3, 4, 8, 6]},

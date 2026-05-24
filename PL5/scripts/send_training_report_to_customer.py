@@ -2,6 +2,7 @@
 """
 训练预测报告发送脚本
 生成并发送专业的训练预测报告到客户邮箱
+支持环境变量配置
 """
 
 import sys
@@ -13,6 +14,7 @@ import os
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.app.email_sender import EmailSender, generate_html_report
+from src.core.config.env_config import get_config
 
 
 def load_prediction_data():
@@ -386,23 +388,29 @@ def main():
     print("[3/5] 生成专业报告...")
     html_report, text_report = generate_professional_report(data, summary)
     
-    # 4. 读取邮件配置
+    # 4. 读取邮件配置（优先环境变量）
     print("[4/5] 读取邮件配置...")
-    config_path = '/workspace/PL5/config/email_config.json'
     
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        config = get_config()
+        email_config = config.email_config
         
-        sender = EmailSender(
-            sender_email=config['from_email'],
-            auth_code=config['auth_code'],
-            smtp_server=config['smtp_server'],
-            smtp_port=config['smtp_port']
-        )
-        recipient = config['to_email']
-        print(f"  发件人: {config['from_email']}")
+        # 验证配置
+        valid, errors = config.validate_email_config()
+        if not valid:
+            print("❌ 邮件配置错误:")
+            for error in errors:
+                print(f"   - {error}")
+            print("\n提示: 请设置环境变量或创建 .env 文件")
+            print("      参考 .env.example 文件格式")
+            return 1
+        
+        # 使用环境变量配置
+        sender = EmailSender()
+        recipient = email_config['to_email']
+        print(f"  发件人: {email_config['from_email']}")
         print(f"  收件人: {recipient}")
+        print(f"  SMTP服务器: {email_config['smtp_server']}:{email_config['smtp_port']}")
         
     except Exception as e:
         print(f"❌ 邮件配置错误: {e}")

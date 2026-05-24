@@ -35,3 +35,34 @@
 2026-05-24 15:30:08,055 - src.core.features.engineer - INFO - select_top 为 None，跳过特征选择
 2026-05-24 15:30:08,072 - src.core.features.engineer - INFO - 特征重要性已保存: /workspace/PL5/src/models/feature_importance_v9_rfe.pkl
 2026-05-24 15:30:08,073 - src.core.features.engineer - INFO - V10.0 特征工程完成: 309 列, 耗时: 50.70s | 缓存统计: {'size': 1, 'max_size': 50, 'hits': 0, 'misses': 0, 'hit_rate': 0.0, 'recent_cache_times': {'8a44ebcdbbbc816b': 1779636608.0727274}}
+2026-05-24 16:21:27,422 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: qian_shi_corr → advanced_qian_shi_corr
+2026-05-24 16:21:27,427 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: bai_lyapunov → advanced_bai_lyapunov
+2026-05-24 16:21:27,427 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: bai_shi_corr → advanced_bai_shi_corr
+2026-05-24 16:21:27,432 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: shi_ge_corr → advanced_shi_ge_corr
+2026-05-24 16:21:27,440 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: wan_shi_corr → advanced_wan_shi_corr
+2026-05-24 16:21:27,443 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: wan_bai_corr → advanced_wan_bai_corr
+2026-05-24 16:21:27,444 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: wan_qian_corr → advanced_wan_qian_corr
+2026-05-24 16:21:27,446 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: parse_line → advanced_parse_line
+2026-05-24 16:21:27,447 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: wan_ge_corr → advanced_wan_ge_corr
+2026-05-24 16:21:27,451 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: ge_lyapunov → advanced_ge_lyapunov
+2026-05-24 16:21:27,458 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: qian_ge_corr → advanced_qian_ge_corr
+2026-05-24 16:21:27,462 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: qian_bai_corr → advanced_qian_bai_corr
+2026-05-24 16:21:27,463 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: shi_lyapunov → advanced_shi_lyapunov
+2026-05-24 16:21:27,468 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: date → advanced_date
+2026-05-24 16:21:27,471 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: bai_ge_corr → advanced_bai_ge_corr
+2026-05-24 16:21:27,477 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: qian_lyapunov → advanced_qian_lyapunov
+2026-05-24 16:21:27,484 - src.core.features.v11_engineer - WARNING - [V11] 列名冲突，重命名: wan_lyapunov → advanced_wan_lyapunov
+2026-05-24 16:21:27,490 - src.core.features.v11_engineer - INFO - [V11] 已添加先进特征: 412 个
+2026-05-24 16:21:27,491 - src.core.features.v11_engineer - INFO - [V11] 特征工程完成: 707 个特征, 耗时: 3130.12s
+[16:21:27] [INFO] [V11] 特征摘要: {'mode': 'v11_advanced', 'total_features': 707, 'v10_features': 697, 'v11_features': 10, 'deep_features_enabled': False}
+[16:21:27] [INFO] 特征工程完成: 707 个特征
+[16:21:27] [ERROR] 程序执行异常: 'ModelConfig' object has no attribute 'model_weights'
+Traceback (most recent call last):
+  File "/workspace/PL5/main.py", line 401, in main
+    result = commands[args.command](args)
+  File "/workspace/PL5/main.py", line 107, in cmd_train
+    predictor = EnhancedPL5Predictor()
+  File "/workspace/PL5/src/core/models/enhanced_predictor.py", line 492, in __init__
+    self.weights = self._mc.model_weights().copy()
+                   ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ModelConfig' object has no attribute 'model_weights'

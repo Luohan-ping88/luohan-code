@@ -81,7 +81,7 @@ def cmd_train(args):
     df_features = engineer.extract_all_features(df, select_top=None)
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
     feature_cols = [c for c in df_features.columns
-                   if c not in ['period', 'full_number'] + positions]
+                   if c not in ['period', 'full_number', 'date', 'parse_line'] + positions]
     logger.info(f"特征工程完成: {len(feature_cols)} 个特征")
 
     predictor = EnhancedPL5Predictor()
@@ -148,7 +148,7 @@ def cmd_predict(args):
     if not model_loaded:
         logger.warning("未找到已训练模型，执行即时训练...")
         feature_cols = [c for c in df_features.columns
-                       if c not in ['period', 'full_number'] + positions]
+                       if c not in ['period', 'full_number', 'date', 'parse_line'] + positions]
         predictor.fit(df_features, feature_cols, parallel=False)
         predictor.save_models()
         latest_features = df_features[feature_cols].iloc[-1].values

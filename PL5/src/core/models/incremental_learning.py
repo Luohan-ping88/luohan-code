@@ -115,10 +115,10 @@ class HierarchicalTrainingManager:
     """分层训练管理器"""
     
     def __init__(self, 
-                 quick_train_hours: float = 0.5,  # 快速训练时间（小时）
-                 medium_train_hours: float = 2.0,  # 中等训练时间（小时）
-                 deep_train_hours: float = 5.0,  # 深度训练时间（小时）
-                 deep_train_frequency: int = 7  # 深度训练频率（天）
+                 quick_train_hours: float = 2.0,  # 快速训练时间（小时）
+                 medium_train_hours: float = 5.0,  # 中等训练时间（小时）
+                 deep_train_hours: float = 12.0,  # 深度训练时间（小时）
+                 deep_train_frequency: int = 3  # 深度训练频率（天）
                  ):
         """初始化分层训练管理器
         
@@ -164,30 +164,39 @@ class HierarchicalTrainingManager:
         """
         if strategy == "deep":
             return {
-                "epochs": 100,
+                "epochs": 200,  # 深度训练增加到200个epochs
                 "batch_size": 32,
                 "learning_rate": 0.001,
                 "n_layers": 4,
                 "d_model": 64,
-                "train_time": self.deep_train_hours
+                "train_time": self.deep_train_hours,
+                "early_stopping_rounds": 30,
+                "validation_split": 0.2,
+                "verbose": 1
             }
         elif strategy == "medium":
             return {
-                "epochs": 50,
+                "epochs": 100,  # 中等训练增加到100个epochs
                 "batch_size": 64,
                 "learning_rate": 0.005,
                 "n_layers": 3,
                 "d_model": 48,
-                "train_time": self.medium_train_hours
+                "train_time": self.medium_train_hours,
+                "early_stopping_rounds": 20,
+                "validation_split": 0.15,
+                "verbose": 1
             }
         else:  # quick
             return {
-                "epochs": 20,
+                "epochs": 50,  # 快速训练增加到50个epochs
                 "batch_size": 128,
                 "learning_rate": 0.01,
                 "n_layers": 2,
                 "d_model": 32,
-                "train_time": self.quick_train_hours
+                "train_time": self.quick_train_hours,
+                "early_stopping_rounds": 10,
+                "validation_split": 0.1,
+                "verbose": 1
             }
     
     def update_deep_train_timestamp(self):

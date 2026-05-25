@@ -1,68 +1,37 @@
 """
-训练优化器模块 - 智能训练优化系统
-
-提供学习率调度、早停机制和训练优化功能
+训练模块 - V11
+包含深度训练、增量训练和预测链路聚合功能。
 """
-
-from .lr_scheduler import (
-    LRSchedulerType,
-    LRSchedulerConfig,
-    CosineAnnealingConfig,
-    ReduceLROnPlateauConfig,
-    StepLRConfig,
-    ExponentialLRConfig,
-    BaseLRScheduler,
-    CosineAnnealingScheduler,
-    ReduceLROnPlateauScheduler,
-    StepLRScheduler,
-    ExponentialLRScheduler,
-    create_lr_scheduler
+from src.core.training.deep_training_manager import (
+    DeepTrainingManager,
+    StrategyCombination
 )
-
-from .early_stopping import (
-    EarlyStoppingMode,
-    EarlyStoppingStatus,
-    EarlyStoppingConfig,
-    EarlyStoppingState,
-    EarlyStopping,
-    AdaptiveEarlyStopping
+from src.core.training.incremental_training_manager import (
+    IncrementalTrainingManager,
+    StrategyDefect,
+    AdjustmentProposal
 )
-
-from .optimizer import (
-    OptimizerStatus,
-    TrainingMetrics,
-    ResourceUsage,
-    TrainingOptimizerConfig,
-    TrainingOptimizer
+from src.core.training.prediction_aggregator import (
+    PredictionAggregator,
+    PredictionEvidence,
+    AggregatedPrediction
+)
+from src.core.training.daily_cycle_orchestrator import (
+    DailyCycleOrchestrator,
+    DailyCyclePhase,
+    DailyCycleStatus
 )
 
 __all__ = [
-    # 学习率调度器
-    'LRSchedulerType',
-    'LRSchedulerConfig',
-    'CosineAnnealingConfig',
-    'ReduceLROnPlateauConfig',
-    'StepLRConfig',
-    'ExponentialLRConfig',
-    'BaseLRScheduler',
-    'CosineAnnealingScheduler',
-    'ReduceLROnPlateauScheduler',
-    'StepLRScheduler',
-    'ExponentialLRScheduler',
-    'create_lr_scheduler',
-    
-    # 早停机制
-    'EarlyStoppingMode',
-    'EarlyStoppingStatus',
-    'EarlyStoppingConfig',
-    'EarlyStoppingState',
-    'EarlyStopping',
-    'AdaptiveEarlyStopping',
-    
-    # 训练优化器
-    'OptimizerStatus',
-    'TrainingMetrics',
-    'ResourceUsage',
-    'TrainingOptimizerConfig',
-    'TrainingOptimizer'
+    'DeepTrainingManager',
+    'StrategyCombination',
+    'IncrementalTrainingManager',
+    'StrategyDefect',
+    'AdjustmentProposal',
+    'PredictionAggregator',
+    'PredictionEvidence',
+    'AggregatedPrediction',
+    'DailyCycleOrchestrator',
+    'DailyCyclePhase',
+    'DailyCycleStatus'
 ]

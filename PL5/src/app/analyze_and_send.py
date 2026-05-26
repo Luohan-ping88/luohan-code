@@ -1,6 +1,7 @@
 """
 推理研究分析并自动发送报告到邮箱
 V10.0: Stacking+HMM+Copula+BSTS+Mamba+iTransformer + 贝叶斯不确定性量化
+V10.4: 新增保存30期历史训练推理预测结果
 """
 
 import logging
@@ -9,7 +10,9 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from .email_sender import EmailSender, generate_html_report
-from src.core.utils.logger import logger
+from src.core.utils.logger import logger, save_data_file
+from pathlib import Path
+import json
 
 
 def _format_verification_report(verification_results: dict) -> str:
@@ -130,6 +133,10 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
     # ─────────────────────────────────────────
     # 2. 模型推理 — 优先使用日循环预计算结果
     # ─────────────────────────────────────────
+    # 初始化训练相关变量
+    strategy = None
+    params = None
+    
     if precomputed_predictions is not None:
         predictions = precomputed_predictions
         logger.info(f"\n[2] 使用日循环预计算预测结果 (跳过模型推理)")
@@ -139,6 +146,14 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
         # 仍然加载 predictor 用于 HMM/Copula 分析
         predictor = EnhancedPL5Predictor()
         predictor.load_models()
+        
+        # 尝试获取训练策略和参数
+        from src.core.models.incremental_learning import get_training_strategy, get_training_parameters
+        try:
+            strategy = get_training_strategy()
+            params = get_training_parameters()
+        except:
+            pass
     else:
         logger.info("\n[2] 使用 EnhancedPL5Predictor 模型推理...")
         
@@ -337,13 +352,25 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
         'training_status': 'SUCCESS'
     }
     
-    from pathlib import Path
-    import json
     training_info_path = Path(__file__).parent.parent / 'logs' / 'training_info.json'
     training_info = {}
     if training_info_path.exists():
         with open(training_info_path, 'r', encoding='utf-8') as f:
             training_info = json.load(f)
+    
+    # ─────────────────────────────────────────
+    # 保存30期历史训练推理预测结果
+    # ─────────────────────────────────────────
+    logger.info("\n[4.5] 保存历史结果...")
+    _save_history_results(
+        period=period,
+        predictions=predictions,
+        analysis_data=analysis_data,
+        df=df,
+        training_info=training_info,
+        strategy=strategy,
+        params=params
+    )
     
     # 【V2修复】读取日循环佐证链结果，包含首次/二次/三次预测验证
     # 优先使用外部传入的 verification_results（如 auto_scheduler_v8 调用时）
@@ -583,6 +610,76 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
         'training_info': training_info,
         'execution_time': total_duration
     }
+
+
+def _save_history_results(period: str, predictions: dict, analysis_data: dict, 
+                        df: pd.DataFrame, training_info: dict, 
+                        strategy: str = None, params: dict = None):
+    """
+    保存30期历史训练推理预测结果
+    
+    Args:
+        period: 期号
+        predictions: 预测结果
+        analysis_data: 分析数据
+        df: 数据DataFrame
+        training_info: 训练信息
+        strategy: 训练策略
+        params: 训练参数
+    """
+    from src.core.config import LOGS_DIR
+    import os
+    import re
+    
+    # 创建历史结果目录
+    history_dir = LOGS_DIR / 'history'
+    history_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 准备保存的数据
+    history_data = {
+        'period': period,
+        'timestamp': datetime.now().isoformat(),
+        'predictions': predictions,
+        'analysis_data': analysis_data,
+        'training_info': training_info,
+        'strategy': strategy,
+        'params': params,
+        'latest_period': str(df['period'].iloc[-1]),
+        'data_count': len(df)
+    }
+    
+    # 保存当期结果
+    filename = f'history_{period}.json'
+    filepath = history_dir / filename
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(history_data, f, indent=2, ensure_ascii=False, default=str)
+    
+    logger.info(f"  历史结果已保存: {filepath}")
+    
+    # 清理超过30期的旧文件
+    all_files = list(history_dir.glob('history_*.json'))
+    
+    # 从文件名中提取期号并排序
+    def get_period_number(filepath):
+        match = re.search(r'history_(\d+)\.json', filepath.name)
+        if match:
+            return int(match.group(1))
+        return 0
+    
+    # 按期号排序（从新到旧）
+    all_files.sort(key=lambda x: get_period_number(x), reverse=True)
+    
+    # 保留最近30期，删除其余
+    if len(all_files) > 30:
+        files_to_delete = all_files[30:]
+        for file_to_delete in files_to_delete:
+            try:
+                file_to_delete.unlink()
+                logger.info(f"  已清理旧历史结果: {file_to_delete.name}")
+            except Exception as e:
+                logger.warning(f"  删除历史文件失败: {file_to_delete.name}: {e}")
+    
+    logger.info(f"  历史结果管理完成，当前保留 {min(30, len(all_files))} 期")
 
 
 if __name__ == "__main__":

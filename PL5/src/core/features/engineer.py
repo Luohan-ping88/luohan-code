@@ -1441,6 +1441,40 @@ class FeatureEngineerV9:
             logger.info(f"特征数量不足，返回所有 {len(feature_cols)} 个特征，总列数={len(selected_cols)}")
             return df[selected_cols]
         
+        # ========== 新增：严格的特征预处理过滤 ==========
+        logger.info("开始特征预处理过滤...")
+        
+        # 1. 方差过滤 - 移除方差过低的特征
+        X_features = df[feature_cols].fillna(0)
+        variance_selector = VarianceThreshold(threshold=0.001)
+        variance_selector.fit(X_features)
+        mask = variance_selector.get_support()
+        feature_cols = [feature_cols[i] for i in range(len(feature_cols)) if mask[i]]
+        logger.info(f"方差过滤后剩余 {len(feature_cols)} 个特征")
+        
+        # 2. 相关性过滤 - 移除高度相关的特征
+        if len(feature_cols) > 100:
+            X_features = df[feature_cols].fillna(0)
+            corr_matrix = X_features.corr().abs()
+            upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool_))
+            to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+            feature_cols = [col for col in feature_cols if col not in to_drop]
+            logger.info(f"相关性过滤(>0.95)后剩余 {len(feature_cols)} 个特征")
+        
+        # 3. 限制最大特征数量
+        max_features = min(n_features * 2, 200)
+        if len(feature_cols) > max_features:
+            logger.info(f"特征数量过多({len(feature_cols)})，随机采样至 {max_features} 个")
+            np.random.seed(42)
+            feature_cols = list(np.random.choice(feature_cols, max_features, replace=False))
+        
+        if len(feature_cols) == 0:
+            logger.warning("所有特征都被过滤掉了，使用原始特征")
+            feature_cols = [col for col in df.columns
+                           if col not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
+        
+        # ==================================================
+        
         # 智能计算每个位置应选择的特征数量
         # 基于数据量和特征总数动态调整
         n_samples = len(df)

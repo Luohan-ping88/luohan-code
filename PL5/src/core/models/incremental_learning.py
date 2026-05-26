@@ -170,8 +170,6 @@ class HierarchicalTrainingManager:
                 "n_layers": 4,
                 "d_model": 64,
                 "train_time": self.deep_train_hours,
-                "early_stopping_rounds": 30,
-                "validation_split": 0.2,
                 "verbose": 1
             }
         elif strategy == "medium":
@@ -182,8 +180,6 @@ class HierarchicalTrainingManager:
                 "n_layers": 3,
                 "d_model": 48,
                 "train_time": self.medium_train_hours,
-                "early_stopping_rounds": 20,
-                "validation_split": 0.15,
                 "verbose": 1
             }
         else:  # quick
@@ -194,8 +190,6 @@ class HierarchicalTrainingManager:
                 "n_layers": 2,
                 "d_model": 32,
                 "train_time": self.quick_train_hours,
-                "early_stopping_rounds": 10,
-                "validation_split": 0.1,
                 "verbose": 1
             }
     

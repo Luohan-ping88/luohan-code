@@ -1390,6 +1390,10 @@ class SelfLearningSystem:
         self.learning_history = []
         logger.info("[SelfLearning V10] Memory state flushed")
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        suggestions = self.generate_structured_suggestions()
+        return [s.to_display_text() for s in suggestions]
+
     def get_summary(self) -> Dict[str, Any]:
         perf = self.evaluate_recent_performance()
         need_retrain, reason = self.should_trigger_retrain()

@@ -667,11 +667,29 @@ class FeatureEngineerV9:
                  enable_parallel: bool = True,
                  cache_max_size: int = 50,
                  scaler_method: str = 'standard',
-                 model_config: Optional[ModelConfig] = None):
+                 model_config: Optional[ModelConfig] = None,
+                 enable_adaptive_features: bool = True):
         self._mc = model_config or get_model_config()
         self.config = FeatureConfig() if use_config else None
         self.importance_analyzer = FeatureImportanceAnalyzer()
         self.selected_features = None
+        self.enable_adaptive_features = enable_adaptive_features
+        
+        # 初始化自适应特征生成器
+        if self.enable_adaptive_features:
+            try:
+                from .adaptive_generator import AdaptiveFeatureGenerator, GeneticFeatureOptimizer
+                self.adaptive_generator = AdaptiveFeatureGenerator()
+                self.genetic_optimizer = GeneticFeatureOptimizer(
+                    population_size=30, 
+                    mutation_rate=0.15
+                )
+                logger.info("[FeatureEngineerV9] 自适应特征生成器已加载")
+            except ImportError as e:
+                self.adaptive_generator = None
+                self.genetic_optimizer = None
+                logger.warning(f"[FeatureEngineerV9] 无法加载自适应特征生成器: {e}")
+                self.enable_adaptive_features = False
 
         fe_cfg = self._mc.feature_config()
         parallel_cfg = fe_cfg.get('parallel', {})
@@ -1396,6 +1414,38 @@ class FeatureEngineerV9:
             logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
 
         logger.info(f"extract_all_features: select_top={select_top}, type={type(select_top)}")
+        
+        # ========== 自适应特征发现 ==========
+        if self.enable_adaptive_features and self.adaptive_generator:
+            original_cols = result_df.shape[1]
+            logger.info(f"开始自适应特征发现... 当前特征数: {original_cols}")
+            
+            # 使用自适应特征生成器发现新特征
+            for pos in POSITIONS:
+                if pos in result_df.columns:
+                    result_df = self.adaptive_generator.discover_new_features(
+                        result_df, 
+                        target_col=pos,
+                        max_candidates=20,
+                        quality_threshold=0.005
+                    )
+            
+            # 使用遗传算法优化特征
+            if self.genetic_optimizer and len(result_df) > 100:
+                best_pos = POSITIONS[0]  # 使用第一个位置进行优化
+                if best_pos in result_df.columns:
+                    genetic_features = self.genetic_optimizer.optimize(
+                        result_df, 
+                        target_col=best_pos,
+                        generations=5
+                    )
+                    for gf in genetic_features:
+                        result_df[f"genetic_{gf['expression'][:30]}"] = gf['data']
+            
+            new_cols = result_df.shape[1] - original_cols
+            logger.info(f"自适应特征发现完成: 新增 {new_cols} 个特征")
+        # ====================================
+        
         if select_top is not None:
             logger.info(f"调用 _select_features: n_features={select_top}")
             result_df = self._select_features(result_df, select_top, feature_selection_method)

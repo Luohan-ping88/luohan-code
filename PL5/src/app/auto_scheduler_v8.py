@@ -40,12 +40,28 @@ from src.core.workflow.intelligent_time_scheduler import IntelligentTimeSchedule
 logger = get_logger('scheduler')
 
 # 任务依赖关系定义
+# 优化后的依赖链：数据准备 → 策略评估 → 模型训练 → 递进验证 → 最终预测 → 报告发送
 TASK_DEPENDENCIES = {
-    'data_fetch': [],
-    'evaluation': ['data_fetch'],
-    'optimization': ['evaluation'],
-    'training': ['optimization'],
-    'send_report': ['training']
+    # === 第一阶段：数据准备 ===
+    'data_fetch': [],                              # 获取最新开奖数据
+    # === 第二阶段：策略评估 ===
+    'evaluation': ['data_fetch'],                  # 评估现有策略效果（智能决策）
+    'optimization': ['evaluation'],                # 优化推理策略
+    # === 第三阶段：模型训练 ===
+    'training': ['optimization'],                  # 深度训练
+    'incremental_training': ['training'],          # 增量训练（在深度训练之后）
+    # === 第四阶段：递进式预测验证 ===
+    'first_prediction_verification': ['incremental_training'],   # 首次佐证
+    'second_prediction_verification': ['first_prediction_verification'],  # 二次佐证
+    'third_prediction_verification': ['second_prediction_verification'],  # 三次佐证
+    'deep_strategy_optimization': ['third_prediction_verification'],      # 深度策略优化（在验证之后，利用验证结果）
+    # === 第五阶段：最终预测 ===
+    'prediction_preview': ['deep_strategy_optimization'],  # 预测预生成
+    'final_prediction': ['prediction_preview'],            # 最终预测
+    'final_prediction_verification': ['final_prediction'],  # 最终预测验证
+    'pre_sale_prediction': ['final_prediction_verification'],  # 售前最终预测（最终确认）
+    # === 第六阶段：报告发送 ===
+    'send_report': ['pre_sale_prediction']        # 发送报告（在所有验证完成之后）
 }
 
 

@@ -1396,11 +1396,35 @@ class FeatureEngineerV9:
             logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
 
         logger.info(f"extract_all_features: select_top={select_top}, type={type(select_top)}")
+        
+        # 确保排除非数值型列，无论是否进行特征选择
+        # 保留必要的元数据列，但确保用于训练的特征只包含数值列
+        basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
+        all_cols = list(result_df.columns)
+        
+        # 找出需要排除的列（非数值型且不是基础列）
+        exclude_cols = []
+        for col in all_cols:
+            if col in basic_cols:
+                continue
+            # 检查是否为数值类型
+            if not pd.api.types.is_numeric_dtype(result_df[col]):
+                exclude_cols.append(col)
+                logger.warning(f"  排除非数值列: {col}")
+        
+        # 先排除非数值列
+        if exclude_cols:
+            keep_cols = [c for c in all_cols if c not in exclude_cols]
+            result_df = result_df[keep_cols]
+        
         if select_top is not None:
             logger.info(f"调用 _select_features: n_features={select_top}")
             result_df = self._select_features(result_df, select_top, feature_selection_method)
         else:
             logger.info("select_top 为 None，跳过特征选择")
+            # 即使不进行特征选择，也确保只保留必要的列
+            feature_cols = [c for c in result_df.columns if c not in basic_cols]
+            logger.info(f"保留 {len(feature_cols)} 个特征列")
 
         if enable_scaler:
             t0 = time.time()

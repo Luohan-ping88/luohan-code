@@ -81,7 +81,7 @@ def cmd_train(args):
     df_features = engineer.extract_all_features(df, select_top=None)
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
     feature_cols = [c for c in df_features.columns
-                   if c not in ['period', 'full_number'] + positions]
+                   if c not in ['period', 'date', 'full_number'] + positions]
     logger.info(f"特征工程完成: {len(feature_cols)} 个特征")
 
     predictor = EnhancedPL5Predictor()
@@ -148,7 +148,7 @@ def cmd_predict(args):
     if not model_loaded:
         logger.warning("未找到已训练模型，执行即时训练...")
         feature_cols = [c for c in df_features.columns
-                       if c not in ['period', 'full_number'] + positions]
+                       if c not in ['period', 'date', 'full_number'] + positions]
         predictor.fit(df_features, feature_cols, parallel=False)
         predictor.save_models()
         latest_features = df_features[feature_cols].iloc[-1].values
@@ -159,14 +159,14 @@ def cmd_predict(args):
             if missing:
                 logger.warning(f"模型特征列中有 {len(missing)} 个缺失，重新提取特征")
                 feature_cols = [c for c in df_features.columns
-                               if c not in ['period', 'full_number'] + positions]
+                               if c not in ['period', 'date', 'full_number'] + positions]
             else:
                 feature_cols = predictor.feature_cols
                 logger.info(f"[cmd_predict] 使用模型训练时的 {len(feature_cols)} 个特征列（特征漂移已修复）")
             latest_features = df_features[feature_cols].iloc[-1].values
         else:
             feature_cols = [c for c in df_features.columns
-                           if c not in ['period', 'full_number'] + positions]
+                           if c not in ['period', 'date', 'full_number'] + positions]
             latest_features = df_features[feature_cols].iloc[-1].values
     recent_data = {pos: df[pos].values for pos in positions}
     predictions = predictor.predict(latest_features, recent_data, top_k=8)

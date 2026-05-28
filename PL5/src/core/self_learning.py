@@ -1101,6 +1101,21 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        structured = self.generate_structured_suggestions()
+        result = []
+        for sug in structured:
+            priority_label = {
+                SuggestionPriority.URGENT: "[URGENT]",
+                SuggestionPriority.IMPORTANT: "[IMPORTANT]",
+                SuggestionPriority.REGULAR: "[REGULAR]",
+            }.get(sug.priority, "")
+            line = f"{priority_label} {sug.title}"
+            if sug.confidence_level >= 0.7:
+                line += f" (confidence: {sug.confidence_level:.1%})"
+            result.append(line)
+        return result
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

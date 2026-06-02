@@ -1318,40 +1318,10 @@ class AutoSchedulerV8:
                 predictor.save_models()
                 logger.info("  全部模型训练完成")
             
-            # 【修复BUG-03】将无限while循环改为有界强化训练：
-            # 最多执行 MAX_EXTRA_ROUNDS 轮，且总时长不得超过 max_training_hours，
-            # 防止永久阻塞调度线程。
+            # 【临时优化】跳过强化训练，加速日循环任务
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
-
-            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
-            max_training_hours = 10.0     # 绝对上限（小时）
-            extra_round = 0
-
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
-                extra_round += 1
-                remaining = 5.0 - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
-                self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
-
-                try:
-                    for pos in ["wan", "qian", "bai", "shi", "ge"]:
-                        if pos in predictor.stacking:
-                            for name, model in predictor.stacking[pos].position_models.items():
-                                if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
-                                    model.warm_start = True
-                                    model.n_estimators += 30
-                                    logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
-                    predictor.fit(df_features, feature_cols, parallel=False)
-                    predictor.save_models()
-                    logger.info(f"  [强化训练] 第{extra_round}轮完成")
-                except Exception as reinforce_err:
-                    logger.warning(f"  [强化训练] 第{extra_round}轮失败，跳过: {reinforce_err}")
-
-                elapsed = (datetime.now() - start_time).total_seconds() / 3600
-                if elapsed >= max_training_hours:
-                    logger.info(f"  已达最大训练时长 {max_training_hours}h，停止")
-                    break
+            logger.info(f"  【临时优化】跳过强化训练，直接完成训练阶段")
             
             # 【V10.3优化】保存特征版本，确保训练和预测一致
             self.log_status("深度学习", "保存特征版本", 95)

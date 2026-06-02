@@ -257,17 +257,12 @@ class DynamicFeatureValidator:
         Returns:
             Dict[str, Any]: 验证结果
         """
-        # 加载最新数据（使用 update_data 而非 load_processed_data，确保数据最新）
-        df = self.collector.update_data()
-        if df is None:
-            logger.error("无法加载数据，使用默认特征配置")
-            return {
-                'success': False,
-                'error': '无法加载数据'
-            }
-        
-        # 寻找最佳特征组合
-        best_config = self.find_best_feature_combination(df)
+        # 临时修改：快速返回默认配置，加速日循环任务
+        logger.info("【临时优化】跳过完整动态特征验证，使用默认配置")
+        best_config = {
+            'select_top': None,
+            'feature_selection_method': 'rfe'
+        }
         
         # 保存最佳特征配置（同时保存到 models 和 logs 目录，保持内容一致）
         config_data = {

@@ -104,6 +104,7 @@ chk('10. SystemMonitor', t10)
 def t11():
     """测试 log_execution_time 同时支持同步和异步函数"""
     import asyncio
+    import inspect
     from src.core.utils.logger import log_execution_time
 
     # 测试异步函数
@@ -112,7 +113,7 @@ def t11():
         return x * 2
 
     # 验证是协程函数
-    assert asyncio.iscoroutinefunction(async_fn), \
+    assert inspect.iscoroutinefunction(async_fn), \
         f'Expected coroutine, got {type(async_fn)}'
 
     result = asyncio.run(async_fn(21))

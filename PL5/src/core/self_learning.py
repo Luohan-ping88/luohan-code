@@ -1386,6 +1386,35 @@ class SelfLearningSystem:
 
         return text_lines
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议 - 兼容旧接口
+        
+        返回文本格式的建议列表，供 task_optimization 使用
+        """
+        structured = self.generate_structured_suggestions()
+        suggestions: List[str] = []
+        
+        if not structured:
+            suggestions.append("系统运行稳定，所有指标正常")
+            return suggestions
+        
+        urgent_count = sum(1 for s in structured if s.priority == SuggestionPriority.URGENT)
+        important_count = sum(1 for s in structured if s.priority == SuggestionPriority.IMPORTANT)
+        regular_count = sum(1 for s in structured if s.priority == SuggestionPriority.REGULAR)
+        
+        suggestions.append(f"共生成 {len(structured)} 条优化建议 | 紧急: {urgent_count} | 重要: {important_count} | 常规: {regular_count}")
+        suggestions.append("")
+        
+        for i, sug in enumerate(structured, 1):
+            suggestions.append(f"建议 #{i} [{sug.priority.label}] {sug.title}")
+            if sug.description:
+                suggestions.append(f"  描述: {sug.description}")
+            if sug.parameter_name and sug.recommended_value is not None:
+                suggestions.append(f"  参数: {sug.parameter_name} = {sug.current_value} -> {sug.recommended_value}")
+            suggestions.append("")
+        
+        return suggestions
+
     def flush(self) -> None:
         self.learning_history = []
         logger.info("[SelfLearning V10] Memory state flushed")

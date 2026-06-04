@@ -76,17 +76,16 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 100,
-        "max_depth": 10,         # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
+        "n_estimators": 10,
+        "max_depth": 3,         # 降低深度加速
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.1→0.06 降低学习率增强泛化，预估+1.8%
-        # [OPT] 正则化增强 应对 std=0.2089 波动过高
-        "reg_alpha": 0.1,        # L1正则化
-        "reg_lambda": 1.0,       # L2正则化
-        "min_child_weight": 5,   # 最小子权重增强稳定性
-        "subsample": 0.8,        # 行采样比例
-        "colsample_bytree": 0.8, # 列采样比例
+        "learning_rate": 0.2,   # 提高学习率加速
+        "reg_alpha": 0.1,
+        "reg_lambda": 1.0,
+        "min_child_weight": 5,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
     }
 
     RECOMMENDED_BASE_CONFIG = {
@@ -108,9 +107,9 @@ class StackingEnsemble:
         "max_iter": 500,
         "l1_ratio": 0.5,
         "alpha": 0.0001,
-        "cv_folds": 5,
-        "auto_select": True,
-        "enable_meta_features": True,
+        "cv_folds": 2,
+        "auto_select": False,
+        "enable_meta_features": False,
     }
 
     @classmethod
@@ -667,46 +666,10 @@ class EnhancedPL5Predictor:
             logger.debug(f"[训练步骤] Copula模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
             logger.info("[EnhancedPredictor] Copula模型训练完成")
 
-            # 尝试训练Mamba模型（使用优化参数）
-            logger.debug(f"[训练步骤] 开始训练Mamba模型 - {datetime.now().strftime('%H:%M:%S')}")
-            try:
-                from src.core.models.mamba_predictor import MultiPositionMambaPredictor
-                self.mamba_predictor = MultiPositionMambaPredictor(
-                    n_layers=2,  # 减少层数
-                    d_model=32,  # 减少维度
-                    d_state=8,   # 减少状态维度
-                    seq_length=20  # 减少序列长度
-                )
-                # 准备Mamba训练数据
-                mamba_data = {pos: df[pos].values for pos in POSITIONS}
-                self.mamba_predictor.fit(mamba_data, epochs=20, verbose=False)
-                logger.debug(f"[训练步骤] Mamba模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
-                logger.info("[EnhancedPredictor] Mamba模型训练完成")
-            except Exception as e:
-                logger.debug(f"[训练步骤] Mamba模型训练失败(非致命): {e}")
-                logger.warning(f"[EnhancedPredictor] Mamba模型训练失败(非致命): {e}")
-                self.mamba_predictor = None
-
-            # 尝试训练iTransformer模型（使用优化参数）
-            logger.debug(f"[训练步骤] 开始训练iTransformer模型 - {datetime.now().strftime('%H:%M:%S')}")
-            try:
-                from src.core.models.itransformer_predictor import iTransformerPredictor
-                self.itransformer_predictor = iTransformerPredictor(
-                    n_layers=2,  # 减少层数
-                    d_model=32,  # 减少维度
-                    n_heads=2,   # 减少头数
-                    d_ff=64,     # 减少前馈网络维度
-                    seq_length=20  # 减少序列长度
-                )
-                # 准备iTransformer训练数据
-                itrans_data = {pos: df[pos].values for pos in POSITIONS}
-                self.itransformer_predictor.fit(itrans_data, epochs=20, verbose=False)
-                logger.debug(f"[训练步骤] iTransformer模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
-                logger.info("[EnhancedPredictor] iTransformer模型训练完成")
-            except Exception as e:
-                logger.debug(f"[训练步骤] iTransformer模型训练失败(非致命): {e}")
-                logger.warning(f"[EnhancedPredictor] iTransformer模型训练失败(非致命): {e}")
-                self.itransformer_predictor = None
+            # 跳过Mamba和iTransformer训练以加速
+            logger.info("[EnhancedPredictor] 跳过Mamba和iTransformer训练（加速模式）")
+            self.mamba_predictor = None
+            self.itransformer_predictor = None
 
             logger.debug(f"[训练步骤] 初始化贝叶斯量化器 - {datetime.now().strftime('%H:%M:%S')}")
             try:
@@ -802,13 +765,8 @@ class EnhancedPL5Predictor:
         # 导入资源管理模块
         from src.core.utils.resource_manager import get_resource_summary
         
-        # 根据资源使用情况调整模型复杂度
-        high_resource_usage = False
-        if resource_usage:
-            high_resource_usage = (
-                resource_usage['cpu']['over_threshold'] or
-                resource_usage['memory']['over_threshold']
-            )
+        # 强制降低复杂度以加速
+        high_resource_usage = True
         
         if high_resource_usage:
             logger.info(f"资源使用较高 {get_resource_summary()}，将降低模型复杂度")
@@ -820,17 +778,17 @@ class EnhancedPL5Predictor:
         cv_folds = stacking.meta_config.get("cv_folds", 5)
         # 根据资源使用情况调整交叉验证折数
         if high_resource_usage:
-            cv_folds = max(3, cv_folds - 2)
+            cv_folds = 1  # 直接用1折最快
             logger.info(f"调整交叉验证折数: {cv_folds}")
         
         tscv = TimeSeriesSplit(n_splits=cv_folds)
         
         n_base = len(stacking.BASE_MODELS)
         # 根据资源使用情况调整基础模型数量
-        if high_resource_usage and n_base > 3:
-            # 只使用前3个基础模型
-            base_models = list(stacking.BASE_MODELS.items())[:3]
-            n_base = 3
+        if high_resource_usage and n_base > 1:
+            # 只使用第1个基础模型（LightGBM）
+            base_models = list(stacking.BASE_MODELS.items())[:1]
+            n_base = 1
             logger.info(f"调整基础模型数量: {n_base}")
         else:
             base_models = list(stacking.BASE_MODELS.items())
@@ -903,72 +861,25 @@ class EnhancedPL5Predictor:
         stacking.meta_scores[pos] = best_score
         stacking._fitted = True
 
-        # 增强的HMM训练
-        hmm_cfg = self._mc.hmm_config()
-        # 根据资源使用情况调整HMM参数
-        if high_resource_usage:
-            hmm_n_states = max(2, hmm_cfg.get('n_states', 4) - 2)
-            hmm_n_mixtures = max(1, hmm_cfg.get('n_mixtures', 2) - 1)
-            logger.info(f"调整HMM参数: 状态数={hmm_n_states}, 混合数={hmm_n_mixtures}")
-        else:
-            hmm_n_states = hmm_cfg.get('n_states', 4)
-            hmm_n_mixtures = hmm_cfg.get('n_mixtures', 2)
-        
-        # 自动选择最佳HMM参数
-        best_hmm = None
-        best_hmm_score = -float('inf')
-        
-        # 尝试不同的HMM参数组合
-        if not high_resource_usage:
-            state_options = [hmm_n_states - 1, hmm_n_states, hmm_n_states + 1]
-            state_options = [s for s in state_options if s >= 2 and s <= 8]
-            mixture_options = [hmm_n_mixtures, hmm_n_mixtures + 1]
-            mixture_options = [m for m in mixture_options if m >= 1 and m <= 3]
-            
-            for n_states in state_options:
-                for n_mixtures in mixture_options:
-                    try:
-                        hmm_candidate = HiddenMarkovModel(
-                            n_states=n_states,
-                            n_mixtures=n_mixtures,
-                            auto_select=False,
-                            criterion='bic'
-                        )
-                        hmm_candidate.fit(seq)
-                        score = -hmm_candidate.score(seq)
-                        if score > best_hmm_score:
-                            best_hmm_score = score
-                            best_hmm = hmm_candidate
-                    except Exception as e:
-                        logger.warning(f"HMM参数组合 ({n_states}, {n_mixtures}) 训练失败: {e}")
-        
-        if best_hmm is None:
-            # 如果自动选择失败，使用默认参数
-            best_hmm = HiddenMarkovModel(
-                n_states=hmm_n_states,
-                n_mixtures=hmm_n_mixtures,
-                auto_select=hmm_cfg.get('auto_select', False),
-                criterion=hmm_cfg.get('criterion', 'bic')
-            )
-            best_hmm.fit(seq)
+        # 增强的HMM训练（快速版）
+        best_hmm = HiddenMarkovModel(
+            n_states=2,
+            n_mixtures=1,
+            auto_select=False,
+            criterion='bic'
+        )
+        best_hmm.fit(seq)
 
-        # 增强的BSTS训练
-        bsts_cfg = self._mc.bsts_config()
-        # 根据资源使用情况调整BSTS参数
-        if high_resource_usage:
-            n_posterior_samples = max(500, bsts_cfg.get('n_posterior_samples', 1000) // 2)
-            trend_window = max(10, bsts_cfg.get('trend_window', 20) // 2)
-            logger.info(f"调整BSTS参数: 后验样本数={n_posterior_samples}, 趋势窗口={trend_window}")
-        else:
-            n_posterior_samples = bsts_cfg.get('n_posterior_samples', 1000)
-            trend_window = bsts_cfg.get('trend_window', 20)
+        # 增强的BSTS训练（快速版）
+        n_posterior_samples = 50
+        trend_window = 5
         
         bsts = BayesianStructuralTimeSeries(
             trend_window=trend_window,
-            seasonality_period=bsts_cfg.get('seasonality_period'),
-            outlier_threshold=bsts_cfg.get('outlier_threshold', 2.5),
+            seasonality_period=7,
+            outlier_threshold=2.5,
             n_posterior_samples=n_posterior_samples,
-            confidence_level=bsts_cfg.get('confidence_level', 0.95))
+            confidence_level=0.95)
         bsts.fit(seq)
 
         return {

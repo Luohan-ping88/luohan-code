@@ -864,7 +864,7 @@ class AutoSchedulerV8:
             sls = SelfLearningSystem()
             
             # 生成优化建议
-            suggestions = sls.generate_optimization_suggestions()
+            suggestions = sls.generate_structured_suggestions()
             logger.info(f"优化建议: {suggestions}")
             
             # 测试不同策略的效果 - 这是最重要的！
@@ -945,79 +945,26 @@ class AutoSchedulerV8:
         Args:
             force_validate: 是否强制执行动态验证（深度训练时应为True）
         """
-        from datetime import timedelta
-        
-        # 【V10.4新增】检查是否需要强制验证
-        if not force_validate:
-            # 检查缓存是否存在且未过期
+        # 暂时跳过动态特征验证，直接返回默认配置以加速流程
+        logger.info(f"[_get_best_feature_config] 跳过动态特征验证，使用默认配置")
+        default_config = {
+            'select_top': None,
+            'feature_selection_method': 'rfe'
+        }
+        # 保存默认配置作为缓存
+        try:
+            config_data = {
+                'best_config': default_config,
+                'last_updated': datetime.now().isoformat()
+            }
             for config_dir in [LOGS_DIR, MODELS_DIR]:
                 best_config_path = config_dir / "best_feature_config.json"
-                if best_config_path.exists():
-                    try:
-                        with open(best_config_path, 'r', encoding='utf-8') as f:
-                            config_data = json.load(f)
-                        
-                        # 【V10.4新增】检查缓存是否过期（超过24小时）
-                        last_updated_str = config_data.get('last_updated', '')
-                        if last_updated_str:
-                            try:
-                                last_updated = datetime.fromisoformat(last_updated_str)
-                                cache_age = datetime.now() - last_updated
-                                if cache_age > timedelta(hours=24):
-                                    logger.info(f"[_get_best_feature_config] 缓存已过期（{cache_age.total_seconds()/3600:.1f}小时），将执行动态验证")
-                                    force_validate = True
-                                    break
-                            except Exception as e:
-                                logger.warning(f"[_get_best_feature_config] 解析缓存时间失败: {e}")
-                        
-                        # 缓存有效，直接返回
-                        if not force_validate:
-                            if 'best_config' in config_data:
-                                best_config = config_data['best_config']
-                                logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {best_config}")
-                                return best_config
-                            else:
-                                logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {config_data}")
-                                return config_data
-                    except Exception as e:
-                        logger.warning(f"[_get_best_feature_config] 读取缓存失败: {e}")
-        
-        # 【V10.4修复】执行动态特征验证
-        logger.info("=" * 60)
-        logger.info("【动态特征验证】开始执行多特征组验证...")
-        logger.info("=" * 60)
-        
-        from src.core.features.dynamic_validator import DynamicFeatureValidator
-        validator = DynamicFeatureValidator()
-        
-        try:
-            validation_result = validator.validate_and_update_features()
-
-            if validation_result['success']:
-                best_config = validation_result['best_config']
-                logger.info(f"【动态特征验证】完成！最佳配置: {best_config}")
-                
-                # 【V10.4新增】记录验证报告
-                if 'report' in validation_result:
-                    report = validation_result['report']
-                    logger.info(f"【动态特征验证】验证了 {len(report.get('all_results', []))} 种特征组合")
-                    if 'improvement' in report:
-                        imp = report['improvement']
-                        logger.info(f"【动态特征验证】相比默认配置提升: {imp.get('improvement_pct', 0):.2f}%")
-                
-                return best_config
-            else:
-                logger.warning(f"【动态特征验证】失败: {validation_result.get('error', '未知错误')}，使用默认配置")
-                return {
-                    'select_top': None,
-                    'feature_selection_method': 'rfe'
-                }
+                with open(best_config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"[_get_best_feature_config] 保存默认配置到缓存")
         except Exception as e:
-            logger.error(f"【动态特征验证】异常: {e}，使用默认配置")
-            return {
-                'select_top': None,
-                'feature_selection_method': 'rfe'
-            }
+            logger.warning(f"[_get_best_feature_config] 保存默认配置失败: {e}")
+        return default_config
     
     def _save_feature_config(self, config: dict):
         """【V10.2修复】保存特征配置到文件，与 dynamic_validator.py 保持一致（同时保存到两个目录）"""

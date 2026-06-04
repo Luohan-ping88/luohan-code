@@ -625,7 +625,7 @@ class FeatureConfig:
             'description': '格兰杰因果特征'
         },
         'pl5_specific': {
-            'enabled': True,
+            'enabled': False,
             'description': '排列五特定特征'
         }
     }

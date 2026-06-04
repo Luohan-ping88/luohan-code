@@ -1354,7 +1354,7 @@ class SelfLearningSystem:
         )
         return summary
 
-    def get_suggestion_statistics(self) -> Dict[str, Any]:
+    def generate_optimization_suggestions(self) -> List[str]:
         structured = self.generate_structured_suggestions()
         text_lines: List[str] = []
 

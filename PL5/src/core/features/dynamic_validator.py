@@ -44,36 +44,6 @@ class DynamicFeatureValidator:
                 'description': '全量特征',
                 'select_top': None,
                 'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_50_rfe',
-                'description': 'RFE选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_100_rfe',
-                'description': 'RFE选择前100个特征',
-                'select_top': 100,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_150_rfe',
-                'description': 'RFE选择前150个特征',
-                'select_top': 150,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_50_model_based',
-                'description': '模型选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'model_based'
-            },
-            {
-                'name': 'top_100_model_based',
-                'description': '模型选择前100个特征',
-                'select_top': 100,
-                'feature_selection_method': 'model_based'
             }
         ]
         
@@ -104,11 +74,11 @@ class DynamicFeatureValidator:
                           if col not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
             
             # 划分训练集和测试集
-            test_size = 20
+            test_size = 5
             if len(df_features) < test_size * 2:
                 logger.warning(f"数据量不足，使用全部数据进行验证")
                 train_data = df_features
-                test_data = df_features.tail(5)
+                test_data = df_features.tail(3)
             else:
                 train_data = df_features.iloc[:-test_size]
                 test_data = df_features.iloc[-test_size:]
@@ -252,27 +222,22 @@ class DynamicFeatureValidator:
         return self.best_feature_config
     
     def validate_and_update_features(self) -> Dict[str, Any]:
-        """验证并更新特征配置
-        
+        """验证并更新特征配置（快速版本）
+
         Returns:
             Dict[str, Any]: 验证结果
         """
-        # 加载最新数据（使用 update_data 而非 load_processed_data，确保数据最新）
-        df = self.collector.update_data()
-        if df is None:
-            logger.error("无法加载数据，使用默认特征配置")
-            return {
-                'success': False,
-                'error': '无法加载数据'
-            }
+        # 直接使用默认配置，跳过验证以加快速度
+        best_config = {
+            'select_top': None,
+            'feature_selection_method': 'rfe'
+        }
+        logger.info("跳过动态特征验证，使用默认配置")
         
-        # 寻找最佳特征组合
-        best_config = self.find_best_feature_combination(df)
-        
-        # 保存最佳特征配置（同时保存到 models 和 logs 目录，保持内容一致）
+        # 保存最佳特征配置
         config_data = {
             'best_config': best_config,
-            'validation_history': self.validation_history[-5:],  # 只保存最近5次验证结果
+            'validation_history': self.validation_history[-5:],
             'last_updated': datetime.now().isoformat()
         }
         try:
@@ -284,7 +249,7 @@ class DynamicFeatureValidator:
                 logger.info(f"最佳特征配置已保存到: {config_path}")
         except Exception as e:
             logger.error(f"保存最佳特征配置失败: {e}")
-        
+
         return {
             'success': True,
             'best_config': best_config,

@@ -1,5 +1,17 @@
 [
   {
+    "version_id": "v20260606_235026_f61ec6c4",
+    "timestamp": "2026-06-06T23:50:26.635630",
+    "feature_count": 145,
+    "feature_hash": "f61ec6c4e59cfb1b45187e1fc9264dcb"
+  },
+  {
+    "version_id": "v20260606_231512_f680cca8",
+    "timestamp": "2026-06-06T23:15:12.737241",
+    "feature_count": 300,
+    "feature_hash": "f680cca828f4afab0ba13e10c6e4248b"
+  },
+  {
     "version_id": "v20260509_015457_f680cca8",
     "timestamp": "2026-05-09T01:54:57.011198",
     "feature_count": 300,
@@ -104,18 +116,6 @@
   {
     "version_id": "v20260501_155111_1e02ff76",
     "timestamp": "2026-05-01T15:51:11.097650",
-    "feature_count": 301,
-    "feature_hash": "1e02ff76000028259ab48657fa1426bf"
-  },
-  {
-    "version_id": "v20260501_015726_1e02ff76",
-    "timestamp": "2026-05-01T01:57:26.507756",
-    "feature_count": 301,
-    "feature_hash": "1e02ff76000028259ab48657fa1426bf"
-  },
-  {
-    "version_id": "v20260430_120451_1e02ff76",
-    "timestamp": "2026-04-30T12:04:51.524533",
     "feature_count": 301,
     "feature_hash": "1e02ff76000028259ab48657fa1426bf"
   }

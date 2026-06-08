@@ -1101,6 +1101,13 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[Dict[str, Any]]:
+        """兼容旧接口的优化建议生成方法。
+        调用 generate_structured_suggestions 并将结果转换为字典列表。
+        """
+        structured_suggestions = self.generate_structured_suggestions()
+        return [sug.to_dict() for sug in structured_suggestions]
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

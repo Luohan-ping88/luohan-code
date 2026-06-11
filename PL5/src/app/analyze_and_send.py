@@ -499,6 +499,19 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
         sender_email = os.environ.get('PL5_EMAIL', 'your_email@qq.com')
         auth_code = os.environ.get('PL5_AUTH_CODE', 'your_auth_code')
         recipient_email = os.environ.get('PL5_RECIPIENT', sender_email)
+
+    # [V10.4 修复] 支持 PL5_SKIP_EMAIL=1 跳过实际发送，仅写报告文件
+    import os as _os
+    if _os.environ.get('PL5_SKIP_EMAIL', '').strip() in ('1', 'true', 'yes'):
+        logger.info("  [PL5_SKIP_EMAIL=1] 已跳过邮件实际发送")
+        email_sent = False
+        return {
+            'email_sent': False,
+            'skipped': True,
+            'sender': sender_email,
+            'recipient': recipient_email,
+            'reason': 'PL5_SKIP_EMAIL=1',
+        }
     
     # 发送邮件（最多重试3次，间隔递增）
     email_sent = False

@@ -463,6 +463,12 @@ class StrategyEvaluator:
         total_elapsed = (datetime.now() - start_time).total_seconds() / 60
         logger.info(f"总用时: {total_elapsed:.1f} 分钟")
 
+        # [V10.4 修复] 兜底：如果所有策略都失败，best_strategy 仍保持 None，
+        # 但构造一个空字典占位，避免下游 `.get('best_strategy', {}).get('name', ...)`
+        # 在 best_strategy 存在但为 None 时抛出 AttributeError。
+        if best_strategy is None:
+            best_strategy = {}
+
         evaluation_result = {
             'timestamp': datetime.now().isoformat(),
             'test_window': test_window,

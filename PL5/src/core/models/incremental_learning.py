@@ -310,11 +310,15 @@ def get_hierarchical_training_manager() -> HierarchicalTrainingManager:
 
 def should_perform_incremental_update() -> bool:
     """判断是否应该执行增量更新
-    
+
+    [V10.4 修复] 日循环场景下不再强制触发增量训练（last_update_time 初始为 None
+    时会无条件返回 True，导致每次 analyze_and_send 都跑一次完整 fit()）。
+    日循环的训练节奏由训练任务（training）负责，send_report 只做推理。
+
     Returns:
-        bool: 是否应该执行增量更新
+        bool: 始终返回 False（禁用自动增量触发）
     """
-    return incremental_learning_manager.should_update()
+    return False
 
 
 def get_training_strategy() -> str:

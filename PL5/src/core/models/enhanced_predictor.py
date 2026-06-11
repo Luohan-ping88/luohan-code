@@ -135,8 +135,10 @@ class StackingEnsemble:
 
         # 只添加一个额外模型以保持多样性
         if _HAS_LIGHTGBM:
-            # [V10.4 优化] 降低 LGBM 树数 + 加 early_stopping_rounds 防止无效分裂
-            n_est_lgbm = min(n_est // 2, 250)
+            # [V10.4 优化] 降低 LGBM 树数（再降一档到 100），
+            # 加 min_child_samples / min_data_in_leaf 让无效分裂直接停，
+            # 否则在数据无 gain 时会无限分裂刷 warning。
+            n_est_lgbm = min(n_est // 4, 100)
             model_configs["lgbm"] = {
                 "class": LGBMClassifier,
                 "params": {
@@ -147,6 +149,8 @@ class StackingEnsemble:
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
+                    "min_child_samples": 20,
+                    "min_data_in_leaf": 20,
                     "subsample": config.get("subsample", 0.8),
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
                 }

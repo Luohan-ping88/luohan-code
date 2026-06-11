@@ -1101,6 +1101,36 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议（文本列表形式，供兼容旧调用方使用）。
+
+        V10.3 适配：原 `optimization` 任务期待 `List[str]`，而本类只暴露了
+        `generate_structured_suggestions`，导致优化任务一直抛
+        `AttributeError`。这里提供一个轻量包装，将结构化建议转换为字符串。
+        """
+        try:
+            structured = self.generate_structured_suggestions()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"生成结构化建议失败，使用回退默认建议: {e}")
+            return [
+                "保持当前模型配置，继续累积评估数据",
+                "关注命中率与 Top-3 准确率变化趋势",
+            ]
+
+        if not structured:
+            return ["暂无数据，建议先完成一次完整训练和评估"]
+
+        lines: List[str] = []
+        for sug in structured:
+            tag = sug.color_tag if hasattr(sug, "color_tag") else ""
+            title = getattr(sug, "title", "")
+            desc = getattr(sug, "description", "")
+            if tag and title:
+                lines.append(f"{tag} {title}: {desc}")
+            else:
+                lines.append(str(sug))
+        return lines
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

@@ -225,11 +225,35 @@ def cmd_schedule(args):
     scheduler = AutoSchedulerV8()
     logger.info("调度器已初始化")
 
+    # [V10.4 修复] --reset：把所有任务状态清空，重新跑
+    if getattr(args, "reset", False):
+        logger.warning("[--reset] 收到重置请求，将所有任务状态清空为 pending 后再执行")
+        try:
+            if scheduler.orchestrator is not None:
+                from src.core.workflow.orchestrator import TaskStatus
+                for tname, tstate in scheduler.orchestrator.state["tasks"].items():
+                    tstate["status"] = TaskStatus.PENDING.value
+                    tstate["start_time"] = None
+                    tstate["end_time"] = None
+                    tstate["result"] = None
+                    tstate["error"] = None
+                    tstate["retry_count"] = 0
+                    tstate["last_executed_time"] = None
+                    tstate["is_missed"] = False
+                scheduler.orchestrator.state["workflow_status"] = "paused"
+                scheduler.orchestrator.state["current_task"] = None
+                scheduler.orchestrator._save_state()
+                logger.info("[--reset] orchestrator 状态已重置为全 pending")
+        except Exception as e:
+            logger.error(f"[--reset] 重置 orchestrator 状态失败: {e}")
+
     if args.once:
         logger.info("执行单次完整流程 (run_full_pipeline)...")
+        # [V10.4 修复] --from-task：断点续跑起点
+        from_task = getattr(args, "from_task", None)
         # 【修复BUG-M01】原代码调用了不存在的 task_data_update/task_report 方法；
         # 正确做法是调用 run_full_pipeline()，它会依序执行完整的佐证链
-        success = scheduler.run_full_pipeline()
+        success = scheduler.run_full_pipeline(from_task=from_task)
         logger.info(f"单次流程执行{'成功' if success else '失败'}")
         return success
 
@@ -305,6 +329,10 @@ def main():
   python main.py analyze            # 分析并发送邮件
   python main.py schedule           # 启动调度器
   python main.py schedule --once    # 执行单次完整流程
+  python main.py schedule --once --from-task deep_strategy_optimization
+                                  # 断点续跑：从深度策略优化开始
+  python main.py schedule --once --reset
+                                  # 重置工作流状态后重跑
   python main.py status             # 查看系统状态
         """
     )
@@ -321,6 +349,11 @@ def main():
     schedule_parser = subparsers.add_parser('schedule', help='启动自动调度器')
     schedule_parser.add_argument('--once', action='store_true',
                                 help='执行单次完整流程后退出')
+    # [V10.4 修复] 断点续跑 / 重置
+    schedule_parser.add_argument('--from-task', dest='from_task', type=str, default=None,
+                                help='断点续跑起点任务名（需配合 --once 使用）')
+    schedule_parser.add_argument('--reset', action='store_true',
+                                help='重置工作流状态为全 pending 后再执行')
 
     subparsers.add_parser('status', help='查看系统状态')
 

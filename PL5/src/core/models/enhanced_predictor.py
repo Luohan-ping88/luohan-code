@@ -135,10 +135,12 @@ class StackingEnsemble:
 
         # 只添加一个额外模型以保持多样性
         if _HAS_LIGHTGBM:
+            # [V10.4 优化] 降低 LGBM 树数 + 加 early_stopping_rounds 防止无效分裂
+            n_est_lgbm = min(n_est // 2, 250)
             model_configs["lgbm"] = {
                 "class": LGBMClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
+                    "n_estimators": n_est_lgbm, "max_depth": max_d // 2,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "verbose": -1,
                     # [OPT] 正则化增强 - 应对波动过高

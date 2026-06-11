@@ -1,6 +1,8 @@
 import os
 import pickle
 import json
+import atexit  # [V10.4 修复] 进程异常退出时保存工作流状态
+import signal  # [V10.4 修复] 捕获 SIGTERM/SIGINT 优雅退出
 from datetime import datetime, time, timedelta
 from typing import Dict, Any, List, Optional
 from enum import Enum
@@ -129,7 +131,46 @@ class IntelligentWorkflowOrchestrator:
         
         self._init_state()
         self._load_state()
-    
+
+        # [V10.4 修复] 注册 atexit + SIGTERM/SIGINT 钩子，进程异常退出时
+        # 把 workflow_status 翻转为 'paused' 并落盘，避免状态卡在 'running'
+        self._exit_hook_registered = False
+        try:
+            atexit.register(self._on_process_exit)
+            self._exit_hook_registered = True
+
+            def _signal_handler(signum, frame):
+                self._on_process_exit()
+                # 重新抛出默认行为，让进程能正常退出
+                raise SystemExit(0)
+
+            try:
+                signal.signal(signal.SIGTERM, _signal_handler)
+                signal.signal(signal.SIGINT, _signal_handler)
+            except ValueError:
+                # 非主线程（worker / 单元测试）不能注册 signal handler，跳过即可
+                pass
+
+            logger.debug("[WorkflowOrchestrator] 已注册 atexit + SIGTERM/SIGINT 钩子")
+        except Exception as e:
+            logger.warning(f"[WorkflowOrchestrator] 注册退出钩子失败: {e}")
+
+    def _on_process_exit(self):
+        """[V10.4 修复] 进程退出时将 running 翻转为 paused 并落盘"""
+        try:
+            current = self.state.get("workflow_status") if hasattr(self, "state") else None
+            if current == "running":
+                self.state["workflow_status"] = "paused"
+                self.state["updated_at"] = datetime.now().isoformat()
+                # 保留 current_task 字段，便于后续续跑
+                if hasattr(self, "_save_state"):
+                    self._save_state()
+                logger.warning(
+                    f"[WorkflowOrchestrator] 进程异常退出，工作流状态已翻转为 paused (current_task={self.state.get('current_task')})"
+                )
+        except Exception as e:
+            logger.error(f"[WorkflowOrchestrator] atexit 钩子异常: {e}")
+
     def _init_state(self):
         self.state = {
             "workflow_status": WorkflowStatus.IDLE.value,

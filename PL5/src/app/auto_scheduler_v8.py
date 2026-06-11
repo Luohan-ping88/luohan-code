@@ -1645,20 +1645,65 @@ class AutoSchedulerV8:
             return self.task_map[task_name][1]
         return None
 
-    def run_full_pipeline(self):
-        """运行完整流程 - 增强版，带结构化日志和错误分类"""
+    def run_full_pipeline(self, from_task: Optional[str] = None):
+        """运行完整流程 - 增强版，带结构化日志和错误分类
+
+        Args:
+            from_task: 可选断点续跑起点。指定后，只执行从该任务开始的部分，
+                       在它之前的任务会被跳过（用于重跑或恢复）。
+        """
         logger.info("\n" + "=" * 80)
         logger.info("开始执行完整自动化流程 (增强错误处理)")
+        if from_task:
+            logger.info(f"[断点续跑] 从任务 {from_task} 开始")
         logger.info("=" * 80)
 
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_TASK_SCHEDULE,
-            {"action": "full_pipeline"}
+            {"action": "full_pipeline", "from_task": from_task}
         )
         start_time = datetime.now()
 
         # 使用完整佐证链（与 setup_schedule 的 custom_tasks 保持一致）
-        task_chain = self.custom_tasks
+        task_chain = list(self.custom_tasks)
+
+        # [V10.4 断点续跑] 如果指定了 from_task，从该任务开始（丢弃它之前的任务）
+        if from_task:
+            if from_task not in task_chain:
+                logger.error(
+                    f"[断点续跑] 任务 {from_task} 不在 custom_tasks 链中 "
+                    f"({task_chain})，改为全量执行"
+                )
+            else:
+                idx = task_chain.index(from_task)
+                skipped = task_chain[:idx]
+                task_chain = task_chain[idx:]
+                logger.info(
+                    f"[断点续跑] 跳过 {len(skipped)} 个已完成任务: {skipped}；"
+                    f"将执行 {len(task_chain)} 个任务: {task_chain}"
+                )
+
+                # 把被跳过的任务在 orchestrator 中标记为 completed（如果存在）
+                if self.orchestrator is not None:
+                    for skip_task in skipped:
+                        try:
+                            if (
+                                skip_task in self.orchestrator.state["tasks"]
+                                and self.orchestrator.state["tasks"][skip_task]["status"]
+                                != TaskStatus.COMPLETED.value
+                            ):
+                                self.orchestrator.state["tasks"][skip_task]["status"] = (
+                                    TaskStatus.COMPLETED.value
+                                )
+                                self.orchestrator.state["tasks"][skip_task]["end_time"] = (
+                                    datetime.now().isoformat()
+                                )
+                        except Exception as e:
+                            logger.debug(
+                                f"[断点续跑] 标记 {skip_task} 为 completed 时异常: {e}"
+                            )
+                    self.orchestrator._save_state()
+
         results = {}
 
         try:
@@ -2155,10 +2200,10 @@ class AutoSchedulerV8:
             from src.core.data.collector import PL5DataCollector
             from src.core.strategy_evaluator import StrategyEvaluator
             
-            # 1. 验证推理策略
+            # 1. 验证推理策略（V10.4 调小 target_duration 以缩短佐证任务时长）
             logger.info(f"步骤1 [{round_name}]: 验证当前推理策略...")
             evaluator = StrategyEvaluator()
-            evaluation_result = evaluator.evaluate_all_strategies(test_window=20)
+            evaluation_result = evaluator.evaluate_all_strategies(test_window=20, target_duration_minutes=10)
             # 【V10.3修复】添加 None 检查，防止 best_strategy 为 None 时出错
             best_strategy = evaluation_result.get('best_strategy', {})
             if best_strategy:
@@ -2338,7 +2383,11 @@ class AutoSchedulerV8:
                 self.log_status("深度策略优化", f"测试窗口: {window}期", progress)
                 logger.info(f"  测试窗口: {window}期")
                 
-                evaluation_result = evaluator.evaluate_all_strategies(test_window=window)
+                # V10.4 调小评估时长避免长跑：单窗口 5 分钟
+                evaluation_result = evaluator.evaluate_all_strategies(
+                    test_window=window,
+                    target_duration_minutes=5,
+                )
                 all_results.append({
                     'window': window,
                     'result': evaluation_result
@@ -2427,10 +2476,10 @@ class AutoSchedulerV8:
             from src.core.data.collector import PL5DataCollector
             from src.core.strategy_evaluator import StrategyEvaluator
             
-            # 1. 最终验证推理策略
+            # 1. 最终验证推理策略（V10.4 调小评估时长）
             logger.info("步骤1: 最终验证推理策略...")
             evaluator = StrategyEvaluator()
-            evaluation_result = evaluator.evaluate_all_strategies(test_window=25)
+            evaluation_result = evaluator.evaluate_all_strategies(test_window=25, target_duration_minutes=10)
             logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
             
             # 2. 加载数据

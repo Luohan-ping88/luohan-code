@@ -80,8 +80,9 @@ def cmd_train(args):
     # 与 scheduler 训练路径保持一致：不限制 select_top，确保模型的 76 个训练特征全部存在
     df_features = engineer.extract_all_features(df, select_top=None)
     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+    exclude_cols = {'period', 'full_number', 'date', 'parse_line'}
     feature_cols = [c for c in df_features.columns
-                   if c not in ['period', 'full_number'] + positions]
+                   if c not in exclude_cols and c not in positions]
     logger.info(f"特征工程完成: {len(feature_cols)} 个特征")
 
     predictor = EnhancedPL5Predictor()

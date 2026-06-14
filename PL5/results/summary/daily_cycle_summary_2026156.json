@@ -1,143 +1,146 @@
 {
-  "start_time": "2026-06-14T16:29:17.459766",
-  "end_time": "2026-06-14T16:30:10.484253",
-  "total_elapsed_seconds": 53.02434778213501,
+  "start_time": "2026-06-14T16:48:30.803757",
+  "end_time": "2026-06-14T16:58:50.948781",
+  "total_elapsed_seconds": 620.1448550224304,
+  "total_elapsed_minutes": 10.335747583707173,
   "total_tasks": 14,
-  "completed_tasks": 10,
-  "success_rate": "71%",
+  "successful_tasks": 9,
+  "failed_tasks": 0,
+  "success_rate": "64.3%",
+  "next_period": "2026156",
+  "latest_period": 2026155,
   "tasks": [
     {
       "name": "data_fetch",
       "status": "成功",
-      "elapsed": 0.33217787742614746,
-      "detail": "7630 条记录, 最新期 2026155"
+      "elapsed_seconds": 0.6561191082000732,
+      "detail": "获取 7630 条记录, 最新期 2026155"
     },
     {
       "name": "evaluation",
       "status": "成功",
-      "elapsed": 51.10559964179993,
+      "elapsed_seconds": 51.477388858795166,
       "detail": "300 个特征, 需要训练优化"
     },
     {
       "name": "training",
       "status": "成功",
-      "elapsed": 1.0649256706237793,
+      "elapsed_seconds": 254.41040968894958,
       "detail": "Stacking Ensemble, 300 维特征"
     },
     {
       "name": "prediction_verification",
       "status": "成功",
-      "elapsed": 0.5202736854553223,
-      "detail": "5个位置的Top-8预测"
+      "elapsed_seconds": 311.48477506637573,
+      "detail": "3次预测验证 + 2次增量训练"
     },
     {
       "name": "strategy_optimization",
       "status": "成功",
-      "elapsed": 9.5367431640625e-07,
-      "detail": "基于预测结果的策略评估"
-    },
-    {
-      "name": "prediction_preview",
-      "status": "成功",
-      "elapsed": 0.000217437744140625,
-      "detail": "期 2026156"
+      "elapsed_seconds": 0.0002720355987548828,
+      "detail": "策略权重优化完成"
     },
     {
       "name": "final_prediction",
       "status": "成功",
-      "elapsed": 0.0006132125854492188,
+      "elapsed_seconds": 1.539031982421875,
       "detail": "期 2026156 已保存"
     },
     {
       "name": "final_verification",
       "status": "成功",
-      "elapsed": 0.00018978118896484375,
-      "detail": "所有关键文件已验证"
+      "elapsed_seconds": 0.5761597156524658,
+      "detail": "预测一致性验证通过"
     },
     {
       "name": "pre_sale_prediction",
       "status": "成功",
-      "elapsed": 2.86102294921875e-06,
-      "detail": "预售信息生成"
+      "elapsed_seconds": 3.5762786865234375e-06,
+      "detail": "售前预测就绪"
     },
     {
       "name": "send_report",
       "status": "成功",
-      "elapsed": 0.0003466606140136719,
-      "detail": "每日报告已生成"
+      "elapsed_seconds": 0.0006949901580810547,
+      "detail": "报告已保存: daily_report_2026156.json"
     }
   ],
   "predictions": {
     "wan": {
+      "name": "万位",
       "top_k": [
-        8,
-        3,
+        4,
+        9,
+        6,
         1,
         5,
+        3,
         7,
-        6,
-        2,
-        4
+        0
       ]
     },
     "qian": {
+      "name": "千位",
       "top_k": [
         8,
+        4,
         9,
-        7,
         5,
         6,
-        4,
+        1,
         3,
-        1
+        7
       ]
     },
     "bai": {
+      "name": "百位",
       "top_k": [
         5,
         4,
         3,
-        7,
         8,
         6,
         1,
+        7,
         2
       ]
     },
     "shi": {
+      "name": "十位",
       "top_k": [
         4,
-        0,
-        3,
-        6,
-        1,
         5,
+        7,
+        6,
         9,
-        2
+        3,
+        8,
+        1
       ]
     },
     "ge": {
+      "name": "个位",
       "top_k": [
         7,
-        8,
-        5,
-        9,
-        1,
-        2,
         6,
-        4
+        5,
+        3,
+        4,
+        8,
+        9,
+        2
       ]
     }
   },
-  "next_period": "2026156",
   "issues": [
-    "优化任务模块方法缺失 (generate_optimization_suggestions) - 已跳过",
-    "特征工程较慢 (约50s/次) - 可考虑进一步优化缓存策略"
+    "调度器中 evaluation 任务在特征工程中存在重复计算",
+    "DataFrame 碎片化警告 - 建议使用 pd.concat 优化",
+    "特征工程较慢 (约50s/次) - 缓存命中率为 0%"
   ],
   "follow_up": [
-    "修复 SelfLearningSystem 的 generate_optimization_suggestions 方法",
-    "监控期号 2026156 的开奖结果，验证预测准确性",
-    "根据实际命中情况调整模型权重和策略",
-    "优化特征工程缓存，减少重复计算"
+    "监控期号 2026156 的开奖结果",
+    "验证模型预测准确率",
+    "优化特征工程性能",
+    "考虑增加模型集成权重调整"
   ]
 }

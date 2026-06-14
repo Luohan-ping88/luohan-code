@@ -1,0 +1,143 @@
+{
+  "start_time": "2026-06-14T16:29:17.459766",
+  "end_time": "2026-06-14T16:30:10.484253",
+  "total_elapsed_seconds": 53.02434778213501,
+  "total_tasks": 14,
+  "completed_tasks": 10,
+  "success_rate": "71%",
+  "tasks": [
+    {
+      "name": "data_fetch",
+      "status": "成功",
+      "elapsed": 0.33217787742614746,
+      "detail": "7630 条记录, 最新期 2026155"
+    },
+    {
+      "name": "evaluation",
+      "status": "成功",
+      "elapsed": 51.10559964179993,
+      "detail": "300 个特征, 需要训练优化"
+    },
+    {
+      "name": "training",
+      "status": "成功",
+      "elapsed": 1.0649256706237793,
+      "detail": "Stacking Ensemble, 300 维特征"
+    },
+    {
+      "name": "prediction_verification",
+      "status": "成功",
+      "elapsed": 0.5202736854553223,
+      "detail": "5个位置的Top-8预测"
+    },
+    {
+      "name": "strategy_optimization",
+      "status": "成功",
+      "elapsed": 9.5367431640625e-07,
+      "detail": "基于预测结果的策略评估"
+    },
+    {
+      "name": "prediction_preview",
+      "status": "成功",
+      "elapsed": 0.000217437744140625,
+      "detail": "期 2026156"
+    },
+    {
+      "name": "final_prediction",
+      "status": "成功",
+      "elapsed": 0.0006132125854492188,
+      "detail": "期 2026156 已保存"
+    },
+    {
+      "name": "final_verification",
+      "status": "成功",
+      "elapsed": 0.00018978118896484375,
+      "detail": "所有关键文件已验证"
+    },
+    {
+      "name": "pre_sale_prediction",
+      "status": "成功",
+      "elapsed": 2.86102294921875e-06,
+      "detail": "预售信息生成"
+    },
+    {
+      "name": "send_report",
+      "status": "成功",
+      "elapsed": 0.0003466606140136719,
+      "detail": "每日报告已生成"
+    }
+  ],
+  "predictions": {
+    "wan": {
+      "top_k": [
+        8,
+        3,
+        1,
+        5,
+        7,
+        6,
+        2,
+        4
+      ]
+    },
+    "qian": {
+      "top_k": [
+        8,
+        9,
+        7,
+        5,
+        6,
+        4,
+        3,
+        1
+      ]
+    },
+    "bai": {
+      "top_k": [
+        5,
+        4,
+        3,
+        7,
+        8,
+        6,
+        1,
+        2
+      ]
+    },
+    "shi": {
+      "top_k": [
+        4,
+        0,
+        3,
+        6,
+        1,
+        5,
+        9,
+        2
+      ]
+    },
+    "ge": {
+      "top_k": [
+        7,
+        8,
+        5,
+        9,
+        1,
+        2,
+        6,
+        4
+      ]
+    }
+  },
+  "next_period": "2026156",
+  "issues": [
+    "优化任务模块方法缺失 (generate_optimization_suggestions) - 已跳过",
+    "特征工程较慢 (约50s/次) - 可考虑进一步优化缓存策略"
+  ],
+  "follow_up": [
+    "修复 SelfLearningSystem 的 generate_optimization_suggestions 方法",
+    "监控期号 2026156 的开奖结果，验证预测准确性",
+    "根据实际命中情况调整模型权重和策略",
+    "优化特征工程缓存，减少重复计算"
+  ]
+}

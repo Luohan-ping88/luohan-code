@@ -1390,6 +1390,49 @@ class SelfLearningSystem:
         self.learning_history = []
         logger.info("[SelfLearning V10] Memory state flushed")
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议列表（字符串形式）
+
+        与 SelfLearningProtocol 接口保持一致，返回人类可读的优化建议。
+        内部复用 generate_structured_suggestions 与 suggestion_history 数据。
+        """
+        try:
+            structured = self.generate_structured_suggestions()
+        except Exception as exc:
+            logger.warning(f"[SelfLearning V10] generate_structured_suggestions failed: {exc}")
+            structured = []
+
+        suggestions: List[str] = []
+        for sug in structured:
+            try:
+                suggestions.append(sug.to_display_text())
+            except Exception:
+                suggestions.append(str(getattr(sug, "to_dict", lambda: {})()))
+
+        if not suggestions:
+            perf = self.evaluate_recent_performance()
+            current_acc = perf.get("average_accuracy", 0.0) if isinstance(perf, dict) else 0.0
+            if current_acc < self.urgent_accuracy:
+                suggestions.append(
+                    f"近期命中率 {current_acc:.2%} 低于紧急阈值 {self.urgent_accuracy:.0%}，"
+                    "建议立即进行增量训练并加强特征工程。"
+                )
+            elif current_acc < self.warning_accuracy:
+                suggestions.append(
+                    f"近期命中率 {current_acc:.2%} 接近警告阈值 {self.warning_accuracy:.0%}，"
+                    "建议调整策略权重并观察下一次评估。"
+                )
+            else:
+                suggestions.append("当前模型表现稳定，可继续沿用现有策略与权重。")
+
+        try:
+            self._save_suggestion_history()
+        except Exception:
+            pass
+
+        logger.info(f"[SelfLearning V10] generate_optimization_suggestions: {len(suggestions)} suggestions")
+        return suggestions
+
     def get_summary(self) -> Dict[str, Any]:
         perf = self.evaluate_recent_performance()
         need_retrain, reason = self.should_trigger_retrain()

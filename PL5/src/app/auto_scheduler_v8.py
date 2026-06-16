@@ -2332,23 +2332,38 @@ class AutoSchedulerV8:
             # 使用多个测试窗口进行深度优化
             test_windows = [15, 20, 25, 30, 35]
             all_results = []
-            
+
+            # 控制总耗时：每个窗口 ~12 分钟（5 窗口 ≈ 60 分钟）
+            task9_total_target_minutes = 60
+            target_per_window = max(
+                10,
+                task9_total_target_minutes // len(test_windows)
+            )
+            logger.info(
+                f"  深度策略优化：{len(test_windows)} 个窗口，"
+                f"单窗口目标 {target_per_window} 分钟，"
+                f"总目标约 {task9_total_target_minutes} 分钟"
+            )
+
             for i, window in enumerate(test_windows):
                 progress = int((i + 1) / len(test_windows) * 80)
                 self.log_status("深度策略优化", f"测试窗口: {window}期", progress)
                 logger.info(f"  测试窗口: {window}期")
-                
-                evaluation_result = evaluator.evaluate_all_strategies(test_window=window)
+
+                evaluation_result = evaluator.evaluate_all_strategies(
+                    test_window=window,
+                    target_duration_minutes=target_per_window
+                )
                 all_results.append({
                     'window': window,
                     'result': evaluation_result
                 })
-                
+
                 # 打印策略对比报告
                 report = evaluator.get_strategy_comparison_report(evaluation_result)
                 logger.info(f"\n{report}")
-                
-                time.sleep(30)  # 每次测试间隔
+
+                time.sleep(5)  # 每次测试间隔（缩短空等时间）
             
             # 分析所有测试结果，找出最优策略
             best_strategy_name = None

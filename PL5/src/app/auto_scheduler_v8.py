@@ -12,11 +12,14 @@ import subprocess
 import sys
 import json
 import threading
+import os
+import signal
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import pickle
 import traceback
+import concurrent.futures
 
 # 先添加路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -571,8 +574,37 @@ class AutoSchedulerV8:
                 (time.time() - start_time) * 1000
             )
     
+    # 【V10.4.1新增】单任务硬超时上限（秒）：云端CI环境更激进
+    # - training/深度训练：1.5小时（CI）/ 2.0小时（本地）
+    # - 其他任务：45分钟（CI）/ 60分钟（本地）
+    @staticmethod
+    def _get_task_timeout(task_name: str) -> int:
+        """根据任务类型和环境返回单任务硬超时（秒）"""
+        is_ci = (
+            os.environ.get('GITHUB_ACTIONS') == 'true' or
+            os.environ.get('CI') == 'true' or
+            os.environ.get('DOCKER') == 'true' or
+            os.environ.get('CLOUD_ENV') == 'true'
+        )
+
+        if task_name in ('training', 'incremental_training'):
+            return int(1.5 * 3600) if is_ci else int(2.0 * 3600)
+        elif task_name in ('deep_strategy_optimization', 'evaluation', 'optimization'):
+            return int(45 * 60) if is_ci else int(60 * 60)
+        else:
+            return int(30 * 60) if is_ci else int(45 * 60)
+
+    @staticmethod
+    def _is_ci_env() -> bool:
+        return (
+            os.environ.get('GITHUB_ACTIONS') == 'true' or
+            os.environ.get('CI') == 'true' or
+            os.environ.get('DOCKER') == 'true' or
+            os.environ.get('CLOUD_ENV') == 'true'
+        )
+
     def execute_with_retry(self, task_func, task_name: str, *args, **kwargs):
-        """执行任务并带重试机制 - 增强版，支持结构化日志和错误分类"""
+        """执行任务并带重试机制 - 增强版，支持结构化日志和错误分类 + 单任务硬超时"""
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_TASK_SCHEDULE,
             {"task": task_name, "action": "execute"}
@@ -580,9 +612,30 @@ class AutoSchedulerV8:
         start_time = time.time()
         retry_count = 0
 
+        # 【V10.4.1新增】单任务硬超时保护 - 防止云端CI无限阻塞
+        hard_timeout_seconds = self._get_task_timeout(task_name)
+        logger.info(
+            f"[{task_name}] 单任务硬超时: {hard_timeout_seconds // 60} 分钟"
+            f" (环境: {'CI/云端' if self._is_ci_env() else '本地'})"
+        )
+
         while True:
             try:
-                result = task_func(*args, **kwargs)
+                # 【V10.4.1新增】使用线程池执行任务，实现硬超时保护
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(task_func, *args, **kwargs)
+                    try:
+                        remaining = hard_timeout_seconds - int(time.time() - start_time)
+                        if remaining <= 0:
+                            raise TimeoutError(
+                                f"任务 {task_name} 累计已达硬超时限制 ({hard_timeout_seconds}秒)"
+                            )
+                        result = future.result(timeout=remaining)
+                    except concurrent.futures.TimeoutError:
+                        raise TimeoutError(
+                            f"任务 {task_name} 执行超时（单次>{hard_timeout_seconds}秒），触发硬超时保护"
+                        )
+
                 self.retry_manager.reset_retry_count(task_name)
 
                 duration_ms = (time.time() - start_time) * 1000
@@ -592,6 +645,24 @@ class AutoSchedulerV8:
                     {"task": task_name, "status": "SUCCESS", "retries": retry_count}
                 )
                 return result
+            except TimeoutError as te:
+                # 硬超时：不重试，直接失败（防止永久阻塞）
+                duration_ms = (time.time() - start_time) * 1000
+                logger.error(f"[{task_name}] 硬超时保护触发: {str(te)}")
+                structured_logger.log_operation_failure(
+                    StructuredLogger.OPERATION_TASK_SCHEDULE,
+                    PL5BaseError(str(te), original_error=te),
+                    duration_ms
+                )
+                self.send_alert(task_name, f"硬超时: {str(te)}")
+                self.history_manager.add_task_record(
+                    task_name,
+                    "TIMEOUT",
+                    datetime.now(),
+                    datetime.now(),
+                    str(te)
+                )
+                raise
             except Exception as e:
                 retry_count += 1
 
@@ -614,7 +685,6 @@ class AutoSchedulerV8:
                 self.retry_manager.record_failure(task_name, e)
 
                 if self.retry_manager.should_retry(task_name):
-                    # 【修复BUG】先increment计数，再get_delay，确保指数退避从正确基数开始
                     self.retry_manager.increment_retry_count(task_name)
                     delay = self.retry_manager.get_delay(task_name)
                     structured_logger.log_recovery_attempt(
@@ -1318,21 +1388,30 @@ class AutoSchedulerV8:
                 predictor.save_models()
                 logger.info("  全部模型训练完成")
             
-            # 【修复BUG-03】将无限while循环改为有界强化训练：
-            # 最多执行 MAX_EXTRA_ROUNDS 轮，且总时长不得超过 max_training_hours，
-            # 防止永久阻塞调度线程。
+            # 【V10.4.1优化】将无限while循环改为有界强化训练：
+            # 云端CI环境更激进，防止超过GitHub Actions 6小时硬超时
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
 
-            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
-            max_training_hours = 10.0     # 绝对上限（小时）
-            extra_round = 0
+            # 【V10.4.1新增】环境检测：CI/云端环境启用快速模式
+            is_ci = self._is_ci_env()
+            if is_ci:
+                logger.info("  [环境检测] 云端CI环境 → 启用快速训练模式")
+                max_total_hours = 1.5      # CI环境：总训练≤1.5h
+                max_extra_rounds = 1        # CI环境：最多1轮强化
+            else:
+                logger.info("  [环境检测] 本地环境 → 标准训练模式")
+                max_total_hours = 2.0      # 本地环境：总训练≤2.0h
+                max_extra_rounds = 2        # 本地环境：最多2轮强化
 
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
+            extra_round = 0
+            logger.info(f"  [强化训练] 目标总时长≤{max_total_hours:.1f}h, 最多{max_extra_rounds}轮")
+
+            while elapsed < max_total_hours and extra_round < max_extra_rounds:
                 extra_round += 1
-                remaining = 5.0 - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
-                self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
+                remaining = max_total_hours - elapsed
+                logger.info(f"  [强化训练] 第{extra_round}/{max_extra_rounds}轮，还需 {remaining:.1f}h 达上限")
+                self.log_status("深度学习", f"强化训练{extra_round}/{max_extra_rounds}", 90)
 
                 try:
                     for pos in ["wan", "qian", "bai", "shi", "ge"]:
@@ -1340,7 +1419,7 @@ class AutoSchedulerV8:
                             for name, model in predictor.stacking[pos].position_models.items():
                                 if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
                                     model.warm_start = True
-                                    model.n_estimators += 30
+                                    model.n_estimators += 20  # 增量从30降为20，更快收敛
                                     logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
                     predictor.fit(df_features, feature_cols, parallel=False)
                     predictor.save_models()
@@ -1349,8 +1428,8 @@ class AutoSchedulerV8:
                     logger.warning(f"  [强化训练] 第{extra_round}轮失败，跳过: {reinforce_err}")
 
                 elapsed = (datetime.now() - start_time).total_seconds() / 3600
-                if elapsed >= max_training_hours:
-                    logger.info(f"  已达最大训练时长 {max_training_hours}h，停止")
+                if elapsed >= max_total_hours:
+                    logger.info(f"  已达最大训练时长 {max_total_hours:.1f}h，停止")
                     break
             
             # 【V10.3优化】保存特征版本，确保训练和预测一致
@@ -2158,7 +2237,12 @@ class AutoSchedulerV8:
             # 1. 验证推理策略
             logger.info(f"步骤1 [{round_name}]: 验证当前推理策略...")
             evaluator = StrategyEvaluator()
-            evaluation_result = evaluator.evaluate_all_strategies(test_window=20)
+            # 【V10.4.1修复】CI环境使用更短目标时长，防止佐证任务超时
+            target_min = 15 if self._is_ci_env() else 25
+            evaluation_result = evaluator.evaluate_all_strategies(
+                test_window=20,
+                target_duration_minutes=target_min
+            )
             # 【V10.3修复】添加 None 检查，防止 best_strategy 为 None 时出错
             best_strategy = evaluation_result.get('best_strategy', {})
             if best_strategy:
@@ -2329,14 +2413,21 @@ class AutoSchedulerV8:
             evaluator = StrategyEvaluator()
             sls = SelfLearningSystem()
             
-            # 使用多个测试窗口进行深度优化
-            test_windows = [15, 20, 25, 30, 35]
+            # 【V10.4.1新增】环境检测：CI/云端环境减少窗口数，更激进
+            is_ci = self._is_ci_env()
+            if is_ci:
+                logger.info("  [环境检测] 云端CI环境 → 使用更少窗口 + 更短单窗口时长")
+                test_windows = [15, 25, 35]         # 3个窗口（原为5个）
+                task9_total_target_minutes = 30      # 总目标30分钟
+            else:
+                logger.info("  [环境检测] 本地环境 → 标准优化模式")
+                test_windows = [15, 20, 25, 30, 35]  # 5个窗口
+                task9_total_target_minutes = 60      # 总目标60分钟
+
             all_results = []
 
-            # 控制总耗时：每个窗口 ~12 分钟（5 窗口 ≈ 60 分钟）
-            task9_total_target_minutes = 60
             target_per_window = max(
-                10,
+                8,  # 至少8分钟（保证第一阶段快速评估可完成）
                 task9_total_target_minutes // len(test_windows)
             )
             logger.info(
@@ -2445,7 +2536,12 @@ class AutoSchedulerV8:
             # 1. 最终验证推理策略
             logger.info("步骤1: 最终验证推理策略...")
             evaluator = StrategyEvaluator()
-            evaluation_result = evaluator.evaluate_all_strategies(test_window=25)
+            # 【V10.4.1修复】CI环境使用更短目标时长
+            target_min = 15 if self._is_ci_env() else 25
+            evaluation_result = evaluator.evaluate_all_strategies(
+                test_window=25,
+                target_duration_minutes=target_min
+            )
             logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
             
             # 2. 加载数据

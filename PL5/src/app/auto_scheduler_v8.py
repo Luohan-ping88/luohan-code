@@ -596,10 +596,23 @@ class AutoSchedulerV8:
 
     @staticmethod
     def _is_ci_env() -> bool:
+        """检测是否运行在云端/CI/资源受限环境
+        
+        TRAE SOLO CN 环境特征：
+        - TRAE_ENV_INITIALIZED=1
+        - SLARDAR_BID=trae_remote_cn
+        - 通常 CPU ≤ 4核，内存 ≤ 8GB
+        """
         return (
+            # GitHub Actions / CI
             os.environ.get('GITHUB_ACTIONS') == 'true' or
             os.environ.get('CI') == 'true' or
+            # Docker 容器
             os.environ.get('DOCKER') == 'true' or
+            # TRAE SOLO CN 云端 IDE
+            os.environ.get('TRAE_ENV_INITIALIZED') == '1' or
+            os.environ.get('SLARDAR_BID', '').startswith('trae') or
+            # 其他云端环境标记
             os.environ.get('CLOUD_ENV') == 'true'
         )
 

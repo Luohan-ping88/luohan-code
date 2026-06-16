@@ -42,6 +42,31 @@ from src.core.workflow.intelligent_time_scheduler import IntelligentTimeSchedule
 
 logger = get_logger('scheduler')
 
+# 【V10.4.2新增】通用 JSON 序列化辅助函数，处理 numpy 类型
+def json_serialize(obj):
+    """将 numpy.int64/numpy.float64 等类型转换为 Python 基本类型"""
+    import numpy as np
+    if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(obj)
+    if isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    # 其他类型尝试用 str 处理
+    try:
+        return str(obj)
+    except Exception:
+        return repr(obj)
+
+def json_dump_safe(f, data, **kwargs):
+    """安全的 JSON dump，自动处理 numpy 类型"""
+    kwargs.setdefault('default', json_serialize)
+    kwargs.setdefault('ensure_ascii', False)
+    kwargs.setdefault('indent', 2)
+    json.dump(data, f, **kwargs)
+
 # 任务依赖关系定义
 TASK_DEPENDENCIES = {
     'data_fetch': [],
@@ -616,6 +641,40 @@ class AutoSchedulerV8:
             os.environ.get('CLOUD_ENV') == 'true'
         )
 
+    @staticmethod
+    def _safe_get_best_strategy(evaluation_result: Dict) -> Tuple[str, float]:
+        """【V10.4.2新增】安全地从评估结果中提取最佳策略
+        
+        防止 'NoneType' object has no attribute 'get' 错误
+        
+        Returns:
+            Tuple[str, float]: (策略名称, 得分) - 如果无有效策略返回 ('未知', 0.0)
+        """
+        if evaluation_result is None:
+            logger.warning("[_safe_get_best_strategy] evaluation_result 为 None")
+            return ('未知', 0.0)
+        
+        best_strategy = evaluation_result.get('best_strategy')
+        if best_strategy is None or not isinstance(best_strategy, dict):
+            # 检查是否有错误信息
+            error = evaluation_result.get('error', '')
+            if error:
+                logger.warning(f"[_safe_get_best_strategy] 评估失败: {error}")
+            else:
+                logger.warning("[_safe_get_best_strategy] best_strategy 为 None 或类型异常")
+            return ('未知', 0.0)
+        
+        name = best_strategy.get('name', '未知')
+        score = best_strategy.get('score', 0.0)
+        
+        # 确保返回基本类型（防止 numpy 类型）
+        if hasattr(name, '__str__'):
+            name = str(name)
+        if hasattr(score, '__float__'):
+            score = float(score)
+        
+        return (name, score)
+
     def execute_with_retry(self, task_func, task_name: str, *args, **kwargs):
         """执行任务并带重试机制 - 增强版，支持结构化日志和错误分类 + 单任务硬超时"""
         structured_logger.log_operation_start(
@@ -831,34 +890,24 @@ class AutoSchedulerV8:
             logger.info("【智能决策】根据命中率决定后续操作")
             logger.info("=" * 80)
             
-            # 获取最佳策略的评估结果
-            best_strategy = evaluation_result.get('best_strategy', {})
-            if best_strategy:
-                best_name = best_strategy.get('name', '未知')
-                
-                # 获取最佳策略的详细结果
-                strategies = evaluation_result.get('strategies', {})
-                best_result = strategies.get(best_name, {})
-                overall = best_result.get('overall', {})
-                
-                top1_accuracy = overall.get('top1_accuracy', 0)
-                top3_accuracy = overall.get('top3_accuracy', 0)
-                top5_accuracy = overall.get('top5_accuracy', 0)
-                top8_accuracy = overall.get('top8_accuracy', 0)
-                
-                logger.info(f"  最佳策略: {best_name}")
-                logger.info(f"  Top-1准确率: {top1_accuracy:.4f}")
-                logger.info(f"  Top-3准确率: {top3_accuracy:.4f}")
-                logger.info(f"  Top-5准确率: {top5_accuracy:.4f}")
-                logger.info(f"  Top-8准确率: {top8_accuracy:.4f}")
-            else:
-                # 没有找到最佳策略，使用默认值
-                best_name = '未知'
-                top1_accuracy = 0
-                top3_accuracy = 0
-                top5_accuracy = 0
-                top8_accuracy = 0
-                logger.info("  未找到最佳策略，使用默认值")
+            # 获取最佳策略的评估结果（使用安全方法）
+            best_name, best_score = self._safe_get_best_strategy(evaluation_result)
+            
+            # 获取最佳策略的详细结果
+            strategies = evaluation_result.get('strategies', {})
+            best_result = strategies.get(best_name, {}) if best_name != '未知' else {}
+            overall = best_result.get('overall', {})
+            
+            top1_accuracy = float(overall.get('top1_accuracy', 0))
+            top3_accuracy = float(overall.get('top3_accuracy', 0))
+            top5_accuracy = float(overall.get('top5_accuracy', 0))
+            top8_accuracy = float(overall.get('top8_accuracy', 0))
+            
+            logger.info(f"  最佳策略: {best_name}")
+            logger.info(f"  Top-1准确率: {top1_accuracy:.4f}")
+            logger.info(f"  Top-3准确率: {top3_accuracy:.4f}")
+            logger.info(f"  Top-5准确率: {top5_accuracy:.4f}")
+            logger.info(f"  Top-8准确率: {top8_accuracy:.4f}")
             
             # 智能决策阈值
             # Top-3准确率 > 0.4 → 表现很好，只需要策略微调
@@ -971,11 +1020,11 @@ class AutoSchedulerV8:
             report = evaluator.get_strategy_comparison_report(evaluation_result)
             logger.info(f"\n{report}")
             
-            # 找出最佳策略
-            best_strategy = evaluation_result.get('best_strategy', {})
-            if best_strategy:
-                logger.info(f"\n🏆 发现最佳策略: {best_strategy.get('name')}")
-                logger.info(f"   Top-3准确率: {best_strategy.get('score', 0):.4f}")
+            # 找出最佳策略（使用安全方法）
+            best_name, best_score = self._safe_get_best_strategy(evaluation_result)
+            if best_name != '未知':
+                logger.info(f"\n🏆 发现最佳策略: {best_name}")
+                logger.info(f"   Top-3准确率: {best_score:.4f}")
                 logger.info(f"   如果使用这个策略，又会怎么样？可能会有更好的预测效果！")
             
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
@@ -989,7 +1038,7 @@ class AutoSchedulerV8:
                     "suggestions_count": len(suggestions) if suggestions else 0, 
                     "optimization_needed": len(suggestions) > 0, 
                     "optimization_duration": final_elapsed,
-                    "best_strategy": best_strategy,
+                    "best_strategy": {"name": best_name, "score": best_score},
                     "strategy_tested": 1
                 })
             
@@ -2256,17 +2305,16 @@ class AutoSchedulerV8:
                 test_window=20,
                 target_duration_minutes=target_min
             )
-            # 【V10.3修复】添加 None 检查，防止 best_strategy 为 None 时出错
-            best_strategy = evaluation_result.get('best_strategy', {})
-            if best_strategy:
-                logger.info(f"  最佳策略: {best_strategy.get('name', '未知')}")
-            else:
-                logger.info(f"  最佳策略: 未知")
+            # 【V10.4.2修复】使用安全方法获取最佳策略
+            best_name, best_score = self._safe_get_best_strategy(evaluation_result)
+            logger.info(f"  最佳策略: {best_name}")
             
             # 2. 加载原始数据（使用 update_data 确保最新数据）
             collector = PL5DataCollector()
             data = collector.load_processed_data()
-            logger.info(f"  原始数据: {len(data)} 条，最新期号: {int(data['period'].iloc[-1])}")
+            # 【V10.4.2修复】强制转 int 防止 numpy.int64
+            latest_period = int(data['period'].iloc[-1])
+            logger.info(f"  原始数据: {len(data)} 条，最新期号: {latest_period}")
             
             # 【V10.1修复】使用与训练一致的特征配置
             best_config = self._get_best_feature_config()
@@ -2469,15 +2517,14 @@ class AutoSchedulerV8:
 
                 time.sleep(5)  # 每次测试间隔（缩短空等时间）
             
-            # 分析所有测试结果，找出最优策略
-            best_strategy_name = None
-            best_score = -1
+            # 分析所有测试结果，找出最优策略（使用安全方法）
+            best_strategy_name = '未知'
+            best_score = 0.0
             for result_data in all_results:
-                strategy = result_data['result'].get('best_strategy', {})
-                score = strategy.get('score', 0)
+                name, score = self._safe_get_best_strategy(result_data['result'])
                 if score > best_score:
                     best_score = score
-                    best_strategy_name = strategy.get('name')
+                    best_strategy_name = name
             
             logger.info(f"\n🏆 深度优化完成，最佳策略: {best_strategy_name}, 得分: {best_score:.4f}")
             
@@ -2555,7 +2602,9 @@ class AutoSchedulerV8:
                 test_window=25,
                 target_duration_minutes=target_min
             )
-            logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
+            # 【V10.4.2修复】使用安全方法获取最佳策略
+            best_name, best_score = self._safe_get_best_strategy(evaluation_result)
+            logger.info(f"  当前最佳策略: {best_name}")
             
             # 2. 加载数据
             collector = PL5DataCollector()

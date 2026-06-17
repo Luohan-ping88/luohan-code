@@ -863,9 +863,11 @@ class AutoSchedulerV8:
             evaluator = StrategyEvaluator()
             sls = SelfLearningSystem()
             
-            # 生成优化建议
-            suggestions = sls.generate_optimization_suggestions()
-            logger.info(f"优化建议: {suggestions}")
+            # 生成优化建议（修复：使用实际存在的方法名 generate_structured_suggestions）
+            suggestions = sls.generate_structured_suggestions()
+            logger.info(f"优化建议: {len(suggestions) if suggestions else 0} 条")
+            for sug in (suggestions or [])[:5]:
+                logger.info(f"  - [{sug.priority.name}] {sug.title}: {sug.description[:80]}")
             
             # 测试不同策略的效果 - 这是最重要的！
             logger.info("  开始测试不同推理策略的效果...")
@@ -889,11 +891,14 @@ class AutoSchedulerV8:
             logger.info(f"\n{report}")
             
             # 找出最佳策略
-            best_strategy = evaluation_result.get('best_strategy', {})
-            if best_strategy:
+            best_strategy = evaluation_result.get('best_strategy') if evaluation_result else None
+            if best_strategy and isinstance(best_strategy, dict):
                 logger.info(f"\n🏆 发现最佳策略: {best_strategy.get('name')}")
                 logger.info(f"   Top-3准确率: {best_strategy.get('score', 0):.4f}")
                 logger.info(f"   如果使用这个策略，又会怎么样？可能会有更好的预测效果！")
+            else:
+                best_strategy = {}
+                logger.warning("  未找到最佳策略（模型可能未加载），使用空策略继续")
             
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  策略优化完成，耗时: {final_elapsed:.2f} 小时")
@@ -2354,7 +2359,13 @@ class AutoSchedulerV8:
             best_strategy_name = None
             best_score = -1
             for result_data in all_results:
-                strategy = result_data['result'].get('best_strategy', {})
+                # 修复：防御 evaluate_all_strategies 返回 None 或 best_strategy 为 None
+                result = result_data.get('result')
+                if not result or not isinstance(result, dict):
+                    continue
+                strategy = result.get('best_strategy')
+                if not strategy or not isinstance(strategy, dict):
+                    continue
                 score = strategy.get('score', 0)
                 if score > best_score:
                     best_score = score

@@ -333,7 +333,9 @@ class IntelligentWorkflowOrchestrator:
         
         dependencies = self.task_dependencies[task_name]
         for dep in dependencies:
-            if self.get_task_status(dep) != TaskStatus.COMPLETED.value:
+            dep_status = self.get_task_status(dep)
+            # 修复：依赖任务已完成或已失败时均允许继续（容错降级，避免级联阻塞）
+            if dep_status not in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value):
                 return False
         return True
     
@@ -350,8 +352,8 @@ class IntelligentWorkflowOrchestrator:
             return False
         
         if not self.can_start_task(task_name):
-            logger.warning(f"[WorkflowOrchestrator] 任务依赖未满足: {task_name}")
-            return False
+            # 修复：依赖未满足时降级警告但允许继续（避免级联阻塞整条链路）
+            logger.warning(f"[WorkflowOrchestrator] 任务依赖未满足，降级继续: {task_name}")
         
         if self.get_workflow_status() == WorkflowStatus.IDLE.value:
             self.state["workflow_status"] = WorkflowStatus.RUNNING.value

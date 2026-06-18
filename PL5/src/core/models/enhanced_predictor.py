@@ -794,10 +794,20 @@ class EnhancedPL5Predictor:
 
     def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """训练单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
-        y = df[pos].values.astype(int)
-        seq = df[pos].values.reshape(-1, 1)
+        """训练单个位置的所有模型 - 增强版
+
+        修复数据泄露：原实现 y=df[pos]（当前行标签）与 X（含当前行特征）同帧，
+        导致模型学恒等映射。现改为 y=df[pos].shift(-1)（下一期标签），
+        特征用当期及之前，标签用下一期，预测"下一期开奖值"。
+        最后一行无下一期标签，自动剔除。
+        """
+        # 标签对齐：用下一期开奖值作为标签，避免同帧泄露
+        y_next = df[pos].shift(-1)
+        valid_mask = y_next.notna()
+        df_valid = df[valid_mask]
+        X = df_valid[feature_cols].fillna(0).values
+        y = y_next[valid_mask].values.astype(int)
+        seq = df_valid[pos].values.reshape(-1, 1)
 
         # 导入资源管理模块
         from src.core.utils.resource_manager import get_resource_summary
@@ -1198,20 +1208,22 @@ class EnhancedPL5Predictor:
                         p_bsts = np.ones(10) / 10
 
                     if self.copula_model is not None and recent_original_data:
-                        copula_adjustment = np.ones(10)
-                        for d in range(10):
-                            test_values = np.zeros(len(POSITIONS))
-                            for i, p in enumerate(POSITIONS):
-                                if p in recent_original_data:
-                                    data_series = recent_original_data[p]
-                                    # 修复：检查data_series类型，使用不同的方法获取最后一个值
-                                    if hasattr(data_series, 'iloc'):
-                                        test_values[i] = data_series.iloc[-1] if len(data_series) > 0 else 0
-                                    else:
-                                        test_values[i] = data_series[-1] if len(data_series) > 0 else 0
-                            test_values[POSITIONS.index(pos)] = d
-                            copula_adjustment[d] = self.copula_model.get_joint_probability(test_values)
-                        p_copula = copula_adjustment / (copula_adjustment.sum() + 1e-12)
+                        # 修复数据泄露：原实现将其他4个位置固定为上期开奖值，
+                        # 仅变化目标位置，导致"完整上期组合"获最高密度，
+                        # 每个位置 Top-1 必然=上期该位置值。
+                        # 现改为直接用 Copula 的目标位置边缘分布预测，
+                        # 不依赖其他位置的上期值，避免泄露。
+                        try:
+                            p_copula = self.copula_model.get_marginal_proba(pos)
+                            if p_copula is None or len(p_copula) != 10 or not np.isfinite(p_copula).all():
+                                p_copula = np.ones(10) / 10
+                            else:
+                                p_copula = np.array(p_copula, dtype=float)
+                                s = p_copula.sum()
+                                p_copula = p_copula / (s + 1e-12) if s > 0 else np.ones(10) / 10
+                        except Exception as e:
+                            logger.warning(f"[EnhancedPredictor] Copula边缘预测失败: {e}")
+                            p_copula = np.ones(10) / 10
                     else:
                         p_copula = np.ones(10) / 10
 
@@ -1599,69 +1611,41 @@ class EnhancedPL5Predictor:
             state = np.pad(state, (0, target_dim - len(state)))
         return state[:target_dim]
         
-    def _get_dynamic_weights(self, p_stacking: np.ndarray, p_hmm: np.ndarray, p_copula: np.ndarray, 
+    def _get_dynamic_weights(self, p_stacking: np.ndarray, p_hmm: np.ndarray, p_copula: np.ndarray,
                             p_bsts: np.ndarray, p_mamba: np.ndarray, p_itransformer: np.ndarray) -> np.ndarray:
-        """基于模型性能动态调整权重 - 强化随机性类型整合
-        
-        Args:
-            p_stacking: Stacking模型的预测概率
-            p_hmm: HMM模型的预测概率
-            p_copula: Copula模型的预测概率
-            p_bsts: BSTS模型的预测概率
-            p_mamba: Mamba模型的预测概率
-            p_itransformer: iTransformer模型的预测概率
-            
-        Returns:
-            np.ndarray: 动态调整后的权重
+        """基于模型性能动态调整权重
+
+        修复数据泄露：原实现用 peakiness（最大概率）作为质量指标，
+        奖励"尖锐分布"，导致泄露模型（如原 Copula）因产生极度尖锐分布
+        而获得高权重，形成正反馈循环放大泄露。
+
+        现改为：使用固定基础权重，仅对异常分布（全均匀或含 NaN）降权，
+        不再奖励"尖锐度"。真实预测能力应通过回测命中率评估，
+        而非单次预测的自信程度。
         """
-        # 计算每个模型的预测质量指标
-        def calculate_model_quality(probs):
-            """计算模型预测质量"""
-            # 1. 概率分布的峰度（值越大，预测越集中）
-            peakiness = np.max(probs)
-            # 2. 概率分布的熵（值越小，预测越确定）
-            entropy = -np.sum(probs * np.log(probs + 1e-12))
-            # 3. 综合质量分数
-            quality = peakiness * (1 - entropy / np.log(10))
-            return quality
-        
-        # 计算每个模型的质量分数
-        quality_stacking = calculate_model_quality(p_stacking)
-        quality_hmm = calculate_model_quality(p_hmm)
-        quality_copula = calculate_model_quality(p_copula)
-        quality_bsts = calculate_model_quality(p_bsts)
-        quality_mamba = calculate_model_quality(p_mamba)
-        quality_itransformer = calculate_model_quality(p_itransformer)
-        
-        # 基础权重 - 考虑不同模型对不同类型随机性的捕捉能力
-        # Stacking: 认知随机 + 确定性规则的伪随机
-        # HMM: 混沌复杂系统的随机 + 初始条件敏感性
-        # Copula: 认知随机 + 混沌复杂系统的随机
-        # BSTS: 确定性规则的伪随机 + 趋势方向
-        # Mamba: 计算不可约 + 混沌复杂系统的随机
-        # iTransformer: 初始条件敏感性 + 趋势方向
-        base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15])
-        
-        # 质量分数
-        quality_scores = np.array([
-            quality_stacking,
-            quality_hmm,
-            quality_copula,
-            quality_bsts,
-            quality_mamba,
-            quality_itransformer
-        ])
-        
-        # 归一化质量分数
-        quality_scores = quality_scores / (np.sum(quality_scores) + 1e-12)
-        
-        # 动态权重 = 基础权重 * 质量分数
-        dynamic_weights = base_weights * quality_scores
-        
-        # 确保权重不为负
-        dynamic_weights = np.maximum(dynamic_weights, 0.01)
-        
-        return dynamic_weights
+        # 基础权重 - Stacking 为主，其他模型辅助
+        base_weights = np.array([0.30, 0.18, 0.12, 0.10, 0.15, 0.15])
+
+        probs_list = [p_stacking, p_hmm, p_copula, p_bsts, p_mamba, p_itransformer]
+        adjusted = base_weights.copy()
+
+        for i, probs in enumerate(probs_list):
+            # 检测异常分布并降权
+            if probs is None or len(probs) != 10 or not np.isfinite(probs).all():
+                adjusted[i] = 0.01
+                continue
+            s = probs.sum()
+            if s <= 0:
+                adjusted[i] = 0.01
+                continue
+            # 全均匀分布（无信息）轻微降权
+            uniform = np.ones(10) / 10
+            if np.allclose(probs / s, uniform, atol=1e-3):
+                adjusted[i] *= 0.5
+
+        # 归一化
+        total = adjusted.sum()
+        return adjusted / total if total > 0 else base_weights / base_weights.sum()
 
     def _compute_enhanced_reward(self, prediction: Dict, actual: Dict) -> Tuple[float, Dict[str, float]]:
         """计算增强奖励 V3 - 多维度位置加权奖励函数

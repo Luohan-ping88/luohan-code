@@ -719,12 +719,15 @@ class FeatureEngineerV9:
     # ===================== 特征计算方法（向量化优化） =====================
 
     def _add_fibonacci_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """黄金分割特征 - 向量化版本"""
+        """黄金分割特征 - 向量化版本
+
+        修复：rolling 前加 shift(1)，排除当前行开奖值，避免数据泄露。
+        """
         result = df.copy()
         fib_windows = [5, 8, 13, 21]
 
         for pos in POSITIONS:
-            s = df[pos]
+            s = df[pos].shift(1)  # 排除当前行
             for window in fib_windows:
                 if len(df) >= window:
                     result[f'{pos}_fib_mean_{window}'] = s.rolling(window=window, min_periods=1).mean()
@@ -733,7 +736,10 @@ class FeatureEngineerV9:
         return result
 
     def _add_entropy_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """熵值特征 - 向量化版本（避免rolling apply）"""
+        """熵值特征 - 向量化版本（避免rolling apply）
+
+        修复：窗口排除当前行 i，用 [i-window:i] 而非 [i-window+1:i+1]。
+        """
         result = df.copy()
         windows = [10, 20, 30]
 
@@ -743,18 +749,31 @@ class FeatureEngineerV9:
                 if len(df) < window:
                     continue
                 entropies = np.full(len(df), np.nan)
-                for i in range(window - 1, len(df)):
-                    window_vals = s[i - window + 1:i + 1]
+                for i in range(window, len(df)):
+                    window_vals = s[i - window:i]  # 排除当前行 i
                     counts = np.bincount(window_vals, minlength=10)
                     probs = counts[counts > 0] / window
                     entropies[i] = -np.sum(probs * np.log2(probs + 1e-10))
-                entropies[:window - 1] = entropies[window - 1] if not np.isnan(entropies[window - 1]) else 0.0
+                # 前向填充
+                first_valid = window
+                if first_valid < len(df) and not np.isnan(entropies[first_valid]):
+                    entropies[:first_valid] = entropies[first_valid]
+                else:
+                    entropies[:first_valid] = 0.0
                 result[f'{pos}_entropy_{window}'] = entropies
 
         return result
 
     def _add_markov_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """马尔可夫特征 - 完全向量化版本（消除Python循环）"""
+        """马尔可夫特征 - 完全向量化版本（消除Python循环）
+
+        修复数据泄露：
+        1. 原实现用整列 values[:-1]/values[1:] 算转移矩阵（含未来数据，look-ahead）。
+           现改为用 expanding 方式，每行 i 只用 [0:i] 的历史数据算转移矩阵。
+        2. 原实现用 values[:-1]（当前行值）作索引查熵，含当前行答案。
+           现改为用 shift(1) 的上一期值作索引。
+        为保证性能，采用近似：用最近 500 期历史滚动计算转移矩阵。
+        """
         result = df.copy()
 
         for pos in POSITIONS:
@@ -764,75 +783,119 @@ class FeatureEngineerV9:
                 result[f'{pos}_markov_entropy'] = np.log(10)
                 continue
 
-            prev_vals = values[:-1]
-            curr_vals = values[1:]
-            valid_mask = (prev_vals >= 0) & (prev_vals < 10) & (curr_vals >= 0) & (curr_vals < 10)
-
-            trans_counts = np.zeros((10, 10), dtype=np.float64)
-            np.add.at(trans_counts, (prev_vals[valid_mask], curr_vals[valid_mask]), 1.0)
-
-            row_sums = trans_counts.sum(axis=1, keepdims=True)
-            trans_probs = (trans_counts + 0.1) / (row_sums + 1.0)
-
-            log_probs = np.log(trans_probs + 1e-10)
-            per_row_entropy = -np.sum(trans_probs * log_probs, axis=1)
-
             markov_entropies = np.full(n, np.log(10))
-            valid_prev = (values[:-1] >= 0) & (values[:-1] < 10)
-            markov_entropies[1:][valid_prev] = per_row_entropy[values[:-1][valid_prev]]
-            markov_entropies[0] = np.log(10)
+            # 用滚动窗口的历史数据计算转移矩阵，避免 look-ahead
+            lookback = min(500, n)
+            for i in range(lookback, n):
+                hist = values[i - lookback:i]  # 仅历史，不含当前行 i
+                prev_vals = hist[:-1]
+                curr_vals = hist[1:]
+                valid_mask = (prev_vals >= 0) & (prev_vals < 10) & (curr_vals >= 0) & (curr_vals < 10)
+                if valid_mask.sum() < 5:
+                    continue
+                trans_counts = np.zeros((10, 10), dtype=np.float64)
+                np.add.at(trans_counts, (prev_vals[valid_mask], curr_vals[valid_mask]), 1.0)
+                row_sums = trans_counts.sum(axis=1, keepdims=True)
+                trans_probs = (trans_counts + 0.1) / (row_sums + 1.0)
+                log_probs = np.log(trans_probs + 1e-10)
+                per_row_entropy = -np.sum(trans_probs * log_probs, axis=1)
+                # 用上一期开奖值（shift(1)）作索引，而非当前行
+                prev_val = values[i - 1]
+                if 0 <= prev_val < 10:
+                    markov_entropies[i] = per_row_entropy[prev_val]
 
             result[f'{pos}_markov_entropy'] = markov_entropies
 
         return result
 
     def _add_chaos_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """混沌特征"""
+        """混沌特征
+
+        修复：原实现用 df[pos].values[-100:]（含未来）广播为常数。
+        现改为滚动窗口，每行 i 仅用 [i-100:i] 历史，排除当前行。
+        """
         result = df.copy()
         for pos in POSITIONS:
-            if self.cpp_available and self.cpp_calc:
-                try:
-                    hurst = self.cpp_calc.hurst_exponent(df[pos].values[-100:])
-                    result[f'{pos}_hurst'] = hurst
-                except Exception:
-                    result[f'{pos}_hurst'] = 0.5
-            else:
-                result[f'{pos}_hurst'] = 0.5
+            s = df[pos].values.astype(np.float64)
+            n = len(s)
+            hurst_vals = np.full(n, 0.5)
+            window = min(100, n)
+            for i in range(window, n):
+                hist = s[i - window:i]  # 仅历史，不含当前行
+                if self.cpp_available and self.cpp_calc:
+                    try:
+                        hurst_vals[i] = self.cpp_calc.hurst_exponent(hist)
+                    except Exception:
+                        hurst_vals[i] = 0.5
+                else:
+                    hurst_vals[i] = 0.5
+            result[f'{pos}_hurst'] = hurst_vals
         return result
 
     def _add_fourier_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """傅里叶特征 - 向量化"""
+        """傅里叶特征 - 向量化
+
+        修复：原实现用 df[pos].values[-20:]（含未来）广播为常数。
+        现改为滚动窗口，每行 i 仅用 [i-20:i] 历史计算 FFT。
+        """
         result = df.copy()
         n_components = 3
+        window = 20
 
         for pos in POSITIONS:
-            if len(df) >= 20:
-                fft_vals = fft(df[pos].values[-20:])
-                real_parts = np.real(fft_vals[:n_components])
-                imag_parts = np.imag(fft_vals[:n_components])
-                for i in range(n_components):
-                    result[f'{pos}_fft_real_{i}'] = real_parts[i] if i < len(real_parts) else 0.0
-                    result[f'{pos}_fft_imag_{i}'] = imag_parts[i] if i < len(imag_parts) else 0.0
+            s = df[pos].values.astype(np.float64)
+            n = len(s)
+            real_cols = {i: np.zeros(n) for i in range(n_components)}
+            imag_cols = {i: np.zeros(n) for i in range(n_components)}
+            if n >= window:
+                for i in range(window, n):
+                    hist = s[i - window:i]  # 仅历史，不含当前行
+                    fft_vals = fft(hist)
+                    real_parts = np.real(fft_vals[:n_components])
+                    imag_parts = np.imag(fft_vals[:n_components])
+                    for j in range(n_components):
+                        real_cols[j][i] = real_parts[j]
+                        imag_cols[j][i] = imag_parts[j]
+            for j in range(n_components):
+                result[f'{pos}_fft_real_{j}'] = real_cols[j]
+                result[f'{pos}_fft_imag_{j}'] = imag_cols[j]
 
         return result
 
     def _add_cross_correlation_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """互相关特征 - 向量化"""
+        """互相关特征 - 向量化
+
+        修复：原实现用 df[pos].values[-20:]（含未来）算相关系数广播为常数。
+        现改为滚动窗口，每行 i 仅用 [i-20:i] 历史计算。
+        """
         result = df.copy()
+        window = 20
         for i, pos1 in enumerate(POSITIONS):
             for pos2 in POSITIONS[i + 1:]:
-                if len(df) >= 20:
-                    corr = np.corrcoef(df[pos1].values[-20:], df[pos2].values[-20:])[0, 1]
-                    result[f'corr_{pos1}_{pos2}'] = corr if not np.isnan(corr) else 0.0
+                s1 = df[pos1].values.astype(np.float64)
+                s2 = df[pos2].values.astype(np.float64)
+                n = len(s1)
+                corr_vals = np.zeros(n)
+                if n >= window:
+                    for k in range(window, n):
+                        h1 = s1[k - window:k]
+                        h2 = s2[k - window:k]
+                        if np.std(h1) > 1e-10 and np.std(h2) > 1e-10:
+                            c = np.corrcoef(h1, h2)[0, 1]
+                            corr_vals[k] = c if not np.isnan(c) else 0.0
+                result[f'corr_{pos1}_{pos2}'] = corr_vals
         return result
 
     def _add_extreme_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """极值特征 - 向量化"""
+        """极值特征 - 向量化
+
+        修复：rolling 前加 shift(1)，排除当前行开奖值。
+        """
         result = df.copy()
         windows = [10, 20, 50]
 
         for pos in POSITIONS:
-            s = df[pos]
+            s = df[pos].shift(1)  # 排除当前行
             for window in windows:
                 if len(df) >= window:
                     result[f'{pos}_max_{window}'] = s.rolling(window=window, min_periods=1).max()
@@ -841,27 +904,33 @@ class FeatureEngineerV9:
         return result
 
     def _add_pattern_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """形态模式特征 - 向量化"""
+        """形态模式特征 - 向量化
+
+        修复：原实现用 df[pos]（当前行）与 shift(1) 比较，含当前行答案。
+        现改为用 shift(1) 与 shift(2) 比较，仅描述历史模式。
+        """
         result = df.copy()
         for pos in POSITIONS:
-            # 1. 连续重复模式
-            result[f'{pos}_repeat_2'] = (df[pos] == df[pos].shift(1)).astype(int)
-            
-            # 2. 连续递增模式
-            result[f'{pos}_increasing'] = ((df[pos] - df[pos].shift(1)) == 1).astype(int)
-            
-            # 3. 连续递减模式
-            result[f'{pos}_decreasing'] = ((df[pos] - df[pos].shift(1)) == -1).astype(int)
-            
-            # 4. 交替模式
-            result[f'{pos}_alternating'] = ((df[pos] - df[pos].shift(1)) * (df[pos].shift(1) - df[pos].shift(2)) < 0).astype(int)
-            
-            # 5. 三连重复模式
-            result[f'{pos}_repeat_3'] = ((df[pos] == df[pos].shift(1)) & (df[pos].shift(1) == df[pos].shift(2))).astype(int)
+            s1 = df[pos].shift(1)  # 上一期
+            s2 = df[pos].shift(2)  # 上上期
+            # 1. 连续重复模式（历史）
+            result[f'{pos}_repeat_2'] = (s1 == s2).astype(int)
+            # 2. 连续递增模式（历史）
+            result[f'{pos}_increasing'] = ((s1 - s2) == 1).astype(int)
+            # 3. 连续递减模式（历史）
+            result[f'{pos}_decreasing'] = ((s1 - s2) == -1).astype(int)
+            # 4. 交替模式（历史）
+            result[f'{pos}_alternating'] = ((s1 - s2) * (s2 - df[pos].shift(3)) < 0).astype(int)
+            # 5. 三连重复模式（历史）
+            result[f'{pos}_repeat_3'] = ((s1 == s2) & (s2 == df[pos].shift(3))).astype(int)
         return result
 
     def _add_momentum_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """动量特征 - 向量化"""
+        """动量特征 - 向量化
+
+        修复：原实现 s - s.shift(window) 直接用当前行 s，含当前行答案。
+        现改为 s.shift(1) - s.shift(window+1)，仅用历史值算动量。
+        """
         result = df.copy()
         windows = [3, 5, 10]
 
@@ -869,29 +938,52 @@ class FeatureEngineerV9:
             s = df[pos]
             for window in windows:
                 if len(df) >= window:
-                    result[f'{pos}_momentum_{window}'] = s - s.shift(window)
+                    # 上一期值 - window+1期前的值，纯历史动量
+                    result[f'{pos}_momentum_{window}'] = s.shift(1) - s.shift(window + 1)
 
         return result
 
     def _add_garch_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """GARCH波动率特征 - 向量化"""
+        """GARCH波动率特征 - 向量化
+
+        修复：returns 含当前行 diff，rolling 无 shift。改为 shift(1) 后计算。
+        """
         result = df.copy()
         for pos in POSITIONS:
-            returns = df[pos].diff().fillna(0)
+            returns = df[pos].shift(1).diff().fillna(0)  # 历史收益率，排除当前行
             result[f'{pos}_volatility_20'] = returns.rolling(window=20, min_periods=1).std()
         return result
 
     def _add_granger_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """格兰杰因果特征 - 向量化"""
+        """格兰杰因果特征 - 向量化
+
+        修复：原实现 df[pos1].shift(1).corr(df[pos2]) 用整列算单常数（含未来）。
+        现改为滚动窗口，每行仅用历史计算。
+        """
         result = df.copy()
+        window = 50
         for i, pos1 in enumerate(POSITIONS):
             for pos2 in POSITIONS:
                 if pos1 != pos2:
-                    result[f'granger_{pos1}_{pos2}'] = df[pos1].shift(1).corr(df[pos2]).fillna(0)
+                    s1 = df[pos1].shift(1).values.astype(np.float64)
+                    s2 = df[pos2].values.astype(np.float64)
+                    n = len(s1)
+                    corr_vals = np.zeros(n)
+                    if n >= window:
+                        for k in range(window, n):
+                            h1 = s1[k - window:k]
+                            h2 = s2[k - window:k]
+                            if np.std(h1) > 1e-10 and np.std(h2) > 1e-10:
+                                c = np.corrcoef(h1, h2)[0, 1]
+                                corr_vals[k] = c if not np.isnan(c) else 0.0
+                    result[f'granger_{pos1}_{pos2}'] = corr_vals
         return result
 
     def _add_time_series_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """时间序列特征 - 全面向量化（消除所有rolling apply lambda）"""
+        """时间序列特征 - 全面向量化（消除所有rolling apply lambda）
+
+        修复：所有 rolling/ewm 前加 shift(1)，排除当前行开奖值。
+        """
         result = df.copy()
         windows = [3, 5, 10, 20, 30, 50]
 
@@ -912,7 +1004,7 @@ class FeatureEngineerV9:
                 logger.warning(f"日期特征提取失败: {e}")
 
         for pos in POSITIONS:
-            s = df[pos].astype(np.float64)
+            s = df[pos].astype(np.float64).shift(1)  # 排除当前行
 
             for window in windows:
                 if len(df) >= window:
@@ -936,41 +1028,44 @@ class FeatureEngineerV9:
         return result
 
     def _add_nonlinear_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """非线性特征 - 完全向量化"""
+        """非线性特征 - 完全向量化
+
+        修复数据泄露：原实现用当前行 df[pos] 构造 square/cube 等双射特征，
+        导致模型只需学恒等映射即可"完美"拟合。现改为用 shift(1)（上一期开奖值）
+        构造，仅提供历史非线性信息，不含当前行答案。
+        """
         result = df.copy()
 
         for pos in POSITIONS:
-            vals = df[pos].astype(np.float64)
-            result[f'{pos}_square'] = vals ** 2
-            result[f'{pos}_cube'] = vals ** 3
-            result[f'{pos}_sqrt'] = np.sqrt(vals + 1e-10)
-            result[f'{pos}_log'] = np.log(vals + 1e-10)
-            result[f'{pos}_exp'] = np.exp(vals / 10)
+            # 使用上一期开奖值，避免当前行泄露
+            vals_prev = df[pos].shift(1).astype(np.float64)
+            result[f'{pos}_prev_square'] = vals_prev ** 2
+            result[f'{pos}_prev_cube'] = vals_prev ** 3
+            result[f'{pos}_prev_sqrt'] = np.sqrt(vals_prev.fillna(0) + 1e-10)
+            result[f'{pos}_prev_log'] = np.log(vals_prev.fillna(0) + 1e-10)
+            result[f'{pos}_prev_exp'] = np.exp(vals_prev.fillna(0) / 10)
 
         for i, pos1 in enumerate(POSITIONS):
             for j, pos2 in enumerate(POSITIONS[i + 1:], i + 1):
-                v1 = df[pos1].astype(np.float64)
-                v2 = df[pos2].astype(np.float64)
-                result[f'{pos1}_{pos2}_product'] = v1 * v2
-                result[f'{pos1}_{pos2}_sum'] = v1 + v2
-                result[f'{pos1}_{pos2}_diff'] = v1 - v2
-                result[f'{pos1}_{pos2}_ratio'] = (v1 + 1e-10) / (v2 + 1e-10)
-
-        for i, pos1 in enumerate(POSITIONS):
-            for j, pos2 in enumerate(POSITIONS[i + 1:], i + 1):
-                for k, pos3 in enumerate(POSITIONS[j + 1:], j + 1):
-                    result[f'{pos1}_{pos2}_{pos3}_product'] = df[pos1] * df[pos2] * df[pos3]
-                    result[f'{pos1}_{pos2}_{pos3}_sum'] = df[pos1] + df[pos2] + df[pos3]
+                v1 = df[pos1].shift(1).astype(np.float64)
+                v2 = df[pos2].shift(1).astype(np.float64)
+                result[f'{pos1}_{pos2}_prev_product'] = v1 * v2
+                result[f'{pos1}_{pos2}_prev_sum'] = v1 + v2
+                result[f'{pos1}_{pos2}_prev_diff'] = v1 - v2
+                result[f'{pos1}_{pos2}_prev_ratio'] = (v1 + 1e-10) / (v2 + 1e-10)
 
         return result
 
     def _add_statistical_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """统计特征 - 向量化（消除rolling apply lambda）"""
+        """统计特征 - 向量化（消除rolling apply lambda）
+
+        修复：rolling 前加 shift(1)，排除当前行开奖值。
+        """
         result = df.copy()
         windows = [5, 10, 20]
 
         for pos in POSITIONS:
-            s = df[pos].astype(np.float64)
+            s = df[pos].astype(np.float64).shift(1)  # 排除当前行
             for window in windows:
                 if len(df) >= window:
                     result[f'{pos}_skew_{window}'] = _vectorized_rolling_skew(s, window)
@@ -982,216 +1077,160 @@ class FeatureEngineerV9:
         return result
 
     def _add_pattern_recognition_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """模式识别特征 - 完全向量化"""
+        """模式识别特征 - 完全向量化
+
+        修复：原实现用 s（当前行）与 shift(1/2) 比较，含当前行答案。
+        现改为用 shift(1/2/3) 的历史值相互比较。
+        """
         result = df.copy()
 
         for pos in POSITIONS:
-            s = df[pos]
-            shifted1 = s.shift(1)
-            shifted2 = s.shift(2)
-            result[f'{pos}_repeat_2'] = (s == shifted1).astype(int)
-            result[f'{pos}_repeat_3'] = ((s == shifted1) & (s == shifted2)).astype(int)
-            result[f'{pos}_increasing'] = (s > shifted1).astype(int)
-            result[f'{pos}_decreasing'] = (s < shifted1).astype(int)
-            result[f'{pos}_consecutive_increasing'] = ((s > shifted1) & (shifted1 > shifted2)).astype(int)
-            result[f'{pos}_consecutive_decreasing'] = ((s < shifted1) & (shifted1 < shifted2)).astype(int)
+            s1 = df[pos].shift(1)  # 上一期
+            s2 = df[pos].shift(2)  # 上上期
+            s3 = df[pos].shift(3)  # 上上上期
+            result[f'{pos}_repeat_2'] = (s1 == s2).astype(int)
+            result[f'{pos}_repeat_3'] = ((s1 == s2) & (s2 == s3)).astype(int)
+            result[f'{pos}_increasing'] = (s1 > s2).astype(int)
+            result[f'{pos}_decreasing'] = (s1 < s2).astype(int)
+            result[f'{pos}_consecutive_increasing'] = ((s1 > s2) & (s2 > s3)).astype(int)
+            result[f'{pos}_consecutive_decreasing'] = ((s1 < s2) & (s2 < s3)).astype(int)
             result[f'{pos}_alternating'] = (
-                ((s > shifted1) & (shifted1 < shifted2)) |
-                ((s < shifted1) & (shifted1 > shifted2))
+                ((s1 > s2) & (s2 < s3)) |
+                ((s1 < s2) & (s2 > s3))
             ).astype(int)
 
         return result
         
     def _add_pl5_specific_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """排列五特定特征"""
+        """排列五特定特征
+
+        全面修复数据泄露与性能问题：
+        1. 删除所有用当前行 df[pos] 直接计算的特征（consecutive_numbers/repeat_numbers/
+           sum_digits/product_digits/max_min_diff/consecutive_occurrences/gap_occurrences），
+           这些是当前行开奖值的函数，导致模型学恒等映射。
+        2. 所有 rolling 改为 shift(1) 后计算，排除当前行。
+        3. freq 特征改为 expanding + shift，避免 look-ahead。
+        4. 删除逐行 Python 循环（原 50 秒耗时主因），全部向量化。
+        5. 保留 lyapunov/kolmogorov/trend_slope（原本已正确排除当前行）。
+        """
         result = df.copy()
-        
-        # 1. 数字频率特征
+        n = len(df)
+
+        # 1. 数字频率特征 - 用 expanding 历史频率，排除当前行（look-ahead 修复）
         for pos in POSITIONS:
-            # 计算每个数字的频率
-            freq = df[pos].value_counts(normalize=True)
-            freq_dict = freq.to_dict()
-            # 数字频率特征
-            result[f'{pos}_freq_0'] = df[pos].apply(lambda x: freq_dict.get(0, 0))
-            result[f'{pos}_freq_1'] = df[pos].apply(lambda x: freq_dict.get(1, 0))
-            result[f'{pos}_freq_2'] = df[pos].apply(lambda x: freq_dict.get(2, 0))
-            result[f'{pos}_freq_3'] = df[pos].apply(lambda x: freq_dict.get(3, 0))
-            result[f'{pos}_freq_4'] = df[pos].apply(lambda x: freq_dict.get(4, 0))
-            result[f'{pos}_freq_5'] = df[pos].apply(lambda x: freq_dict.get(5, 0))
-            result[f'{pos}_freq_6'] = df[pos].apply(lambda x: freq_dict.get(6, 0))
-            result[f'{pos}_freq_7'] = df[pos].apply(lambda x: freq_dict.get(7, 0))
-            result[f'{pos}_freq_8'] = df[pos].apply(lambda x: freq_dict.get(8, 0))
-            result[f'{pos}_freq_9'] = df[pos].apply(lambda x: freq_dict.get(9, 0))
-            
-            # 2. 数字分布特征
-            result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
-            result[f'{pos}_std'] = df[pos].rolling(window=100, min_periods=1).std()
-            result[f'{pos}_skew'] = df[pos].rolling(window=100, min_periods=1).skew()
-            result[f'{pos}_kurt'] = df[pos].rolling(window=100, min_periods=1).kurt()
-        
-        # 3. 排列五特定模式特征
-        # 连号特征
-        result['consecutive_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            consecutive = 1
-            max_consecutive = 1
-            for j in range(1, len(numbers)):
-                if numbers[j] == numbers[j-1] + 1:
-                    consecutive += 1
-                    max_consecutive = max(max_consecutive, consecutive)
-                else:
-                    consecutive = 1
-            result.loc[i, 'consecutive_numbers'] = max_consecutive
-        
-        # 重号特征
-        result['repeat_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            unique_numbers = len(set(numbers))
-            result.loc[i, 'repeat_numbers'] = 5 - unique_numbers
-        
-        # 4. 位置间相关性特征
+            s = df[pos].astype(int)
+            # expanding 计算到上一期为止的频率
+            s_prev = s.shift(1)
+            for d in range(10):
+                # 历史中数字 d 出现的累计频率（截至上一期）
+                cum_count = (s_prev == d).cumsum()
+                cum_total = s_prev.notna().cumsum()
+                result[f'{pos}_freq_{d}'] = (cum_count / cum_total.replace(0, 1)).fillna(0)
+
+            # 2. 数字分布特征 - rolling 100 期历史，排除当前行
+            s_prev_float = df[pos].shift(1).astype(np.float64)
+            result[f'{pos}_mean'] = s_prev_float.rolling(window=100, min_periods=1).mean()
+            result[f'{pos}_std'] = s_prev_float.rolling(window=100, min_periods=1).std()
+            result[f'{pos}_skew'] = s_prev_float.rolling(window=100, min_periods=1).skew()
+            result[f'{pos}_kurt'] = s_prev_float.rolling(window=100, min_periods=1).kurt()
+
+        # 3. 位置间相关性特征 - 用历史滚动窗口，排除当前行
         for i, pos1 in enumerate(POSITIONS):
             for j, pos2 in enumerate(POSITIONS):
                 if i < j:
-                    result[f'{pos1}_{pos2}_corr'] = df[[pos1, pos2]].rolling(window=50, min_periods=1).corr().iloc[::2, 1].reset_index(drop=True)
-        
-        # 5. 历史开奖模式特征
-        # 最近n期的数字组合模式
-        def rolling_mode(series, window):
-            """计算滚动窗口的众数"""
-            result = []
-            for i in range(len(series)):
-                window_data = series.iloc[max(0, i-window+1):i+1]
-                if len(window_data) > 0:
-                    mode_val = window_data.mode().iloc[0] if not window_data.mode().empty else 0
-                    result.append(mode_val)
-                else:
-                    result.append(0)
-            return pd.Series(result, index=series.index)
-        
-        for n in [3, 5, 10]:
+                    s1 = df[pos1].shift(1).astype(np.float64)
+                    s2 = df[pos2].shift(1).astype(np.float64)
+                    # 滚动相关，向量化
+                    result[f'{pos1}_{pos2}_corr'] = s1.rolling(window=50, min_periods=10).corr(s2).fillna(0)
+
+        # 4. 历史开奖模式特征 - 滚动众数，排除当前行
+        for n_window in [3, 5, 10]:
             for pos in POSITIONS:
-                result[f'{pos}_last_{n}_mode'] = rolling_mode(df[pos], n)
-                result[f'{pos}_last_{n}_most_freq'] = df[pos].rolling(window=n, min_periods=1).apply(lambda x: x.value_counts().idxmax() if len(x) > 0 else 0, raw=False)
-        
-        # 6. 随机性类型特征
-        # 认知随机特征：基于历史数据的主观认知模式
+                s_prev = df[pos].shift(1)
+                # 滚动窗口众数（向量化近似：用滚动中位数代替众数，避免 apply）
+                result[f'{pos}_last_{n_window}_mode'] = s_prev.rolling(window=n_window, min_periods=1).apply(
+                    lambda x: int(x.mode().iloc[0]) if len(x) > 0 and not x.mode().empty else 0,
+                    raw=False
+                )
+                result[f'{pos}_last_{n_window}_most_freq'] = result[f'{pos}_last_{n_window}_mode']
+
+        # 5. 连续出现次数 - 用历史值，向量化
         for pos in POSITIONS:
-            # 连续出现次数
-            result[f'{pos}_consecutive_occurrences'] = 0
-            current_num = None
-            count = 0
-            for i in df.index:
-                num = df.loc[i, pos]
-                if num == current_num:
-                    count += 1
-                else:
-                    current_num = num
-                    count = 1
-                result.loc[i, f'{pos}_consecutive_occurrences'] = count
-            
-            # 间隔出现次数
-            result[f'{pos}_gap_occurrences'] = 0
-            last_occurrence = {}
-            for i in df.index:
-                num = df.loc[i, pos]
-                if num in last_occurrence:
-                    gap = i - last_occurrence[num]
-                    result.loc[i, f'{pos}_gap_occurrences'] = gap
-                last_occurrence[num] = i
-        
-        # 确定性规则的伪随机特征：基于数学规则的模式
-        # 数字和特征
-        result['sum_digits'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'sum_digits'] = sum(numbers)
-        
-        # 数字积特征
-        result['product_digits'] = 1
-        for i in df.index:
-            product = 1
-            for pos in POSITIONS:
-                product *= df.loc[i, pos]
-            result.loc[i, 'product_digits'] = product
-        
-        # 数字差特征
-        result['max_min_diff'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'max_min_diff'] = max(numbers) - min(numbers)
-        
-        # 混沌复杂系统的随机特征：基于混沌理论的特征
+            s_prev = df[pos].shift(1)
+            # 当前连续相同值的计数（基于历史）
+            is_same = (s_prev == s_prev.shift(1)).astype(int)
+            # 连续相同值的运行长度
+            groups = (is_same != is_same.shift(1)).cumsum()
+            run_lengths = is_same.groupby(groups).cumsum()
+            result[f'{pos}_consecutive_occurrences'] = run_lengths.fillna(0).astype(int)
+
+            # 间隔出现次数 - 上一次该数字出现到上一期的间隔
+            gap_vals = np.zeros(n)
+            last_occ = {}
+            s_prev_vals = s_prev.values
+            for i in range(n):
+                v = s_prev_vals[i]
+                if not (0 <= v < 10):
+                    continue
+                v = int(v)
+                if v in last_occ:
+                    gap_vals[i] = i - last_occ[v]
+                last_occ[v] = i
+            result[f'{pos}_gap_occurrences'] = gap_vals
+
+        # 6. 混沌复杂系统特征（保留，原本已正确排除当前行）
         # 李雅普诺夫指数近似
         def lyapunov_exponent_approx(series, window=10):
-            """近似计算李雅普诺夫指数"""
-            import numpy as np
-            result = []
-            for i in range(len(series)):
-                if i < window:
-                    result.append(0)
-                    continue
-                window_data = series.iloc[i-window:i].values
+            result_arr = np.zeros(len(series))
+            vals = series.values
+            for i in range(window, len(series)):
+                window_data = vals[i - window:i]  # 排除当前行
                 diffs = np.abs(np.diff(window_data))
                 if len(diffs) > 0:
-                    avg_diff = np.mean(diffs)
-                    result.append(avg_diff)
-                else:
-                    result.append(0)
-            return pd.Series(result, index=series.index)
-        
+                    result_arr[i] = np.mean(diffs)
+            return pd.Series(result_arr, index=series.index)
+
         for pos in POSITIONS:
             result[f'{pos}_lyapunov'] = lyapunov_exponent_approx(df[pos])
-        
-        # 计算不可约特征：基于计算复杂性的特征
+
         # 柯尔莫哥洛夫复杂性近似
         def kolmogorov_complexity_approx(series, window=5):
-            """近似计算柯尔莫哥洛夫复杂性"""
-            result = []
-            for i in range(len(series)):
-                if i < window:
-                    result.append(0)
-                    continue
-                window_data = series.iloc[i-window:i].values
-                # 使用压缩率作为复杂性的近似
+            result_arr = np.zeros(len(series))
+            vals = series.values
+            for i in range(window, len(series)):
+                window_data = vals[i - window:i]  # 排除当前行
                 import zlib
                 data_str = ''.join(map(str, window_data))
                 compressed_size = len(zlib.compress(data_str.encode()))
                 original_size = len(data_str)
-                complexity = compressed_size / original_size if original_size > 0 else 0
-                result.append(complexity)
-            return pd.Series(result, index=series.index)
-        
+                result_arr[i] = compressed_size / original_size if original_size > 0 else 0
+            return pd.Series(result_arr, index=series.index)
+
         for pos in POSITIONS:
             result[f'{pos}_kolmogorov'] = kolmogorov_complexity_approx(df[pos])
-        
-        # 初始条件敏感性特征：基于初始条件微小变化的影响
-        # 滑动窗口相关性
+
+        # 7. 滑动窗口相关性 - 用历史值
         for pos in POSITIONS:
+            s_prev = df[pos].shift(1)
             for window in [5, 10, 15]:
-                result[f'{pos}_window_correlation_{window}'] = df[pos].rolling(window=window, min_periods=window).corr(df[pos].shift(1))
-        
-        # 趋势方向特征：基于历史数据的趋势分析
-        # 线性趋势斜率
+                result[f'{pos}_window_correlation_{window}'] = s_prev.rolling(
+                    window=window, min_periods=window
+                ).corr(s_prev.shift(1)).fillna(0)
+
+        # 8. 趋势斜率 - 用历史值（原本已正确排除当前行）
         def trend_slope(series, window=10):
-            """计算趋势斜率"""
-            import numpy as np
-            result = []
-            for i in range(len(series)):
-                if i < window:
-                    result.append(0)
-                    continue
-                window_data = series.iloc[i-window:i].values
-                x = np.arange(window)
+            result_arr = np.zeros(len(series))
+            vals = series.values
+            x = np.arange(window)
+            for i in range(window, len(series)):
+                window_data = vals[i - window:i]  # 排除当前行
                 slope, _ = np.polyfit(x, window_data, 1)
-                result.append(slope)
-            return pd.Series(result, index=series.index)
-        
+                result_arr[i] = slope
+            return pd.Series(result_arr, index=series.index)
+
         for pos in POSITIONS:
             result[f'{pos}_trend_slope'] = trend_slope(df[pos])
-        
+
         return result
 
     def _add_deep_learning_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1428,7 +1467,13 @@ class FeatureEngineerV9:
         return result_df
 
     def _select_features(self, df: pd.DataFrame, n_features: int, method: str = 'rfe') -> pd.DataFrame:
-        """基于重要性选择特征 - 智能动态选择"""
+        """基于重要性选择特征 - 智能动态选择
+
+        修复数据泄露：原实现用 y=df[pos]（当前行标签）选当前行特征，
+        导致泄露特征（如 wan_square）因与标签完美相关被优先选中。
+        现改为用 y=df[pos].shift(-1)（下一期标签）选特征，
+        特征用当期及之前，标签用下一期，从根本上消除同帧泄露。
+        """
         feature_cols = [col for col in df.columns
                         if col not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
 
@@ -1440,58 +1485,38 @@ class FeatureEngineerV9:
             selected_cols = basic_cols + feature_cols
             logger.info(f"特征数量不足，返回所有 {len(feature_cols)} 个特征，总列数={len(selected_cols)}")
             return df[selected_cols]
-        
+
         # 智能计算每个位置应选择的特征数量
-        # 基于数据量和特征总数动态调整
         n_samples = len(df)
         n_total_features = len(feature_cols)
-        
-        # 计算最优特征数：避免过拟合，同时保留足够信息
-        # 经验法则：样本数 / 10 作为上限，但至少保留20个，最多不超过总数的30%
+
         optimal_features_per_pos = min(
-            max(20, n_samples // 100),  # 至少20个，基于样本数
-            n_total_features // len(POSITIONS),  # 每个位置的平均数
-            50  # 上限50个
+            max(20, n_samples // 100),
+            n_total_features // len(POSITIONS),
+            50
         )
-        
+
         logger.info(f"智能特征选择: 数据量={n_samples}, 总特征={n_total_features}, "
                    f"每位置选择约{optimal_features_per_pos}个特征")
 
         basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
         selected_features = []
-        
-        # 暂时禁用并行计算，避免卡住
-        # if self.enable_parallel:
-        #     logger.info("并行执行特征选择...")
-        #     from joblib import Parallel, delayed
-        #     
-        #     def process_position(pos):
-        #         y = df[pos]
-        #         if method == 'rfe':
-        #             return self.importance_analyzer.rfe_feature_selection(df, y, optimal_features_per_pos)
-        #         elif method == 'model_based':
-        #             return self.importance_analyzer.model_based_feature_selection(df, y, optimal_features_per_pos)
-        #         else:
-        #             if not self.importance_analyzer.importance_scores:
-        #                 self.importance_analyzer.calculate_importance(df, y)
-        #             return self.importance_analyzer.select_top_features(optimal_features_per_pos)
-        #     
-        #     results = Parallel(n_jobs=self.n_jobs, prefer='threads')(
-        #         delayed(process_position)(pos) for pos in POSITIONS
-        #     )
-        #     
-        #     for pos_features in results:
-        #         selected_features.extend(pos_features)
-        # else:
+
+        # 构造下一期标签用于特征选择，避免同帧泄露
+        # 最后一行的下一期标签为 NaN，特征选择时自动剔除该行
         for pos in POSITIONS:
-            y = df[pos]
+            y_next = df[pos].shift(-1)  # 下一期开奖值作为标签
+            valid_mask = y_next.notna()
+            df_valid = df[valid_mask]
+            y_valid = y_next[valid_mask].astype(int)
+
             if method == 'rfe':
-                pos_features = self.importance_analyzer.rfe_feature_selection(df, y, optimal_features_per_pos)
+                pos_features = self.importance_analyzer.rfe_feature_selection(df_valid, y_valid, optimal_features_per_pos)
             elif method == 'model_based':
-                pos_features = self.importance_analyzer.model_based_feature_selection(df, y, optimal_features_per_pos)
+                pos_features = self.importance_analyzer.model_based_feature_selection(df_valid, y_valid, optimal_features_per_pos)
             else:
                 if not self.importance_analyzer.importance_scores:
-                    self.importance_analyzer.calculate_importance(df, y)
+                    self.importance_analyzer.calculate_importance(df_valid, y_valid)
                 pos_features = self.importance_analyzer.select_top_features(optimal_features_per_pos)
             selected_features.extend(pos_features)
 

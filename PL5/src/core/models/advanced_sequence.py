@@ -981,6 +981,48 @@ class MultivariateCopula:
         except Exception:
             return 0.1
 
+    def get_marginal_proba(self, pos: str) -> np.ndarray:
+        """获取指定位置的边缘概率分布（0-9各数字的概率）
+
+        修复数据泄露：原 get_joint_probability 预测时将其他位置固定为上期值，
+        导致泄露。此方法直接用训练时学到的该位置边缘分布（正态近似），
+        计算每个数字 0-9 的概率，不依赖其他位置的上期值。
+
+        Args:
+            pos: 位置名，如 'wan'/'qian'/'bai'/'shi'/'ge'
+
+        Returns:
+            长度为 10 的概率数组，对应数字 0-9
+        """
+        if not self.fitted or not self.marginals:
+            return np.ones(10) / 10
+
+        try:
+            # 位置名到索引的映射
+            positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+            if pos not in positions:
+                return np.ones(10) / 10
+            idx = positions.index(pos)
+
+            if idx not in self.marginals:
+                return np.ones(10) / 10
+
+            mean = self.marginals[idx].get('mean', 4.5)
+            std = self.marginals[idx].get('std', 3.0)
+
+            # 用正态分布计算每个数字 0-9 的概率（离散化）
+            probs = np.zeros(10)
+            for d in range(10):
+                # 用 [d-0.5, d+0.5] 区间的概率质量近似
+                lower = stats.norm.cdf(d - 0.5, loc=mean, scale=std + 1e-10)
+                upper = stats.norm.cdf(d + 0.5, loc=mean, scale=std + 1e-10)
+                probs[d] = max(upper - lower, 1e-6)
+
+            total = probs.sum()
+            return probs / total if total > 0 else np.ones(10) / 10
+        except Exception:
+            return np.ones(10) / 10
+
     def _compute_copula_density(self, u: np.ndarray) -> float:
         """计算Copula密度函数值"""
         try:

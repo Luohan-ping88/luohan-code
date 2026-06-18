@@ -141,6 +141,9 @@ def build_features_unified(df_raw: pd.DataFrame, select_top: Optional[int] = 50,
     """
     使用真实的 FeatureEngineer 构造特征，返回 (df_features, feature_cols)。
     select_top=50 控制特征数量，避免 300+ 维导致训练过慢。
+
+    修复数据泄露：扩展 reserved 集合，防御性排除任何残留的当前值变换特征
+    （如 wan_square/wan_cube 等双射特征），即使特征工程已修复也作为兜底。
     """
     engineer = FeatureEngineer(enable_parallel=False)
     df_features = engineer.extract_all_features(
@@ -150,9 +153,21 @@ def build_features_unified(df_raw: pd.DataFrame, select_top: Optional[int] = 50,
         detect_drift=False,
         enable_scaler=False,
     )
-    # 排除元数据列和位置列，得到纯特征列
+    # 排除元数据列和位置列
     reserved = {"date", "period", "full_number", "parse_line"} | set(POSITIONS)
-    feature_cols = [c for c in df_features.columns if c not in reserved]
+
+    # 防御性排除：任何用当前行开奖值直接变换的泄露特征
+    # （特征工程已改为用 shift(1)，此处兜底防止旧特征名残留）
+    leak_patterns = ('_square', '_cube', '_sqrt', '_log', '_exp',
+                     '_product', '_sum', '_diff', '_ratio')
+    feature_cols = []
+    for c in df_features.columns:
+        if c in reserved:
+            continue
+        # 排除不含 'prev' 前缀的当前值变换特征（修复后的特征含 _prev_ 前缀）
+        if any(c.endswith(p) for p in leak_patterns) and '_prev_' not in c:
+            continue
+        feature_cols.append(c)
     return df_features, feature_cols
 
 

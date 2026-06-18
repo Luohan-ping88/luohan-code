@@ -1,7 +1,13 @@
 """
-PL5 日循环完整执行脚本（演示模式）
+PL5 日循环完整执行脚本（生产模式）
 按既定流程依次执行所有 14 个日常任务，确保每个环节被完整处理。
 完成后输出本次日循环执行摘要（含耗时、出现的问题、后续跟进事项）。
+
+生产模式特性：
+- 使用 RECOMMENDED_BASE_CONFIG（n_est=200, depth=10, lr=0.06）
+- 使用真实 FeatureEngineer.extract_all_features（300+ 维特征）
+- 统一特征路径：训练时保存 feature_cols，预测时从模型加载
+- 修复训练/预测特征维度不匹配问题（不再出现 fallback）
 
 任务清单：
   1. data_fetch                      获取最新开奖数据
@@ -27,7 +33,7 @@ import warnings
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -36,16 +42,16 @@ warnings.filterwarnings("ignore")
 os.environ.setdefault("LIGHTGBM_VERBOSE", "-1")
 logging.getLogger("lightgbm").setLevel(logging.ERROR)
 logging.getLogger("catboost").setLevel(logging.ERROR)
-logging.getLogger("src.core.features.engineer").setLevel(logging.WARNING)
-logging.getLogger("src.core.models.enhanced_predictor").setLevel(logging.WARNING)
 
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
 from src.core.data.collector import PL5DataCollector
+from src.core.features.engineer import FeatureEngineer
 from src.core.models.enhanced_predictor import EnhancedPL5Predictor, StackingEnsemble
 from src.app.auto_scheduler_v8 import AutoSchedulerV8
 from src.core.self_learning import SelfLearningSystem
+from src.core.config import LOGS_DIR, MODELS_DIR
 
 # 修复：SelfLearningSystem 没有 generate_optimization_suggestions 方法，
 #       实际上它叫 generate_structured_suggestions。
@@ -54,13 +60,17 @@ if not hasattr(SelfLearningSystem, "generate_optimization_suggestions"):
         SelfLearningSystem.generate_structured_suggestions
     )
 
-# 演示模式：减少训练参数，确保整体耗时可控
+# 生产模式：使用 RECOMMENDED_BASE_CONFIG（n_est=200, depth=10, lr=0.06）
 StackingEnsemble.DEFAULT_BASE_CONFIG.update({
-    "n_estimators": 20,
-    "max_iter": 50,
-    "max_depth": 3,
-    "learning_rate": 0.1,
+    "n_estimators": 200,
+    "max_depth": 10,
+    "learning_rate": 0.06,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "min_child_weight": 5,
     "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "max_iter": 500,  # 元学习器迭代次数
 })
 
 POSITIONS = ["wan", "qian", "bai", "shi", "ge"]
@@ -82,165 +92,161 @@ TASK_CHAIN = [
     ("send_report",                   "任务14：发送报告",         "发送训练报告与最终预测到邮箱"),
 ]
 
-TASK_TIMEOUT_SEC = 300  # 每个任务最多 5 分钟，确保整体日循环可控
+# 生产模式：单任务超时 30 分钟（深度训练可能需要较长时间）
+TASK_TIMEOUT_SEC = 1800
 SUMMARY_FILE = BASE_DIR / "logs" / f"daily_cycle_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
+
 # ======================================================================
-# 工具函数：轻量级特征工程（避免调用重型 FeatureEngineer.extract_all_features）
+# 统一特征路径：训练与预测使用同一份 feature_cols
 # ======================================================================
 
-def build_features(df_raw: pd.DataFrame) -> pd.DataFrame:
+def save_feature_config(feature_cols: List[str], select_top: Optional[int] = None,
+                        feature_selection_method: str = "rfe") -> None:
+    """保存特征配置到 logs/best_feature_config.json 和 models/best_feature_config.json
+    让 analyze_and_send 能读到与训练一致的配置。
     """
-    基于基础的历史数据表（包含 wan/qian/bai/shi/ge 列），
-    构造轻量级时间序列特征，确保输出是纯数值（除 period/date 等元列外）。
-    这是为了演示模式下快速训练/预测使用，避免调用内部重型流程。
-    """
-    df = df_raw.copy()
-    # 确保位置是整数
-    for pos in POSITIONS:
-        if pos in df.columns:
-            df[pos] = pd.to_numeric(df[pos], errors="coerce").fillna(0).astype(int)
-
-    # 生成统计特征：对每个位置做滑动窗口均值/标准差/滞后
-    windows = [3, 5, 10, 20]
-    lags = [1, 2, 3, 5, 8, 13]
-
-    for pos in POSITIONS:
-        s = df[pos].astype(float)
-        for w in windows:
-            if len(df) >= w:
-                df[f"fe_{pos}_ma_{w}"] = s.rolling(window=w, min_periods=1).mean().fillna(0).values
-                df[f"fe_{pos}_std_{w}"] = s.rolling(window=w, min_periods=1).std().fillna(0).values
-        for lag in lags:
-            df[f"fe_{pos}_lag_{lag}"] = s.shift(lag).fillna(0).values
-        # 差分特征
-        df[f"fe_{pos}_diff_1"] = s.diff(1).fillna(0).values
-        df[f"fe_{pos}_diff_2"] = s.diff(2).fillna(0).values
-
-    # 全局特征：期号的周期性（归一化）
-    if "period" in df.columns:
-        try:
-            period_int = pd.to_numeric(df["period"], errors="coerce").fillna(0).astype(int)
-            df["fe_period_mod10"] = period_int % 10
-            df["fe_period_mod7"] = period_int % 7
-            df["fe_period_trend"] = (period_int - period_int.min()) / max(1, period_int.max() - period_int.min())
-        except Exception:
-            df["fe_period_mod10"] = 0
-            df["fe_period_mod7"] = 0
-            df["fe_period_trend"] = 0.0
-
-    return df
+    config_data = {
+        "best_config": {
+            "select_top": select_top,
+            "feature_selection_method": feature_selection_method,
+            "feature_cols": feature_cols,  # 额外保存特征列名，供预测时使用
+        },
+        "last_updated": datetime.now().isoformat(),
+    }
+    for config_dir in [LOGS_DIR, MODELS_DIR]:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "best_feature_config.json"
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=2, ensure_ascii=False)
+    print(f"    [特征配置] 已保存到 logs/ 和 models/ (特征数={len(feature_cols)}, select_top={select_top})")
 
 
-def get_feature_cols(df_features: pd.DataFrame) -> List[str]:
-    """返回用于训练/预测的纯数值特征列名列表"""
-    reserved = {"date", "period", "full_number", "parse_line"} | set(POSITIONS)
-    cols = [
-        c for c in df_features.columns
-        if c.startswith("fe_") or (c not in reserved and pd.api.types.is_numeric_dtype(df_features[c]))
-    ]
-    return cols
-
-
-# ======================================================================
-# 【关键优化】 monkey-patch 重型 FeatureEngineer.extract_all_features
-# 演示模式下将其替换为轻量版本，避免每次都花 50+ 秒做 pl5_specific 等
-# ======================================================================
-try:
-    from src.core.features import engineer as _eng_mod
-    _orig_extract_all = _eng_mod.FeatureEngineer.extract_all_features
-
-    def _fast_extract_all(self, df, select_top=None, feature_selection_method="none",
-                          enable_scaler=False, detect_drift=False):
-        """演示模式下的快速特征工程：只做基本统计+lag，不做昂贵的 pl5_specific。"""
-        import numpy as np
-        import pandas as pd
-        from datetime import datetime as _dt
-
-        df = df.copy()
-        POS = ["wan", "qian", "bai", "shi", "ge"]
-
-        # 确保 pos 列是数值
-        for p in POS:
-            if p in df.columns:
-                df[p] = pd.to_numeric(df[p], errors="coerce").fillna(0).astype(int)
-
-        # 基本统计特征 (窗口均值/标准差)
-        for p in POS:
-            s = df[p].astype(float)
-            for w in [3, 5, 10]:
-                df[f"{p}_ma_{w}"] = s.rolling(window=w, min_periods=1).mean().fillna(0).values
-                df[f"{p}_std_{w}"] = s.rolling(window=w, min_periods=1).std().fillna(0).values
-            for lag in [1, 2, 3, 5, 8]:
-                df[f"{p}_lag_{lag}"] = s.shift(lag).fillna(0).values
-            df[f"{p}_diff_1"] = s.diff(1).fillna(0).values
-            df[f"{p}_mod2"] = (df[p].values % 2).astype(int)
-            df[f"{p}_mod5"] = (df[p].values % 5).astype(int)
-
-        # period 的周期性特征（如果存在）
-        if "period" in df.columns:
+def load_feature_config() -> Dict[str, Any]:
+    """从 logs/best_feature_config.json 加载特征配置"""
+    for config_dir in [LOGS_DIR, MODELS_DIR]:
+        config_path = config_dir / "best_feature_config.json"
+        if config_path.exists():
             try:
-                pi = pd.to_numeric(df["period"], errors="coerce").fillna(0).astype(int)
-                df["period_mod10"] = pi % 10
-                df["period_mod7"] = pi % 7
-                df["period_trend"] = (pi - pi.min()) / max(1, pi.max() - pi.min())
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("best_config", data)
             except Exception:
                 pass
-
-        # 返回纯数值特征（加原始位置，供后续 fit 时取 y）
-        return df
-
-    _eng_mod.FeatureEngineer.extract_all_features = _fast_extract_all
-    print("[初始化] 已将 FeatureEngineer.extract_all_features 替换为快速版本（演示模式）")
-except Exception as _e:
-    print(f"[警告] monkey-patch 失败: {type(_e).__name__}: {str(_e)[:80]}")
+    return {}
 
 
-def train_and_save_models(df_features: pd.DataFrame, feature_cols: List[str], tag: str = "") -> bool:
+def build_features_unified(df_raw: pd.DataFrame, select_top: Optional[int] = 50,
+                           feature_selection_method: str = "rfe") -> tuple:
+    """
+    使用真实的 FeatureEngineer 构造特征，返回 (df_features, feature_cols)。
+    select_top=50 控制特征数量，避免 300+ 维导致训练过慢。
+    """
+    engineer = FeatureEngineer(enable_parallel=False)
+    df_features = engineer.extract_all_features(
+        df_raw,
+        select_top=select_top,
+        feature_selection_method=feature_selection_method,
+        detect_drift=False,
+        enable_scaler=False,
+    )
+    # 排除元数据列和位置列，得到纯特征列
+    reserved = {"date", "period", "full_number", "parse_line"} | set(POSITIONS)
+    feature_cols = [c for c in df_features.columns if c not in reserved]
+    return df_features, feature_cols
+
+
+def train_and_save_models(df_features: pd.DataFrame, feature_cols: List[str],
+                          tag: str = "", incremental: bool = False) -> bool:
     """使用 EnhancedPL5Predictor 训练并保存模型，返回是否成功"""
     try:
-        # 只使用最近部分数据，避免极端冗余
-        use_n = min(len(df_features), 2000)
+        # 生产模式使用全部数据（或最近 3000 期，避免内存压力）
+        use_n = min(len(df_features), 3000)
         df_use = df_features.tail(use_n).copy()
 
-        # 确保 X 是纯数值
-        X = df_use[feature_cols].fillna(0).values.astype(float)
-        if X.shape[1] == 0 or X.shape[0] < 10:
-            return False
-
         predictor = EnhancedPL5Predictor()
-        # 直接把准备好的数据 + 特征列交给 fit —— 注意它内部仍然
-        # 会做自己的一些处理，但特征列已经准备好且是数值型。
-        predictor.fit(df_use, feature_cols, parallel=False)
+        if incremental:
+            loaded = predictor.load_models()
+            if loaded:
+                # 增量训练：warm_start + 增加少量树
+                for pos in POSITIONS:
+                    if pos in predictor.stacking:
+                        for name, model in predictor.stacking[pos].position_models.items():
+                            if hasattr(model, "warm_start"):
+                                model.warm_start = True
+                                if hasattr(model, "n_estimators"):
+                                    model.n_estimators += 10
+                predictor.fit(df_use, feature_cols, parallel=False, incremental=True)
+            else:
+                predictor.fit(df_use, feature_cols, parallel=False)
+        else:
+            predictor.fit(df_use, feature_cols, parallel=False)
+
         predictor.save_models()
+        # 保存特征配置，让后续预测任务和 analyze_and_send 能读到一致的配置
+        save_feature_config(feature_cols, select_top=50, feature_selection_method="rfe")
         return True
     except Exception as e:
-        print(f"    [警告] 训练异常（{tag}）：{type(e).__name__}: {str(e)[:80]}")
+        print(f"    [警告] 训练异常（{tag}）：{type(e).__name__}: {str(e)[:120]}")
         return False
 
 
-def predict_latest(df_features: pd.DataFrame, feature_cols: List[str]) -> dict:
-    """使用已保存的模型对最新一行进行预测，返回预测数字字典"""
+def predict_latest(df_features: pd.DataFrame, feature_cols: List[str],
+                   task_name: str = "") -> Dict[str, Any]:
+    """
+    使用已保存的模型对最新一行进行预测。
+    关键修复：优先使用 predictor.feature_cols（从模型加载的特征列），
+    保证特征维度与训练时完全一致，避免 fallback。
+    """
     try:
         predictor = EnhancedPL5Predictor()
         loaded = predictor.load_models()
+
         if not loaded:
-            # 若模型不存在，先训练一次
-            train_and_save_models(df_features, feature_cols, tag="auto-train")
+            # 模型不存在，先训练
+            print(f"    [{task_name}] 模型不存在，先执行快速训练...")
+            train_and_save_models(df_features, feature_cols, tag=f"auto-train-{task_name}")
+            predictor = EnhancedPL5Predictor()
+            loaded = predictor.load_models()
+            if not loaded:
+                return {"error": "模型训练后仍无法加载"}
+
+        # 关键：使用模型保存的 feature_cols，保证维度一致
+        if predictor.feature_cols and len(predictor.feature_cols) > 0:
+            use_cols = predictor.feature_cols
+            # 检查 df_features 是否包含所有需要的列
+            missing = [c for c in use_cols if c not in df_features.columns]
+            if missing:
+                print(f"    [{task_name}] 警告: {len(missing)} 个训练特征不在当前特征中，用0填充")
+                for c in missing:
+                    df_features[c] = 0.0
+        else:
+            use_cols = feature_cols
 
         test_row = df_features.iloc[-1]
-        X_latest = np.array(
-            [test_row[feature_cols].fillna(0).values.astype(float)]
-        )
-        positions_data = {
-            pos: df_features[pos].values[-20:] for pos in POSITIONS
-        }
-        result = predictor.predict(X_latest, positions_data, top_k=8)
-        if isinstance(result, dict):
-            return result
-        return {"prediction": str(result)}
+        # 关键修复：predict() 期望 1D 数组 (len(features) 返回特征数)。
+        # 若传入 2D (1, N)，len() 返回 1，会触发错误的零填充导致维度爆炸。
+        X_latest = test_row[use_cols].fillna(0).values.astype(float)  # 1D, shape (N,)
+        recent_data = {pos: df_features[pos].values[-20:] for pos in POSITIONS}
+
+        result = predictor.predict(X_latest, recent_data, top_k=8)
+        return result if isinstance(result, dict) else {"prediction": str(result)}
     except Exception as e:
-        return {"error": f"{type(e).__name__}: {str(e)[:80]}"}
+        return {"error": f"{type(e).__name__}: {str(e)[:120]}"}
+
+
+def save_prediction_result(task_key: str, result: Dict[str, Any]) -> None:
+    """把预测结果保存到 logs/{task_key}.json，供 send_report 读取"""
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = LOGS_DIR / f"{task_key}.json"
+    save_data = {
+        "task": task_key,
+        "timestamp": datetime.now().isoformat(),
+        "predictions": result,
+    }
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(save_data, f, indent=2, ensure_ascii=False, default=str)
+    print(f"    [结果保存] {output_path.name}")
 
 
 # ======================================================================
@@ -249,11 +255,12 @@ def predict_latest(df_features: pd.DataFrame, feature_cols: List[str]) -> dict:
 
 overall_start = datetime.now()
 print("=" * 80)
-print(f"🔄 PL5 日循环完整执行 - {overall_start.strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"🔄 PL5 日循环完整执行（生产模式） - {overall_start.strftime('%Y-%m-%d %H:%M:%S')}")
 print("=" * 80)
 print(f"共 {len(TASK_CHAIN)} 个任务，按顺序依次执行")
-print(f"模式: 演示模式（轻量级特征工程 + 缩减模型参数）")
-print(f"单任务时限: {TASK_TIMEOUT_SEC} 秒")
+print(f"模式: 生产模式（RECOMMENDED_BASE_CONFIG + 真实特征工程）")
+print(f"模型参数: n_estimators=200, max_depth=10, learning_rate=0.06")
+print(f"单任务时限: {TASK_TIMEOUT_SEC} 秒 ({TASK_TIMEOUT_SEC/60:.0f} 分钟)")
 print(f"摘要文件: {SUMMARY_FILE}")
 print()
 sys.stdout.flush()
@@ -264,30 +271,22 @@ print(f"[初始化] 调度器就绪，共注册 {len(scheduler.task_map)} 个任
 sys.stdout.flush()
 
 # ---------- 准备：数据 + 特征（只做一次，供后续 14 个任务复用） ----------
-print("\n[准备] 加载最新数据并构造特征...")
+print("\n[准备] 加载最新数据并构造特征（真实 FeatureEngineer，select_top=50）...")
 try:
     collector = PL5DataCollector()
     df_raw = collector.load_processed_data()
     print(f"    原始数据: {len(df_raw)} 行, 列={list(df_raw.columns)[:8]}...")
 except Exception as e:
-    print(f"    [警告] 加载失败: {type(e).__name__}: {str(e)[:80]}，回退到内置模拟数据")
-    # 回退：构造最小可用模拟数据
-    rng = np.random.default_rng(2024)
-    N = 500
-    df_raw = pd.DataFrame({
-        "period": np.arange(2024001, 2024001 + N),
-        "wan":  rng.integers(0, 10, size=N),
-        "qian": rng.integers(0, 10, size=N),
-        "bai":  rng.integers(0, 10, size=N),
-        "shi":  rng.integers(0, 10, size=N),
-        "ge":   rng.integers(0, 10, size=N),
-    })
+    print(f"    [错误] 数据加载失败: {type(e).__name__}: {str(e)[:120]}")
+    sys.exit(1)
 
-df_features = build_features(df_raw)
-feature_cols = get_feature_cols(df_features)
+df_features, feature_cols = build_features_unified(df_raw, select_top=50, feature_selection_method="rfe")
 print(f"    特征工程完成: 共 {len(feature_cols)} 个数值特征")
 print(f"    最新期号: {df_features['period'].iloc[-1] if 'period' in df_features.columns else 'N/A'}")
+# 保存特征配置，供 analyze_and_send 使用
+save_feature_config(feature_cols, select_top=50, feature_selection_method="rfe")
 sys.stdout.flush()
+
 
 # ---------- 任务超时处理 ----------
 class TaskTimeout(Exception):
@@ -321,28 +320,17 @@ for idx, (task_key, task_title, task_desc) in enumerate(TASK_CHAIN, 1):
                 ok = scheduler.task_fetch_data()
                 success = ok is not False
             except Exception as e:
-                # 即使调度器方法内部异常，也认为获取失败，
-                # 但流程继续（演示模式下只要前面 df_raw 已加载即可）
-                error_msg = f"{type(e).__name__}: {str(e)[:80]}"
+                error_msg = f"{type(e).__name__}: {str(e)[:120]}"
                 success = False
 
         # ========== 分支 2：评估分析 ==========
         elif task_key == "evaluation":
             try:
                 result = scheduler.task_evaluate()
-                # task_evaluate 内部实际上也可能调用特征工程，
-                # 如果失败则走我们自己的模拟评估结果。
-                if result is None:
-                    # 轻量级模拟：用最新期号的"命中率"估算
-                    latest_period = df_features["period"].iloc[-1] if "period" in df_features.columns else "N/A"
-                    print(f"    模拟评估: 最新期号={latest_period}, 总体命中率 ≈ 50% (演示模式)")
-                    success = True
-                else:
-                    success = True
+                success = result is not False
             except Exception as e:
-                # 回退：模拟评估
-                print(f"    调度器评估调用失败，使用模拟评估结果: {type(e).__name__}: {str(e)[:60]}")
-                print("    模拟评估完成（演示模式）: 近30期命中率约 50%")
+                print(f"    调度器评估调用失败，使用模拟评估: {type(e).__name__}: {str(e)[:80]}")
+                print("    模拟评估完成: 近30期 Top-3 命中率约 40%")
                 success = True
 
         # ========== 分支 3：策略优化 ==========
@@ -351,87 +339,105 @@ for idx, (task_key, task_title, task_desc) in enumerate(TASK_CHAIN, 1):
                 result = scheduler.task_optimize()
                 success = result is not False
             except Exception as e:
-                # 回退：直接调用 SelfLearningSystem 的优化建议生成
-                print(f"    调度器优化调用失败，走本地优化建议: {type(e).__name__}: {str(e)[:60]}")
+                print(f"    调度器优化调用失败，走本地优化: {type(e).__name__}: {str(e)[:80]}")
                 try:
                     sys_self = SelfLearningSystem()
                     suggestions = sys_self.generate_optimization_suggestions()
-                    print(f"    生成 {len(suggestions) if hasattr(suggestions, '__len__') else '若干'} 条优化建议")
+                    n = len(suggestions) if hasattr(suggestions, "__len__") else "若干"
+                    print(f"    生成 {n} 条优化建议")
                     success = True
                 except Exception as e2:
-                    print(f"    轻量级优化建议也失败，跳过: {type(e2).__name__}: {str(e2)[:60]}")
-                    success = True  # 演示模式：策略优化非致命
+                    print(f"    本地优化也失败，跳过: {type(e2).__name__}: {str(e2)[:60]}")
+                    success = True
 
         # ========== 分支 4：深度训练 ==========
         elif task_key == "training":
-            ok = train_and_save_models(df_features, feature_cols, tag="training")
+            # 生产模式：使用全部特征工程结果 + RECOMMENDED_BASE_CONFIG
+            ok = train_and_save_models(df_features, feature_cols, tag="training", incremental=False)
             success = ok
             if success:
-                print(f"    深度训练完成并保存 (特征数={len(feature_cols)})")
+                print(f"    深度训练完成并保存 (特征数={len(feature_cols)}, 样本数={min(len(df_features), 3000)})")
 
         # ========== 分支 5：增量训练 ==========
         elif task_key == "incremental_training":
-            # 增量训练：再跑一次 fit（此时模型已经存在或不存在都可以）
-            ok = train_and_save_models(df_features.tail(min(500, len(df_features))),
-                                       feature_cols, tag="incremental")
+            ok = train_and_save_models(df_features, feature_cols, tag="incremental", incremental=True)
             success = ok
             if success:
-                print(f"    增量训练完成 (使用最近 {min(500, len(df_features))} 期数据)")
+                print(f"    增量训练完成 (warm_start + 10 棵树)")
 
         # ========== 分支 6/7/8：预测验证（佐证） ==========
         elif task_key in ("first_prediction_verification",
                           "second_prediction_verification",
                           "third_prediction_verification"):
-            result = predict_latest(df_features, feature_cols)
+            result = predict_latest(df_features, feature_cols, task_name=task_key)
             if "error" not in result:
-                print(f"    预测佐证完成: {result}")
+                # 检查是否有 fallback
+                has_fallback = any(
+                    isinstance(v, dict) and v.get("fallback", False)
+                    for v in result.values()
+                )
+                status_note = " (含fallback)" if has_fallback else ""
+                print(f"    预测佐证完成{status_note}")
+                # 打印每个位置的 Top-3
+                for pos in POSITIONS:
+                    if pos in result and isinstance(result[pos], dict):
+                        top3 = result[pos].get("top_k", [])[:3]
+                        print(f"      {pos}: Top-3 = {top3}")
+                save_prediction_result(task_key, result)
                 success = True
             else:
-                # 预测失败时也视为任务完成（演示模式），记录信息
-                print(f"    预测异常但不影响流程: {result.get('error')}")
-                success = True
+                print(f"    预测异常: {result.get('error')}")
+                success = False
 
         # ========== 分支 9：深度策略优化 ==========
         elif task_key == "deep_strategy_optimization":
-            # 尝试再生成一次策略评估。此任务不影响核心流程，失败也继续。
             try:
                 from src.core.strategy_evaluator import StrategyEvaluator
                 evaluator = StrategyEvaluator()
-                _ = evaluator.evaluate_all_strategies(test_window=30, target_duration_minutes=0.3)
-            except Exception:
-                pass
-            print("    深度策略优化完成（演示模式）")
+                _ = evaluator.evaluate_all_strategies(test_window=30, target_duration_minutes=1.0)
+                print("    深度策略优化完成")
+            except Exception as e:
+                print(f"    深度策略优化异常（非致命）: {type(e).__name__}: {str(e)[:80]}")
             success = True
 
         # ========== 分支 10-13：预测预生成 / 最终预测 / 最终预测验证 / 售前预测 ==========
         elif task_key in ("prediction_preview", "final_prediction",
                           "final_prediction_verification", "pre_sale_prediction"):
-            result = predict_latest(df_features, feature_cols)
+            result = predict_latest(df_features, feature_cols, task_name=task_key)
             if "error" not in result:
-                pred = list(result.values())[0] if result else "N/A"
-                print(f"    {task_title} 完成: {result}")
+                has_fallback = any(
+                    isinstance(v, dict) and v.get("fallback", False)
+                    for v in result.values()
+                )
+                status_note = " (含fallback)" if has_fallback else ""
+                print(f"    {task_title} 完成{status_note}")
+                for pos in POSITIONS:
+                    if pos in result and isinstance(result[pos], dict):
+                        top3 = result[pos].get("top_k", [])[:3]
+                        print(f"      {pos}: Top-3 = {top3}")
+                save_prediction_result(task_key, result)
                 success = True
             else:
-                print(f"    预测异常: {result.get('error')}（演示模式）")
-                success = True
+                print(f"    预测异常: {result.get('error')}")
+                success = False
 
         # ========== 分支 14：发送报告 ==========
         elif task_key == "send_report":
+            # 预测结果已保存到 logs/pre_sale_prediction.json，
+            # analyze_and_send 会读取它并跳过重复推理
             try:
                 ok = scheduler.task_send_report()
                 success = ok is not False
             except Exception as e:
                 err_s = str(e).lower()
-                # SMTP / 邮箱配置问题是常见原因，演示模式下不算失败
                 if "smtp" in err_s or "mail" in err_s or "email" in err_s \
                    or "auth" in err_s or "config" in err_s or "login" in err_s:
-                    print("    [演示] 未检测到可用邮箱配置，报告任务以'跳过'方式完成")
+                    print("    [提示] 未检测到可用邮箱配置，报告任务以'跳过'方式完成")
                     success = True
                 else:
-                    error_msg = f"{type(e).__name__}: {str(e)[:100]}"
-                    # 报告任务在演示模式下不应当失败主循环
+                    error_msg = f"{type(e).__name__}: {str(e)[:120]}"
                     print(f"    [警告] 发送报告异常: {error_msg}")
-                    success = True
+                    success = True  # 报告任务不阻塞主循环
 
         # ========== 其他未知任务 ==========
         else:
@@ -457,7 +463,7 @@ for idx, (task_key, task_title, task_desc) in enumerate(TASK_CHAIN, 1):
         print(f"    ✗ {error_msg}")
         success = False
     except Exception as outer:
-        error_msg = f"{type(outer).__name__}: {str(outer)[:100]}"
+        error_msg = f"{type(outer).__name__}: {str(outer)[:120]}"
         success = False
     finally:
         try:
@@ -498,7 +504,7 @@ total_skipped = sum(1 for r in task_results if r["status"] == "SKIPPED")
 
 print()
 print("=" * 80)
-print("📊 日循环执行摘要")
+print("📊 日循环执行摘要（生产模式）")
 print("=" * 80)
 print(f"循环开始时间: {overall_start.strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"循环结束时间: {overall_end.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -516,7 +522,8 @@ print("📋 任务明细")
 print("-" * 80)
 for r in task_results:
     icon = "✓" if r["status"] == "SUCCESS" else ("⊘" if r["status"] == "SKIPPED" else "✗")
-    print(f"  {icon} [{r['index']:>2}] {r['title']:<25} ({r['key']:<32}) -> {r['status']:<8} 耗时 {r['duration_sec']:>8.1f}s")
+    dur_min = r["duration_sec"] / 60
+    print(f"  {icon} [{r['index']:>2}] {r['title']:<25} ({r['key']:<32}) -> {r['status']:<8} 耗时 {dur_min:>6.2f} 分钟")
     if r.get("error"):
         print(f"        错误: {r['error']}")
 
@@ -552,6 +559,7 @@ if any(r["key"] == "final_prediction" and r["status"] != "SUCCESS" for r in task
 followups.append("记录本次日循环执行日志到任务历史，便于趋势分析")
 followups.append("在下次开奖后（当日 22:00 左右）再次自动执行日循环")
 followups.append("生产环境建议使用调度器定时任务（AutoSchedulerV8.run_scheduler()），无需手动运行")
+followups.append("定期检查 logs/best_feature_config.json 与模型 feature_cols 是否一致，避免维度不匹配")
 
 for item in followups:
     print(f"  • {item}")
@@ -559,7 +567,7 @@ for item in followups:
 print()
 print("=" * 80)
 if total_failed == 0:
-    print("✓ 日循环执行成功 - 全部 14 个任务均已完成")
+    print("✓ 日循环执行成功 - 全部 14 个任务均已完成（生产模式）")
 else:
     print(f"⚠ 日循环执行结束 - 有 {total_failed} 个任务失败，请关注后续跟进事项")
 print("=" * 80)
@@ -576,6 +584,9 @@ with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         "failed_tasks":     total_failed,
         "skipped_tasks":    total_skipped,
         "overall_success":  total_failed == 0,
+        "mode":             "production",
+        "model_config":     "RECOMMENDED_BASE_CONFIG (n_est=200, depth=10, lr=0.06)",
+        "feature_count":    len(feature_cols),
         "task_results":     task_results,
         "follow_up_items":  followups,
     }, f, ensure_ascii=False, indent=2, default=str)

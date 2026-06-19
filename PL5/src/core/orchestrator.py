@@ -317,7 +317,7 @@ class PL5Orchestrator:
             })
             
             # 生成优化建议
-            optimization_suggestions = self_learning.generate_optimization_suggestions()
+            optimization_suggestions = self_learning.generate_structured_suggestions()
             logger.info("生成优化建议:")
             for suggestion in optimization_suggestions[:5]:  # 只打印前5条建议
                 logger.info(f"  - {suggestion}")

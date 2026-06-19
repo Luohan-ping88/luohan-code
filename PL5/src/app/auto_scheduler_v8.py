@@ -864,7 +864,7 @@ class AutoSchedulerV8:
             sls = SelfLearningSystem()
             
             # 生成优化建议
-            suggestions = sls.generate_optimization_suggestions()
+            suggestions = sls.generate_structured_suggestions()
             logger.info(f"优化建议: {suggestions}")
             
             # 测试不同策略的效果 - 这是最重要的！
@@ -889,7 +889,7 @@ class AutoSchedulerV8:
             logger.info(f"\n{report}")
             
             # 找出最佳策略
-            best_strategy = evaluation_result.get('best_strategy', {})
+            best_strategy = evaluation_result.get('best_strategy') or {}
             if best_strategy:
                 logger.info(f"\n🏆 发现最佳策略: {best_strategy.get('name')}")
                 logger.info(f"   Top-3准确率: {best_strategy.get('score', 0):.4f}")
@@ -2354,11 +2354,11 @@ class AutoSchedulerV8:
             best_strategy_name = None
             best_score = -1
             for result_data in all_results:
-                strategy = result_data['result'].get('best_strategy', {})
-                score = strategy.get('score', 0)
+                strategy = result_data['result'].get('best_strategy') or {}
+                score = strategy.get('score', 0) if strategy else 0
                 if score > best_score:
                     best_score = score
-                    best_strategy_name = strategy.get('name')
+                    best_strategy_name = strategy.get('name') if strategy else None
             
             logger.info(f"\n🏆 深度优化完成，最佳策略: {best_strategy_name}, 得分: {best_score:.4f}")
             
@@ -2431,7 +2431,7 @@ class AutoSchedulerV8:
             logger.info("步骤1: 最终验证推理策略...")
             evaluator = StrategyEvaluator()
             evaluation_result = evaluator.evaluate_all_strategies(test_window=25)
-            logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
+            logger.info(f"  当前最佳策略: {(evaluation_result.get('best_strategy') or {}).get('name', '未知')}")
             
             # 2. 加载数据
             collector = PL5DataCollector()

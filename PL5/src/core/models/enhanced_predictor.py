@@ -848,8 +848,10 @@ class EnhancedPL5Predictor:
                 if 'n_estimators' in clf.get_params():
                     params = {
                         'n_estimators': 200,
-                        'verbose': 0
                     }
+                    # 只有接受 verbose 参数的模型才设置（LightGBM等）
+                    if 'verbose' in clf.get_params():
+                        params['verbose'] = 0
                     # 只有支持早停的模型才添加early_stopping_rounds参数
                     if 'early_stopping_rounds' in clf.get_params():
                         params['early_stopping_rounds'] = 10

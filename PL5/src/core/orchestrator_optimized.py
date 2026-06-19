@@ -433,7 +433,7 @@ class PL5OrchestratorOptimized:
                 'evaluation_stats': evaluation_stats
             })
 
-            optimization_suggestions = self.self_learning.generate_optimization_suggestions()
+            optimization_suggestions = self.self_learning.generate_structured_suggestions()
             logger.info("生成优化建议:")
             for suggestion in optimization_suggestions[:5]:
                 logger.info(f"  - {suggestion}")

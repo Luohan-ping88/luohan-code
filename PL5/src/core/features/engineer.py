@@ -754,7 +754,7 @@ class FeatureEngineerV9:
         return result
 
     def _add_markov_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """马尔可夫特征 - 完全向量化版本（消除Python循环）"""
+        """马尔可夫特征 - 累积转移矩阵版本（消除未来数据泄漏）"""
         result = df.copy()
 
         for pos in POSITIONS:
@@ -764,23 +764,36 @@ class FeatureEngineerV9:
                 result[f'{pos}_markov_entropy'] = np.log(10)
                 continue
 
-            prev_vals = values[:-1]
-            curr_vals = values[1:]
-            valid_mask = (prev_vals >= 0) & (prev_vals < 10) & (curr_vals >= 0) & (curr_vals < 10)
-
-            trans_counts = np.zeros((10, 10), dtype=np.float64)
-            np.add.at(trans_counts, (prev_vals[valid_mask], curr_vals[valid_mask]), 1.0)
-
-            row_sums = trans_counts.sum(axis=1, keepdims=True)
-            trans_probs = (trans_counts + 0.1) / (row_sums + 1.0)
-
-            log_probs = np.log(trans_probs + 1e-10)
-            per_row_entropy = -np.sum(trans_probs * log_probs, axis=1)
-
-            markov_entropies = np.full(n, np.log(10))
-            valid_prev = (values[:-1] >= 0) & (values[:-1] < 10)
-            markov_entropies[1:][valid_prev] = per_row_entropy[values[:-1][valid_prev]]
-            markov_entropies[0] = np.log(10)
+            # 使用累积转移矩阵: 对每行i, 只使用0到i-1的转移对
+            # 这样避免了使用未来数据 (消除泄漏)
+            markov_entropies = np.full(n, np.log(10))  # 初始化为均匀分布熵
+            
+            # 增量计算转移计数 (从第一行开始, 逐行累积)
+            cum_trans_counts = np.zeros((10, 10), dtype=np.float64)
+            
+            # 第一行没有前一个值, 使用默认熵
+            for i in range(1, n):
+                prev_val = values[i-1]
+                curr_val = values[i]
+                
+                # 检查有效性
+                if 0 <= prev_val < 10 and 0 <= curr_val < 10:
+                    # 累积转移计数 (只包含当前行之前的转移, 不包含未来)
+                    cum_trans_counts[prev_val, curr_val] += 1.0
+                
+                # 根据累积转移矩阵, 计算当前prev_val状态的转移熵
+                if 0 <= prev_val < 10:
+                    row_counts = cum_trans_counts[prev_val, :]
+                    row_sum = row_counts.sum()
+                    if row_sum > 0:
+                        # Laplace平滑的转移概率
+                        trans_probs = (row_counts + 0.1) / (row_sum + 1.0)
+                        entropy = -np.sum(trans_probs * np.log(trans_probs + 1e-10))
+                        markov_entropies[i] = entropy
+                    else:
+                        markov_entropies[i] = np.log(10)
+                else:
+                    markov_entropies[i] = np.log(10)
 
             result[f'{pos}_markov_entropy'] = markov_entropies
 
@@ -1003,53 +1016,49 @@ class FeatureEngineerV9:
         return result
         
     def _add_pl5_specific_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """排列五特定特征"""
-        result = df.copy()
+        """排列五特定特征 - 修复版（避免数据泄漏和短期记忆偏差）
         
-        # 1. 数字频率特征
+        修复内容:
+        1. freq_* 从全局频率改为累积频率 (只使用到当前行为止的历史数据)
+        2. 移除 last_n_mode / last_n_most_freq (直接编码数字本身, 造成泄漏)
+        3. 移除 consecutive_occurrences / gap_occurrences (追踪当前数字, 非统计特征)
+        4. 向量化模式特征以提升性能
+        """
+        result = df.copy()
+        n_rows = len(df)
+        
+        # 1. 数字频率特征 - 改为累积频率 (无未来数据泄漏)
         for pos in POSITIONS:
-            # 计算每个数字的频率
-            freq = df[pos].value_counts(normalize=True)
-            freq_dict = freq.to_dict()
-            # 数字频率特征
-            result[f'{pos}_freq_0'] = df[pos].apply(lambda x: freq_dict.get(0, 0))
-            result[f'{pos}_freq_1'] = df[pos].apply(lambda x: freq_dict.get(1, 0))
-            result[f'{pos}_freq_2'] = df[pos].apply(lambda x: freq_dict.get(2, 0))
-            result[f'{pos}_freq_3'] = df[pos].apply(lambda x: freq_dict.get(3, 0))
-            result[f'{pos}_freq_4'] = df[pos].apply(lambda x: freq_dict.get(4, 0))
-            result[f'{pos}_freq_5'] = df[pos].apply(lambda x: freq_dict.get(5, 0))
-            result[f'{pos}_freq_6'] = df[pos].apply(lambda x: freq_dict.get(6, 0))
-            result[f'{pos}_freq_7'] = df[pos].apply(lambda x: freq_dict.get(7, 0))
-            result[f'{pos}_freq_8'] = df[pos].apply(lambda x: freq_dict.get(8, 0))
-            result[f'{pos}_freq_9'] = df[pos].apply(lambda x: freq_dict.get(9, 0))
+            values = df[pos].values.astype(int)
+            # 对每个数字d, 计算到每行为止d出现的累积频率
+            for d in range(10):
+                is_d = (values == d).astype(float)
+                cumulative_count = np.cumsum(is_d)
+                cumulative_freq = cumulative_count / (np.arange(n_rows) + 1.0)
+                # 使用平滑: 前几期加入先验, 避免极端值
+                prior = 0.1  # Laplace平滑
+                cumulative_count_smoothed = cumulative_count + prior
+                total_count_smoothed = np.arange(n_rows) + 1 + prior * 10
+                result[f'{pos}_freq_{d}'] = cumulative_count_smoothed / total_count_smoothed
             
-            # 2. 数字分布特征
+            # 2. 数字分布特征 (滚动统计是安全的 - 只用历史数据)
             result[f'{pos}_mean'] = df[pos].rolling(window=100, min_periods=1).mean()
             result[f'{pos}_std'] = df[pos].rolling(window=100, min_periods=1).std()
             result[f'{pos}_skew'] = df[pos].rolling(window=100, min_periods=1).skew()
             result[f'{pos}_kurt'] = df[pos].rolling(window=100, min_periods=1).kurt()
         
-        # 3. 排列五特定模式特征
-        # 连号特征
-        result['consecutive_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            consecutive = 1
-            max_consecutive = 1
-            for j in range(1, len(numbers)):
-                if numbers[j] == numbers[j-1] + 1:
-                    consecutive += 1
-                    max_consecutive = max(max_consecutive, consecutive)
-                else:
-                    consecutive = 1
-            result.loc[i, 'consecutive_numbers'] = max_consecutive
+        # 3. 排列五特定模式特征 - 向量化实现
+        # 连号特征: 同一期内相邻位置是连续数字的最大次数
+        pos_values = np.array([df[pos].values for pos in POSITIONS])
+        # 检查相邻位置是否连续 (pos[j] == pos[j-1] + 1)
+        is_consecutive = (pos_values[1:] == pos_values[:-1] + 1).astype(int)
+        # 计算连续序列的最大长度 (向量化近似)
+        consecutive_count = np.sum(is_consecutive, axis=0) + 1  # +1因为每组至少有一个数字
+        result['consecutive_numbers'] = consecutive_count
         
-        # 重号特征
-        result['repeat_numbers'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            unique_numbers = len(set(numbers))
-            result.loc[i, 'repeat_numbers'] = 5 - unique_numbers
+        # 重号特征: 同一期内重复数字的数量 (5 - 不重复数字个数)
+        unique_counts = np.array([len(set(row)) for row in pos_values.T])
+        result['repeat_numbers'] = 5 - unique_counts
         
         # 4. 位置间相关性特征
         for i, pos1 in enumerate(POSITIONS):
@@ -1057,71 +1066,19 @@ class FeatureEngineerV9:
                 if i < j:
                     result[f'{pos1}_{pos2}_corr'] = df[[pos1, pos2]].rolling(window=50, min_periods=1).corr().iloc[::2, 1].reset_index(drop=True)
         
-        # 5. 历史开奖模式特征
-        # 最近n期的数字组合模式
-        def rolling_mode(series, window):
-            """计算滚动窗口的众数"""
-            result = []
-            for i in range(len(series)):
-                window_data = series.iloc[max(0, i-window+1):i+1]
-                if len(window_data) > 0:
-                    mode_val = window_data.mode().iloc[0] if not window_data.mode().empty else 0
-                    result.append(mode_val)
-                else:
-                    result.append(0)
-            return pd.Series(result, index=series.index)
+        # 注意: 移除 last_n_mode / last_n_most_freq 特征
+        # 原因: 这些特征直接编码"最近出现最多的数字"到特征中
+        # 模型会学到 "last_10_mode=X -> 下期预测X" 的退化规律
+        # 这等同于记住上期号码, 没有预测价值
         
-        for n in [3, 5, 10]:
-            for pos in POSITIONS:
-                result[f'{pos}_last_{n}_mode'] = rolling_mode(df[pos], n)
-                result[f'{pos}_last_{n}_most_freq'] = df[pos].rolling(window=n, min_periods=1).apply(lambda x: x.value_counts().idxmax() if len(x) > 0 else 0, raw=False)
+        # 注意: 移除 consecutive_occurrences / gap_occurrences 特征
+        # 原因: 这些特征追踪"当前数字连续出现次数"和"当前数字距上次出现间隔"
+        # 会导致模型过度依赖"本期数字本身"来预测, 造成短期记忆偏差
         
-        # 6. 随机性类型特征
-        # 认知随机特征：基于历史数据的主观认知模式
-        for pos in POSITIONS:
-            # 连续出现次数
-            result[f'{pos}_consecutive_occurrences'] = 0
-            current_num = None
-            count = 0
-            for i in df.index:
-                num = df.loc[i, pos]
-                if num == current_num:
-                    count += 1
-                else:
-                    current_num = num
-                    count = 1
-                result.loc[i, f'{pos}_consecutive_occurrences'] = count
-            
-            # 间隔出现次数
-            result[f'{pos}_gap_occurrences'] = 0
-            last_occurrence = {}
-            for i in df.index:
-                num = df.loc[i, pos]
-                if num in last_occurrence:
-                    gap = i - last_occurrence[num]
-                    result.loc[i, f'{pos}_gap_occurrences'] = gap
-                last_occurrence[num] = i
-        
-        # 确定性规则的伪随机特征：基于数学规则的模式
-        # 数字和特征
-        result['sum_digits'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'sum_digits'] = sum(numbers)
-        
-        # 数字积特征
-        result['product_digits'] = 1
-        for i in df.index:
-            product = 1
-            for pos in POSITIONS:
-                product *= df.loc[i, pos]
-            result.loc[i, 'product_digits'] = product
-        
-        # 数字差特征
-        result['max_min_diff'] = 0
-        for i in df.index:
-            numbers = [df.loc[i, pos] for pos in POSITIONS]
-            result.loc[i, 'max_min_diff'] = max(numbers) - min(numbers)
+        # 5. 确定性规则的伪随机特征：基于数学规则的模式 - 向量化
+        result['sum_digits'] = np.sum(pos_values, axis=0)
+        result['product_digits'] = np.prod(pos_values, axis=0).astype(float)
+        result['max_min_diff'] = np.max(pos_values, axis=0) - np.min(pos_values, axis=0)
         
         # 混沌复杂系统的随机特征：基于混沌理论的特征
         # 李雅普诺夫指数近似

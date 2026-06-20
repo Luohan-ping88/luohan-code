@@ -539,15 +539,36 @@ class EnhancedPL5Predictor:
         import asyncio
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        self.feature_cols = feature_cols
+        # === 关键修复: 过滤掉位置号码列 (防止数据泄漏) ===
+        # 训练特征中绝不能包含 wan/qian/bai/shi/ge 等目标号码本身
+        # 也不能包含 full_number (它 = wan*10000+qian*1000+bai*100+shi*10+ge)
+        LEAKAGE_COLUMNS = set(POSITIONS) | {'full_number'}
+        safe_feature_cols = [c for c in feature_cols if c not in LEAKAGE_COLUMNS]
+        if len(safe_feature_cols) < len(feature_cols):
+            removed = set(feature_cols) - set(safe_feature_cols)
+            logger.warning(f"[数据泄漏防护] 从特征中移除了泄漏列: {removed}")
+        
+        # 额外检查: 确保没有与目标值完全相同的特征列
+        for pos in POSITIONS:
+            if pos in df.columns and len(safe_feature_cols) > 0:
+                target_vals = df[pos].values
+                for col in list(safe_feature_cols):  # 遍历副本以安全删除
+                    if col in df.columns:
+                        col_vals = df[col].fillna(0).values.astype(int)
+                        if np.array_equal(col_vals, target_vals):
+                            logger.warning(f"[数据泄漏防护] 移除与{pos}完全相同的特征列: {col}")
+                            safe_feature_cols.remove(col)
+        
+        self.feature_cols = safe_feature_cols
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_FEATURE_ENGINEERING,
-            {"data_rows": len(df), "feature_count": len(feature_cols), "parallel": parallel, "incremental": incremental}
+            {"data_rows": len(df), "feature_count": len(safe_feature_cols), "parallel": parallel, "incremental": incremental}
         )
         start_time = time.time()
 
         try:
             logger.debug(f"[训练步骤] 开始训练 - {datetime.now().strftime('%H:%M:%S')}")
+            logger.info(f"[EnhancedPredictor V10] 使用 {len(safe_feature_cols)} 个安全特征列进行训练")
             
             # 检查是否为增量学习
             if incremental:
@@ -562,7 +583,7 @@ class EnhancedPL5Predictor:
                     logger.debug("[训练步骤] 模型未训练，执行完整训练")
                     incremental = False
             
-            X = df[feature_cols].fillna(0).values
+            X = df[safe_feature_cols].fillna(0).values
             actual_dim = X.shape[1]
 
             if actual_dim == 0:
@@ -600,10 +621,10 @@ class EnhancedPL5Predictor:
                         if incremental and pos in self.stacking:
                             # 增量学习：只更新现有模型
                             logger.debug(f"[训练步骤] 提交位置 {pos} 增量学习任务")
-                            future = executor.submit(self._incremental_update_position_models, df, feature_cols, pos, resource_usage)
+                            future = executor.submit(self._incremental_update_position_models, df, safe_feature_cols, pos, resource_usage)
                         else:
                             # 完整训练
-                            future = executor.submit(self._fit_position_models, df, feature_cols, pos, resource_usage)
+                            future = executor.submit(self._fit_position_models, df, safe_feature_cols, pos, resource_usage)
                             logger.debug(f"[训练步骤] 提交位置 {pos} 训练任务")
                         futures[future] = pos
 
@@ -639,10 +660,10 @@ class EnhancedPL5Predictor:
                         if incremental and pos in self.stacking:
                             # 增量学习：只更新现有模型
                             logger.debug(f"[训练步骤] 执行位置 {pos} 增量学习")
-                            result = self._incremental_update_position_models(df, feature_cols, pos, resource_usage)
+                            result = self._incremental_update_position_models(df, safe_feature_cols, pos, resource_usage)
                         else:
                             # 完整训练
-                            result = self._fit_position_models(df, feature_cols, pos, resource_usage)
+                            result = self._fit_position_models(df, safe_feature_cols, pos, resource_usage)
                         self.stacking[pos] = result['stacking']
                         self.hmm_models[pos] = result['hmm']
                         self.bsts_models[pos] = result['bsts']

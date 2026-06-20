@@ -1,0 +1,210 @@
+{
+  "start_time": "2026-06-20T14:08:22.771508",
+  "tasks": [
+    {
+      "key": "data_fetch",
+      "name": "任务1: 数据获取",
+      "description": "获取最新开奖数据",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.65,
+      "start_time": "2026-06-20T14:08:22.771518",
+      "end_time": "2026-06-20T14:08:23.424050",
+      "error": null,
+      "result": {
+        "record_count": 7636,
+        "latest_period": "2026161"
+      }
+    },
+    {
+      "key": "evaluation",
+      "name": "任务2: 评估分析",
+      "description": "评估预测效果与命中率",
+      "status": "SUCCESS",
+      "elapsed_seconds": 50.61,
+      "start_time": "2026-06-20T14:08:23.424061",
+      "end_time": "2026-06-20T14:09:14.035823",
+      "error": null,
+      "result": null
+    },
+    {
+      "key": "optimization",
+      "name": "任务3: 策略优化",
+      "description": "根据评估结果优化推理策略",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.02,
+      "start_time": "2026-06-20T14:09:14.035840",
+      "end_time": "2026-06-20T14:09:14.051919",
+      "error": null,
+      "result": {
+        "optimization_mode": "simplified"
+      }
+    },
+    {
+      "key": "training",
+      "name": "任务4: 深度训练",
+      "description": "训练模型（深度）",
+      "status": "FAILED",
+      "elapsed_seconds": 52.49,
+      "start_time": "2026-06-20T14:09:14.051930",
+      "end_time": "2026-06-20T14:10:06.540729",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'",
+      "result": null
+    },
+    {
+      "key": "incremental_training",
+      "name": "任务5: 增量训练",
+      "description": "上午增量训练",
+      "status": "FAILED",
+      "elapsed_seconds": 50.83,
+      "start_time": "2026-06-20T14:10:06.540759",
+      "end_time": "2026-06-20T14:10:57.368142",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2026-03-13'",
+      "result": null
+    },
+    {
+      "key": "first_prediction_verification",
+      "name": "任务6: 首次预测验证",
+      "description": "首次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 52.05,
+      "start_time": "2026-06-20T14:10:57.368173",
+      "end_time": "2026-06-20T14:11:49.421387",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'",
+      "result": null
+    },
+    {
+      "key": "second_prediction_verification",
+      "name": "任务7: 二次预测验证",
+      "description": "二次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 51.3,
+      "start_time": "2026-06-20T14:11:49.421415",
+      "end_time": "2026-06-20T14:12:40.719265",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'",
+      "result": null
+    },
+    {
+      "key": "third_prediction_verification",
+      "name": "任务8: 三次预测验证",
+      "description": "三次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 52.08,
+      "start_time": "2026-06-20T14:12:40.719290",
+      "end_time": "2026-06-20T14:13:32.795826",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'",
+      "result": null
+    },
+    {
+      "key": "deep_strategy_optimization",
+      "name": "任务9: 深度策略优化",
+      "description": "深度策略优化学习",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T14:13:32.795853",
+      "end_time": "2026-06-20T14:13:32.796107",
+      "error": null,
+      "result": {
+        "verification_count": 0
+      }
+    },
+    {
+      "key": "prediction_preview",
+      "name": "任务10: 预测预生成",
+      "description": "预测预生成",
+      "status": "SUCCESS",
+      "elapsed_seconds": 49.94,
+      "start_time": "2026-06-20T14:13:32.796114",
+      "end_time": "2026-06-20T14:14:22.738667",
+      "error": null,
+      "result": {
+        "next_period": "2026162"
+      }
+    },
+    {
+      "key": "final_prediction",
+      "name": "任务11: 最终预测",
+      "description": "生成最终预测结果",
+      "status": "SUCCESS",
+      "elapsed_seconds": 50.15,
+      "start_time": "2026-06-20T14:14:22.738678",
+      "end_time": "2026-06-20T14:15:12.889408",
+      "error": null,
+      "result": {
+        "next_period": "2026162",
+        "saved_path": "/workspace/PL5/results/final_prediction_2026162.json"
+      }
+    },
+    {
+      "key": "final_prediction_verification",
+      "name": "任务12: 最终预测验证",
+      "description": "最终预测结果佐证",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T14:15:12.889420",
+      "end_time": "2026-06-20T14:15:12.889961",
+      "error": null,
+      "result": {
+        "consistency_check": "PASSED",
+        "verification_count": 0
+      }
+    },
+    {
+      "key": "pre_sale_prediction",
+      "name": "任务13: 售前最终预测",
+      "description": "售前最终预测",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T14:15:12.889968",
+      "end_time": "2026-06-20T14:15:12.890351",
+      "error": null,
+      "result": {
+        "period": "2026162",
+        "confirmed": true
+      }
+    },
+    {
+      "key": "send_report",
+      "name": "任务14: 发送报告",
+      "description": "发送最终报告邮件",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T14:15:12.890357",
+      "end_time": "2026-06-20T14:15:12.891175",
+      "error": null,
+      "result": {
+        "report_saved": "/workspace/PL5/results/daily_report_2026162_20260620_141512.html",
+        "email_sent": 0,
+        "reason": "incomplete_config"
+      }
+    }
+  ],
+  "total_tasks": 14,
+  "successful_tasks": 9,
+  "failed_tasks": 5,
+  "skipped_tasks": 0,
+  "errors": [
+    {
+      "task": "任务4: 深度训练",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
+    },
+    {
+      "task": "任务5: 增量训练",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2026-03-13'"
+    },
+    {
+      "task": "任务6: 首次预测验证",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
+    },
+    {
+      "task": "任务7: 二次预测验证",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
+    },
+    {
+      "task": "任务8: 三次预测验证",
+      "error": "[ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
+    }
+  ],
+  "follow_up_items": [],
+  "end_time": "2026-06-20T14:15:12.891183",
+  "total_elapsed_seconds": 410.12
+}

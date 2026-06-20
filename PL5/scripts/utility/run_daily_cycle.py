@@ -9,10 +9,24 @@ import time
 import json
 import pickle
 import traceback
+import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+
+def get_numeric_feature_cols(df_features, positions):
+    """获取数值类型的特征列，排除非数值列（如 date, parse_line 等）"""
+    exclude_cols = ['period', 'full_number', 'date', 'parse_line'] + positions
+    feature_cols = []
+    for c in df_features.columns:
+        if c in exclude_cols:
+            continue
+        if pd.api.types.is_numeric_dtype(df_features[c]):
+            feature_cols.append(c)
+    return feature_cols
 
 def run_daily_cycle():
     print('='*80)
@@ -174,7 +188,7 @@ def run_daily_cycle():
                 df_features = engineer.extract_all_features(df, select_top=None)
 
                 positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-                feature_cols = [c for c in df_features.columns if c not in ['period', 'full_number'] + positions]
+                feature_cols = get_numeric_feature_cols(df_features, positions)
                 print(f'  ✓ 特征工程完成: {len(feature_cols)} 个特征')
 
                 predictor = EnhancedPL5Predictor()
@@ -201,7 +215,7 @@ def run_daily_cycle():
                     engineer = FeatureEngineer(enable_parallel=False)
                     df_features = engineer.extract_all_features(df, select_top=None)
                     positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-                    feature_cols = [c for c in df_features.columns if c not in ['period', 'full_number'] + positions]
+                    feature_cols = get_numeric_feature_cols(df_features, positions)
 
                     predictor = EnhancedPL5Predictor()
                     model_loaded = predictor.load_models()
@@ -247,7 +261,7 @@ def run_daily_cycle():
                 df_features = engineer.extract_all_features(df, select_top=None)
 
                 positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-                feature_cols = [c for c in df_features.columns if c not in ['period', 'full_number'] + positions]
+                feature_cols = get_numeric_feature_cols(df_features, positions)
 
                 predictor = EnhancedPL5Predictor()
                 model_loaded = predictor.load_models()
@@ -347,7 +361,7 @@ def run_daily_cycle():
                 df_features = engineer.extract_all_features(df, select_top=None)
 
                 positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-                feature_cols = [c for c in df_features.columns if c not in ['period', 'full_number'] + positions]
+                feature_cols = get_numeric_feature_cols(df_features, positions)
 
                 predictor = EnhancedPL5Predictor()
                 predictor.load_models()
@@ -401,7 +415,7 @@ def run_daily_cycle():
                 df_features = engineer.extract_all_features(df, select_top=None)
 
                 positions = ['wan', 'qian', 'bai', 'shi', 'ge']
-                feature_cols = [c for c in df_features.columns if c not in ['period', 'full_number'] + positions]
+                feature_cols = get_numeric_feature_cols(df_features, positions)
 
                 predictor = EnhancedPL5Predictor()
                 predictor.load_models()
@@ -620,12 +634,14 @@ def run_daily_cycle():
 </html>
 """
 
-                report_path = f'/workspace/PL5/results/daily_report_{next_period}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
+                safe_period = str(next_period).replace('/', '_')
+                report_path = f'/workspace/PL5/results/daily_report_{safe_period}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html'
+                os.makedirs('/workspace/PL5/results', exist_ok=True)
                 with open(report_path, 'w', encoding='utf-8') as f:
                     f.write(html_content)
                 print(f'  ✓ 报告已生成: {report_path}')
 
-                json_report_path = f'/workspace/PL5/results/daily_report_{next_period}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+                json_report_path = f'/workspace/PL5/results/daily_report_{safe_period}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
                 report_data['tasks_executed'] = len(tasks)
                 with open(json_report_path, 'w', encoding='utf-8') as f:
                     json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)

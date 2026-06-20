@@ -1,0 +1,205 @@
+{
+  "start_time": "2026-06-20T17:20:28.984471",
+  "tasks": [
+    {
+      "key": "data_fetch",
+      "name": "任务1: 数据获取",
+      "description": "获取最新开奖数据",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.32,
+      "start_time": "2026-06-20T17:20:28.984482",
+      "end_time": "2026-06-20T17:20:29.308666",
+      "error": null,
+      "result": {
+        "record_count": 7636,
+        "latest_period": "2026161"
+      }
+    },
+    {
+      "key": "evaluation",
+      "name": "任务2: 评估分析",
+      "description": "评估预测效果与命中率",
+      "status": "SUCCESS",
+      "elapsed_seconds": 51.29,
+      "start_time": "2026-06-20T17:20:29.308676",
+      "end_time": "2026-06-20T17:21:20.598176",
+      "error": null,
+      "result": null
+    },
+    {
+      "key": "optimization",
+      "name": "任务3: 策略优化",
+      "description": "根据评估结果优化推理策略",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:21:20.598193",
+      "end_time": "2026-06-20T17:21:20.599784",
+      "error": null,
+      "result": {
+        "optimization_mode": "simplified"
+      }
+    },
+    {
+      "key": "training",
+      "name": "任务4: 深度训练",
+      "description": "训练模型（深度）",
+      "status": "SUCCESS",
+      "elapsed_seconds": 1045.69,
+      "start_time": "2026-06-20T17:21:20.599794",
+      "end_time": "2026-06-20T17:38:46.292143",
+      "error": null,
+      "result": {
+        "feature_count": 300,
+        "training_seconds": 994.4568381309509,
+        "record_count": 7636
+      }
+    },
+    {
+      "key": "incremental_training",
+      "name": "任务5: 增量训练",
+      "description": "上午增量训练",
+      "status": "SUCCESS",
+      "elapsed_seconds": 73.08,
+      "start_time": "2026-06-20T17:38:46.292154",
+      "end_time": "2026-06-20T17:39:59.371026",
+      "error": null,
+      "result": {
+        "incremental_window": 100,
+        "elapsed_seconds": 21.792014360427856
+      }
+    },
+    {
+      "key": "first_prediction_verification",
+      "name": "任务6: 首次预测验证",
+      "description": "首次佐证预测结果",
+      "status": "SUCCESS",
+      "elapsed_seconds": 51.05,
+      "start_time": "2026-06-20T17:39:59.371037",
+      "end_time": "2026-06-20T17:40:50.423636",
+      "error": null,
+      "result": {
+        "verification_round": 1,
+        "saved": true
+      }
+    },
+    {
+      "key": "second_prediction_verification",
+      "name": "任务7: 二次预测验证",
+      "description": "二次佐证预测结果",
+      "status": "SUCCESS",
+      "elapsed_seconds": 51.45,
+      "start_time": "2026-06-20T17:40:50.423647",
+      "end_time": "2026-06-20T17:41:41.878253",
+      "error": null,
+      "result": {
+        "verification_round": 2,
+        "saved": true
+      }
+    },
+    {
+      "key": "third_prediction_verification",
+      "name": "任务8: 三次预测验证",
+      "description": "三次佐证预测结果",
+      "status": "SUCCESS",
+      "elapsed_seconds": 50.84,
+      "start_time": "2026-06-20T17:41:41.878264",
+      "end_time": "2026-06-20T17:42:32.717835",
+      "error": null,
+      "result": {
+        "verification_round": 3,
+        "saved": true
+      }
+    },
+    {
+      "key": "deep_strategy_optimization",
+      "name": "任务9: 深度策略优化",
+      "description": "深度策略优化学习",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:42:32.717845",
+      "end_time": "2026-06-20T17:42:32.718444",
+      "error": null,
+      "result": {
+        "verification_count": 3
+      }
+    },
+    {
+      "key": "prediction_preview",
+      "name": "任务10: 预测预生成",
+      "description": "预测预生成",
+      "status": "SUCCESS",
+      "elapsed_seconds": 50.95,
+      "start_time": "2026-06-20T17:42:32.718451",
+      "end_time": "2026-06-20T17:43:23.673344",
+      "error": null,
+      "result": {
+        "next_period": "2026162"
+      }
+    },
+    {
+      "key": "final_prediction",
+      "name": "任务11: 最终预测",
+      "description": "生成最终预测结果",
+      "status": "SUCCESS",
+      "elapsed_seconds": 51.04,
+      "start_time": "2026-06-20T17:43:23.673354",
+      "end_time": "2026-06-20T17:44:14.716152",
+      "error": null,
+      "result": {
+        "next_period": "2026162",
+        "saved_path": "/workspace/PL5/results/final_prediction_2026162.json"
+      }
+    },
+    {
+      "key": "final_prediction_verification",
+      "name": "任务12: 最终预测验证",
+      "description": "最终预测结果佐证",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:44:14.716166",
+      "end_time": "2026-06-20T17:44:14.717055",
+      "error": null,
+      "result": {
+        "consistency_check": "PASSED",
+        "verification_count": 3
+      }
+    },
+    {
+      "key": "pre_sale_prediction",
+      "name": "任务13: 售前最终预测",
+      "description": "售前最终预测",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:44:14.717061",
+      "end_time": "2026-06-20T17:44:14.717464",
+      "error": null,
+      "result": {
+        "period": "2026162",
+        "confirmed": true
+      }
+    },
+    {
+      "key": "send_report",
+      "name": "任务14: 发送报告",
+      "description": "发送最终报告邮件",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:44:14.717470",
+      "end_time": "2026-06-20T17:44:14.718404",
+      "error": null,
+      "result": {
+        "report_saved": "/workspace/PL5/results/daily_report_2026162_20260620_174414.html",
+        "email_sent": 0,
+        "reason": "incomplete_config"
+      }
+    }
+  ],
+  "total_tasks": 14,
+  "successful_tasks": 14,
+  "failed_tasks": 0,
+  "skipped_tasks": 0,
+  "errors": [],
+  "follow_up_items": [],
+  "end_time": "2026-06-20T17:44:14.718412",
+  "total_elapsed_seconds": 1425.73
+}

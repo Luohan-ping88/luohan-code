@@ -1,0 +1,216 @@
+{
+  "start_time": "2026-06-20T17:03:23.930896",
+  "tasks": [
+    {
+      "key": "data_fetch",
+      "name": "任务1: 数据获取",
+      "description": "获取最新开奖数据",
+      "status": "FAILED",
+      "elapsed_seconds": 0.01,
+      "start_time": "2026-06-20T17:03:23.930907",
+      "end_time": "2026-06-20T17:03:23.944257",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "evaluation",
+      "name": "任务2: 评估分析",
+      "description": "评估预测效果与命中率",
+      "status": "FAILED",
+      "elapsed_seconds": 0.03,
+      "start_time": "2026-06-20T17:03:23.944274",
+      "end_time": "2026-06-20T17:03:23.976391",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "optimization",
+      "name": "任务3: 策略优化",
+      "description": "根据评估结果优化推理策略",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.02,
+      "start_time": "2026-06-20T17:03:23.976407",
+      "end_time": "2026-06-20T17:03:23.992958",
+      "error": null,
+      "result": {
+        "optimization_mode": "simplified"
+      }
+    },
+    {
+      "key": "training",
+      "name": "任务4: 深度训练",
+      "description": "训练模型（深度）",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.992970",
+      "end_time": "2026-06-20T17:03:23.994341",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "incremental_training",
+      "name": "任务5: 增量训练",
+      "description": "上午增量训练",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.994354",
+      "end_time": "2026-06-20T17:03:23.995664",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "first_prediction_verification",
+      "name": "任务6: 首次预测验证",
+      "description": "首次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.995676",
+      "end_time": "2026-06-20T17:03:23.997012",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "second_prediction_verification",
+      "name": "任务7: 二次预测验证",
+      "description": "二次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.997022",
+      "end_time": "2026-06-20T17:03:23.998329",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "third_prediction_verification",
+      "name": "任务8: 三次预测验证",
+      "description": "三次佐证预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.998340",
+      "end_time": "2026-06-20T17:03:23.999676",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "deep_strategy_optimization",
+      "name": "任务9: 深度策略优化",
+      "description": "深度策略优化学习",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.999686",
+      "end_time": "2026-06-20T17:03:23.999852",
+      "error": null,
+      "result": {
+        "verification_count": 0
+      }
+    },
+    {
+      "key": "prediction_preview",
+      "name": "任务10: 预测预生成",
+      "description": "预测预生成",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:23.999859",
+      "end_time": "2026-06-20T17:03:24.001314",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "final_prediction",
+      "name": "任务11: 最终预测",
+      "description": "生成最终预测结果",
+      "status": "FAILED",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:24.001324",
+      "end_time": "2026-06-20T17:03:24.002872",
+      "error": "No module named 'requests'",
+      "result": null
+    },
+    {
+      "key": "final_prediction_verification",
+      "name": "任务12: 最终预测验证",
+      "description": "最终预测结果佐证",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:24.002883",
+      "end_time": "2026-06-20T17:03:24.002958",
+      "error": null,
+      "result": {
+        "verification_mode": "alternative"
+      }
+    },
+    {
+      "key": "pre_sale_prediction",
+      "name": "任务13: 售前最终预测",
+      "description": "售前最终预测",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:24.002963",
+      "end_time": "2026-06-20T17:03:24.003015",
+      "error": null,
+      "result": {
+        "available": false
+      }
+    },
+    {
+      "key": "send_report",
+      "name": "任务14: 发送报告",
+      "description": "发送最终报告邮件",
+      "status": "SUCCESS",
+      "elapsed_seconds": 0.0,
+      "start_time": "2026-06-20T17:03:24.003020",
+      "end_time": "2026-06-20T17:03:24.003680",
+      "error": null,
+      "result": {
+        "report_saved": "/workspace/PL5/results/daily_report_N_A_20260620_170324.html",
+        "email_sent": 0,
+        "reason": "incomplete_config"
+      }
+    }
+  ],
+  "total_tasks": 14,
+  "successful_tasks": 5,
+  "failed_tasks": 9,
+  "skipped_tasks": 0,
+  "errors": [
+    {
+      "task": "任务1: 数据获取",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务2: 评估分析",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务4: 深度训练",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务5: 增量训练",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务6: 首次预测验证",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务7: 二次预测验证",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务8: 三次预测验证",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务10: 预测预生成",
+      "error": "No module named 'requests'"
+    },
+    {
+      "task": "任务11: 最终预测",
+      "error": "No module named 'requests'"
+    }
+  ],
+  "follow_up_items": [],
+  "end_time": "2026-06-20T17:03:24.003687",
+  "total_elapsed_seconds": 0.07
+}

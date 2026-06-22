@@ -5,6 +5,7 @@
 包含任务失败重试机制、异常报警系统、任务状态持久化、任务依赖管理等功能
 新增: 特征版本管理、系统健康监控
 """
+import os
 import schedule
 import time
 import logging

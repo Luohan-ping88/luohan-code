@@ -1413,3 +1413,30 @@ class SelfLearningSystem:
             "suggestions": suggestions_dicts,
             "suggestion_statistics": sug_stats,
         }
+
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议列表 - 与 SelfLearningProtocol 接口对齐
+        包装 generate_structured_suggestions() 返回可读字符串列表
+        """
+        try:
+            structured_sugs = self.generate_structured_suggestions()
+            if not structured_sugs:
+                return ["暂无优化建议 - 系统基线数据不足，建议先完成一轮训练"]
+            results = []
+            for sug in structured_sugs:
+                try:
+                    d = sug.to_dict()
+                    title = d.get("title", str(sug))
+                    priority_name = d.get("priority", "regular")
+                    confidence = d.get("confidence_level", 0)
+                    category = d.get("category", "general")
+                    est_imp = d.get("estimated_improvement_mid", 0)
+                    line = f"[{category}|{priority_name}|置信度={confidence:.2f}] " \
+                           f"{title} (预期改进: {est_imp:+.4f})"
+                    results.append(line)
+                except Exception:
+                    results.append(str(sug))
+            return results
+        except Exception as exc:
+            logger.warning(f"[SelfLearning V10] generate_optimization_suggestions failed: {exc}")
+            return [f"系统评估中 (历史数据: {len(self.learning_history)} 条记录)"]

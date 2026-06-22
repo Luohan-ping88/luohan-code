@@ -1324,13 +1324,15 @@ class AutoSchedulerV8:
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
 
-            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
-            max_training_hours = 10.0     # 绝对上限（小时）
+            # 支持环境变量控制训练时长（默认0.1小时=6分钟，用于快速日循环）
+            max_training_hours_env = float(os.environ.get('PL5_TRAINING_HOURS', '0.1'))
+            MAX_EXTRA_ROUNDS = int(os.environ.get('PL5_TRAINING_ROUNDS', '1'))
+            max_training_hours = max_training_hours_env  # 绝对上限（小时）
             extra_round = 0
 
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
+            while elapsed < max_training_hours_env and extra_round < MAX_EXTRA_ROUNDS:
                 extra_round += 1
-                remaining = 5.0 - elapsed
+                remaining = max_training_hours_env - elapsed
                 logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
                 self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
 
@@ -2348,7 +2350,7 @@ class AutoSchedulerV8:
                 report = evaluator.get_strategy_comparison_report(evaluation_result)
                 logger.info(f"\n{report}")
                 
-                time.sleep(30)  # 每次测试间隔
+                time.sleep(int(os.environ.get('PL5_STRATEGY_SLEEP', '2')))  # 每次测试间隔（秒）
             
             # 分析所有测试结果，找出最优策略
             best_strategy_name = None

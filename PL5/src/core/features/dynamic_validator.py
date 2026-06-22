@@ -46,34 +46,10 @@ class DynamicFeatureValidator:
                 'feature_selection_method': 'rfe'
             },
             {
-                'name': 'top_50_rfe',
-                'description': 'RFE选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'rfe'
-            },
-            {
                 'name': 'top_100_rfe',
                 'description': 'RFE选择前100个特征',
                 'select_top': 100,
                 'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_150_rfe',
-                'description': 'RFE选择前150个特征',
-                'select_top': 150,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_50_model_based',
-                'description': '模型选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'model_based'
-            },
-            {
-                'name': 'top_100_model_based',
-                'description': '模型选择前100个特征',
-                'select_top': 100,
-                'feature_selection_method': 'model_based'
             }
         ]
         
@@ -115,7 +91,7 @@ class DynamicFeatureValidator:
             
             # 训练模型
             predictor = EnhancedPL5Predictor()
-            predictor.fit(train_data, feature_cols)
+            predictor.fit(train_data, feature_cols, parallel=False)
             
             # 验证模型
             total_hits = 0

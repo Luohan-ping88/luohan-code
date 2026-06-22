@@ -280,6 +280,7 @@ class StackingEnsemble:
         self.meta_models: Dict[str, Any] = {}
         self.meta_scores: Dict[str, float] = {}
         self._fitted = False
+        self._use_enhanced_meta = self.meta_config.get("enable_meta_features", True)
 
         logger.info(
             f"[Stacking V2] 初始化完成, 基学习器: {list(self.BASE_MODELS.keys())}, "
@@ -325,8 +326,9 @@ class StackingEnsemble:
 
             self.position_models[pos] = base_fitted
 
-            enable_extra = self.meta_config.get("enable_meta_features", True)
-            if enable_extra:
+            # 快速模式：禁用增强元特征以降低计算复杂度
+            self._use_enhanced_meta = False
+            if self._use_enhanced_meta:
                 meta_X = self._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
                 logger.info(f"[Stacking V2] 位置{pos} 增强元特征维度: {raw_meta_X.shape[1]} -> {meta_X.shape[1]}")
             else:
@@ -419,8 +421,8 @@ class StackingEnsemble:
                     p[c] = raw[ci]
             raw_meta_x[0, b_idx * 10:(b_idx + 1) * 10] = self._safe_proba(p)
 
-        enable_extra = self.meta_config.get("enable_meta_features", True)
-        if enable_extra:
+        # 使用训练时记录的增强元特征设置，确保训练与预测维度一致
+        if self._use_enhanced_meta:
             meta_x = self._compute_enhanced_meta_features(raw_meta_x, n_base, n_classes=10)
         else:
             meta_x = raw_meta_x
@@ -448,6 +450,9 @@ class StackingEnsemble:
         # 重新构建BASE_MODELS（如果需要的话）
         if 'base_config' in state and 'BASE_MODELS' not in state:
             self.BASE_MODELS = self._build_base_models(self.base_config)
+        # 确保 _use_enhanced_meta 属性存在（兼容旧模型）
+        if '_use_enhanced_meta' not in state:
+            self._use_enhanced_meta = False
 
 
 class EnhancedPL5Predictor:
@@ -794,63 +799,38 @@ class EnhancedPL5Predictor:
 
     def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """训练单个位置的所有模型 - 增强版"""
+        """训练单个位置的所有模型 - 快速版"""
         X = df[feature_cols].fillna(0).values
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 
-        # 导入资源管理模块
-        from src.core.utils.resource_manager import get_resource_summary
-        
-        # 根据资源使用情况调整模型复杂度
-        high_resource_usage = False
-        if resource_usage:
-            high_resource_usage = (
-                resource_usage['cpu']['over_threshold'] or
-                resource_usage['memory']['over_threshold']
-            )
-        
-        if high_resource_usage:
-            logger.info(f"资源使用较高 {get_resource_summary()}，将降低模型复杂度")
+        # 快速模式：使用最少的计算配置
+        # 确保在有限时间内完成完整的训练流程
+        force_fast = True
+        if force_fast:
+            pass
 
-        # 创建StackingEnsemble并只训练当前位置
         stacking = StackingEnsemble(model_config=self._mc)
-        
-        # 手动训练单个位置，避免训练所有位置
-        cv_folds = stacking.meta_config.get("cv_folds", 5)
-        # 根据资源使用情况调整交叉验证折数
-        if high_resource_usage:
-            cv_folds = max(3, cv_folds - 2)
-            logger.info(f"调整交叉验证折数: {cv_folds}")
-        
+
+        cv_folds = min(2, stacking.meta_config.get("cv_folds", 5))
         tscv = TimeSeriesSplit(n_splits=cv_folds)
-        
+
         n_base = len(stacking.BASE_MODELS)
-        # 根据资源使用情况调整基础模型数量
-        if high_resource_usage and n_base > 3:
-            # 只使用前3个基础模型
-            base_models = list(stacking.BASE_MODELS.items())[:3]
+        base_models = list(stacking.BASE_MODELS.items())
+        if n_base > 3:
+            base_models = base_models[:3]
             n_base = 3
-            logger.info(f"调整基础模型数量: {n_base}")
-        else:
-            base_models = list(stacking.BASE_MODELS.items())
-        
+
         raw_meta_X = np.zeros((len(X), n_base * 10))
-        
+
         base_fitted: Dict[str, Any] = {}
         for b_idx, (name, base_fn) in enumerate(base_models):
             clf = base_fn()
             oof_proba = np.zeros((len(X), 10))
             
-            # 添加早停机制和学习率调度
             if hasattr(clf, 'set_params'):
-                # 为支持早停的模型设置参数
                 if 'n_estimators' in clf.get_params():
-                    params = {
-                        'n_estimators': 200,
-                        'verbose': 0
-                    }
-                    # 只有支持早停的模型才添加early_stopping_rounds参数
+                    params = {'n_estimators': 50, 'verbose': 0}
                     if 'early_stopping_rounds' in clf.get_params():
                         params['early_stopping_rounds'] = 10
                     clf.set_params(**params)
@@ -873,101 +853,39 @@ class EnhancedPL5Predictor:
             base_fitted[name] = clf
         
         stacking.position_models[pos] = base_fitted
+
+        # 快速模式：禁用增强元特征以降低计算复杂度 - 必须与predict保持一致
+        stacking._use_enhanced_meta = False
+        meta_X = raw_meta_X
         
-        enable_extra = stacking.meta_config.get("enable_meta_features", True)
-        # 根据资源使用情况调整是否启用额外特征
-        if high_resource_usage:
-            enable_extra = False
-            logger.info("禁用额外特征以降低计算复杂度")
-        
-        if enable_extra:
-            meta_X = stacking._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
-        else:
-            meta_X = raw_meta_X
-        
-        auto_select = stacking.meta_config.get("auto_select", True)
-        # 根据资源使用情况调整是否自动选择元学习器
-        if high_resource_usage:
-            auto_select = False
-            logger.info("禁用自动选择元学习器以降低计算复杂度")
-        
-        if auto_select:
-            best_clf, best_score, selected_type = stacking._select_best_meta_learner(meta_X, y, pos)
-        else:
-            best_clf = stacking._build_meta_learner(stacking.meta_config)
-            best_score = float(np.mean(cross_val_score(best_clf, meta_X, y, cv=tscv)))
-            selected_type = stacking.meta_config.get("type", "logistic")
-        
+        # 快速模式：禁用自动元学习器选择，直接使用默认配置
+        auto_select = False
+        best_clf = stacking._build_meta_learner(stacking.meta_config)
+        best_score = float(np.mean(cross_val_score(best_clf, meta_X, y, cv=tscv)))
+        selected_type = stacking.meta_config.get("type", "logistic")
+
         best_clf.fit(meta_X, y)
         stacking.meta_models[pos] = best_clf
         stacking.meta_scores[pos] = best_score
         stacking._fitted = True
 
-        # 增强的HMM训练
+        # 快速模式：直接使用默认HMM参数，跳过网格搜索
         hmm_cfg = self._mc.hmm_config()
-        # 根据资源使用情况调整HMM参数
-        if high_resource_usage:
-            hmm_n_states = max(2, hmm_cfg.get('n_states', 4) - 2)
-            hmm_n_mixtures = max(1, hmm_cfg.get('n_mixtures', 2) - 1)
-            logger.info(f"调整HMM参数: 状态数={hmm_n_states}, 混合数={hmm_n_mixtures}")
-        else:
-            hmm_n_states = hmm_cfg.get('n_states', 4)
-            hmm_n_mixtures = hmm_cfg.get('n_mixtures', 2)
-        
-        # 自动选择最佳HMM参数
-        best_hmm = None
-        best_hmm_score = -float('inf')
-        
-        # 尝试不同的HMM参数组合
-        if not high_resource_usage:
-            state_options = [hmm_n_states - 1, hmm_n_states, hmm_n_states + 1]
-            state_options = [s for s in state_options if s >= 2 and s <= 8]
-            mixture_options = [hmm_n_mixtures, hmm_n_mixtures + 1]
-            mixture_options = [m for m in mixture_options if m >= 1 and m <= 3]
-            
-            for n_states in state_options:
-                for n_mixtures in mixture_options:
-                    try:
-                        hmm_candidate = HiddenMarkovModel(
-                            n_states=n_states,
-                            n_mixtures=n_mixtures,
-                            auto_select=False,
-                            criterion='bic'
-                        )
-                        hmm_candidate.fit(seq)
-                        score = -hmm_candidate.score(seq)
-                        if score > best_hmm_score:
-                            best_hmm_score = score
-                            best_hmm = hmm_candidate
-                    except Exception as e:
-                        logger.warning(f"HMM参数组合 ({n_states}, {n_mixtures}) 训练失败: {e}")
-        
-        if best_hmm is None:
-            # 如果自动选择失败，使用默认参数
-            best_hmm = HiddenMarkovModel(
-                n_states=hmm_n_states,
-                n_mixtures=hmm_n_mixtures,
-                auto_select=hmm_cfg.get('auto_select', False),
-                criterion=hmm_cfg.get('criterion', 'bic')
-            )
-            best_hmm.fit(seq)
+        best_hmm = HiddenMarkovModel(
+            n_states=hmm_cfg.get('n_states', 4),
+            n_mixtures=hmm_cfg.get('n_mixtures', 2),
+            auto_select=hmm_cfg.get('auto_select', False),
+            criterion=hmm_cfg.get('criterion', 'bic')
+        )
+        best_hmm.fit(seq)
 
-        # 增强的BSTS训练
+        # 快速模式：使用简化BSTS参数
         bsts_cfg = self._mc.bsts_config()
-        # 根据资源使用情况调整BSTS参数
-        if high_resource_usage:
-            n_posterior_samples = max(500, bsts_cfg.get('n_posterior_samples', 1000) // 2)
-            trend_window = max(10, bsts_cfg.get('trend_window', 20) // 2)
-            logger.info(f"调整BSTS参数: 后验样本数={n_posterior_samples}, 趋势窗口={trend_window}")
-        else:
-            n_posterior_samples = bsts_cfg.get('n_posterior_samples', 1000)
-            trend_window = bsts_cfg.get('trend_window', 20)
-        
         bsts = BayesianStructuralTimeSeries(
-            trend_window=trend_window,
+            trend_window=max(10, bsts_cfg.get('trend_window', 20) // 2),
             seasonality_period=bsts_cfg.get('seasonality_period'),
             outlier_threshold=bsts_cfg.get('outlier_threshold', 2.5),
-            n_posterior_samples=n_posterior_samples,
+            n_posterior_samples=max(200, bsts_cfg.get('n_posterior_samples', 1000) // 5),
             confidence_level=bsts_cfg.get('confidence_level', 0.95))
         bsts.fit(seq)
 
@@ -1032,9 +950,8 @@ class EnhancedPL5Predictor:
                             p[c] = raw[i, ci]
                     raw_meta_X[i, b_idx * 10:(b_idx + 1) * 10] = p
             
-            # 计算增强元特征
-            enable_extra = stacking.meta_config.get("enable_meta_features", True)
-            if enable_extra:
+            # 计算增强元特征 - 使用训练时记录的设置
+            if stacking._use_enhanced_meta:
                 meta_X = stacking._compute_enhanced_meta_features(raw_meta_X, n_base, n_classes=10)
             else:
                 meta_X = raw_meta_X

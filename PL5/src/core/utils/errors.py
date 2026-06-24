@@ -354,7 +354,7 @@ class ConfigSafeLoader:
     """安全配置加载器 - 配置错误时使用默认值并告警"""
 
     DEFAULT_CONFIG_VALUES = {
-        "model_weights": {"stacking": 0.20, "hmm": 0.20, "copula": 0.20, "bayesian": 0.20, "mamba": 0.10, "itransformer": 0.10},
+        "model_weights": {"stacking": 0.30, "hmm": 0.18, "copula": 0.18, "bayesian": 0.14, "mamba": 0.10, "itransformer": 0.10},
         "training_params": {
             "n_estimators": 30,
             "max_depth": 8,

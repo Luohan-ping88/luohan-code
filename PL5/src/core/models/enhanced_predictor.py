@@ -464,12 +464,12 @@ class EnhancedPL5Predictor:
     """
 
     DEFAULT_WEIGHTS = {
-        "stacking": 0.15,
-        "hmm": 0.20,
-        "copula": 0.20,
-        "bayesian": 0.15,
-        "mamba": 0.15,
-        "itransformer": 0.15
+        "stacking": 0.30,
+        "hmm": 0.18,
+        "copula": 0.18,
+        "bayesian": 0.14,
+        "mamba": 0.10,
+        "itransformer": 0.10
     }
 
     def __init__(self, model_config: Optional[ModelConfig] = None):
@@ -1659,7 +1659,7 @@ class EnhancedPL5Predictor:
         # BSTS: 确定性规则的伪随机 + 趋势方向
         # Mamba: 计算不可约 + 混沌复杂系统的随机
         # iTransformer: 初始条件敏感性 + 趋势方向
-        base_weights = np.array([0.15, 0.20, 0.20, 0.15, 0.15, 0.15])
+        base_weights = np.array([0.30, 0.18, 0.18, 0.14, 0.10, 0.10])
         
         # 质量分数
         quality_scores = np.array([

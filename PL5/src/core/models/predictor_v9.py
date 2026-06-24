@@ -312,10 +312,10 @@ class StackingEnsemble:
 # ═══════════════════════════════════════════════════════════════
 
 MODEL_WEIGHTS = {
-    "stacking": 0.20,
-    "hmm": 0.25,
-    "bsts": 0.20,
-    "evm": 0.20,
+    "stacking": 0.30,
+    "hmm": 0.20,
+    "bsts": 0.18,
+    "evm": 0.17,
     "copula": 0.15,
 }
 

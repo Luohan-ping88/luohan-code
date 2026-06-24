@@ -407,11 +407,11 @@ class StackingEnsemble:
 # ──────────────────────────────────────────────────────────────
 
 MODEL_WEIGHTS = {
-    "stacking": 0.55,
-    "hmm":      0.10,
-    "bsts":     0.12,
-    "evm":      0.15,
-    "copula":   0.08,   # copula 用于调整而非直接预测
+    "stacking": 0.20,
+    "hmm":      0.25,
+    "bsts":     0.20,
+    "evm":      0.20,
+    "copula":   0.15,
 }
 
 # 模型调参配置

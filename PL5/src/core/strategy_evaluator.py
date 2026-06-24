@@ -71,22 +71,22 @@ class StrategyEvaluator:
             },
             'stacking_dominant': {
                 'name': 'Stacking主导策略',
-                'description': 'Stacking模型权重更高',
-                'model_weights': {'stacking': 0.7, 'hmm': 0.1, 'copula': 0.1, 'bsts': 0.1},
+                'description': 'Stacking模型权重更高（已降低防止特征泄漏绑架）',
+                'model_weights': {'stacking': 0.30, 'hmm': 0.20, 'copula': 0.20, 'bsts': 0.15, 'evm': 0.15},
                 'feature_selection': 'all',
                 'ensemble_method': 'weighted_average'
             },
             'hmm_dominant': {
                 'name': 'HMM主导策略',
                 'description': 'HMM模型权重更高',
-                'model_weights': {'stacking': 0.1, 'hmm': 0.7, 'copula': 0.1, 'bsts': 0.1},
+                'model_weights': {'stacking': 0.15, 'hmm': 0.40, 'copula': 0.20, 'bsts': 0.15, 'evm': 0.10},
                 'feature_selection': 'all',
                 'ensemble_method': 'weighted_average'
             },
             'copula_dominant': {
                 'name': 'Copula主导策略',
                 'description': 'Copula模型权重更高',
-                'model_weights': {'stacking': 0.1, 'hmm': 0.1, 'copula': 0.7, 'bsts': 0.1},
+                'model_weights': {'stacking': 0.15, 'hmm': 0.20, 'copula': 0.40, 'bsts': 0.15, 'evm': 0.10},
                 'feature_selection': 'all',
                 'ensemble_method': 'weighted_average'
             },

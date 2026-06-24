@@ -464,12 +464,12 @@ class EnhancedPL5Predictor:
     """
 
     DEFAULT_WEIGHTS = {
-        "stacking": 0.25,
-        "hmm": 0.10,
-        "copula": 0.15,
-        "bayesian": 0.10,
-        "mamba": 0.20,
-        "itransformer": 0.20
+        "stacking": 0.15,
+        "hmm": 0.20,
+        "copula": 0.20,
+        "bayesian": 0.15,
+        "mamba": 0.15,
+        "itransformer": 0.15
     }
 
     def __init__(self, model_config: Optional[ModelConfig] = None):
@@ -1238,11 +1238,30 @@ class EnhancedPL5Predictor:
                     if use_rl and self.rl_optimizer is not None and hasattr(self.rl_optimizer, 'is_trained') and self.rl_optimizer.is_trained:
                         state = self._build_rl_state(features, p_stacking, p_hmm, p_copula)
                         weights = self.rl_optimizer.get_optimal_weights(state)
+                        # 检测RL权重是否也被stacking泄漏绑架
+                        prev_digit = int(seq[-1]) if len(seq) > 0 else -1
+                        stacking_top1 = int(np.argmax(p_stacking))
+                        if prev_digit >= 0 and stacking_top1 == prev_digit:
+                            logger.debug(f"[EnhancedPredictor] RL权重也被stacking泄漏绑架: {pos}位，降低权重")
+                            leakage_penalty = 0.05
+                            other_weight = (1.0 - leakage_penalty) / 5.0
+                            weights = np.array([leakage_penalty, other_weight, other_weight, other_weight, other_weight, other_weight])
                     else:
                         # 改进的权重分配策略
                         # 基于模型性能动态调整权重
                         weights = self._get_dynamic_weights(p_stacking, p_hmm, p_copula, p_bsts, p_mamba, p_itransformer)
                         weights = weights / weights.sum()
+
+                    # 检测stacking是否在"复制上一期"（特征泄漏的表现）
+                    # 如果stacking的top-1正好是上一期号码，说明stacking被泄漏特征绑架
+                    prev_digit = int(seq[-1]) if len(seq) > 0 else -1
+                    stacking_top1 = int(np.argmax(p_stacking))
+                    if prev_digit >= 0 and stacking_top1 == prev_digit:
+                        # 上一期号码被stacking推到最高，大幅降低其权重
+                        logger.debug(f"[EnhancedPredictor] 检测到stacking复制上一期: {pos}位上一期={prev_digit}, stacking_top1={stacking_top1}，降低权重")
+                        leakage_penalty = 0.05  # stacking权重上限5%
+                        other_weight = (1.0 - leakage_penalty) / 5.0
+                        weights = np.array([leakage_penalty, other_weight, other_weight, other_weight, other_weight, other_weight])
 
                     p_fused = (
                         weights[0] * p_stacking +
@@ -1633,14 +1652,14 @@ class EnhancedPL5Predictor:
         quality_mamba = calculate_model_quality(p_mamba)
         quality_itransformer = calculate_model_quality(p_itransformer)
         
-        # 基础权重 - 考虑不同模型对不同类型随机性的捕捉能力
-        # Stacking: 认知随机 + 确定性规则的伪随机
+        # 基础权重 - 降低stacking权重，避免其因特征泄漏而主导融合结果
+        # Stacking: 认知随机 + 确定性规则的伪随机（权重降低，防止泄漏特征绑架）
         # HMM: 混沌复杂系统的随机 + 初始条件敏感性
         # Copula: 认知随机 + 混沌复杂系统的随机
         # BSTS: 确定性规则的伪随机 + 趋势方向
         # Mamba: 计算不可约 + 混沌复杂系统的随机
         # iTransformer: 初始条件敏感性 + 趋势方向
-        base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15])
+        base_weights = np.array([0.15, 0.20, 0.20, 0.15, 0.15, 0.15])
         
         # 质量分数
         quality_scores = np.array([

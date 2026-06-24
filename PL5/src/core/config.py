@@ -118,7 +118,7 @@ class ModelConfig:
             'stacking': {
                 'base_config': {'n_estimators': 100, 'max_depth': 12, 'random_state': 42, 'n_jobs': -1, 'learning_rate': 0.1},
                 'meta_config': {'type': 'logistic', 'C': 1.0, 'max_iter': 500, 'l1_ratio': 0.5, 'alpha': 0.0001, 'cv_folds': 5, 'auto_select': True, 'enable_meta_features': True},
-                'model_weights': {'stacking': 0.40, 'hmm': 0.15, 'copula': 0.25, 'bayesian': 0.20}
+                'model_weights': {'stacking': 0.20, 'hmm': 0.20, 'copula': 0.20, 'bayesian': 0.20, 'mamba': 0.10, 'itransformer': 0.10}
             },
             'hmm': {'n_states': 4, 'n_mixtures': 2, 'auto_select': False, 'criterion': 'bic', 'max_states': 8, 'min_states': 2, 'max_iterations': 50, 'convergence_tol': 1e-6},
             'copula': {'type': 'gaussian', 'regularization': 1e-6, 'auto_select': False},
@@ -363,7 +363,8 @@ class ModelConfig:
 
     def model_weights(self) -> Dict[str, float]:
         return self.get_dict('stacking.model_weights', {
-            'stacking': 0.40, 'hmm': 0.15, 'copula': 0.25, 'bayesian': 0.20
+            'stacking': 0.20, 'hmm': 0.20, 'copula': 0.20, 'bayesian': 0.20,
+            'mamba': 0.10, 'itransformer': 0.10
         })
 
     def hmm_config(self) -> Dict[str, Any]:

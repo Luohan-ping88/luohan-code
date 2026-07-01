@@ -864,8 +864,12 @@ class AutoSchedulerV8:
             sls = SelfLearningSystem()
             
             # 生成优化建议
-            suggestions = sls.generate_optimization_suggestions()
-            logger.info(f"优化建议: {suggestions}")
+            try:
+                suggestions = sls.generate_structured_suggestions()
+                logger.info(f"优化建议: {len(suggestions)} 条")
+            except Exception as sls_err:
+                logger.warning(f"生成优化建议失败（不影响主流程）: {sls_err}")
+                suggestions = []
             
             # 测试不同策略的效果 - 这是最重要的！
             logger.info("  开始测试不同推理策略的效果...")

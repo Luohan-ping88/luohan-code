@@ -1,4 +1,0 @@
-[Tool: PowerShell] {"arguments":"{\"command\": \"Get-ChildItem -Path \\\"e:\\\\PL5\\\" -Include \\\"*.py\\\",\\\"*.bat\\\" -Recurse | Where-Object { $_.FullName -notmatch 'venv\\\\\\\\.+|\\\\.workbuddy\\\\\\\\.+|__pycache__\\\\\\\\.+' } | Select-String -Pattern \\\"V10\\\\.0|V10\\\\.1\\\" | Select-Object Filename, LineNumber, Line\", \"description\": \"搜索所有 .py 和 .bat 文件中包含 \\\"V10.0\\\" 或 \\\"V10.1\\\" 的行\", \"timeout\": 60000}"}
-[Tool: Read] {"arguments":"{\"file_path\": \"e:\\\\PL5\\\\auto_predict_and_email_v3.py\", \"limit\": 20}"}
-[Tool: Read] {"arguments":"{\"file_path\": \"e:\\\\PL5\\\\strategy_evaluator.py\", \"limit\": 10}"}
-[Tool: Read] {"arguments":"{\"file_path\": \"e:\\\\PL5\\\\auto_scheduler_v8.py\", \"limit\": 5}"}

@@ -76,17 +76,16 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 100,
-        "max_depth": 10,         # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
+        "n_estimators": 30,
+        "max_depth": 6,
         "random_state": 42,
-        "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.1→0.06 降低学习率增强泛化，预估+1.8%
-        # [OPT] 正则化增强 应对 std=0.2089 波动过高
-        "reg_alpha": 0.1,        # L1正则化
-        "reg_lambda": 1.0,       # L2正则化
-        "min_child_weight": 5,   # 最小子权重增强稳定性
-        "subsample": 0.8,        # 行采样比例
-        "colsample_bytree": 0.8, # 列采样比例
+        "n_jobs": 1,
+        "learning_rate": 0.1,
+        "reg_alpha": 0.1,
+        "reg_lambda": 1.0,
+        "min_child_weight": 5,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
     }
 
     RECOMMENDED_BASE_CONFIG = {
@@ -105,12 +104,12 @@ class StackingEnsemble:
     DEFAULT_META_CONFIG = {
         "type": "logistic",
         "C": 1.0,
-        "max_iter": 500,
+        "max_iter": 200,
         "l1_ratio": 0.5,
         "alpha": 0.0001,
-        "cv_folds": 5,
-        "auto_select": True,
-        "enable_meta_features": True,
+        "cv_folds": 2,
+        "auto_select": False,
+        "enable_meta_features": False,
     }
 
     @classmethod

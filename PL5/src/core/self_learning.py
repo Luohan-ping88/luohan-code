@@ -1413,3 +1413,6 @@ class SelfLearningSystem:
             "suggestions": suggestions_dicts,
             "suggestion_statistics": sug_stats,
         }
+
+    def generate_optimization_suggestions(self):
+        return self.generate_structured_suggestions()

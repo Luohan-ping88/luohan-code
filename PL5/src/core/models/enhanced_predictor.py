@@ -76,11 +76,11 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 30,
-        "max_depth": 6,
+        "n_estimators": 100,
+        "max_depth": 8,
         "random_state": 42,
         "n_jobs": 1,
-        "learning_rate": 0.1,
+        "learning_rate": 0.08,
         "reg_alpha": 0.1,
         "reg_lambda": 1.0,
         "min_child_weight": 5,
@@ -90,10 +90,10 @@ class StackingEnsemble:
 
     RECOMMENDED_BASE_CONFIG = {
         "n_estimators": 200,
-        "max_depth": 10,         # [OPT] 12→9.6 与默认值保持一致
+        "max_depth": 10,
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.05→0.06 适度提高学习率配合更大深度
+        "learning_rate": 0.06,
         "reg_alpha": 0.1,
         "reg_lambda": 1.0,
         "min_child_weight": 5,
@@ -104,12 +104,12 @@ class StackingEnsemble:
     DEFAULT_META_CONFIG = {
         "type": "logistic",
         "C": 1.0,
-        "max_iter": 200,
+        "max_iter": 300,
         "l1_ratio": 0.5,
         "alpha": 0.0001,
-        "cv_folds": 2,
-        "auto_select": False,
-        "enable_meta_features": False,
+        "cv_folds": 3,
+        "auto_select": True,
+        "enable_meta_features": True,
     }
 
     @classmethod
@@ -121,26 +121,33 @@ class StackingEnsemble:
         n_jobs = config.get("n_jobs", cls.DEFAULT_BASE_CONFIG["n_jobs"])
         lr = config.get("learning_rate", cls.DEFAULT_BASE_CONFIG["learning_rate"])
 
-        # 简化基础模型数量，减少计算复杂度
+        # 生产模式 - 使用多个基学习器
         model_configs = {
             "rf": {
                 "class": RandomForestClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
-                    "random_state": rs, "n_jobs": n_jobs
+                    "n_estimators": n_est, "max_depth": max_d,
+                    "random_state": rs, "n_jobs": n_jobs,
+                    "min_samples_leaf": 5, "min_samples_split": 10
+                }
+            },
+            "et": {
+                "class": ExtraTreesClassifier,
+                "params": {
+                    "n_estimators": n_est, "max_depth": max_d,
+                    "random_state": rs, "n_jobs": n_jobs,
+                    "min_samples_leaf": 5
                 }
             },
         }
 
-        # 只添加一个额外模型以保持多样性
         if _HAS_LIGHTGBM:
             model_configs["lgbm"] = {
                 "class": LGBMClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "verbose": -1,
-                    # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
@@ -148,15 +155,14 @@ class StackingEnsemble:
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
                 }
             }
-        elif _HAS_XGBOOST:
+        if _HAS_XGBOOST:
             model_configs["xgb"] = {
                 "class": XGBClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "use_label_encoder": False,
                     "eval_metric": "mlogloss", "verbosity": 0,
-                    # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
@@ -164,11 +170,11 @@ class StackingEnsemble:
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
                 }
             }
-        else:
+        if not _HAS_LIGHTGBM and not _HAS_XGBOOST:
             model_configs["gbm"] = {
                 "class": GradientBoostingClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "learning_rate": lr
                 }
             }
@@ -561,7 +567,10 @@ class EnhancedPL5Predictor:
                     logger.debug("[训练步骤] 模型未训练，执行完整训练")
                     incremental = False
             
-            X = df[feature_cols].fillna(0).values
+            for col in feature_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            X = df[feature_cols].fillna(0).values.astype(np.float64)
             actual_dim = X.shape[1]
 
             if actual_dim == 0:
@@ -794,7 +803,10 @@ class EnhancedPL5Predictor:
     def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
+        for col in feature_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        X = df[feature_cols].fillna(0).values.astype(np.float64)
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 
@@ -802,9 +814,9 @@ class EnhancedPL5Predictor:
         from src.core.utils.resource_manager import get_resource_summary
         
         # 根据资源使用情况调整模型复杂度
-        high_resource_usage = False
+        high_resource_usage = True  # 生产模式：始终使用简化配置以确保速度
         if resource_usage:
-            high_resource_usage = (
+            high_resource_usage = high_resource_usage or (
                 resource_usage['cpu']['over_threshold'] or
                 resource_usage['memory']['over_threshold']
             )
@@ -816,10 +828,10 @@ class EnhancedPL5Predictor:
         stacking = StackingEnsemble(model_config=self._mc)
         
         # 手动训练单个位置，避免训练所有位置
-        cv_folds = stacking.meta_config.get("cv_folds", 5)
+        cv_folds = 3  # 生产模式：固定3折CV以平衡质量和速度
         # 根据资源使用情况调整交叉验证折数
         if high_resource_usage:
-            cv_folds = max(3, cv_folds - 2)
+            cv_folds = max(2, cv_folds - 1)
             logger.info(f"调整交叉验证折数: {cv_folds}")
         
         tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -841,17 +853,13 @@ class EnhancedPL5Predictor:
             clf = base_fn()
             oof_proba = np.zeros((len(X), 10))
             
-            # 添加早停机制和学习率调度
+            # 添加学习率调度（不使用early_stopping以避免验证集要求）
             if hasattr(clf, 'set_params'):
-                # 为支持早停的模型设置参数
                 if 'n_estimators' in clf.get_params():
                     params = {
-                        'n_estimators': 200,
+                        'n_estimators': 80,
                         'verbose': 0
                     }
-                    # 只有支持早停的模型才添加early_stopping_rounds参数
-                    if 'early_stopping_rounds' in clf.get_params():
-                        params['early_stopping_rounds'] = 10
                     clf.set_params(**params)
             
             for fold_tr, fold_val in tscv.split(X):

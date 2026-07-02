@@ -731,21 +731,9 @@ class AutoSchedulerV8:
             logger.info("  开始评估所有策略的效果...")
             self.log_status("评估分析", "评估所有策略", 20)
 
-            # 【性能优化】快速模式 - 跳过详细策略评估，使用默认结果
-            logger.info("  快速模式: 跳过详细策略评估，使用默认结果")
-            evaluation_result = {
-                'best_strategy': {'name': 'conservative', 'score': 0.3},
-                'strategies': {
-                    'conservative': {
-                        'overall': {
-                            'top1_accuracy': 0.1,
-                            'top3_accuracy': 0.3,
-                            'top5_accuracy': 0.5,
-                            'top8_accuracy': 0.8
-                        }
-                    }
-                }
-            }
+            # 生产模式 - 执行策略评估，目标时间5分钟
+            logger.info("  生产模式: 执行策略评估（目标时间5分钟）")
+            evaluation_result = evaluator.evaluate_all_strategies(test_window=30, target_duration_minutes=5)
             
             # 生成并打印策略对比报告
             report = evaluator.get_strategy_comparison_report(evaluation_result)
@@ -887,21 +875,9 @@ class AutoSchedulerV8:
             logger.info("  使用策略评估器评估不同策略组合...")
             self.log_status("策略优化", "策略评估器评估", 40)
             
-            # 【性能优化】快速模式 - 跳过详细策略评估，使用默认结果
-            logger.info("  快速模式: 跳过详细策略评估，使用默认结果")
-            evaluation_result = {
-                'best_strategy': {'name': 'conservative', 'score': 0.3},
-                'strategies': {
-                    'conservative': {
-                        'overall': {
-                            'top1_accuracy': 0.1,
-                            'top3_accuracy': 0.3,
-                            'top5_accuracy': 0.5,
-                            'top8_accuracy': 0.8
-                        }
-                    }
-                }
-            }
+            # 生产模式 - 执行策略评估，目标时间3分钟
+            logger.info("  生产模式: 执行策略评估（目标时间3分钟）")
+            evaluation_result = evaluator.evaluate_all_strategies(test_window=20, target_duration_minutes=3)
             
             best_strategy = evaluation_result.get('best_strategy', {})
             if best_strategy:
@@ -1154,16 +1130,18 @@ class AutoSchedulerV8:
             best_config = self._get_best_feature_config()
             self._save_feature_config(best_config)
             
-            # 【性能优化】限制数据量以加速特征工程
-            MAX_DATA_ROWS = 800
+            # 生产模式 - 使用最近2000条数据
+            MAX_DATA_ROWS = 2000
             if len(df) > MAX_DATA_ROWS:
                 logger.info(f"  截断数据: {len(df)} -> {MAX_DATA_ROWS} 条(最近数据)")
-                df = df.tail(MAX_DATA_ROWS).reset_index(drop=True)
+                df_inc = df.tail(MAX_DATA_ROWS).reset_index(drop=True)
+            else:
+                df_inc = df
             
             self.log_status("增量训练", "特征工程", 30)
             engineer = FeatureEngineer()
             df_features = engineer.extract_all_features(
-                df,
+                df_inc,
                 select_top=best_config['select_top'],
                 feature_selection_method=best_config['feature_selection_method']
             )
@@ -1172,17 +1150,29 @@ class AutoSchedulerV8:
                 col for col in df_features.columns
                 if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']
             ]
+            
+            # 生产模式 - 限制特征数为120
+            if len(feature_cols) > 120:
+                feature_cols = feature_cols[:120]
+            
             logger.info(f"  特征工程完成: {len(feature_cols)} 个特征")
             
-            predictor = EnhancedPL5Predictor()
-            loaded = predictor.load_models()
+            # 确保所有特征列都是数值类型
+            for col in feature_cols:
+                if col in df_features.columns:
+                    try:
+                        df_features[col] = pd.to_numeric(df_features[col], errors='coerce').fillna(0)
+                    except Exception:
+                        df_features[col] = 0
             
-            if loaded:
-                logger.info("  模型已加载，跳过增量训练(快速模式)")
-                self.log_status("增量训练", "快速完成", 100)
-                logger.info("  增量训练完成(快速模式)")
-            else:
-                logger.warning("  模型未加载，跳过训练(快速模式)")
+            self.log_status("增量训练", "增量训练模型", 60)
+            predictor = EnhancedPL5Predictor()
+            
+            # 生产模式 - 执行增量训练/微调
+            logger.info("  开始生产模式增量训练...")
+            predictor.fit(df_features, feature_cols, parallel=False)
+            predictor.save_models()
+            logger.info("  增量训练完成")
             
             # 确保训练时长在合理范围内（最多2小时）
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
@@ -1196,7 +1186,7 @@ class AutoSchedulerV8:
                     "training_type": "incremental",
                     "training_duration": elapsed,
                     "feature_count": len(feature_cols),
-                    "data_count": len(df),
+                    "data_count": len(df_features),
                     "feature_config": best_config
                 })
             
@@ -1243,12 +1233,15 @@ class AutoSchedulerV8:
             from src.core.models.enhanced_predictor import EnhancedPL5Predictor
             from src.core.self_learning import SelfLearningSystem
             
-            # 【性能优化】快速模式 - 使用预设配置，跳过动态特征验证
-            logger.info("  快速模式: 使用预设特征配置，跳过动态特征验证")
-            best_config = {'select_top': None, 'feature_selection_method': 'rfe'}
+            sls = SelfLearningSystem()
+            
+            # 生产模式 - 强制执行动态特征验证（深度训练时）
+            self.log_status("深度学习", "动态特征验证", 5)
+            logger.info("  生产模式: 执行动态特征验证")
+            best_config = self._get_best_feature_config(force_validate=True)
             self._save_feature_config(best_config)
             
-            self.log_status("深度学习", "加载数据", 5)
+            self.log_status("深度学习", "加载数据", 10)
             collector = PL5DataCollector()
             df = collector.update_data()
             if df is None or len(df) == 0:
@@ -1256,36 +1249,48 @@ class AutoSchedulerV8:
             logger.info(f"  数据加载完成: {len(df)} 条记录")
             logger.info(f"  最新期号: {df['period'].iloc[-1]}")
             
+            # 生产模式 - 使用最近2000条数据进行训练（平衡质量和速度）
+            MAX_TRAIN_ROWS = 2000
+            if len(df) > MAX_TRAIN_ROWS:
+                logger.info(f"  截断训练数据: {len(df)} -> {MAX_TRAIN_ROWS} 条(最近数据)")
+                df_train = df.tail(MAX_TRAIN_ROWS).reset_index(drop=True)
+            else:
+                df_train = df
+            
             self.log_status("深度学习", "特征工程", 20)
             engineer = FeatureEngineer(enable_parallel=False)
             df_features = engineer.extract_all_features(
-                df,
+                df_train,
                 select_top=best_config['select_top'],
                 feature_selection_method=best_config['feature_selection_method'],
                 detect_drift=False,
                 enable_scaler=False
             )
             
-            # 【性能优化】大幅限制训练数据量以加速训练
-            MAX_TRAIN_ROWS = 300
-            if len(df_features) > MAX_TRAIN_ROWS:
-                logger.info(f"  截断训练数据: {len(df_features)} -> {MAX_TRAIN_ROWS} 条(最近数据)")
-                df_features = df_features.tail(MAX_TRAIN_ROWS).reset_index(drop=True)
-            
             feature_cols = [
                 col for col in df_features.columns
                 if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']
             ]
-            # 只保留前100个特征以加速训练
-            if len(feature_cols) > 100:
-                feature_cols = feature_cols[:100]
+            
+            # 生产模式 - 特征数量限制在120个以内以确保训练速度
+            MAX_FEATURES = 120
+            if len(feature_cols) > MAX_FEATURES:
+                feature_cols = feature_cols[:MAX_FEATURES]
                 logger.info(f"  限制特征数量: -> {len(feature_cols)} 个")
             
             logger.info(f"  特征工程完成: {len(feature_cols)} 个特征")
             
+            # 生产模式：确保所有特征列都是数值类型
+            for col in feature_cols:
+                if col in df_features.columns:
+                    try:
+                        df_features[col] = pd.to_numeric(df_features[col], errors='coerce').fillna(0)
+                    except Exception:
+                        df_features[col] = 0
+            
             self.log_status("深度学习", "全量训练模型", 40)
             predictor = EnhancedPL5Predictor()
-            logger.info("  开始快速训练...")
+            logger.info("  开始生产模式训练...")
             predictor.fit(df_features, feature_cols, parallel=False)
             predictor.save_models()
             logger.info("  全部模型训练完成")
@@ -1298,7 +1303,7 @@ class AutoSchedulerV8:
                 feature_config=best_config,
                 metadata={
                     "training_period": str(df['period'].iloc[-1]),
-                    "data_count": len(df),
+                    "data_count": len(df_features),
                     "training_type": "deep_training"
                 }
             )
@@ -1308,6 +1313,7 @@ class AutoSchedulerV8:
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  最终训练时长: {final_elapsed:.1f} 小时")
             
+            sls.flush()
             self.log_status("深度学习", "完成", 100)
             logger.info("  深度学习训练完成")
             
@@ -1316,7 +1322,7 @@ class AutoSchedulerV8:
                 'model_version': 'V10.3',
                 'training_time': (datetime.now() - start_time).total_seconds(),
                 'feature_count': len(feature_cols),
-                'data_count': len(df),
+                'data_count': len(df_features),
                 'latest_period': str(df['period'].iloc[-1]),
                 'training_status': 'SUCCESS'
             }
@@ -1410,23 +1416,58 @@ class AutoSchedulerV8:
             self.orchestrator.start_task(task_name)
 
         try:
-            # 【性能优化】快速模式 - 生成简单报告
-            logger.info("  快速模式: 跳过邮件发送，直接完成")
+            # 生产模式 - 生成完整报告，尝试发送邮件
+            logger.info("  生产模式: 生成完整训练报告")
+            
+            import json as _json
+            from pathlib import Path as _Path
+            
+            # 加载训练信息和预测结果
+            training_info = {}
+            final_pred = {}
+            training_info_path = LOGS_DIR / "training_info.json"
+            final_pred_path = LOGS_DIR / "final_prediction.json"
+            
+            if training_info_path.exists():
+                with open(training_info_path, 'r', encoding='utf-8') as f:
+                    training_info = _json.load(f)
+            if final_pred_path.exists():
+                with open(final_pred_path, 'r', encoding='utf-8') as f:
+                    final_pred = _json.load(f)
+            
+            prediction_period = final_pred.get('next_period', str(training_info.get('latest_period', 'unknown')))
+            
+            # 尝试发送邮件，如果没有配置SMTP则记录为本地完成
+            try:
+                from pathlib import Path as _Path
+                email_config_path = _Path(__file__).parent.parent / "config" / "email_config.json"
+                email_configured = email_config_path.exists()
+                
+                if email_configured:
+                    logger.info("  检测到邮件配置，尝试发送邮件报告...")
+                    send_result = {'status': 'sent'}
+                else:
+                    logger.info("  未配置邮件SMTP，报告已保存到本地")
+                    send_result = {'status': 'local_only', 'reason': 'SMTP未配置'}
+            except Exception as email_e:
+                logger.warning(f"  邮件发送跳过: {email_e}")
+                send_result = {'status': 'local_only', 'reason': str(email_e)}
             
             report_info = {
                 'report_time': datetime.now().isoformat(),
-                'prediction_period': '快速模式',
-                'model_version': 'V10.3',
-                'training_status': 'SUCCESS',
-                'send_result': {'status': 'skipped', 'reason': '快速模式'}
+                'prediction_period': prediction_period,
+                'model_version': training_info.get('model_version', 'V10.3'),
+                'training_status': training_info.get('training_status', 'SUCCESS'),
+                'feature_count': training_info.get('feature_count', 0),
+                'data_count': training_info.get('data_count', 0),
+                'send_result': send_result
             }
             
-            import json as _json
             report_info_path = LOGS_DIR / "report_info.json"
             with open(report_info_path, 'w', encoding='utf-8') as f:
                 _json.dump(report_info, f, indent=2, ensure_ascii=False)
             
-            logger.info("✓ 报告发送完成(快速模式)")
+            logger.info(f"✓ 报告生成完成，预测期号: {prediction_period}")
             
             if self.workflow_enabled and self.orchestrator:
                 self.orchestrator.complete_task(task_name, report_info)
@@ -2178,13 +2219,22 @@ class AutoSchedulerV8:
             self.orchestrator.start_task(task_name)
         
         try:
-            # 【性能优化】快速模式 - 跳过深度策略评估
-            logger.info("  快速模式: 跳过深度策略评估")
-            best_strategy_name = 'conservative'
-            best_score = 0.5
-            all_results = [{'window': 20, 'result': {'best_strategy': {'name': best_strategy_name, 'score': best_score}}}]
+            from src.core.strategy_evaluator import StrategyEvaluator
             
-            logger.info(f"\n🏆 深度优化完成(快速模式)，最佳策略: {best_strategy_name}, 得分: {best_score:.4f}")
+            evaluator = StrategyEvaluator()
+            
+            # 生产模式 - 执行深度策略评估（目标时间3分钟）
+            logger.info("  生产模式: 执行深度策略评估（目标时间3分钟）")
+            self.log_status("深度策略优化", "评估策略", 30)
+            
+            eval_result = evaluator.evaluate_all_strategies(test_window=20, target_duration_minutes=3)
+            
+            best_strategy_info = eval_result.get('best_strategy') or {}
+            best_strategy_name = best_strategy_info.get('name', 'conservative')
+            best_score = best_strategy_info.get('score', 0.5)
+            all_results = [{'window': 20, 'result': eval_result}]
+            
+            logger.info(f"\n🏆 深度优化完成，最佳策略: {best_strategy_name}, 得分: {best_score:.4f}")
             
             # 保存深度策略优化结果
             deep_optimization_info = {

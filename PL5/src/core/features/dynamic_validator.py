@@ -33,54 +33,38 @@ class DynamicFeatureValidator:
         self.validation_history = []
         
     def generate_feature_combinations(self) -> List[Dict[str, Any]]:
-        """生成多种特征组合策略
+        """生成多种特征组合策略（生产模式优化版）
         
         Returns:
             List[Dict[str, Any]]: 特征组合策略列表
         """
         feature_combinations = [
             {
-                'name': 'full_features',
-                'description': '全量特征',
-                'select_top': None,
+                'name': 'top_80_rfe',
+                'description': 'RFE选择前80个特征（快速）',
+                'select_top': 80,
+                'feature_selection_method': 'rfe'
+            },
+            {
+                'name': 'top_120_rfe',
+                'description': 'RFE选择前120个特征（平衡）',
+                'select_top': 120,
                 'feature_selection_method': 'rfe'
             },
             {
                 'name': 'top_50_rfe',
-                'description': 'RFE选择前50个特征',
+                'description': 'RFE选择前50个特征（轻量）',
                 'select_top': 50,
                 'feature_selection_method': 'rfe'
             },
-            {
-                'name': 'top_100_rfe',
-                'description': 'RFE选择前100个特征',
-                'select_top': 100,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_150_rfe',
-                'description': 'RFE选择前150个特征',
-                'select_top': 150,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_50_model_based',
-                'description': '模型选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'model_based'
-            },
-            {
-                'name': 'top_100_model_based',
-                'description': '模型选择前100个特征',
-                'select_top': 100,
-                'feature_selection_method': 'model_based'
-            }
         ]
         
         return feature_combinations
     
     def validate_feature_combination(self, df: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """验证单个特征组合的性能
+        """验证单个特征组合的性能（轻量快速版）
+        
+        使用简单的RandomForest快速评估特征质量，不训练完整模型栈。
         
         Args:
             df: 输入数据
@@ -90,80 +74,64 @@ class DynamicFeatureValidator:
             Dict[str, Any]: 验证结果
         """
         try:
+            from sklearn.ensemble import RandomForestClassifier
+            from sklearn.model_selection import TimeSeriesSplit
+            
             logger.info(f"验证特征组合: {config['name']} ({config['description']})")
             
-            # 提取特征
+            MAX_VALIDATION_ROWS = 1500
+            df_val = df
+            if len(df) > MAX_VALIDATION_ROWS:
+                logger.info(f"  截断验证数据: {len(df)} -> {MAX_VALIDATION_ROWS} 条")
+                df_val = df.tail(MAX_VALIDATION_ROWS).reset_index(drop=True)
+            
             df_features = self.engineer.extract_all_features(
-                df,
+                df_val,
                 select_top=config['select_top'],
                 feature_selection_method=config['feature_selection_method']
             )
             
-            # 提取特征列
             feature_cols = [col for col in df_features.columns 
                           if col not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
             
-            # 划分训练集和测试集
-            test_size = 20
+            for col in feature_cols:
+                if col in df_features.columns:
+                    df_features[col] = pd.to_numeric(df_features[col], errors='coerce').fillna(0)
+            
+            test_size = 10
             if len(df_features) < test_size * 2:
-                logger.warning(f"数据量不足，使用全部数据进行验证")
                 train_data = df_features
                 test_data = df_features.tail(5)
             else:
                 train_data = df_features.iloc[:-test_size]
                 test_data = df_features.iloc[-test_size:]
             
-            # 训练模型
-            predictor = EnhancedPL5Predictor()
-            predictor.fit(train_data, feature_cols)
-            
-            # 验证模型
             total_hits = 0
             total_tests = 0
             
-            for i, row in test_data.iterrows():
-                # 提取特征向量
-                features_list = []
-                for col in feature_cols:
-                    val = row[col]
-                    # 处理可能的 Inf/NaN 和类型问题
-                    try:
-                        val = float(val)
-                        if np.isfinite(val):
-                            features_list.append(val)
-                        else:
-                            features_list.append(0.0)
-                    except (ValueError, TypeError):
-                        features_list.append(0.0)
+            positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+            for pos in positions:
+                X_train = train_data[feature_cols].values.astype(np.float64)
+                y_train = train_data[pos].values.astype(int)
+                X_test = test_data[feature_cols].values.astype(np.float64)
+                y_test = test_data[pos].values.astype(int)
                 
-                features = np.array(features_list, dtype=np.float64)
-                
-                # 准备最近的原始数据
-                recent_original_data = {}
-                for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-                    if pos in df.columns:
-                        recent_data = df[pos].values[-20:] if len(df) >= 20 else df[pos].values
-                        recent_original_data[pos] = recent_data
-                
-                # 预测
-                predictions = predictor.predict(
-                    features=features,
-                    recent_original_data=recent_original_data,
-                    top_k=8,
-                    use_rl=False,
-                    use_uncertainty=False
+                rf = RandomForestClassifier(
+                    n_estimators=30, max_depth=6, 
+                    min_samples_leaf=10, n_jobs=1, random_state=42
                 )
+                rf.fit(X_train, y_train)
                 
-                # 验证预测结果
-                for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-                    actual_value = int(row[pos])
-                    if pos in predictions and 'top_k' in predictions[pos]:
-                        top_k = predictions[pos]['top_k']
-                        if actual_value in top_k:
-                            total_hits += 1
-                        total_tests += 1
+                proba = rf.predict_proba(X_test)
+                classes = rf.classes_
+                
+                for i in range(len(X_test)):
+                    top_k_idx = np.argsort(proba[i])[-8:]
+                    top_k_classes = [int(classes[idx]) for idx in top_k_idx]
+                    if y_test[i] in top_k_classes:
+                        total_hits += 1
+                    total_tests += 1
             
-            # 计算准确率
             accuracy = total_hits / total_tests if total_tests > 0 else 0
             
             result = {
@@ -178,11 +146,13 @@ class DynamicFeatureValidator:
                 'timestamp': datetime.now().isoformat()
             }
             
-            logger.info(f"特征组合 {config['name']} 验证完成，准确率: {accuracy:.4f}")
+            logger.info(f"特征组合 {config['name']} 验证完成，Top-8准确率: {accuracy:.4f} ({len(feature_cols)}特征)")
             return result
             
         except Exception as e:
+            import traceback
             logger.error(f"验证特征组合 {config['name']} 失败: {e}")
+            logger.debug(traceback.format_exc())
             return {
                 'name': config['name'],
                 'description': config['description'],

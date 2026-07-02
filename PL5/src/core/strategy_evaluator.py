@@ -382,6 +382,13 @@ class StrategyEvaluator:
 
         n_total = len(df_raw)
         
+        # 生产模式优化：限制数据量以加速特征工程和评估
+        MAX_EVAL_ROWS = 2000
+        if n_total > MAX_EVAL_ROWS:
+            logger.info(f"截断评估数据: {n_total} -> {MAX_EVAL_ROWS} 条(最近数据)")
+            df_raw = df_raw.tail(MAX_EVAL_ROWS).reset_index(drop=True)
+            n_total = len(df_raw)
+        
         # 先快速完成第一阶段：只评估最后一期
         logger.info("=" * 80)
         logger.info("第一阶段：快速评估（1期）")
@@ -394,10 +401,10 @@ class StrategyEvaluator:
         df_train_1 = df_raw.iloc[:test_start_idx_1]
         logger.info(f"提取特征：使用前 {len(df_train_1)} 期数据")
         
-        # 提取特征（与生产预测路径一致：select_top=None，避免RFE选出不同特征子集）
+        # 生产模式优化：使用特征选择加速特征工程和模型训练
         df_features_1 = self.engineer.extract_all_features(
             df_train_1, 
-            select_top=None,
+            select_top=100,
             feature_selection_method='rfe'
         )
         
@@ -424,19 +431,17 @@ class StrategyEvaluator:
 
         # 检查是否还有时间进行更深入的评估
         remaining_time = target_duration_minutes - elapsed
-        if remaining_time > 10:  # 如果剩余时间大于10分钟，继续深入评估
+        if remaining_time > 2:  # 如果剩余时间大于2分钟，继续深入评估
             logger.info("=" * 80)
             logger.info(f"第二阶段：深入评估（更大窗口）")
             logger.info("=" * 80)
             logger.info(f"剩余时间: {remaining_time:.1f} 分钟，继续深入评估")
             
             # 根据剩余时间动态调整窗口大小
-            if remaining_time > 30:
-                test_window_2 = min(10, n_total // 10)  # 至少10期，最多总数据的1/10
-            elif remaining_time > 20:
-                test_window_2 = min(5, n_total // 20)  # 5期
+            if remaining_time > 5:
+                test_window_2 = 3
             else:
-                test_window_2 = 3  # 3期
+                test_window_2 = 2
             
             logger.info(f"第二阶段测试窗口: {test_window_2} 期")
             

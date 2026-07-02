@@ -1396,6 +1396,15 @@ class FeatureEngineerV9:
             logger.info(f"  {method_name} OK ({time.time()-t0:.3f}s)")
 
         logger.info(f"extract_all_features: select_top={select_top}, type={type(select_top)}")
+        
+        non_feature_cols = {'period', 'date', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge'}
+        for col in result_df.columns:
+            if col not in non_feature_cols:
+                try:
+                    result_df[col] = pd.to_numeric(result_df[col], errors='coerce').fillna(0)
+                except Exception:
+                    result_df[col] = 0
+        
         if select_top is not None:
             logger.info(f"调用 _select_features: n_features={select_top}")
             result_df = self._select_features(result_df, select_top, feature_selection_method)
@@ -1404,6 +1413,12 @@ class FeatureEngineerV9:
 
         if enable_scaler:
             t0 = time.time()
+            for col in result_df.columns:
+                if col not in non_feature_cols:
+                    try:
+                        result_df[col] = pd.to_numeric(result_df[col], errors='coerce').fillna(0)
+                    except Exception:
+                        result_df[col] = 0
             result_df = self.scaler.fit_transform(result_df)
             logger.info(f"  标准化完成 ({time.time()-t0:.3f}s)")
 

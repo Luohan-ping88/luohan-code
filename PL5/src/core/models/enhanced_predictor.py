@@ -431,13 +431,28 @@ class StackingEnsemble:
             meta_x = raw_meta_x
 
         meta_clf = self.meta_models[pos]
-        raw_meta = meta_clf.predict_proba(meta_x)[0]
-        classes = meta_clf.classes_
-        p = np.zeros(10)
-        for ci, c in enumerate(classes):
-            if 0 <= c <= 9:
-                p[c] = raw_meta[ci]
-        return self._safe_proba(p)
+        
+        if hasattr(meta_clf, 'n_features_in_') and meta_clf.n_features_in_ != meta_x.shape[1]:
+            expected = meta_clf.n_features_in_
+            raw_dim = n_base * 10
+            if expected == raw_dim:
+                meta_x = raw_meta_x
+                self.meta_config["enable_meta_features"] = False
+            elif meta_x.shape[1] == raw_dim:
+                pass
+            else:
+                return np.ones(10) / 10
+        
+        try:
+            raw_meta = meta_clf.predict_proba(meta_x)[0]
+            classes = meta_clf.classes_
+            p = np.zeros(10)
+            for ci, c in enumerate(classes):
+                if 0 <= c <= 9:
+                    p[c] = raw_meta[ci]
+            return self._safe_proba(p)
+        except Exception:
+            return np.ones(10) / 10
 
     def __getstate__(self):
         """自定义序列化方法，避免保存lambda函数"""
@@ -885,6 +900,7 @@ class EnhancedPL5Predictor:
         # 根据资源使用情况调整是否启用额外特征
         if high_resource_usage:
             enable_extra = False
+            stacking.meta_config["enable_meta_features"] = False
             logger.info("禁用额外特征以降低计算复杂度")
         
         if enable_extra:

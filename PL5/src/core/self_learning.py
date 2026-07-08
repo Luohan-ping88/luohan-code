@@ -1101,6 +1101,23 @@ class SelfLearningSystem:
         self._persist_suggestions(suggestions)
         return suggestions
 
+    def generate_optimization_suggestions(self) -> List[str]:
+        """生成优化建议（字符串列表形式）。
+
+        适配方法：将 generate_structured_suggestions 返回的
+        OptimizationSuggestion 对象列表转为易读的字符串列表，
+        供 orchestrator / auto_scheduler 等调用方使用。
+        """
+        structured = self.generate_structured_suggestions()
+        result: List[str] = []
+        for sug in structured:
+            line = f"[{sug.priority.label}] {sug.title}"
+            if sug.parameter_name:
+                line += f" ({sug.parameter_name}: {sug.current_value} -> {sug.recommended_value})"
+            line += f" - {sug.description}"
+            result.append(line)
+        return result
+
     def _persist_suggestions(self, suggestions: List[OptimizationSuggestion]) -> None:
         """持久化建议到历史记录。
 

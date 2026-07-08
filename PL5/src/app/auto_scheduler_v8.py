@@ -777,11 +777,23 @@ class AutoSchedulerV8:
                 top8_accuracy = 0
                 logger.info("  未找到最佳策略，使用默认值")
             
+            # 【V10.5核心新增】评估实际预测 vs 开奖命中率（反馈闭环）
+            logger.info("  [反馈闭环] 开始评估实际预测命中率...")
+            actual_hit_summary = self._evaluate_actual_hits()
+            if actual_hit_summary:
+                logger.info(f"  [反馈闭环] 实际Top-3命中率: {actual_hit_summary.get('top3_accuracy', 0):.4f}")
+                logger.info(f"  [反馈闭环] 实际Top-8命中率: {actual_hit_summary.get('top8_accuracy', 0):.4f}")
+                # 如果有实际命中率，优先使用实际命中率做决策
+                actual_top3 = actual_hit_summary.get('top3_accuracy', 0)
+                if actual_top3 > 0:
+                    logger.info(f"  [反馈闭环] 使用实际命中率替代回测命中率做决策")
+                    top3_accuracy = actual_top3  # 用实际命中率覆盖回测命中率
+
             # 智能决策阈值
             # Top-3准确率 > 0.4 → 表现很好，只需要策略微调
             # Top-3准确率 > 0.25 → 表现一般，可以策略微调或轻量训练
             # Top-3准确率 < 0.25 → 表现较差，需要深度训练
-            
+
             if top3_accuracy > 0.4:
                 decision = "策略微调"
                 should_retrain = False
@@ -894,10 +906,37 @@ class AutoSchedulerV8:
                 logger.info(f"\n🏆 发现最佳策略: {best_strategy.get('name')}")
                 logger.info(f"   Top-3准确率: {best_strategy.get('score', 0):.4f}")
                 logger.info(f"   如果使用这个策略，又会怎么样？可能会有更好的预测效果！")
-            
+
+            # 【V10.5核心新增】运行反馈学习系统，基于实际命中率生成改进建议
+            logger.info("=" * 80)
+            logger.info("【反馈闭环】启动反馈学习系统，基于实际命中率优化策略")
+            logger.info("=" * 80)
+            try:
+                from src.core.feedback_learning import FeedbackLearningSystem
+                fls = FeedbackLearningSystem()
+
+                # 1. 运行反馈分析（基于实际预测历史）
+                learning_report = fls.learn_from_feedback()
+                logger.info("[反馈闭环] 反馈学习完成，已生成改进建议")
+
+                # 2. 专门优化8码命中率
+                eight_code_report = fls.optimize_strategy_for_8code()
+                logger.info("[反馈闭环] 8码优化分析完成")
+
+                # 3. 将反馈学习结果传递给SelfLearningSystem
+                if learning_report and 'analysis_result' in learning_report:
+                    analysis = learning_report['analysis_result']
+                    overall = analysis.get('overall_analysis', {})
+                    actual_top8 = overall.get('top8_accuracy', 0)
+                    actual_top3 = overall.get('top3_accuracy', 0)
+                    logger.info(f"[反馈闭环] 反馈学习统计 - 实际Top-3: {actual_top3:.4f}, Top-8: {actual_top8:.4f}")
+
+            except Exception as e:
+                logger.warning(f"[反馈闭环] 反馈学习系统运行失败（非致命）: {e}")
+
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  策略优化完成，耗时: {final_elapsed:.2f} 小时")
-            
+
             sls.flush()
             self.log_status("策略优化", "完成", 100)
             
@@ -934,6 +973,229 @@ class AutoSchedulerV8:
             )
             return False
     
+    # =========================================================================
+    # 【V10.5新增】预测-开奖反馈闭环辅助方法
+    # =========================================================================
+
+    def _record_prediction(self, predictions: Dict, period: str, prediction_type: str = "final"):
+        """记录预测结果到 prediction_history.json，用于后续开奖对比"""
+        try:
+            from src.core.feedback_learning import FeedbackAnalyzer
+            analyzer = FeedbackAnalyzer()
+            analyzer.update_prediction_history(predictions, period)
+            logger.info(f"[反馈闭环] 已记录{prediction_type}预测到prediction_history (期号: {period})")
+        except Exception as e:
+            logger.warning(f"[反馈闭环] 记录预测失败（非致命）: {e}")
+
+    def _apply_repeat_penalty(self, prediction: Dict, last_period_numbers: Dict[str, int]) -> Tuple[Dict, bool]:
+        """
+        对预测结果全部重复上期号码的情况进行概率惩罚。
+        历史数据显示连续两期完全相同的概率仅约0.013%（万分之一），
+        但模型可能因过拟合给出高置信度的重复预测。
+        返回: (修正后的预测, 是否触发了惩罚)
+        """
+        positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+
+        # 检查是否所有位置的top-1都与上期相同
+        all_same = True
+        for pos in positions:
+            if pos in prediction and pos in last_period_numbers:
+                top1 = prediction[pos]['top_k'][0]
+                if top1 != last_period_numbers[pos]:
+                    all_same = False
+                    break
+            else:
+                all_same = False
+                break
+
+        if all_same:
+            logger.warning("=" * 80)
+            logger.warning("【重复号码惩罚】检测到预测结果全部重复上期号码!")
+            logger.warning(f"  上期号码: {last_period_numbers}")
+            logger.warning("  历史概率: 连续两期完全相同仅约0.013%（万分之一）")
+            logger.warning("  模型给出的高置信度重复预测极不可靠，强制执行概率惩罚")
+            logger.warning("=" * 80)
+
+            for pos in positions:
+                if pos not in prediction:
+                    continue
+                top_k = prediction[pos]['top_k']
+                probs = prediction[pos]['probabilities']
+
+                if len(probs) >= 2:
+                    # 将top-1的概率衰减到与top-2相近
+                    original_top1_prob = probs[0]
+                    original_top2_prob = probs[1]
+
+                    # 惩罚策略：让top-1和top-2概率接近，打破绝对 dominance
+                    new_top1_prob = (original_top1_prob + original_top2_prob) / 2
+                    new_top2_prob = new_top1_prob
+
+                    probs[0] = new_top1_prob
+                    probs[1] = new_top2_prob
+
+                    # 重新归一化
+                    total = sum(probs)
+                    if total > 0:
+                        probs = [p / total for p in probs]
+
+                    # 重新排序top_k（因为概率变了）
+                    prob_num_pairs = list(zip(probs, top_k))
+                    prob_num_pairs.sort(key=lambda x: x[0], reverse=True)
+                    new_top_k = [num for _, num in prob_num_pairs]
+                    new_probs = [prob for prob, _ in prob_num_pairs]
+
+                    prediction[pos]['top_k'] = new_top_k
+                    prediction[pos]['probabilities'] = new_probs
+                    prediction[pos]['repeat_penalty_applied'] = True
+                    prediction[pos]['original_top1'] = top_k[0]
+
+            logger.info("【重复号码惩罚】已应用概率修正:")
+            for pos in positions:
+                if pos in prediction:
+                    pk = prediction[pos]['top_k']
+                    logger.info(f"  {pos}: {pk[:3]} (原top-1: {prediction[pos].get('original_top1', 'N/A')})")
+
+            return prediction, True
+
+        return prediction, False
+
+    def _evaluate_actual_hits(self) -> Dict:
+        """
+        【V10.5核心新增】评估实际预测 vs 实际开奖结果的命中率。
+        读取 prediction_history.json 和最新开奖数据，对比计算真实命中率，
+        并将结果记录到 feedback_learning_history.json，形成知识图谱。
+        """
+        try:
+            from src.core.feedback_learning import FeedbackAnalyzer
+            from src.core.data.collector import PL5DataCollector
+
+            logger.info("=" * 80)
+            logger.info("【反馈闭环】评估实际预测 vs 开奖命中率")
+            logger.info("=" * 80)
+
+            collector = PL5DataCollector()
+            df = collector.load_processed_data()
+            if df is None or len(df) == 0:
+                logger.warning("[反馈闭环] 无数据，跳过实际命中率评估")
+                return {}
+
+            # 加载预测历史
+            analyzer = FeedbackAnalyzer()
+            predictions = analyzer.prediction_history
+            if not predictions:
+                logger.warning("[反馈闭环] prediction_history为空，无法评估实际命中率")
+                return {}
+
+            logger.info(f"[反馈闭环] 加载到 {len(predictions)} 条预测历史记录")
+
+            positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+            hit_records = []
+
+            for pred_record in predictions:
+                period = pred_record.get('period')
+                pred_data = pred_record.get('predictions', {})
+
+                # 查找该期的实际开奖结果
+                actual_row = df[df['period'].astype(str) == str(period)]
+                if actual_row.empty:
+                    logger.debug(f"[反馈闭环] 期号 {period} 的开奖数据尚未获取，跳过")
+                    continue
+
+                actual = {}
+                for pos in positions:
+                    actual[pos] = int(actual_row[pos].iloc[0])
+
+                # 计算各层级命中率
+                record = {
+                    'period': period,
+                    'timestamp': pred_record.get('timestamp'),
+                    'actual': actual,
+                    'hits': {}
+                }
+
+                for pos in positions:
+                    if pos not in pred_data:
+                        continue
+                    top_k = pred_data[pos].get('top_k', [])
+                    actual_num = actual[pos]
+
+                    record['hits'][pos] = {
+                        'actual': actual_num,
+                        'top1_hit': actual_num in top_k[:1] if len(top_k) >= 1 else False,
+                        'top3_hit': actual_num in top_k[:3] if len(top_k) >= 3 else False,
+                        'top5_hit': actual_num in top_k[:5] if len(top_k) >= 5 else False,
+                        'top8_hit': actual_num in top_k[:8] if len(top_k) >= 8 else False,
+                        'predicted_top_k': top_k
+                    }
+
+                hit_records.append(record)
+
+            if not hit_records:
+                logger.info("[反馈闭环] 暂无已开奖的可评估预测记录")
+                return {}
+
+            # 汇总统计
+            total = len(hit_records)
+            summary = {
+                'total_evaluated': total,
+                'periods': [r['period'] for r in hit_records],
+                'top1_hits': sum(1 for r in hit_records for p in positions if r['hits'].get(p, {}).get('top1_hit')),
+                'top3_hits': sum(1 for r in hit_records for p in positions if r['hits'].get(p, {}).get('top3_hit')),
+                'top5_hits': sum(1 for r in hit_records for p in positions if r['hits'].get(p, {}).get('top5_hit')),
+                'top8_hits': sum(1 for r in hit_records for p in positions if r['hits'].get(p, {}).get('top8_hit')),
+                'total_position_tests': total * len(positions),
+                'evaluation_time': datetime.now().isoformat()
+            }
+
+            summary['top1_accuracy'] = summary['top1_hits'] / summary['total_position_tests']
+            summary['top3_accuracy'] = summary['top3_hits'] / summary['total_position_tests']
+            summary['top5_accuracy'] = summary['top5_hits'] / summary['total_position_tests']
+            summary['top8_accuracy'] = summary['top8_hits'] / summary['total_position_tests']
+
+            logger.info("=" * 80)
+            logger.info("【反馈闭环】实际命中率统计结果")
+            logger.info("=" * 80)
+            logger.info(f"  评估期数: {total} 期")
+            logger.info(f"  测试位置数: {summary['total_position_tests']} 个")
+            logger.info(f"  Top-1 命中率: {summary['top1_hits']}/{summary['total_position_tests']} = {summary['top1_accuracy']:.4f}")
+            logger.info(f"  Top-3 命中率: {summary['top3_hits']}/{summary['total_position_tests']} = {summary['top3_accuracy']:.4f}")
+            logger.info(f"  Top-5 命中率: {summary['top5_hits']}/{summary['total_position_tests']} = {summary['top5_accuracy']:.4f}")
+            logger.info(f"  Top-8 命中率: {summary['top8_hits']}/{summary['total_position_tests']} = {summary['top8_accuracy']:.4f}")
+            logger.info("=" * 80)
+
+            # 保存到 feedback_learning_history
+            feedback_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'actual_hit_evaluation',
+                'summary': summary,
+                'hit_records': hit_records[-20:]  # 只保存最近20期
+            }
+
+            feedback_path = MODELS_DIR / "feedback_learning_history.json"
+            try:
+                existing = []
+                if feedback_path.exists():
+                    with open(feedback_path, 'r', encoding='utf-8') as f:
+                        existing = json.load(f)
+                if not isinstance(existing, list):
+                    existing = []
+                existing.append(feedback_entry)
+                # 只保留最近100条
+                if len(existing) > 100:
+                    existing = existing[-100:]
+                with open(feedback_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing, f, indent=2, ensure_ascii=False)
+                logger.info(f"[反馈闭环] 已保存命中率评估到 {feedback_path}")
+            except Exception as e:
+                logger.warning(f"[反馈闭环] 保存feedback_learning_history失败: {e}")
+
+            return summary
+
+        except Exception as e:
+            logger.error(f"[反馈闭环] 实际命中率评估异常: {e}", exc_info=True)
+            return {}
+
     def _get_best_feature_config(self, force_validate: bool = False) -> dict:
         """【V10.4修复】获取最佳特征配置，支持缓存过期和强制验证
         
@@ -1819,7 +2081,26 @@ class AutoSchedulerV8:
             
             # 生成预测
             prediction = predictor.predict(test_features, recent_original_data, top_k=8)
-            
+
+            # 【V10.5新增】获取上期开奖号码，用于重复惩罚
+            last_period_numbers = {
+                'wan': int(data['wan'].iloc[-1]),
+                'qian': int(data['qian'].iloc[-1]),
+                'bai': int(data['bai'].iloc[-1]),
+                'shi': int(data['shi'].iloc[-1]),
+                'ge': int(data['ge'].iloc[-1])
+            }
+
+            # 【V10.5核心新增】应用重复号码惩罚
+            prediction, penalty_applied = self._apply_repeat_penalty(prediction, last_period_numbers)
+            if penalty_applied:
+                prediction_info['repeat_penalty_applied'] = True
+                prediction_info['last_period_numbers'] = last_period_numbers
+
+            # 【V10.5核心新增】记录预测到prediction_history，用于开奖后对比
+            next_period = str(int(data['period'].iloc[-1]) + 1)
+            self._record_prediction(prediction, next_period, prediction_type="final")
+
             # 【V10.4新增】基于佐证一致性调整预测权重
             if consistency_scores['overall'] < 0.5:
                 logger.warning(f"【佐证一致性警告】一致性较低 ({consistency_scores['overall']:.2%})，预测结果可能不稳定")
@@ -2082,7 +2363,23 @@ class AutoSchedulerV8:
             
             # 生成最终预测
             pre_sale_prediction = predictor.predict(test_features, recent_original_data, top_k=8)
-            
+
+            # 【V10.5新增】获取上期开奖号码，用于重复惩罚
+            last_period_numbers = {
+                'wan': int(data['wan'].iloc[-1]),
+                'qian': int(data['qian'].iloc[-1]),
+                'bai': int(data['bai'].iloc[-1]),
+                'shi': int(data['shi'].iloc[-1]),
+                'ge': int(data['ge'].iloc[-1])
+            }
+
+            # 【V10.5核心新增】应用重复号码惩罚
+            pre_sale_prediction, penalty_applied = self._apply_repeat_penalty(pre_sale_prediction, last_period_numbers)
+
+            # 【V10.5核心新增】记录预测到prediction_history
+            next_period = str(int(data['period'].iloc[-1]) + 1)
+            self._record_prediction(pre_sale_prediction, next_period, prediction_type="pre_sale")
+
             # 保存售前预测结果
             pre_sale_info = {
                 'pre_sale_time': datetime.now().isoformat(),

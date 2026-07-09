@@ -1,5 +1,11 @@
 [
   {
+    "version_id": "v20260708_170143_f680cca8",
+    "timestamp": "2026-07-08T17:01:43.960339",
+    "feature_count": 300,
+    "feature_hash": "f680cca828f4afab0ba13e10c6e4248b"
+  },
+  {
     "version_id": "v20260707_170119_f680cca8",
     "timestamp": "2026-07-07T17:01:19.191773",
     "feature_count": 300,
@@ -110,12 +116,6 @@
   {
     "version_id": "v20260501_155111_1e02ff76",
     "timestamp": "2026-05-01T15:51:11.097650",
-    "feature_count": 301,
-    "feature_hash": "1e02ff76000028259ab48657fa1426bf"
-  },
-  {
-    "version_id": "v20260501_015726_1e02ff76",
-    "timestamp": "2026-05-01T01:57:26.507756",
     "feature_count": 301,
     "feature_hash": "1e02ff76000028259ab48657fa1426bf"
   }

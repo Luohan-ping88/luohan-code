@@ -288,48 +288,91 @@ class TrainingOptimizationAgent(BaseAgent):
         }
     
     async def _hyperparameter_tuning(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """超参数自动调优"""
+        """超参数自动调优 - 健壮版
+
+        使用真实交叉验证评估替换原先的随机伪评估 (random.random())，
+        集成 HyperparameterManager 实现工业级调优流程。
+        """
         data = params.get('data')
         feature_cols = params.get('feature_cols')
         model_type = params.get('model_type')
-        
+
         logger.info(f"[{self.name}] 开始超参数调优: {model_type}")
-        
-        # 定义参数搜索空间
-        param_grids = {
-            'RandomForest': {
-                'n_estimators': [50, 100, 200],
-                'max_depth': [5, 10, None],
-                'min_samples_split': [2, 5, 10]
-            },
-            'GradientBoosting': {
-                'n_estimators': [50, 100, 200],
-                'learning_rate': [0.01, 0.1, 0.2],
-                'max_depth': [3, 5, 7]
+
+        # 优先使用健壮的 HyperparameterManager
+        try:
+            from src.core.models.hyperparameter_manager import (
+                get_hyperparameter_manager,
+                HyperparamRecord,
+            )
+
+            manager = get_hyperparameter_manager()
+
+            if data is None or feature_cols is None or not feature_cols:
+                logger.warning(f"[{self.name}] 缺少数据/特征列，回退到生产基线")
+                config = manager.get_production_config(model_type or "lgbm")
+                return {
+                    "best_params": config,
+                    "best_score": 0.0,
+                    "model_type": model_type,
+                    "method": "fallback_baseline",
+                }
+
+            # 准备数据
+            import numpy as np
+            X = data[feature_cols].values
+            y = data[params.get("target_col", "wan")].values
+
+            n_trials = params.get("n_trials", 30)
+            cv_folds = params.get("cv_folds", 5)
+            position = params.get("position")
+
+            # 执行健壮调优
+            record: HyperparamRecord = manager.tune(
+                model_type=model_type,
+                X=X,
+                y=y,
+                n_trials=n_trials,
+                cv_folds=cv_folds,
+                position=position,
+            )
+
+            # 提升为生产配置
+            if record.score > 0:
+                manager.promote_to_production(model_type, position, record)
+
+            return {
+                "best_params": record.params,
+                "best_score": record.score,
+                "cv_mean": record.cv_mean,
+                "cv_std": record.cv_std,
+                "n_trials": record.n_trials,
+                "model_type": model_type,
+                "method": "robust_tuning",
+                "duration_seconds": record.duration_seconds,
             }
-        }
-        
-        # 使用随机搜索
-        import random
-        best_score = 0
-        best_params = {}
-        
-        param_grid = param_grids.get(model_type, {})
-        
-        for _ in range(10):  # 随机搜索10组参数
-            params = {k: random.choice(v) for k, v in param_grid.items()}
-            # 这里应该实际训练和评估，简化处理
-            score = random.random()  # 模拟评分
-            
-            if score > best_score:
-                best_score = score
-                best_params = params
-        
-        return {
-            'best_params': best_params,
-            'best_score': best_score,
-            'model_type': model_type
-        }
+
+        except ImportError as e:
+            logger.error(f"[{self.name}] HyperparameterManager 不可用: {e}")
+        except Exception as e:
+            logger.error(f"[{self.name}] 调优失败，使用基线配置: {e}")
+
+        # 回退: 直接返回生产基线
+        try:
+            from src.core.models.hyperparameter_manager import get_production_hyperparams
+            return {
+                "best_params": get_production_hyperparams(model_type or "lgbm"),
+                "best_score": 0.0,
+                "model_type": model_type,
+                "method": "fallback_production_baseline",
+            }
+        except Exception:
+            return {
+                "best_params": {},
+                "best_score": 0.0,
+                "model_type": model_type,
+                "method": "error_fallback",
+            }
     
     async def _model_evaluation(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """评估模型性能"""

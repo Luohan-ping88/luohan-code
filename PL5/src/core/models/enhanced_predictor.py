@@ -265,6 +265,24 @@ class StackingEnsemble:
         resolved_base = base_config or _mc.stacking_base_config()
         resolved_meta = meta_config or _mc.stacking_meta_config()
 
+        # [PROD-V10.5] 集成 HyperparameterManager 健壮生产配置
+        try:
+            from src.core.models.hyperparameter_manager import get_production_hyperparams
+            prod_lgbm = get_production_hyperparams("lgbm")
+            prod_rf = get_production_hyperparams("rf")
+            # 合并生产级超参数（仅当调用方未显式提供）
+            if base_config is None:
+                for k, v in prod_lgbm.items():
+                    if k in self.DEFAULT_BASE_CONFIG and k not in resolved_base:
+                        resolved_base[k] = v
+                # RF 的部分参数可借鉴
+                for k in ("min_samples_split", "min_samples_leaf"):
+                    if k in prod_rf and k not in resolved_base:
+                        resolved_base[k] = prod_rf[k]
+                logger.info("[Stacking V2] 已加载 HyperparameterManager 生产级超参数")
+        except Exception as e:
+            logger.debug(f"[Stacking V2] HyperparameterManager 不可用，使用默认配置: {e}")
+
         if base_config is not None:
             self.base_config = {**self.DEFAULT_BASE_CONFIG, **base_config}
         else:

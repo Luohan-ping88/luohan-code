@@ -1,7 +1,8 @@
 {
   "smtp_server": "smtp.qq.com",
   "smtp_port": 465,
-  "from_email": "lhp871096134@qq.com",
+  "sender_email": "lhp871096134@qq.com",
   "to_email": "lhp871096134@qq.com",
+  "recipients": ["lhp871096134@qq.com"],
   "auth_code": "evquqvnmvnzyecdi"
 }

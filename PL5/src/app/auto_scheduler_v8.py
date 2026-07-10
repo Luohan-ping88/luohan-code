@@ -2093,9 +2093,6 @@ class AutoSchedulerV8:
 
             # 【V10.5核心新增】应用重复号码惩罚
             prediction, penalty_applied = self._apply_repeat_penalty(prediction, last_period_numbers)
-            if penalty_applied:
-                prediction_info['repeat_penalty_applied'] = True
-                prediction_info['last_period_numbers'] = last_period_numbers
 
             # 【V10.5核心新增】记录预测到prediction_history，用于开奖后对比
             next_period = str(int(data['period'].iloc[-1]) + 1)
@@ -2114,7 +2111,6 @@ class AutoSchedulerV8:
                 'next_period': str(int(data['period'].iloc[-1]) + 1),
                 'predictions': prediction,
                 'feature_config': best_config,
-                # 【V10.4新增】佐证一致性信息
                 'verification_consistency': consistency_scores,
                 'verification_results_summary': {
                     k: {
@@ -2125,6 +2121,10 @@ class AutoSchedulerV8:
                     for k, v in verification_results.items() if v
                 }
             }
+            
+            if penalty_applied:
+                prediction_info['repeat_penalty_applied'] = True
+                prediction_info['last_period_numbers'] = last_period_numbers
             
             prediction_path = LOGS_DIR / "final_prediction.json"
             with open(prediction_path, 'w', encoding='utf-8') as f:

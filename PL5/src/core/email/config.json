@@ -1,0 +1,9 @@
+{
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "username": "your-email@gmail.com",
+  "password": "your-app-password",
+  "sender": "your-email@gmail.com",
+  "receivers": ["recipient1@example.com", "recipient2@example.com"],
+  "subject": "PL5 预测模型训练报告"
+}

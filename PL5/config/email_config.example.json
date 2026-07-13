@@ -1,0 +1,7 @@
+{
+  "smtp_server": "smtp.qq.com",
+  "smtp_port": 465,
+  "from_email": "your_email@qq.com",
+  "to_email": "your_email@qq.com",
+  "auth_code": "your_auth_code_here"
+}

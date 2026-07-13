@@ -1,0 +1,12 @@
+- [x] stop_service.bat 验证代码同时支持路径模式和模块模式识别PL5进程（已验证：第44-56行包含 check_module_mode 和 has_module_mode）
+- [x] start_daemon.bat 初始检查使用三重匹配（Python进程 + PL5标识符 + 项目路径/模块模式）（已验证：第28-44行）
+- [x] start_daemon.bat 验证代码使用三重匹配（已验证：第160-176行）
+- [x] deploy_end_to_end.bat 验证代码同时支持路径模式和模块模式（已验证：内联Python代码）
+- [x] task_send_report 中佐证结果正确存储到 all_verification_results 字典（已验证：第1325行）
+- [x] task_send_report 中佐证结果 key 命名与 analyze_and_send 一致（已验证：第1313-1317行）
+- [x] analyze_and_send 函数接收并使用传入的佐证结果参数（已验证：第50行签名 verification_results=None）
+- [x] task_prediction_preview 使用 FeatureEngineer 而非 FeatureEngineerV9（已验证：grep搜索无FeatureEngineerV9结果）
+- [x] scheduler_config_v8.json 时间与 setup_schedule() 默认时间一致（已验证：evaluation_time=22:15）
+- [x] 所有部署脚本中显示的定时任务列表与实际配置一致（已验证：start_daemon.bat和deploy_end_to_end.bat已更新）
+- [x] 冒烟测试通过（11/11 PASS，全部测试通过）
+- [x] 系统可正常启动和运行（已验证：AutoSchedulerV8 导入成功，analyze_and_send 签名正确）

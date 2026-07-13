@@ -1,0 +1,441 @@
+name: PL5 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, release/* ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * *'  # 每天UTC 00:00执行
+  workflow_dispatch:  # 支持手动触发
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: '跳过测试'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.12'
+  PROJECT_NAME: pl5-system
+
+jobs:
+  # ========== 代码质量检查 ==========
+  lint-and-format:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install linting tools
+        run: |
+          pip install flake8 black isort bandit
+
+      - name: Run flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run black check
+        run: |
+          black --check --diff . || true
+
+      - name: Run isort check
+        run: |
+          isort --check-only --diff . || true
+
+      - name: Run bandit security check
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: bandit-report.json
+          retention-days: 30
+
+  # ========== 单元测试 ==========
+  unit-tests:
+    name: 单元测试
+    runs-on: ${{ matrix.os }}
+    needs: lint-and-format
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio allure-pytest
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html --alluredir=allure-results/unit
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            allure-results/unit
+            htmlcov
+          retention-days: 30
+
+  # ========== 集成测试 ==========
+  integration-tests:
+    name: 集成测试
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ !inputs.skip_tests }}
+    services:
+      # 如果需要数据库等服务，可以在这里定义
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio allure-pytest
+
+      - name: Run environment check
+        run: |
+          python scripts/deploy/check_environment.py --json
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --alluredir=allure-results/integration
+        env:
+          REDIS_URL: redis://localhost:6379/0
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: allure-results/integration
+          retention-days: 30
+
+  # ========== 端到端测试 ==========
+  e2e-tests:
+    name: 端到端测试
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio allure-pytest requests
+
+      - name: Start application
+        run: |
+          python start_api.py &
+          sleep 10
+
+      - name: Run E2E tests
+        run: |
+          pytest tests/e2e/ -v --alluredir=allure-results/e2e
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: allure-results/e2e
+          retention-days: 30
+
+  # ========== 构建 ==========
+  build:
+    name: 构建
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-${GITHUB_SHA::7}")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image_tag=ghcr.io/${{ github.repository }}:$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Build Python package
+        run: |
+          pip install build
+          python -m build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 30
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ steps.version.outputs.image_tag }} .
+          docker save ${{ steps.version.outputs.image_tag }} > pl5-system.tar
+
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: pl5-system.tar
+          retention-days: 7
+
+  # ========== 部署到测试环境 ==========
+  deploy-staging:
+    name: 部署到测试环境
+    runs-on: ubuntu-latest
+    needs: [build, e2e-tests]
+    if: github.ref == 'refs/heads/develop' || inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.pl5.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Deploy to staging
+        run: |
+          echo "部署到测试环境..."
+          echo "版本: ${{ needs.build.outputs.version }}"
+          # 这里添加实际的部署命令
+          # 例如: scp, rsync, kubectl apply, 等
+
+      - name: Run post-deploy verification
+        run: |
+          echo "运行部署后验证..."
+          # python scripts/deploy/post_deploy_verify.py --env staging
+
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  # ========== 部署到生产环境 ==========
+  deploy-production:
+    name: 部署到生产环境
+    runs-on: ubuntu-latest
+    needs: [build, e2e-tests]
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://pl5.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Pre-deploy check
+        run: |
+          echo "运行部署前检查..."
+          # python scripts/deploy/pre_deploy_check.py --env production
+
+      - name: Create deployment backup
+        run: |
+          echo "创建部署备份..."
+          # python scripts/deploy/rollback.py --create-backup
+
+      - name: Deploy to production
+        run: |
+          echo "部署到生产环境..."
+          echo "版本: ${{ needs.build.outputs.version }}"
+          # 这里添加实际的部署命令
+
+      - name: Run post-deploy verification
+        run: |
+          echo "运行部署后验证..."
+          # python scripts/deploy/post_deploy_verify.py --env production
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "部署失败，执行回滚..."
+          # python scripts/deploy/rollback.py --restore-latest
+
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  # ========== 性能测试 ==========
+  performance-tests:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Run performance tests
+        run: |
+          python scripts/utility/performance_benchmark.py
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: logs/performance/
+          retention-days: 30
+
+  # ========== 生成测试报告 ==========
+  generate-report:
+    name: 生成测试报告
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, e2e-tests]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: allure-results
+          pattern: '*-test-results-*'
+
+      - name: Install Allure
+        run: |
+          wget -qO- https://github.com/allure-framework/allure2/releases/download/2.24.0/allure-2.24.0.tgz | tar -xz -C /tmp/
+          echo "/tmp/allure-2.24.0/bin" >> $GITHUB_PATH
+
+      - name: Generate Allure report
+        run: |
+          mkdir -p allure-results/combined
+          find allure-results -name "*.json" -exec cp {} allure-results/combined/ \;
+          allure generate allure-results/combined -o allure-report --clean
+
+      - name: Upload Allure report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
+          retention-days: 30
+
+      - name: Deploy report to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report

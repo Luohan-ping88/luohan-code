@@ -1,0 +1,92 @@
+{
+  "data_fetch_time": "22:00",
+  "evaluation_time": "22:15",
+  "optimization_start": "22:45",
+  "training_start": "00:30",
+  "incremental_training_morning": "08:00",
+  "first_prediction_verification": "10:00",
+  "incremental_training_noon": "12:00",
+  "incremental_training_afternoon": "14:00",
+  "deep_strategy_optimization": "16:00",
+  "prediction_preview": "17:00",
+  "final_prediction_time": "18:00",
+  "final_prediction_verification_time": "19:00",
+  "pre_sale_prediction_time": "20:00",
+  "email_send_time": "20:15",
+  "training_deadline": "17:00",
+  "enabled": true,
+  "monitoring_enabled": true,
+  "task_sequence": [
+    {
+      "name": "自动获取开奖数据",
+      "time": "22:15",
+      "description": "获取最新开奖数据，用于后续评估和训练"
+    },
+    {
+      "name": "评估预测逻辑与命中情况",
+      "time": "22:15",
+      "description": "评估上一期预测的命中情况，优化推理策略（评估在训练之前）"
+    },
+    {
+      "name": "推理逻辑策略优化学习",
+      "time": "22:45",
+      "description": "根据评估结果优化推理策略"
+    },
+    {
+      "name": "开始深度训练",
+      "time": "00:30",
+      "description": "基于优化后的策略进行深度训练"
+    },
+    {
+      "name": "进行增量训练（上午）",
+      "time": "08:00",
+      "description": "利用上午时间进行增量训练（首次佐证）"
+    },
+    {
+      "name": "首次预测验证",
+      "time": "10:00",
+      "description": "首次预测验证，检查推理逻辑是否存在问题（首次佐证）"
+    },
+    {
+      "name": "进行增量训练（中午）",
+      "time": "12:00",
+      "description": "利用中午时间进行增量训练（二次佐证）"
+    },
+    {
+      "name": "进行增量训练（下午）",
+      "time": "14:00",
+      "description": "利用下午时间进行增量训练，持续学习（三次佐证）"
+    },
+    {
+      "name": "深度策略优化",
+      "time": "16:00",
+      "description": "深度优化推理策略，为最终预测做准备（四次佐证）"
+    },
+    {
+      "name": "预测结果预生成",
+      "time": "17:00",
+      "description": "预生成预测结果，提前验证（五次佐证）"
+    },
+    {
+      "name": "生成最终预测结果",
+      "time": "18:00",
+      "description": "生成最终预测结果"
+    },
+    {
+      "name": "验证最终预测结果",
+      "time": "19:00",
+      "description": "验证最终预测结果的一致性（六次佐证）"
+    },
+    {
+      "name": "售前最终预测",
+      "time": "20:00",
+      "description": "停售前1小时生成最终预测"
+    },
+    {
+      "name": "发送训练报告和最终预测到邮箱",
+      "time": "20:15",
+      "description": "发送训练报告和最终预测到邮箱"
+    }
+  ],
+  "last_completed_period": "2026183"
+}

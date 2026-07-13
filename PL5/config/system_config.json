@@ -1,0 +1,57 @@
+{
+    "workflow": {
+        "persistence_dir": "${WORKFLOW_DIR:-./workflows}",
+        "template_dir": "${WORKFLOW_TEMPLATE_DIR:-./workflow_templates}",
+        "state_file": "${WORKFLOW_STATE_FILE:-logs/workflow_state.pkl}",
+        "default_timeout": 3600,
+        "max_retry_attempts": 3,
+        "retry_delay_seconds": 60
+    },
+    "events": {
+        "max_history_size": 1000,
+        "async_processing": true,
+        "error_handling": "log_and_continue"
+    },
+    "features": {
+        "config_dirs": [
+            "${LOGS_DIR:-./logs}",
+            "${MODELS_DIR:-./models}",
+            "${CONFIG_DIR:-./config}"
+        ],
+        "cache_enabled": true,
+        "validation_enabled": true
+    },
+    "training": {
+        "stages": [
+            "data_processing",
+            "feature_engineering",
+            "model_training",
+            "model_evaluation",
+            "report_generation"
+        ],
+        "timeout_per_stage": {
+            "data_processing": 300,
+            "feature_engineering": 600,
+            "model_training": 1800,
+            "model_evaluation": 300,
+            "report_generation": 60
+        }
+    },
+    "prediction": {
+        "timeout": 300,
+        "cache_enabled": true,
+        "cache_ttl_seconds": 3600
+    },
+    "scheduling": {
+        "timezone": "Asia/Shanghai",
+        "retry_on_failure": true,
+        "max_concurrent_tasks": 4
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file_rotation": true,
+        "max_bytes": 10485760,
+        "backup_count": 5
+    }
+}

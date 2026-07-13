@@ -1,0 +1,30 @@
+{
+  "enabledPlugins": {
+    "internal-comms@cb_teams_marketplace": true,
+    "executing-marketing-campaigns@cb_teams_marketplace": true,
+    "general-skills@cb_teams_marketplace": true,
+    "data-analysis@cb_teams_marketplace": true,
+    "modern-webapp@cb_teams_marketplace": true,
+    "ppt-implement@cb_teams_marketplace": true,
+    "data@cb_teams_marketplace": true,
+    "finance@cb_teams_marketplace": true,
+    "deep-research@cb_teams_marketplace": true,
+    "product-management@cb_teams_marketplace": true,
+    "design-to-code@cb_teams_marketplace": true,
+    "codebuddy-chat-web@cb_teams_marketplace": true,
+    "webapp-testing@cb_teams_marketplace": true,
+    "dockerfile-gen@cb_teams_marketplace": true,
+    "remotion-video-generator@cb_teams_marketplace": true,
+    "agent-sdk-dev@cb_teams_marketplace": true,
+    "skill-creator@cb_teams_marketplace": true,
+    "financial-analysis@cb_teams_marketplace": true,
+    "investment-banking@cb_teams_marketplace": true,
+    "equity-research@cb_teams_marketplace": true,
+    "private-equity@cb_teams_marketplace": true,
+    "wealth-management@cb_teams_marketplace": true,
+    "lseg@cb_teams_marketplace": true,
+    "spglobal@cb_teams_marketplace": true,
+    "finance-data@cb_teams_marketplace": true,
+    "trading-assistant@cb_teams_marketplace": true
+  }
+}

@@ -1,0 +1,14 @@
+=== cpp_core 诊断测试 ===
+
+[Step1] 测试 cpp_core.pl5_core 直接导入...
+  OK: pl5_core 导入成功
+  OK: FeatureCalculator = <class 'cpp_core.pl5_core.FeatureCalculator'>
+
+[Step2] 测试 import cpp_core (包导入)...
+  OK: cpp_core 导入成功, CPP_AVAILABLE=True
+
+[Step3] 测试 FeatureCalculator 功能...
+  OK: rolling_mean len=50, rolling_std len=50, fft len=50
+  Sample mean[10:15]: [8.0, 9.0, 10.0, 11.0, 12.0]
+
+=== 诊断完成 ===

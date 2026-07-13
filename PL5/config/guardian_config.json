@@ -1,0 +1,45 @@
+{
+  "enabled": true,
+  "check_interval": 30,
+  "max_restarts": 5,
+  "restart_window": 3600,
+  "main_script": "src/app/auto_scheduler_v8.py",
+  "service_script": "scripts/service.py",
+  "auto_start": true,
+  "health_check": {
+    "enabled": true,
+    "cpu_threshold": 90,
+    "memory_threshold": 90,
+    "disk_threshold": 95
+  },
+  "scheduled_tasks": {
+    "enabled": true,
+    "tasks": [
+      {
+        "name": "data_fetch",
+        "time": "00:00",
+        "enabled": true
+      },
+      {
+        "name": "evaluation",
+        "time": "00:30",
+        "enabled": true
+      },
+      {
+        "name": "optimization",
+        "time": "01:00",
+        "enabled": true
+      },
+      {
+        "name": "training",
+        "time": "02:00",
+        "enabled": true
+      },
+      {
+        "name": "email_send",
+        "time": "17:30",
+        "enabled": true
+      }
+    ]
+  }
+}

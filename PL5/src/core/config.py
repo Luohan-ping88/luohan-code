@@ -142,9 +142,19 @@ class ModelConfig:
         if not path.exists():
             raise FileNotFoundError(f"配置文件不存在: {path}")
 
+        logger = logging.getLogger(__name__)
+
         if _HAS_YAML:
             with open(path, 'r', encoding='utf-8') as f:
                 raw_data = yaml.safe_load(f) or {}
+        elif path.suffix.lower() in ('.yaml', '.yml'):
+            # PyYAML 缺失且配置文件是 YAML 格式：给出明确警告并使用内置默认值
+            logger.error(
+                f"[ModelConfig] 检测到 YAML 配置文件 {path}，但 PyYAML 未安装！\n"
+                f"  请执行: pip install PyYAML\n"
+                f"  当前将使用内置默认配置，所有 YAML 配置修改均不生效。"
+            )
+            raw_data = self._get_builtin_defaults()
         else:
             import json
             with open(path, 'r', encoding='utf-8') as f:
@@ -154,8 +164,7 @@ class ModelConfig:
         self._apply_env_overrides()
         self._validate()
         self._loaded = True
-        logger = logging.getLogger(__name__)
-        logger.info(f"[ModelConfig] 配置已加载: {path}")
+        logger.info(f"[ModelConfig] 配置已加载: {path} (yaml_available={_HAS_YAML})")
         return self
 
     def reload(self) -> "ModelConfig":

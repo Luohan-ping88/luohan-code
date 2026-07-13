@@ -263,6 +263,30 @@ class EnvironmentChecker:
             self.errors.append(error_msg)
             return False
 
+    def check_pyyaml(self) -> bool:
+        """检查PyYAML是否安装（关键依赖，缺失会导致配置文件不生效）"""
+        self.log("检查PyYAML...")
+        try:
+            import yaml
+            version = getattr(yaml, '__version__', 'unknown')
+            self.log(f"✓ PyYAML: {version}")
+            self.check_results['pyyaml'] = {'status': 'PASS', 'version': version}
+            return True
+        except ImportError:
+            error_msg = (
+                "✗ PyYAML 未安装！配置文件 model_config.yaml 将无法加载，\n"
+                "  系统将使用内置默认值，所有配置修改均不生效。\n"
+                "  请执行: pip install PyYAML"
+            )
+            self.log(error_msg, 'ERROR')
+            self.errors.append(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"✗ PyYAML 检查失败: {e}"
+            self.log(error_msg, 'ERROR')
+            self.errors.append(error_msg)
+            return False
+
     def check_git(self) -> bool:
         """检查Git是否可用"""
         self.log("检查Git...")
@@ -370,6 +394,7 @@ class EnvironmentChecker:
             self.check_network,
             self.check_ports,
             self.check_pip,
+            self.check_pyyaml,
             self.check_git,
             self.check_project_structure,
             self.check_permissions,

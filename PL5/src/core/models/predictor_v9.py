@@ -139,10 +139,22 @@ class CopulaModel:
 # ═══════════════════════════════════════════════════════════════
 
 class BSTSModel:
-    """贝叶斯结构时序近似：用指数加权频率代替完整贝叶斯推断。"""
+    """贝叶斯结构时序近似：用指数加权频率代替完整贝叶斯推断。
 
-    def __init__(self, alpha: float = 0.05):
-        self.alpha = alpha
+    alpha 参数对应配置文件中 bsts.learning_rate，控制指数衰减速率。
+    值越大，越近期的数据权重越高。
+    """
+
+    def __init__(self, alpha: float = None):
+        # 从配置文件读取 bsts.learning_rate，配置不存在时使用默认值 0.05
+        if alpha is not None:
+            self.alpha = alpha
+        else:
+            try:
+                from src.core.config import get_model_config
+                self.alpha = get_model_config().get_float('bsts.learning_rate', 0.05)
+            except Exception:
+                self.alpha = 0.05
         self.proba = np.ones(10) / 10
         self._fitted = False
 
@@ -201,24 +213,45 @@ class ExtremeValueModel:
 
 class StackingEnsemble:
     """
-    Stacking 集成：RF + GBM + ET + AdaBoost 作为 base learners，
+    Stacking 集成：RF + GBM + ET 作为 base learners，
     LogisticRegression 作为元学习器，TimeSeriesSplit 交叉验证。
-    优化：支持并行训练
+    优化：支持并行训练，从配置文件读取超参数
     """
 
-    BASE_MODELS = {
-        "rf": RandomForestClassifier(
-            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
-        ),
-        "gbm": GradientBoostingClassifier(
-            n_estimators=50, max_depth=4, random_state=42
-        ),
-        "et": ExtraTreesClassifier(
-            n_estimators=50, max_depth=8, random_state=42, n_jobs=-1
-        ),
-    }
-
     def __init__(self, n_jobs: int = -1):
+        # 从配置文件读取超参数，而非硬编码
+        from src.core.config import get_model_config
+        _mc = get_model_config()
+        _base_cfg = _mc.stacking_base_config()
+        _meta_cfg = _mc.stacking_meta_config()
+
+        n_est = _base_cfg.get("n_estimators", 100)
+        max_d = _base_cfg.get("max_depth", 10)
+        rs = _base_cfg.get("random_state", 42)
+        n_jobs_cfg = _base_cfg.get("n_jobs", -1)
+        lr = _base_cfg.get("learning_rate", 0.06)
+
+        self.BASE_MODELS = {
+            "rf": RandomForestClassifier(
+                n_estimators=n_est, max_depth=max_d, random_state=rs, n_jobs=n_jobs_cfg
+            ),
+            "gbm": GradientBoostingClassifier(
+                n_estimators=n_est, max_depth=max_d // 2, random_state=rs,
+                learning_rate=lr
+            ),
+            "et": ExtraTreesClassifier(
+                n_estimators=n_est, max_depth=max_d, random_state=rs, n_jobs=n_jobs_cfg
+            ),
+        }
+
+        # 元学习器从配置读取
+        _cv_folds = _meta_cfg.get("cv_folds", 5)
+        _meta_C = _meta_cfg.get("C", 1.0)
+        _meta_max_iter = _meta_cfg.get("max_iter", 500)
+        self._meta_cv_folds = _cv_folds
+        self._meta_C = _meta_C
+        self._meta_max_iter = _meta_max_iter
+
         self.position_models: Dict[str, Dict] = {}
         self.meta_models: Dict[str, LogisticRegression] = {}
         self._fitted = False
@@ -229,9 +262,9 @@ class StackingEnsemble:
         self, data: pd.DataFrame, feature_cols: List[str]
     ) -> "StackingEnsemble":
         X = data[feature_cols].fillna(0).values
-        tscv = TimeSeriesSplit(n_splits=3)
+        tscv = TimeSeriesSplit(n_splits=self._meta_cv_folds)
 
-        logger.info(f"使用并行训练模式 (n_jobs={self.n_jobs})")
+        logger.info(f"使用并行训练模式 (n_jobs={self.n_jobs}), cv_folds={self._meta_cv_folds}")
         
         def fit_single_position(pos):
             y = data[pos].values.astype(int)
@@ -275,7 +308,7 @@ class StackingEnsemble:
             clf.fit(X, y)
             base_fitted[name] = clf
 
-        meta_clf = LogisticRegression(max_iter=300, C=1.0, solver="lbfgs", random_state=42)
+        meta_clf = LogisticRegression(max_iter=self._meta_max_iter, C=self._meta_C, solver="lbfgs", random_state=42)
         meta_clf.fit(meta_X, y)
 
         return base_fitted, meta_clf
@@ -311,20 +344,34 @@ class StackingEnsemble:
 # 主预测器 V9.0 - 重构优化版
 # ═══════════════════════════════════════════════════════════════
 
-MODEL_WEIGHTS = {
-    "stacking": 0.55,
-    "hmm": 0.10,
-    "bsts": 0.12,
-    "evm": 0.15,
-    "copula": 0.08,
-}
+# 模型权重从配置文件读取，不再硬编码
+def _load_model_weights():
+    """从配置文件加载模型权重，配置不存在时使用合理默认值"""
+    from src.core.config import get_model_config
+    _mc = get_model_config()
+    _w = _mc.model_weights()
+    # V9 使用 stacking/hmm/bsts/evm/copula 五种模型
+    weights = {
+        "stacking": _w.get("stacking", 0.40),
+        "hmm": _w.get("hmm", 0.15),
+        "copula": _w.get("copula", 0.15),
+        "bsts": _w.get("bsts", _w.get("bayesian", 0.15)),
+        "evm": _w.get("evm", 0.15),
+    }
+    # 归一化确保和为1
+    total = sum(weights.values())
+    if total > 0:
+        weights = {k: v / total for k, v in weights.items()}
+    return weights
+
+MODEL_WEIGHTS = _load_model_weights()
 
 
 class PL5PredictorV9:
     """
     PL5 主预测器 V9.0 - 重构优化版
     整合 StackingEnsemble / HMM / BSTS / ExtremeValueModel / Copula。
-    优化：并行训练、缓存集成
+    优化：并行训练、缓存集成、配置驱动权重
     """
 
     MODELS_DIR = Path(__file__).parent.parent.parent.parent / "models"

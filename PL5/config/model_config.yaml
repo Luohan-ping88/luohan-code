@@ -1,24 +1,33 @@
 stacking:
   base_config:
-    n_estimators: 5
+    n_estimators: 100
     max_depth: 10
     random_state: 42
     n_jobs: -1
     learning_rate: 0.06
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    min_child_weight: 5
+    subsample: 0.8
+    colsample_bytree: 0.8
   meta_config:
     type: logistic
     C: 1.0
-    max_iter: 50
+    max_iter: 500
     l1_ratio: 0.5
     alpha: 0.0001
-    cv_folds: 2
-    auto_select: false
-    enable_meta_features: false
+    cv_folds: 5
+    auto_select: true
+    enable_meta_features: true
   model_weights:
-    stacking: 0.4
-    hmm: 0.15
-    copula: 0.25
-    bayesian: 0.2
+    stacking: 0.25
+    hmm: 0.10
+    copula: 0.10
+    bsts: 0.10
+    bayesian: 0.10
+    evm: 0.10
+    mamba: 0.125
+    itransformer: 0.125
 hmm:
   n_states: 4
   n_mixtures: 2
@@ -46,7 +55,7 @@ bsts:
   - 50
   retrain_threshold: 0.3
   max_history_length: 500
-  learning_rate: 0.3
+  learning_rate: 0.05
 feature_engineering:
   feature_groups:
     fibonacci:

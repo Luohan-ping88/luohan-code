@@ -77,29 +77,15 @@ class StackingEnsemble:
 
     DEFAULT_BASE_CONFIG = {
         "n_estimators": 100,
-        "max_depth": 10,         # [OPT] 12→9.6 降低深度减少过拟合，预估+1.8%
+        "max_depth": 10,
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.1→0.06 降低学习率增强泛化，预估+1.8%
-        # [OPT] 正则化增强 应对 std=0.2089 波动过高
+        "learning_rate": 0.06,
         "reg_alpha": 0.1,        # L1正则化
         "reg_lambda": 1.0,       # L2正则化
         "min_child_weight": 5,   # 最小子权重增强稳定性
         "subsample": 0.8,        # 行采样比例
         "colsample_bytree": 0.8, # 列采样比例
-    }
-
-    RECOMMENDED_BASE_CONFIG = {
-        "n_estimators": 200,
-        "max_depth": 10,         # [OPT] 12→9.6 与默认值保持一致
-        "random_state": 42,
-        "n_jobs": -1,
-        "learning_rate": 0.06,   # [OPT] 0.05→0.06 适度提高学习率配合更大深度
-        "reg_alpha": 0.1,
-        "reg_lambda": 1.0,
-        "min_child_weight": 5,
-        "subsample": 0.8,
-        "colsample_bytree": 0.8,
     }
 
     DEFAULT_META_CONFIG = {
@@ -115,33 +101,35 @@ class StackingEnsemble:
 
     @classmethod
     def _get_model_configs(cls, config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-        """根据配置获取基学习器配置字典（不包含lambda，可序列化）"""
+        """根据配置获取基学习器配置字典（不包含lambda，可序列化）
+
+        修复: 不再对 n_estimators 和 max_depth 执行 //2 缩放，
+        配置值即为实际使用的值，确保配置生效。
+        """
         n_est = config.get("n_estimators", cls.DEFAULT_BASE_CONFIG["n_estimators"])
         max_d = config.get("max_depth", cls.DEFAULT_BASE_CONFIG["max_depth"])
         rs = config.get("random_state", cls.DEFAULT_BASE_CONFIG["random_state"])
         n_jobs = config.get("n_jobs", cls.DEFAULT_BASE_CONFIG["n_jobs"])
         lr = config.get("learning_rate", cls.DEFAULT_BASE_CONFIG["learning_rate"])
 
-        # 简化基础模型数量，减少计算复杂度
         model_configs = {
             "rf": {
                 "class": RandomForestClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "n_jobs": n_jobs
                 }
             },
         }
 
-        # 只添加一个额外模型以保持多样性
+        # 添加一个额外模型以保持多样性
         if _HAS_LIGHTGBM:
             model_configs["lgbm"] = {
                 "class": LGBMClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "verbose": -1,
-                    # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
@@ -153,11 +141,10 @@ class StackingEnsemble:
             model_configs["xgb"] = {
                 "class": XGBClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2,
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "n_jobs": n_jobs,
                     "learning_rate": lr, "use_label_encoder": False,
                     "eval_metric": "mlogloss", "verbosity": 0,
-                    # [OPT] 正则化增强 - 应对波动过高
                     "reg_alpha": config.get("reg_alpha", 0.1),
                     "reg_lambda": config.get("reg_lambda", 1.0),
                     "min_child_weight": config.get("min_child_weight", 5),
@@ -169,7 +156,7 @@ class StackingEnsemble:
             model_configs["gbm"] = {
                 "class": GradientBoostingClassifier,
                 "params": {
-                    "n_estimators": n_est // 2, "max_depth": max_d // 2, 
+                    "n_estimators": n_est, "max_depth": max_d,
                     "random_state": rs, "learning_rate": lr
                 }
             }

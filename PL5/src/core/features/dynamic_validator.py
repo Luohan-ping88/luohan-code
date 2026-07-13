@@ -14,9 +14,19 @@ from datetime import datetime
 from src.core.data.collector import PL5DataCollector
 from src.core.features.engineer import FeatureEngineer
 from src.core.models.enhanced_predictor import EnhancedPL5Predictor
-from src.core.config import MODEL_CONFIG, MODELS_DIR, LOGS_DIR
+from src.core.config import MODEL_CONFIG, MODELS_DIR, LOGS_DIR, get_model_config
 
 logger = logging.getLogger(__name__)
+
+
+def _get_config_select_top():
+    """从配置文件读取 select_top 默认值，而非硬编码 None"""
+    try:
+        mc = get_model_config()
+        val = mc.get('feature_engineering.selection.select_top', 100)
+        return val
+    except Exception:
+        return 100
 
 
 class DynamicFeatureValidator:
@@ -231,9 +241,9 @@ class DynamicFeatureValidator:
             
             return self.best_feature_config
         else:
-            logger.warning("所有特征组合验证失败，使用默认配置")
+            logger.warning("所有特征组合验证失败，使用配置文件默认值")
             return {
-                'select_top': None,
+                'select_top': _get_config_select_top(),
                 'feature_selection_method': 'rfe'
             }
     
@@ -244,9 +254,9 @@ class DynamicFeatureValidator:
             Dict[str, Any]: 最佳特征配置
         """
         if self.best_feature_config is None:
-            # 如果没有最佳配置，使用默认配置
+            # 如果没有最佳配置，使用配置文件默认值
             return {
-                'select_top': None,
+                'select_top': _get_config_select_top(),
                 'feature_selection_method': 'rfe'
             }
         return self.best_feature_config

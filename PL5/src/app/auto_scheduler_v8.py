@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # 然后导入配置，确保 MODELS_DIR 等在使用前已定义
-from src.core.config import LOGS_DIR, MODELS_DIR, DATA_DIR
+from src.core.config import LOGS_DIR, MODELS_DIR, DATA_DIR, get_model_config
 from src.core.utils.logger import get_logger, log_structured, save_data_file, read_data_file
 from src.core.features.feature_version_manager import get_feature_version_manager
 from src.core.monitoring.health_monitor import get_health_monitor
@@ -1269,15 +1269,17 @@ class AutoSchedulerV8:
                 
                 return best_config
             else:
-                logger.warning(f"【动态特征验证】失败: {validation_result.get('error', '未知错误')}，使用默认配置")
+                logger.warning(f"【动态特征验证】失败: {validation_result.get('error', '未知错误')}，使用配置文件默认值")
+                _cfg_select_top = get_model_config().get('feature_engineering.selection.select_top', 100)
                 return {
-                    'select_top': None,
+                    'select_top': _cfg_select_top,
                     'feature_selection_method': 'rfe'
                 }
         except Exception as e:
-            logger.error(f"【动态特征验证】异常: {e}，使用默认配置")
+            logger.error(f"【动态特征验证】异常: {e}，使用配置文件默认值")
+            _cfg_select_top = get_model_config().get('feature_engineering.selection.select_top', 100)
             return {
-                'select_top': None,
+                'select_top': _cfg_select_top,
                 'feature_selection_method': 'rfe'
             }
     

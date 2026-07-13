@@ -301,19 +301,38 @@ class ModelConfig:
 
     def _validate(self):
         validations = [
-            ("stacking.base_config.n_estimators", lambda v: isinstance(v, int) and v > 0),
-            ("stacking.base_config.max_depth", lambda v: isinstance(v, (int, float)) and float(v) > 0),
+            # Stacking 基模型参数
+            ("stacking.base_config.n_estimators", lambda v: isinstance(v, int) and 1 <= v <= 1000),
+            ("stacking.base_config.max_depth", lambda v: isinstance(v, (int, float)) and 1 <= float(v) <= 30),
+            ("stacking.base_config.learning_rate", lambda v: isinstance(v, (int, float)) and 0 < float(v) <= 1.0),
+            ("stacking.base_config.subsample", lambda v: isinstance(v, (int, float)) and 0 < float(v) <= 1.0),
+            ("stacking.base_config.colsample_bytree", lambda v: isinstance(v, (int, float)) and 0 < float(v) <= 1.0),
+            ("stacking.base_config.reg_alpha", lambda v: isinstance(v, (int, float)) and float(v) >= 0),
+            ("stacking.base_config.reg_lambda", lambda v: isinstance(v, (int, float)) and float(v) >= 0),
+            # Stacking 元学习器参数
             ("stacking.meta_config.cv_folds", lambda v: isinstance(v, int) and v >= 2),
+            ("stacking.meta_config.max_iter", lambda v: isinstance(v, int) and v >= 50),
+            ("stacking.meta_config.C", lambda v: isinstance(v, (int, float)) and float(v) > 0),
+            # HMM 参数
             ("hmm.n_states", lambda v: isinstance(v, int) and v > 0),
+            ("hmm.max_iterations", lambda v: isinstance(v, int) and v > 0),
+            # BSTS 参数
             ("bsts.trend_window", lambda v: isinstance(v, int) and v > 0),
+            ("bsts.learning_rate", lambda v: isinstance(v, (int, float)) and 0 < float(v) <= 1.0),
+            # RL 优化器参数
             ("rl_optimizer.state_dim", lambda v: isinstance(v, int) and v > 0),
-            ("rl_optimizer.learning_rate" if False else "", lambda v: True),
+            ("rl_optimizer.actor_lr", lambda v: isinstance(v, (int, float)) and 0 < float(v) < 1.0),
+            ("rl_optimizer.critic_lr", lambda v: isinstance(v, (int, float)) and 0 < float(v) < 1.0),
+            ("rl_optimizer.gamma", lambda v: isinstance(v, (int, float)) and 0 <= float(v) <= 1.0),
+            ("rl_optimizer.batch_size", lambda v: isinstance(v, int) and v > 0),
+            # 特征工程参数
+            ("feature_engineering.selection.select_top", lambda v: v is None or (isinstance(v, int) and v > 0)),
+            # 自学习参数
+            ("self_learning.window", lambda v: isinstance(v, int) and v > 0),
         ]
 
         errors = []
         for key, check_fn in validations:
-            if not key:
-                continue
             val = self.get(key)
             if val is not None:
                 try:
@@ -321,6 +340,13 @@ class ModelConfig:
                         errors.append(f"{key}={val} 验证失败")
                 except Exception:
                     pass
+
+        # 验证模型权重和为1（允许10%误差）
+        weights = self.model_weights()
+        if weights:
+            total = sum(weights.values())
+            if total > 0 and abs(total - 1.0) > 0.1:
+                errors.append(f"模型权重和={total:.4f}，期望为1.0（允许±0.1误差）")
 
         if errors:
             logger = logging.getLogger(__name__)

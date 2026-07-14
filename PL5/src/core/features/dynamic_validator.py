@@ -50,18 +50,6 @@ class DynamicFeatureValidator:
         """
         feature_combinations = [
             {
-                'name': 'full_features',
-                'description': '全量特征',
-                'select_top': None,
-                'feature_selection_method': 'rfe'
-            },
-            {
-                'name': 'top_50_rfe',
-                'description': 'RFE选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'rfe'
-            },
-            {
                 'name': 'top_100_rfe',
                 'description': 'RFE选择前100个特征',
                 'select_top': 100,
@@ -74,10 +62,10 @@ class DynamicFeatureValidator:
                 'feature_selection_method': 'rfe'
             },
             {
-                'name': 'top_50_model_based',
-                'description': '模型选择前50个特征',
-                'select_top': 50,
-                'feature_selection_method': 'model_based'
+                'name': 'top_200_rfe',
+                'description': 'RFE选择前200个特征',
+                'select_top': 200,
+                'feature_selection_method': 'rfe'
             },
             {
                 'name': 'top_100_model_based',
@@ -90,7 +78,7 @@ class DynamicFeatureValidator:
         return feature_combinations
     
     def validate_feature_combination(self, df: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """验证单个特征组合的性能
+        """验证单个特征组合的性能（使用简化模型，避免完整训练）
         
         Args:
             df: 输入数据
@@ -99,6 +87,9 @@ class DynamicFeatureValidator:
         Returns:
             Dict[str, Any]: 验证结果
         """
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.metrics import accuracy_score
+        
         try:
             logger.info(f"验证特征组合: {config['name']} ({config['description']})")
             
@@ -113,6 +104,15 @@ class DynamicFeatureValidator:
             feature_cols = [col for col in df_features.columns 
                           if col not in ['period', 'date', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']]
             
+            if len(feature_cols) == 0:
+                logger.warning(f"特征列数量为0，跳过验证")
+                return {
+                    'name': config['name'],
+                    'description': config['description'],
+                    'error': '特征列数量为0',
+                    'timestamp': datetime.now().isoformat()
+                }
+            
             # 划分训练集和测试集
             test_size = 20
             if len(df_features) < test_size * 2:
@@ -123,55 +123,38 @@ class DynamicFeatureValidator:
                 train_data = df_features.iloc[:-test_size]
                 test_data = df_features.iloc[-test_size:]
             
-            # 训练模型
-            predictor = EnhancedPL5Predictor()
-            predictor.fit(train_data, feature_cols)
-            
-            # 验证模型
+            # 使用简化模型进行验证（随机森林，减少树数量和深度）
             total_hits = 0
             total_tests = 0
             
-            for i, row in test_data.iterrows():
-                # 提取特征向量
-                features_list = []
-                for col in feature_cols:
-                    val = row[col]
-                    # 处理可能的 Inf/NaN 和类型问题
-                    try:
-                        val = float(val)
-                        if np.isfinite(val):
-                            features_list.append(val)
-                        else:
-                            features_list.append(0.0)
-                    except (ValueError, TypeError):
-                        features_list.append(0.0)
+            for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
+                X_train = train_data[feature_cols].fillna(0).values
+                y_train = train_data[pos].values.astype(int)
+                X_test = test_data[feature_cols].fillna(0).values
+                y_test = test_data[pos].values.astype(int)
                 
-                features = np.array(features_list, dtype=np.float64)
-                
-                # 准备最近的原始数据
-                recent_original_data = {}
-                for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-                    if pos in df.columns:
-                        recent_data = df[pos].values[-20:] if len(df) >= 20 else df[pos].values
-                        recent_original_data[pos] = recent_data
-                
-                # 预测
-                predictions = predictor.predict(
-                    features=features,
-                    recent_original_data=recent_original_data,
-                    top_k=8,
-                    use_rl=False,
-                    use_uncertainty=False
+                # 使用简化的随机森林模型
+                clf = RandomForestClassifier(
+                    n_estimators=30,
+                    max_depth=8,
+                    n_jobs=-1,
+                    random_state=42
                 )
                 
-                # 验证预测结果
-                for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
-                    actual_value = int(row[pos])
-                    if pos in predictions and 'top_k' in predictions[pos]:
-                        top_k = predictions[pos]['top_k']
-                        if actual_value in top_k:
+                try:
+                    clf.fit(X_train, y_train)
+                    # 获取Top-8预测
+                    probs = clf.predict_proba(X_test)
+                    top_8_indices = np.argsort(probs, axis=1)[:, -8:]
+                    
+                    for i in range(len(y_test)):
+                        actual = y_test[i]
+                        if actual in top_8_indices[i]:
                             total_hits += 1
                         total_tests += 1
+                except Exception as e:
+                    logger.warning(f"位置 {pos} 验证失败: {e}")
+                    continue
             
             # 计算准确率
             accuracy = total_hits / total_tests if total_tests > 0 else 0

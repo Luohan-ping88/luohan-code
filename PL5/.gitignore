@@ -90,4 +90,5 @@ cpp_core/*.exp
 .ipynb_checkpoints/
 
 # Docker相关
-docker-compose.override.yml
+docker-compose.override.ymlmodels/model_backups/
+models/*.pkl

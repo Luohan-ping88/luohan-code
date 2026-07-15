@@ -86,6 +86,8 @@ class StackingEnsemble:
         "min_child_weight": 5,   # 最小子权重增强稳定性
         "subsample": 0.8,        # 行采样比例
         "colsample_bytree": 0.8, # 列采样比例
+        "num_leaves": 15,        # LightGBM叶节点数
+        "min_child_samples": 10, # LightGBM叶节点最小样本数
     }
 
     DEFAULT_META_CONFIG = {
@@ -135,6 +137,8 @@ class StackingEnsemble:
                     "min_child_weight": config.get("min_child_weight", 5),
                     "subsample": config.get("subsample", 0.8),
                     "colsample_bytree": config.get("colsample_bytree", 0.8),
+                    "num_leaves": config.get("num_leaves", 15),
+                    "min_child_samples": config.get("min_child_samples", 10),
                 }
             }
         elif _HAS_XGBOOST:
@@ -835,7 +839,7 @@ class EnhancedPL5Predictor:
                 if 'n_estimators' in clf.get_params():
                     params = {
                         'n_estimators': 200,
-                        'verbose': 0
+                        'verbose': -1
                     }
                     # 只有支持早停的模型才添加early_stopping_rounds参数
                     if 'early_stopping_rounds' in clf.get_params():

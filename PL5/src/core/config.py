@@ -116,7 +116,7 @@ class ModelConfig:
     def _get_builtin_defaults() -> Dict[str, Any]:
         return {
             'stacking': {
-                'base_config': {'n_estimators': 100, 'max_depth': 12, 'random_state': 42, 'n_jobs': -1, 'learning_rate': 0.1},
+                'base_config': {'n_estimators': 100, 'max_depth': 12, 'random_state': 42, 'n_jobs': -1, 'learning_rate': 0.1, 'num_leaves': 15, 'min_child_samples': 10},
                 'meta_config': {'type': 'logistic', 'C': 1.0, 'max_iter': 500, 'l1_ratio': 0.5, 'alpha': 0.0001, 'cv_folds': 5, 'auto_select': True, 'enable_meta_features': True},
                 'model_weights': {'stacking': 0.40, 'hmm': 0.15, 'copula': 0.25, 'bayesian': 0.20}
             },

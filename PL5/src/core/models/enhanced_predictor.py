@@ -662,8 +662,9 @@ class EnhancedPL5Predictor:
                 self.cross_period_model = CrossPeriodDynamicModel(
                     max_lag=3,
                     smoothing_alpha=0.1,
-                    same_pos_weight=0.7,
-                    cross_pos_weight=0.3
+                    same_pos_weight=0.5,
+                    cross_pos_weight=0.25,
+                    state_weight=0.25
                 )
                 self.cross_period_model.fit(df)
                 logger.debug(f"[训练步骤] 跨期动态交互模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")

@@ -354,6 +354,11 @@ class FeatureConfig:
         'statistical': {'enabled': True, 'description': '统计特征'},
         'nonlinear': {'enabled': True, 'description': '非线性特征'},
         'pattern_recognition': {'enabled': True, 'description': '模式识别特征'},
+        'cross_period_interaction': {
+            'enabled': True,
+            'max_lag': 3,
+            'description': '跨期位置间动态交互依赖特征'
+        },
     }
 
     def __init__(self, config_path: Path = None):
@@ -491,6 +496,35 @@ class FeatureEngineerV10:
 
         return result
 
+    def _add_cross_period_interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """跨期位置间动态交互依赖特征
+
+        依据时序构建跨期位置间动态交互依赖建模（包括但不限于两期），
+        以增强号码间状态转移概率曲线值。
+
+        生成特征：
+        1. 多阶跨期转移概率（lag-1/2/3 同位置）
+        2. 跨位置跨期交互强度（Cramér's V）
+        3. 多阶融合转移概率Top值
+        4. 跨期联合转移熵
+        """
+        from src.core.models.cross_period_dynamic_model import (
+            extract_cross_period_features,
+        )
+
+        max_lag = 3
+        if self.config and 'cross_period_interaction' in self.config.config:
+            max_lag = self.config.config['cross_period_interaction'].get('max_lag', 3)
+
+        try:
+            result = extract_cross_period_features(df, max_lag=max_lag)
+            logger.info(f"  跨期位置交互特征提取完成: max_lag={max_lag}, "
+                        f"新增{result.shape[1] - df.shape[1]}列")
+            return result
+        except Exception as e:
+            logger.warning(f"  跨期位置交互特征提取失败: {e}，返回原始数据")
+            return df.copy()
+
     def _add_fourier_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """傅里叶特征 - 向量化"""
         result = df.copy()
@@ -617,6 +651,7 @@ class FeatureEngineerV10:
             'fibonacci': self._add_fibonacci_features,
             'entropy': self._add_entropy_features,
             'markov': self._add_markov_features,
+            'cross_period_interaction': self._add_cross_period_interaction_features,
             'fourier': self._add_fourier_features,
             'extreme': self._add_extreme_features,
             'pattern': self._add_pattern_features,
@@ -678,6 +713,7 @@ class FeatureEngineerV10:
         feature_groups = [
             ('fibonacci', 'fibonacci'),
             ('markov', 'markov'),
+            ('cross_period_interaction', 'cross_period_interaction'),
             ('fourier', 'fourier'),
             ('extreme', 'extreme'),
             ('pattern', 'pattern'),

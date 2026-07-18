@@ -469,6 +469,7 @@ class EnhancedPL5Predictor:
         self.mamba_predictor: Optional[Any] = None
         self.itransformer_predictor: Optional[Any] = None
         self.bayesian_quantifier: Optional[Any] = None
+        self.cross_period_model: Optional[Any] = None
 
         self.rl_optimizer: Optional[ModelWeightRLOptimizer] = None
         self.thompson_sampler: Optional[ThompsonSamplingOptimizer] = None
@@ -653,6 +654,24 @@ class EnhancedPL5Predictor:
             self.copula_model.fit(position_matrix)
             logger.debug(f"[训练步骤] Copula模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
             logger.info("[EnhancedPredictor] Copula模型训练完成")
+
+            # 训练跨期位置间动态交互依赖模型
+            logger.debug(f"[训练步骤] 开始训练跨期动态交互模型 - {datetime.now().strftime('%H:%M:%S')}")
+            try:
+                from src.core.models.cross_period_dynamic_model import CrossPeriodDynamicModel
+                self.cross_period_model = CrossPeriodDynamicModel(
+                    max_lag=3,
+                    smoothing_alpha=0.1,
+                    same_pos_weight=0.7,
+                    cross_pos_weight=0.3
+                )
+                self.cross_period_model.fit(df)
+                logger.debug(f"[训练步骤] 跨期动态交互模型训练完成 - {datetime.now().strftime('%H:%M:%S')}")
+                logger.info("[EnhancedPredictor] 跨期位置间动态交互依赖模型训练完成")
+            except Exception as e:
+                logger.debug(f"[训练步骤] 跨期动态交互模型训练失败(非致命): {e}")
+                logger.warning(f"[EnhancedPredictor] 跨期动态交互模型训练失败(非致命): {e}")
+                self.cross_period_model = None
 
             # 尝试训练Mamba模型（使用优化参数）
             logger.debug(f"[训练步骤] 开始训练Mamba模型 - {datetime.now().strftime('%H:%M:%S')}")
@@ -1240,6 +1259,18 @@ class EnhancedPL5Predictor:
                         weights[5] * p_itransformer
                     )
                     p_fused = p_fused / (p_fused.sum() + 1e-12)
+
+                    # 应用跨期位置间动态交互依赖概率增强
+                    if self.cross_period_model is not None and self.cross_period_model.fitted:
+                        try:
+                            p_fused = self.cross_period_model.enhance_probability(
+                                pos,
+                                recent_original_data or {},
+                                base_prob=p_fused,
+                                alpha=0.15
+                            )
+                        except Exception as e:
+                            logger.debug(f"跨期概率增强失败(非致命): {e}")
 
                     entropy = -np.sum(p_fused * np.log(p_fused + 1e-12))
 
@@ -2272,6 +2303,7 @@ class EnhancedPL5Predictor:
                 "mamba_predictor": self.mamba_predictor,
                 "itransformer_predictor": self.itransformer_predictor,
                 "bayesian_quantifier": self.bayesian_quantifier,
+                "cross_period_model": self.cross_period_model,
                 "weights": self.weights,
                 "is_trained": self.is_trained,
                 "feature_cols": self.feature_cols,
@@ -2441,6 +2473,7 @@ class EnhancedPL5Predictor:
             self.mamba_predictor = state.get("mamba_predictor")
             self.itransformer_predictor = state.get("itransformer_predictor")
             self.bayesian_quantifier = state.get("bayesian_quantifier")
+            self.cross_period_model = state.get("cross_period_model")
 
             v10_modules_present = (
                 self.mamba_predictor is not None and

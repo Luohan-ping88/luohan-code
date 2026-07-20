@@ -76,14 +76,14 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 100,
-        "max_depth": 10,
+        "n_estimators": 30,
+        "max_depth": 5,
         "random_state": 42,
         "n_jobs": -1,
-        "learning_rate": 0.06,
+        "learning_rate": 0.1,
         "reg_alpha": 0.1,        # L1正则化
         "reg_lambda": 1.0,       # L2正则化
-        "min_child_weight": 5,   # 最小子权重增强稳定性
+        "min_child_weight": 10,   # 最小子权重增强稳定性
         "subsample": 0.8,        # 行采样比例
         "colsample_bytree": 0.8, # 列采样比例
     }
@@ -122,44 +122,14 @@ class StackingEnsemble:
             },
         }
 
-        # 添加一个额外模型以保持多样性
-        if _HAS_LIGHTGBM:
-            model_configs["lgbm"] = {
-                "class": LGBMClassifier,
-                "params": {
-                    "n_estimators": n_est, "max_depth": max_d,
-                    "random_state": rs, "n_jobs": n_jobs,
-                    "learning_rate": lr, "verbose": -1,
-                    "reg_alpha": config.get("reg_alpha", 0.1),
-                    "reg_lambda": config.get("reg_lambda", 1.0),
-                    "min_child_weight": config.get("min_child_weight", 5),
-                    "subsample": config.get("subsample", 0.8),
-                    "colsample_bytree": config.get("colsample_bytree", 0.8),
-                }
+        # 使用随机森林作为唯一基学习器，加速训练
+        model_configs["et"] = {
+            "class": ExtraTreesClassifier,
+            "params": {
+                "n_estimators": n_est, "max_depth": max_d,
+                "random_state": rs, "n_jobs": n_jobs
             }
-        elif _HAS_XGBOOST:
-            model_configs["xgb"] = {
-                "class": XGBClassifier,
-                "params": {
-                    "n_estimators": n_est, "max_depth": max_d,
-                    "random_state": rs, "n_jobs": n_jobs,
-                    "learning_rate": lr, "use_label_encoder": False,
-                    "eval_metric": "mlogloss", "verbosity": 0,
-                    "reg_alpha": config.get("reg_alpha", 0.1),
-                    "reg_lambda": config.get("reg_lambda", 1.0),
-                    "min_child_weight": config.get("min_child_weight", 5),
-                    "subsample": config.get("subsample", 0.8),
-                    "colsample_bytree": config.get("colsample_bytree", 0.8),
-                }
-            }
-        else:
-            model_configs["gbm"] = {
-                "class": GradientBoostingClassifier,
-                "params": {
-                    "n_estimators": n_est, "max_depth": max_d,
-                    "random_state": rs, "learning_rate": lr
-                }
-            }
+        }
 
         return model_configs
 
@@ -925,39 +895,14 @@ class EnhancedPL5Predictor:
         best_hmm = None
         best_hmm_score = -float('inf')
         
-        # 尝试不同的HMM参数组合
-        if not high_resource_usage:
-            state_options = [hmm_n_states - 1, hmm_n_states, hmm_n_states + 1]
-            state_options = [s for s in state_options if s >= 2 and s <= 8]
-            mixture_options = [hmm_n_mixtures, hmm_n_mixtures + 1]
-            mixture_options = [m for m in mixture_options if m >= 1 and m <= 3]
-            
-            for n_states in state_options:
-                for n_mixtures in mixture_options:
-                    try:
-                        hmm_candidate = HiddenMarkovModel(
-                            n_states=n_states,
-                            n_mixtures=n_mixtures,
-                            auto_select=False,
-                            criterion='bic'
-                        )
-                        hmm_candidate.fit(seq)
-                        score = -hmm_candidate.score(seq)
-                        if score > best_hmm_score:
-                            best_hmm_score = score
-                            best_hmm = hmm_candidate
-                    except Exception as e:
-                        logger.warning(f"HMM参数组合 ({n_states}, {n_mixtures}) 训练失败: {e}")
-        
-        if best_hmm is None:
-            # 如果自动选择失败，使用默认参数
-            best_hmm = HiddenMarkovModel(
-                n_states=hmm_n_states,
-                n_mixtures=hmm_n_mixtures,
-                auto_select=hmm_cfg.get('auto_select', False),
-                criterion=hmm_cfg.get('criterion', 'bic')
-            )
-            best_hmm.fit(seq)
+        # 使用默认参数快速训练HMM
+        best_hmm = HiddenMarkovModel(
+            n_states=hmm_n_states,
+            n_mixtures=hmm_n_mixtures,
+            auto_select=False,
+            criterion='bic'
+        )
+        best_hmm.fit(seq)
 
         # 增强的BSTS训练
         bsts_cfg = self._mc.bsts_config()

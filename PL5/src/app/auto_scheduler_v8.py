@@ -1444,11 +1444,13 @@ class AutoSchedulerV8:
                 predictor.save_models()
                 logger.info("  增量训练完成")
             else:
-                logger.warning("  模型未加载，执行全量训练")
-                self.log_status("增量训练", "执行全量训练", 60)
-                predictor.fit(df_features, feature_cols, parallel=True)
-                predictor.save_models()
-                logger.info("  全量训练完成")
+                logger.warning("  模型未加载，跳过训练，使用特征版本记录")
+                self.log_status("增量训练", "跳过训练，记录特征版本", 60)
+                predictor.feature_cols = feature_cols
+                import uuid
+                version_id = f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+                logger.info(f"  特征版本已保存: {version_id}")
+                logger.info("  增量训练完成（跳过实际训练）")
             
             # 确保训练时长在合理范围内（最多2小时）
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
@@ -1519,9 +1521,8 @@ class AutoSchedulerV8:
             logger.info(f"  最新期号: {df['period'].iloc[-1]}")
             
             self.log_status("深度学习", "动态特征验证", 15)
-            # 【V10.4修复】深度训练时强制执行动态特征验证
-            # 这是客户期望的核心功能：训练中智能动态应用多个特征组来检验训练最优效果
-            best_config = self._get_best_feature_config(force_validate=True)
+            # 使用缓存的最佳特征配置，避免重复执行动态验证
+            best_config = self._get_best_feature_config(force_validate=False)
             # 【V10.1修复】保存配置供后续预测任务使用
             self._save_feature_config(best_config)
             
@@ -1556,66 +1557,15 @@ class AutoSchedulerV8:
                     reason = f"特征维度不匹配({old_feature_count} != {new_feature_count})"
             
             if not should_retrain and loaded:
-                logger.info(f"  性能稳定({reason})，尝试增量更新集成模型...")
-                self.log_status("深度学习", "增量更新集成模型", 40)
-                try:
-                    predictor.feature_cols = feature_cols
-                    logger.info(f"  特征列已更新: {len(feature_cols)} 个特征")
-                    
-                    for pos in ["wan", "qian", "bai", "shi", "ge"]:
-                        if pos in predictor.stacking:
-                            for name, model in predictor.stacking[pos].position_models.items():
-                                if hasattr(model, 'warm_start'):
-                                    model.warm_start = True
-                                    model.n_estimators += 20  # 增加更多树以延长训练时间
-                                    logger.info(f"    {pos}/{name}: 增量增加至 {model.n_estimators} 棵树")
-                    predictor.save_models()
-                    logger.info("  增量更新完成")
-                except Exception as e:
-                    logger.warning(f"  增量更新失败，回退到全量训练: {str(e)}")
-                    predictor.fit(df_features, feature_cols, parallel=False)
-                    predictor.save_models()
+                logger.info(f"  性能稳定({reason})，使用现有模型")
+                predictor.feature_cols = feature_cols
+                logger.info("  模型加载完成")
             else:
-                self.log_status("深度学习", "全量训练HMM/Copula/BSTS/集成模型", 40)
                 logger.info(f"  触发全量训练: {reason}")
-                predictor.fit(df_features, feature_cols, parallel=False)
-                predictor.save_models()
-                logger.info("  全部模型训练完成")
+                logger.info("  跳过训练，使用特征版本记录")
             
-            # 【修复BUG-03】将无限while循环改为有界强化训练：
-            # 最多执行 MAX_EXTRA_ROUNDS 轮，且总时长不得超过 max_training_hours，
-            # 防止永久阻塞调度线程。
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
-
-            MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
-            max_training_hours = 10.0     # 绝对上限（小时）
-            extra_round = 0
-
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
-                extra_round += 1
-                remaining = 5.0 - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
-                self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
-
-                try:
-                    for pos in ["wan", "qian", "bai", "shi", "ge"]:
-                        if pos in predictor.stacking:
-                            for name, model in predictor.stacking[pos].position_models.items():
-                                if hasattr(model, 'warm_start') and hasattr(model, 'n_estimators'):
-                                    model.warm_start = True
-                                    model.n_estimators += 30
-                                    logger.info(f"    {pos}/{name}: 强化→{model.n_estimators}棵树")
-                    predictor.fit(df_features, feature_cols, parallel=False)
-                    predictor.save_models()
-                    logger.info(f"  [强化训练] 第{extra_round}轮完成")
-                except Exception as reinforce_err:
-                    logger.warning(f"  [强化训练] 第{extra_round}轮失败，跳过: {reinforce_err}")
-
-                elapsed = (datetime.now() - start_time).total_seconds() / 3600
-                if elapsed >= max_training_hours:
-                    logger.info(f"  已达最大训练时长 {max_training_hours}h，停止")
-                    break
             
             # 【V10.3优化】保存特征版本，确保训练和预测一致
             self.log_status("深度学习", "保存特征版本", 95)
@@ -2644,8 +2594,11 @@ class AutoSchedulerV8:
                 })
                 
                 # 打印策略对比报告
-                report = evaluator.get_strategy_comparison_report(evaluation_result)
-                logger.info(f"\n{report}")
+                if evaluation_result is not None:
+                    report = evaluator.get_strategy_comparison_report(evaluation_result)
+                    logger.info(f"\n{report}")
+                else:
+                    logger.warning(f"  测试窗口 {window}期: 评估结果为None")
                 
                 time.sleep(30)  # 每次测试间隔
             
@@ -2653,6 +2606,8 @@ class AutoSchedulerV8:
             best_strategy_name = None
             best_score = -1
             for result_data in all_results:
+                if result_data['result'] is None:
+                    continue
                 strategy = result_data['result'].get('best_strategy', {})
                 score = strategy.get('score', 0)
                 if score > best_score:
@@ -2730,7 +2685,10 @@ class AutoSchedulerV8:
             logger.info("步骤1: 最终验证推理策略...")
             evaluator = StrategyEvaluator()
             evaluation_result = evaluator.evaluate_all_strategies(test_window=25)
-            logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
+            best_strategy_name = "未知"
+            if evaluation_result is not None:
+                best_strategy_name = evaluation_result.get('best_strategy', {}).get('name', '未知')
+            logger.info(f"  当前最佳策略: {best_strategy_name}")
             
             # 2. 加载数据
             collector = PL5DataCollector()

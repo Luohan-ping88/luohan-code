@@ -1527,17 +1527,18 @@ class AutoSchedulerV8:
             logger.info(f"  最新期号: {df['period'].iloc[-1]}")
             
             self.log_status("深度学习", "动态特征验证", 15)
-            # 【V10.4修复】深度训练时强制执行动态特征验证
-            # 这是客户期望的核心功能：训练中智能动态应用多个特征组来检验训练最优效果
             best_config = self._get_best_feature_config(force_validate=True)
-            # 【V10.1修复】保存配置供后续预测任务使用
             self._save_feature_config(best_config)
+            
+            max_features = 50
+            select_top = min(best_config.get('select_top', 50), max_features)
+            logger.info(f"  限制最大特征数为 {max_features}，实际使用 {select_top}")
             
             self.log_status("深度学习", "特征工程", 20)
             engineer = FeatureEngineer()
             df_features = engineer.extract_all_features(
                 df,
-                select_top=best_config['select_top'],
+                select_top=select_top,
                 feature_selection_method=best_config['feature_selection_method']
             )
             

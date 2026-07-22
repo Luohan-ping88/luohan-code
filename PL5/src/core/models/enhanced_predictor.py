@@ -18,7 +18,7 @@ from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 try:
     from lightgbm import LGBMClassifier
-    _HAS_LIGHTGBM = True
+    _HAS_LIGHTGBM = False
 except ImportError:
     _HAS_LIGHTGBM = False
 
@@ -76,16 +76,16 @@ class StackingEnsemble:
     """
 
     DEFAULT_BASE_CONFIG = {
-        "n_estimators": 100,
-        "max_depth": 10,
+        "n_estimators": 30,
+        "max_depth": 4,
         "random_state": 42,
-        "n_jobs": -1,
-        "learning_rate": 0.06,
-        "reg_alpha": 0.1,        # L1正则化
-        "reg_lambda": 1.0,       # L2正则化
-        "min_child_weight": 5,   # 最小子权重增强稳定性
+        "n_jobs": 1,
+        "learning_rate": 0.1,
+        "reg_alpha": 0.2,        # L1正则化
+        "reg_lambda": 2.0,       # L2正则化
+        "min_child_weight": 10,   # 最小子权重增强稳定性
         "subsample": 0.8,        # 行采样比例
-        "colsample_bytree": 0.8, # 列采样比例
+        "colsample_bytree": 0.6, # 列采样比例
     }
 
     DEFAULT_META_CONFIG = {
@@ -857,9 +857,6 @@ class EnhancedPL5Predictor:
                         'n_estimators': 200,
                         'verbose': 0
                     }
-                    # 只有支持早停的模型才添加early_stopping_rounds参数
-                    if 'early_stopping_rounds' in clf.get_params():
-                        params['early_stopping_rounds'] = 10
                     clf.set_params(**params)
             
             for fold_tr, fold_val in tscv.split(X):

@@ -94,7 +94,7 @@ evaluation:
         "recipients": ["recipient@example.com"],
         "enabled": False
     },
-    'config/scheduler_config.json': {
+    'config/scheduler_config_v8.json': {
         "auto_start": True,
         "interval_minutes": 60,
         "retry_on_failure": True,
@@ -328,7 +328,7 @@ class ConfigInitializer:
 
         config_files = [
             'config/config.json',
-            'config/scheduler_config.json',
+            'config/scheduler_config_v8.json',
         ]
 
         valid = []

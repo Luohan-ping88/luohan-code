@@ -5,14 +5,41 @@ import time
 import os
 import sys
 
+# 将项目根目录加入 sys.path，复用 process_guardian 的严格匹配规则
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from src.utils.process_guardian import _is_pl5_process_strict
+
+
+def _is_pl5_process_to_stop(cmdline):
+    """
+    判断进程是否为需要停止的 PL5 系统进程。
+
+    采用与 process_guardian.py 一致的三重匹配规则
+    （Python进程 + PL5标识符 + PL5路径/模块模式），
+    避免误杀其他项目的 uvicorn / python 服务。
+    额外补充识别 PL5 自身的 API 服务（uvicorn src.ai.api:app）。
+    """
+    if _is_pl5_process_strict(cmdline):
+        return True
+    if not cmdline:
+        return False
+    cmdline_str = ' '.join(cmdline).lower()
+    # 规则1：必须是 Python 进程
+    if 'python' not in cmdline_str:
+        return False
+    # PL5 API 服务：必须同时包含 uvicorn 与 src.ai.api 模块，才认定为 PL5 的 API 服务
+    # （其他项目的 uvicorn 不会包含 src.ai.api，故不会被误杀）
+    return 'uvicorn' in cmdline_str and 'src.ai.api' in cmdline_str
+
+
 print("=== PL5 系统启动脚本 ===\n")
 
 # 1. 停止现有进程
 print("1. 停止现有PL5相关进程...")
 for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
     try:
-        cmdline = ' '.join(proc.info.get('cmdline') or [])
-        if any(keyword in cmdline for keyword in ['auto_scheduler', 'uvicorn', 'src.ai.api']):
+        cmdline = proc.info.get('cmdline') or []
+        if _is_pl5_process_to_stop(cmdline):
             proc.terminate()
             print(f"   已终止 PID={proc.info['pid']}")
     except:

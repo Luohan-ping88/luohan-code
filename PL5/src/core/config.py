@@ -6,6 +6,7 @@
 import logging
 import sys
 import os
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
 
@@ -460,12 +461,15 @@ class ModelConfig:
 
 
 _global_model_config: Optional[ModelConfig] = None
+_config_lock = threading.Lock()
 
 
 def get_model_config(config_path: Optional[Union[str, Path]] = None) -> ModelConfig:
     global _global_model_config
     if _global_model_config is None:
-        _global_model_config = ModelConfig(config_path)
+        with _config_lock:
+            if _global_model_config is None:
+                _global_model_config = ModelConfig(config_path)
     return _global_model_config
 
 

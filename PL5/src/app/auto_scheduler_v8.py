@@ -144,7 +144,8 @@ class TaskHistoryManager:
             # 【修复】自动截断，防止无限增长
             if len(self.history) > self.MAX_HISTORY_RECORDS:
                 self.history = self.history[-self.MAX_HISTORY_RECORDS:]
-        self.save_history()
+            # 【修复】save_history 必须在锁内执行，避免多线程并发时互相覆盖
+            self.save_history()
     
     def get_task_history(self, task_name: str = None, limit: int = 10) -> List[Dict]:
         """获取任务历史记录"""
@@ -1313,6 +1314,7 @@ class AutoSchedulerV8:
             ("third_verification", "third_prediction_verification.json"),
             ("final_verification", "final_prediction_verification.json"),
             ("deep_strategy", "deep_strategy_optimization.json"),
+            ("prediction_preview", "prediction_preview.json"),
         ]
         
         for result_key, result_file in verification_files:
@@ -1342,9 +1344,15 @@ class AutoSchedulerV8:
         all_predictions = []
         
         # 收集所有佐证的预测结果
+        # 多字段兼容检查：final_prediction_verification.json 使用 'verification_predictions' 字段，
+        # 其他佐证文件（first/second/third/prediction_preview）使用 'predictions' 字段
         for name, result in verification_results.items():
-            if result and 'predictions' in result:
-                all_predictions.append(result['predictions'])
+            if result:
+                predictions = result.get('predictions')
+                if predictions is None:
+                    predictions = result.get('verification_predictions')
+                if predictions:
+                    all_predictions.append(predictions)
         
         if len(all_predictions) < 2:
             logger.info("[_calculate_verification_consistency] 佐证次数不足，返回默认一致性")
@@ -1583,7 +1591,7 @@ class AutoSchedulerV8:
                 logger.info("  全部模型训练完成")
             
             # 【修复BUG-03】将无限while循环改为有界强化训练：
-            # 最多执行 MAX_EXTRA_ROUNDS 轮，且总时长不得超过 max_training_hours，
+            # 最多执行 MAX_EXTRA_ROUNDS 轮，并基于验证集精度早停，
             # 防止永久阻塞调度线程。
             elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  实际训练时长: {elapsed:.1f} 小时")
@@ -1591,11 +1599,12 @@ class AutoSchedulerV8:
             MAX_EXTRA_ROUNDS = 3          # 最多额外强化轮次
             max_training_hours = 10.0     # 绝对上限（小时）
             extra_round = 0
+            prev_val_acc = None           # 上一轮验证精度
+            consecutive_drops = 0         # 连续精度下降计数
 
-            while elapsed < 5.0 and extra_round < MAX_EXTRA_ROUNDS:
+            while extra_round < MAX_EXTRA_ROUNDS:
                 extra_round += 1
-                remaining = 5.0 - elapsed
-                logger.info(f"  [强化训练] 第{extra_round}轮，还需 {remaining:.1f}h 达到最少训练时长")
+                logger.info(f"  [强化训练] 第{extra_round}轮")
                 self.log_status("深度学习", f"强化训练{extra_round}/{MAX_EXTRA_ROUNDS}", 90)
 
                 try:
@@ -1611,6 +1620,32 @@ class AutoSchedulerV8:
                     logger.info(f"  [强化训练] 第{extra_round}轮完成")
                 except Exception as reinforce_err:
                     logger.warning(f"  [强化训练] 第{extra_round}轮失败，跳过: {reinforce_err}")
+
+                # 记录每轮训练的验证精度（基于stacking元模型CV分数的均值）
+                val_acc = None
+                try:
+                    scores = []
+                    for pos in ["wan", "qian", "bai", "shi", "ge"]:
+                        stacking = predictor.stacking.get(pos) if hasattr(predictor, 'stacking') else None
+                        if stacking is not None and hasattr(stacking, 'meta_scores') and stacking.meta_scores:
+                            scores.extend(float(v) for v in stacking.meta_scores.values() if v is not None)
+                    if scores:
+                        val_acc = sum(scores) / len(scores)
+                except Exception as acc_err:
+                    logger.warning(f"  [强化训练] 计算验证精度失败: {acc_err}")
+                logger.info(f"  [强化训练] 第{extra_round}轮验证精度: {val_acc}")
+
+                # 早停：连续2轮验证精度下降则停止
+                if val_acc is not None and prev_val_acc is not None:
+                    if val_acc < prev_val_acc:
+                        consecutive_drops += 1
+                        logger.info(f"  [强化训练] 精度下降 ({consecutive_drops}/2)，连续下降达2轮将早停")
+                        if consecutive_drops >= 2:
+                            logger.info(f"  [强化训练] 连续2轮验证精度下降，触发早停")
+                            break
+                    else:
+                        consecutive_drops = 0
+                prev_val_acc = val_acc
 
                 elapsed = (datetime.now() - start_time).total_seconds() / 3600
                 if elapsed >= max_training_hours:
@@ -2100,11 +2135,33 @@ class AutoSchedulerV8:
             next_period = str(int(data['period'].iloc[-1]) + 1)
             self._record_prediction(prediction, next_period, prediction_type="final")
 
-            # 【V10.4新增】基于佐证一致性调整预测权重
-            if consistency_scores['overall'] < 0.5:
-                logger.warning(f"【佐证一致性警告】一致性较低 ({consistency_scores['overall']:.2%})，预测结果可能不稳定")
-            elif consistency_scores['overall'] >= 0.7:
-                logger.info(f"【佐证一致性良好】一致性较高 ({consistency_scores['overall']:.2%})，预测结果可信度高")
+            # 【V10.4新增/VR-02修复】基于佐证一致性调整预测置信度标记（回退机制）
+            consistency_overall = consistency_scores['overall']
+            confidence_level = 'medium'  # 默认中等置信度
+            low_confidence_warning = False
+            if consistency_overall < 0.5:
+                # 一致性过低：记录警告，标记低置信度并提示需要重试验证
+                logger.warning(f"【佐证一致性警告】一致性较低 ({consistency_overall:.2%})，预测结果可能不稳定，已标记低置信度")
+                confidence_level = 'low'
+                low_confidence_warning = True
+                # 为每个位置增加低置信度标记，提示下游需重新验证
+                for pos in positions:
+                    if pos in prediction:
+                        prediction[pos]['confidence_level'] = 'low'
+                        prediction[pos]['needs_reverification'] = True
+            elif consistency_overall >= 0.7:
+                # 一致性较高：记录信息并标记高置信度
+                logger.info(f"【佐证一致性良好】一致性较高 ({consistency_overall:.2%})，预测结果可信度高")
+                confidence_level = 'high'
+                for pos in positions:
+                    if pos in prediction:
+                        prediction[pos]['confidence_level'] = 'high'
+            else:
+                # 中等一致性：记录信息并标记中等置信度
+                logger.info(f"【佐证一致性中等】一致性 ({consistency_overall:.2%})，预测结果置信度一般")
+                for pos in positions:
+                    if pos in prediction:
+                        prediction[pos]['confidence_level'] = 'medium'
             
             # 保存预测结果
             prediction_info = {
@@ -2114,10 +2171,12 @@ class AutoSchedulerV8:
                 'predictions': prediction,
                 'feature_config': best_config,
                 'verification_consistency': consistency_scores,
+                'confidence_level': confidence_level,
+                'low_confidence_warning': low_confidence_warning,
                 'verification_results_summary': {
                     k: {
                         'timestamp': v.get('timestamp', ''),
-                        'predictions': {pos: v.get('predictions', {}).get(pos, {}).get('top_k', [])[:3] 
+                        'predictions': {pos: v.get('predictions', {}).get(pos, {}).get('top_k', [])[:3]
                                        for pos in positions}
                     }
                     for k, v in verification_results.items() if v
@@ -2858,14 +2917,20 @@ class AutoSchedulerV8:
     def _schedule_thread_wrapper(self, task_func):
         """在独立线程中执行定时任务，防止长时间任务阻塞后续任务"""
         task_name = getattr(task_func, '__name__', str(task_func))
-        lock_name = f'_lock_{task_name}'
-        if not hasattr(self, lock_name):
-            setattr(self, lock_name, threading.Lock())
-        lock = getattr(self, lock_name)
-        if lock.locked():
+        if not hasattr(self, '_task_locks'):
+            self._task_locks = {}
+        if task_name not in self._task_locks:
+            self._task_locks[task_name] = threading.Lock()
+        lock = self._task_locks[task_name]
+        if not lock.acquire(blocking=False):
             logger.warning(f'[线程安全] 任务 {task_name} 已在执行中，跳过本次触发')
             return
-        t = threading.Thread(target=task_func, daemon=True)
+        def wrapped_func():
+            try:
+                task_func()
+            finally:
+                lock.release()
+        t = threading.Thread(target=wrapped_func, daemon=True)
         t.start()
     
     def setup_schedule(self):

@@ -38,7 +38,7 @@ ENV API_PORT=8000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/api/health || exit 1
 
 # 启动命令
-CMD ["python", "src/ai/api.py"]
+CMD ["python", "-m", "uvicorn", "src.ai.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -241,14 +241,14 @@ class DeployManager:
             if sys.platform == 'win32':
                 # Windows
                 subprocess.Popen(
-                    [sys.executable, 'start_api.py'],
+                    [sys.executable, '-m', 'uvicorn', 'src.ai.api:app', '--host', '0.0.0.0', '--port', '8000'],
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     cwd=PROJECT_ROOT
                 )
             else:
                 # Linux/Mac
                 subprocess.Popen(
-                    [sys.executable, 'start_api.py'],
+                    [sys.executable, '-m', 'uvicorn', 'src.ai.api:app', '--host', '0.0.0.0', '--port', '8000'],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     cwd=PROJECT_ROOT

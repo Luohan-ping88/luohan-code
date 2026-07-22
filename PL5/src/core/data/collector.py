@@ -236,8 +236,10 @@ class PL5DataCollectorV8:
         self.cache_ttl = 3600  # 缓存过期时间（秒）
     
     @track_performance
-    @retry_on_failure(max_retries=3, delay=2, backoff=2, 
-                     exceptions=(requests.RequestException, TimeoutError))
+    @retry_on_failure(max_retries=3, delay=2, backoff=2,
+                     exceptions=(requests.RequestException, TimeoutError,
+                                 NetworkHTTPError, NetworkTimeoutError,
+                                 NetworkConnectionError, NetworkError))
     def fetch_from_network(self, source_name: str = 'lecai') -> Optional[str]:
         """从网络获取数据（带重试机制和增强错误分类）"""
         source = self.data_sources.get(source_name)

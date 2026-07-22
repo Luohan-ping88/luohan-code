@@ -2,10 +2,83 @@
 
 import subprocess
 import os
+import ast
+import operator
 from typing import Dict, Any, List
 
 from .base import BaseTool
 from ..ai_types import ToolResult, ToolCategory, ToolParameter
+
+
+# 【安全修复】支持的安全二元运算符映射
+_SAFE_BINOPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.FloorDiv: operator.floordiv,
+}
+
+# 【安全修复】支持的安全一元运算符映射
+_SAFE_UNARYOPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+# 【安全修复】兼容 Python < 3.8 的 ast.Num（3.8+ 统一为 ast.Constant，3.12+ 已移除 ast.Num）
+_AST_NUM = getattr(ast, 'Num', None)
+
+
+def _safe_eval_arithmetic(expression: str):
+    """【安全修复】基于 AST 的安全算术表达式求值
+
+    替代危险的 eval()，仅允许数字常量与基本算术运算
+    （+、-、*、/、%、**、// 及一元正负号），拒绝任何
+    名称、属性访问、调用等可执行代码。
+
+    Args:
+        expression: 数学表达式字符串
+
+    Returns:
+        求值结果（int 或 float）
+
+    Raises:
+        ValueError: 表达式包含不支持的语法节点
+        SyntaxError: 表达式语法错误
+        ZeroDivisionError: 除零错误
+    """
+    node = ast.parse(expression, mode='eval')
+    return _safe_eval_node(node.body)
+
+
+def _safe_eval_node(node):
+    """递归求值 AST 节点"""
+    # 数字常量（Python 3.8+ 使用 ast.Constant）
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError(f"仅支持数字常量，不支持: {type(node.value).__name__}")
+    # 兼容 Python < 3.8 的 ast.Num
+    if _AST_NUM is not None and isinstance(node, _AST_NUM):
+        return node.n
+    # 二元运算
+    if isinstance(node, ast.BinOp):
+        left = _safe_eval_node(node.left)
+        right = _safe_eval_node(node.right)
+        op_type = type(node.op)
+        if op_type in _SAFE_BINOPS:
+            return _SAFE_BINOPS[op_type](left, right)
+        raise ValueError(f"不支持的运算符: {op_type.__name__}")
+    # 一元运算（正负号）
+    if isinstance(node, ast.UnaryOp):
+        operand = _safe_eval_node(node.operand)
+        op_type = type(node.op)
+        if op_type in _SAFE_UNARYOPS:
+            return _SAFE_UNARYOPS[op_type](operand)
+        raise ValueError(f"不支持的一元运算符: {op_type.__name__}")
+    raise ValueError(f"不支持的表达式类型: {type(node).__name__}")
 
 
 class SearchTool(BaseTool):
@@ -94,8 +167,8 @@ class CalculatorTool(BaseTool):
                         error="表达式包含不允许的字符"
                     )
             
-            # 计算结果
-            result = eval(expression)
+            # 计算结果（【安全修复】使用基于 AST 的安全求值替代危险的 eval()）
+            result = _safe_eval_arithmetic(expression)
             
             return ToolResult(
                 success=True,

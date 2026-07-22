@@ -158,7 +158,8 @@ class HiddenMarkovModel:
                 if bic < best_score:
                     best_score = bic
                     best_n_mix = n_m
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HMM.select_optimal_mixtures] n_mixtures={n_m} 拟合失败: {e}")
                 continue
 
         logger.info(f"[HMM] GMM最优混合成分数: {best_n_mix}")
@@ -244,7 +245,8 @@ class HiddenMarkovModel:
                     emission_prob = np.exp(
                         self.emission_models[s].score_samples(observations[i:i+1])[0]
                     ) if self.emission_models else 0.1
-                except:
+                except Exception as e:
+                    logger.warning(f"[HMM._e_step] 观测 {i} 状态 {s} 发射概率计算失败: {e}")
                     emission_prob = 0.1
 
                 gamma[i, s] = self.initial_probs[s] * emission_prob
@@ -270,8 +272,8 @@ class HiddenMarkovModel:
                 weights = gamma[:, s] / (gamma[:, s].sum() + 1e-10)
                 try:
                     self.emission_models[s].fit(observations, sample_weight=weights)
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"[HMM._m_step] 状态 {s} 发射模型拟合失败: {e}")
 
     def _compute_log_likelihood(self, observations: np.ndarray, gamma: np.ndarray) -> float:
         ll = 0.0
@@ -296,7 +298,8 @@ class HiddenMarkovModel:
                 try:
                     emission = np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0]) \
                               if self.emission_models else 0.1
-                except:
+                except Exception as e:
+                    logger.warning(f"[HMM.predict_proba] 前向计算状态 {s} 发射概率失败: {e}")
                     emission = 0.1
 
                 new_alpha[s] = emission * np.sum(
@@ -312,7 +315,8 @@ class HiddenMarkovModel:
                     emission = np.exp(
                         self.emission_models[s].score_samples(np.array([[d]]))[0]
                     ) if self.emission_models else 0.1
-                except:
+                except Exception as e:
+                    logger.warning(f"[HMM.predict_proba] 数字 {d} 状态 {s} 发射概率失败: {e}")
                     emission = 0.1
                 emission_probs[d] += alpha[s] * emission
 
@@ -332,7 +336,8 @@ class HiddenMarkovModel:
                     state_probs[s] = np.exp(
                         self.emission_models[s].score_samples(obs.reshape(1, -1))[0]
                     ) if self.emission_models else 0.1
-                except:
+                except Exception as e:
+                    logger.warning(f"[HMM.get_state_sequence_proba] 步骤 {i} 状态 {s} 发射概率失败: {e}")
                     state_probs[s] = 0.1
 
             if i > 0:
@@ -360,7 +365,8 @@ class HiddenMarkovModel:
             # 使用前向算法计算对数似然
             gamma = self._e_step(observations)
             return self._compute_log_likelihood(observations, gamma)
-        except:
+        except Exception as e:
+            logger.warning(f"[HMM.score] 对数似然计算失败: {e}")
             return float('-inf')
 
     def diagnostics(self) -> Dict:

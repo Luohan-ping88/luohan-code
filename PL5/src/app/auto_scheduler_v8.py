@@ -1944,6 +1944,227 @@ class AutoSchedulerV8:
             return self.task_map[task_name][1]
         return None
 
+    def _sync_remote_repo(self) -> bool:
+        """
+        执行前自动同步远程仓库：拉取最新代码、应用优化修复升级。
+        确保日循环任务运行的是远程仓库的最新版本。
+
+        Returns:
+            True 表示同步成功或无需同步，False 表示同步失败
+        """
+        logger.info("=" * 60)
+        logger.info("【远程仓库同步】开始同步最新代码...")
+        logger.info("=" * 60)
+
+        try:
+            project_root = Path(__file__).parent.parent.parent
+
+            # 1. 检查是否在Git仓库中
+            git_dir = project_root / '.git'
+            if not git_dir.exists():
+                # 向上查找
+                import os
+                cwd = os.getcwd()
+                result = subprocess.run(
+                    ['git', 'rev-parse', '--show-toplevel'],
+                    capture_output=True, text=True, cwd=cwd, timeout=10
+                )
+                if result.returncode != 0:
+                    logger.info("【远程仓库同步】当前不在Git仓库中，跳过同步")
+                    return True
+                project_root = Path(result.stdout.strip())
+
+            # 2. 检查是否有远程仓库配置
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            if result.returncode != 0:
+                logger.info("【远程仓库同步】未配置远程仓库，跳过同步")
+                return True
+
+            remote_url = result.stdout.strip()
+            logger.info(f"【远程仓库同步】远程仓库: {remote_url}")
+
+            # 3. 拉取最新代码（fetch + merge）
+            logger.info("【远程仓库同步】拉取远程更新...")
+            result = subprocess.run(
+                ['git', 'fetch', 'origin'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=60
+            )
+            if result.returncode != 0:
+                logger.warning(f"【远程仓库同步】fetch 失败: {result.stderr.strip()}")
+                # fetch失败不阻断执行，继续使用本地代码
+                return True
+
+            # 4. 检查本地与远程的差异
+            current_branch_result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            current_branch = current_branch_result.stdout.strip()
+            logger.info(f"【远程仓库同步】当前分支: {current_branch}")
+
+            # 比较本地和远程的差异
+            diff_result = subprocess.run(
+                ['git', 'rev-list', f'HEAD..origin/main', '--count'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            behind_count = int(diff_result.stdout.strip()) if diff_result.stdout.strip().isdigit() else 0
+
+            if behind_count == 0:
+                logger.info("【远程仓库同步】本地已是最新，无需更新")
+                return True
+
+            logger.info(f"【远程仓库同步】发现 {behind_count} 个新提交，开始合并...")
+
+            # 5. Stash本地未提交的更改（如运行时生成的数据/模型文件）
+            stash_result = subprocess.run(
+                ['git', 'stash', 'push', '-m', f'auto-stash before pull {datetime.now().isoformat()}'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=30
+            )
+            had_stash = stash_result.returncode == 0 and 'No local changes' not in stash_result.stdout
+            if had_stash:
+                logger.info("【远程仓库同步】已暂存本地更改")
+
+            # 6. 合并远程代码
+            merge_result = subprocess.run(
+                ['git', 'merge', 'origin/main', '--no-edit'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=60
+            )
+
+            if merge_result.returncode != 0:
+                logger.warning(f"【远程仓库同步】合并失败: {merge_result.stderr.strip()}")
+                # 尝试abort合并，恢复状态
+                subprocess.run(['git', 'merge', '--abort'],
+                              capture_output=True, text=True, cwd=str(project_root), timeout=10)
+                # 恢复stash
+                if had_stash:
+                    subprocess.run(['git', 'stash', 'pop'],
+                                  capture_output=True, text=True, cwd=str(project_root), timeout=30)
+                logger.warning("【远程仓库同步】合并失败，使用本地代码继续执行")
+                return True
+
+            logger.info(f"【远程仓库同步】合并成功: {merge_result.stdout.strip()}")
+
+            # 7. 恢复本地暂存的更改
+            if had_stash:
+                pop_result = subprocess.run(
+                    ['git', 'stash', 'pop'],
+                    capture_output=True, text=True, cwd=str(project_root), timeout=30
+                )
+                if pop_result.returncode == 0:
+                    logger.info("【远程仓库同步】已恢复本地更改")
+                else:
+                    logger.warning(f"【远程仓库同步】恢复本地更改时冲突: {pop_result.stdout.strip()}")
+                    # 冲突时保留远程版本，本地运行时文件会在任务执行中重新生成
+
+            # 8. 获取更新的提交信息
+            log_result = subprocess.run(
+                ['git', 'log', f'HEAD~{behind_count}..HEAD', '--oneline'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            if log_result.stdout.strip():
+                logger.info("【远程仓库同步】本次更新的提交:")
+                for line in log_result.stdout.strip().split('\n'):
+                    logger.info(f"  {line}")
+
+            logger.info("【远程仓库同步】同步完成，运行最新版本代码")
+            logger.info("=" * 60)
+            return True
+
+        except subprocess.TimeoutException:
+            logger.warning("【远程仓库同步】同步超时，使用本地代码继续执行")
+            return True
+        except Exception as e:
+            logger.warning(f"【远程仓库同步】同步异常: {e}，使用本地代码继续执行")
+            return True
+
+    def _push_results_to_remote(self) -> bool:
+        """
+        日循环任务完成后，将运行结果和配置变更推送到远程仓库。
+        实现双向同步：执行前拉取、执行后推送。
+
+        Returns:
+            True 表示推送成功或无需推送，False 表示推送失败
+        """
+        try:
+            project_root = Path(__file__).parent.parent.parent
+
+            # 向上查找git根目录
+            result = subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            if result.returncode != 0:
+                return True
+            project_root = Path(result.stdout.strip())
+
+            # 检查是否有变更需要提交
+            status_result = subprocess.run(
+                ['git', 'status', '--porcelain'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=10
+            )
+            if not status_result.stdout.strip():
+                logger.info("【远程仓库推送】无变更需要推送")
+                return True
+
+            # 分离被gitignore追踪的文件和需要提交的文件
+            # 只提交 results/ 目录下的报告文件和配置文件变更
+            changed_files = []
+            for line in status_result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                filepath = line[3:].strip()
+                # 只提交报告、配置、源代码变更，不提交数据/模型/日志文件
+                if (filepath.startswith('PL5/results/') or
+                    filepath.startswith('results/') or
+                    filepath.startswith('PL5/src/config/') or
+                    filepath.startswith('src/config/') or
+                    filepath.startswith('PL5/src/core/models/small_sample') or
+                    filepath.startswith('PL5/src/app/auto_scheduler') or
+                    filepath.startswith('PL5/requirements') or
+                    filepath.startswith('PL5/Dockerfile') or
+                    filepath.startswith('PL5/src/core/features/') or
+                    filepath.startswith('PL5/src/core/data/') or
+                    filepath.startswith('PL5/src/core/models/')):
+                    changed_files.append(filepath)
+
+            if not changed_files:
+                logger.info("【远程仓库推送】无需要推送的代码/报告变更")
+                return True
+
+            logger.info(f"【远程仓库推送】发现 {len(changed_files)} 个文件变更")
+
+            # 添加文件
+            for f in changed_files:
+                subprocess.run(['git', 'add', f],
+                              capture_output=True, text=True, cwd=str(project_root), timeout=10)
+
+            # 提交
+            commit_msg = f"auto: 日循环任务自动同步 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            subprocess.run(
+                ['git', 'commit', '-m', commit_msg],
+                capture_output=True, text=True, cwd=str(project_root), timeout=30
+            )
+
+            # 推送
+            push_result = subprocess.run(
+                ['git', 'push', 'origin', 'HEAD:main'],
+                capture_output=True, text=True, cwd=str(project_root), timeout=60
+            )
+
+            if push_result.returncode == 0:
+                logger.info("【远程仓库推送】推送成功，远程仓库已更新")
+                return True
+            else:
+                logger.warning(f"【远程仓库推送】推送失败: {push_result.stderr.strip()}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"【远程仓库推送】推送异常: {e}")
+            return False
+
     def run_full_pipeline(self):
         """运行完整流程 - 增强版，带结构化日志和错误分类"""
         logger.info("\n" + "=" * 80)
@@ -1955,6 +2176,9 @@ class AutoSchedulerV8:
             {"action": "full_pipeline"}
         )
         start_time = datetime.now()
+
+        # 【远程仓库同步】执行前自动拉取最新代码，确保运行的是远程仓库的最新版本
+        self._sync_remote_repo()
 
         # 使用完整佐证链（与 setup_schedule 的 custom_tasks 保持一致）
         task_chain = self.custom_tasks
@@ -2031,6 +2255,10 @@ class AutoSchedulerV8:
                               "⊘" if result.get('status') == 'SKIPPED' else "✗"
                 logger.info(f"  {status_icon} {task_name}: {result['status']}")
             logger.info("=" * 80)
+
+            # 【远程仓库推送】任务完成后自动推送结果和代码变更到远程仓库
+            self._push_results_to_remote()
+
             return success_count == total_executed
 
         except Exception as e:
@@ -2042,6 +2270,10 @@ class AutoSchedulerV8:
             )
             logger.error(f"流程执行异常: {str(e)}", exc_info=True)
             self.send_alert("完整流程", str(e))
+
+            # 即使流程异常，也尝试推送已完成的变更
+            self._push_results_to_remote()
+
             return False
     
     def task_final_prediction(self):

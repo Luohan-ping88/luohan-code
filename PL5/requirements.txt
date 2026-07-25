@@ -3,24 +3,24 @@
 # 合并自根 requirements.txt 与 config/requirements.txt
 # ============================================================
 
-# --- 核心数据科学 ---
-numpy==1.26.2
-pandas==2.1.4
-scipy>=1.10.0
-scikit-learn==1.3.2
+# --- 核心数据科学 (Python 3.14 兼容版本) ---
+numpy>=2.5.0
+pandas>=3.0.0
+scipy>=1.18.0
+scikit-learn>=1.9.0
 
 # --- 时序模型 ---
-statsmodels>=0.14.0
-hmmlearn>=0.3.0
+statsmodels>=0.14.6
+hmmlearn>=0.3.3
 
 # --- 树模型 ---
-lightgbm==4.1.0
-xgboost==2.0.3
-catboost>=1.2
+lightgbm>=4.7.0
+xgboost>=3.3.0
+catboost>=1.2.10
 
 # --- 调度与监控 ---
 schedule>=1.2.0
-psutil>=5.9.0
+psutil>=7.2.0
 watchdog>=3.0.0
 
 # --- API 服务 ---
@@ -50,10 +50,10 @@ seaborn>=0.12.0
 openai==1.3.5
 llama-cpp-python==0.2.43
 
-# --- 深度学习（可选，用于 RL 模块） ---
-torch==2.1.0
-torchvision==0.16.0
-torchaudio==2.1.0
+# --- 深度学习（用于 Mamba/iTransformer/RL 模块，CPU 版本） ---
+# 安装命令: pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.13.0
+# torchvision/torchaudio 按需安装（未在核心管线中使用）
 
 # --- 扩展模块（高级数理分析 / 向量检索 / LLM 编排） ---
 pybind11>=2.11.0

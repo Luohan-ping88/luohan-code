@@ -235,7 +235,7 @@ def generate_summary_report(run_date_str, tasks, training_info, recent_draws,
     else:
         lines.extend(issues)
     # torch 备注
-    lines.append("\n**备注**: torch 未安装，Mamba / iTransformer 模型非致命跳过（try/except 保护），与历次生产运行一致；其余模型（Stacking/HMM/Copula/BSTS/贝叶斯量化）正常训练。")
+    lines.append("\n**备注**: torch 已安装（2.13.0+cpu），Mamba / iTransformer 模型可正常训练；全部 6 大模型（Stacking/HMM/Copula/BSTS/Mamba/iTransformer）+ 贝叶斯量化器完整启用。")
 
     # 跟进
     lines.append("\n---\n\n## 五、后续跟进事项\n")

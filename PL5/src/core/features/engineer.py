@@ -345,6 +345,8 @@ class FeatureDriftDetector:
         self.ks_threshold = ks_threshold
         self.training_stats: Dict[str, Dict[str, float]] = {}
         self.training_quantiles: Dict[str, Dict[str, float]] = {}
+        self.training_bin_pct: Dict[str, np.ndarray] = {}  # 训练数据分箱占比
+        self.training_bin_edges: Dict[str, np.ndarray] = {}  # 训练数据分箱边界
         self.drift_warnings: List[Dict[str, Any]] = []
 
     def fit(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None):
@@ -374,6 +376,10 @@ class FeatureDriftDetector:
                 'q95': float(series.quantile(0.95)),
                 'q99': float(series.quantile(0.99))
             }
+            # 同时记录训练数据在分箱中的占比，用于 PSI 正确计算
+            edges = self._build_psi_edges(self.training_quantiles[col])
+            self.training_bin_edges[col] = edges
+            self.training_bin_pct[col] = self._hist_pct(series.values, edges)
         logger.info(f"漂移检测器已拟合: 记录了 {len(self.training_stats)} 个特征的统计量")
 
     def detect(self, df: pd.DataFrame, feature_cols: Optional[List[str]] = None) -> List[Dict[str, Any]]:
@@ -389,9 +395,8 @@ class FeatureDriftDetector:
                 continue
 
             train_stats = self.training_stats[col]
-            train_q = self.training_quantiles.get(col, {})
 
-            psi_score = self._calc_psi(train_q, series)
+            psi_score = self._calc_psi(col, series)
             z_score = abs(float(series.mean()) - train_stats['mean']) / max(train_stats['std'], 1e-10)
 
             drift_type = []
@@ -421,25 +426,46 @@ class FeatureDriftDetector:
         return self.drift_warnings
 
     @staticmethod
-    def _calc_psi(train_q: Dict[str, float], current_series: pd.Series) -> float:
-        """计算Population Stability Index (PSI)"""
-        bins = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
+    def _build_psi_edges(train_q: Dict[str, float]) -> np.ndarray:
+        """根据训练分位数构建 PSI 分箱边界"""
         q_keys = ['q01', 'q05', 'q25', 'q50', 'q75', 'q95', 'q99']
         edges = [train_q.get(k, 0.0) for k in q_keys]
         edges = sorted(set(edges))
+        return np.array(edges) if len(edges) >= 2 else np.array([])
 
-        if len(edges) < 2:
-            return 0.0
-
+    @staticmethod
+    def _hist_pct(values: np.ndarray, edges: np.ndarray) -> np.ndarray:
+        """计算 values 在 edges 分箱中的占比"""
+        if len(edges) < 2 or len(values) == 0:
+            return np.array([])
         try:
-            current_counts, _ = np.histogram(current_series, bins=edges)
-            current_pct = current_counts / current_counts.sum()
-
-            uniform_train = np.ones(len(edges) - 1) / (len(edges) - 1)
-            psi = np.sum((current_pct - uniform_train) * np.log((current_pct + 1e-10) / (uniform_train + 1e-10)))
-            return float(psi)
+            counts, _ = np.histogram(values, bins=edges)
+            total = counts.sum()
+            if total == 0:
+                return np.ones(len(edges) - 1) / (len(edges) - 1)
+            return counts / total
         except Exception:
+            return np.array([])
+
+    def _calc_psi(self, col: str, current_series: pd.Series) -> float:
+        """计算 Population Stability Index (PSI)
+
+        PSI = Σ (current_pct - train_pct) × ln(current_pct / train_pct)
+        比较当前数据与训练数据在同一分箱中的占比差异。
+        """
+        train_pct = self.training_bin_pct.get(col)
+        edges = self.training_bin_edges.get(col)
+        if train_pct is None or edges is None or len(edges) < 2:
             return 0.0
+        current_pct = self._hist_pct(current_series.values, edges)
+        if len(current_pct) == 0 or len(current_pct) != len(train_pct):
+            return 0.0
+        # 避免除零和 log(0)
+        eps = 1e-6
+        train_pct_safe = np.where(train_pct < eps, eps, train_pct)
+        current_pct_safe = np.where(current_pct < eps, eps, current_pct)
+        psi = np.sum((current_pct - train_pct) * np.log(current_pct_safe / train_pct_safe))
+        return float(max(psi, 0.0))
 
     def get_drift_report(self) -> str:
         """生成漂移报告"""
@@ -459,6 +485,8 @@ class FeatureDriftDetector:
         data = {
             'training_stats': self.training_stats,
             'training_quantiles': self.training_quantiles,
+            'training_bin_pct': self.training_bin_pct,
+            'training_bin_edges': self.training_bin_edges,
             'psi_threshold': self.psi_threshold,
             'ks_threshold': self.ks_threshold
         }
@@ -471,6 +499,8 @@ class FeatureDriftDetector:
             data = pickle.load(f)
         self.training_stats = data['training_stats']
         self.training_quantiles = data['training_quantiles']
+        self.training_bin_pct = data.get('training_bin_pct', {})
+        self.training_bin_edges = data.get('training_bin_edges', {})
         self.psi_threshold = data.get('psi_threshold', 0.2)
         self.ks_threshold = data.get('ks_threshold', 0.05)
         logger.info(f"漂移检测器状态已加载: {filepath}")
@@ -531,8 +561,13 @@ class FeatureScaler:
         if not self._fitted or self.method == 'none':
             return df
         result = df.copy()
+        # 排除非特征列（与 fit 保持一致，避免 sklearn 特征名不匹配）
+        _excluded = {'period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge'}
         for group, scaler in self._scalers.items():
-            group_cols = [c for c in result.columns if self._get_group(c) == group and np.issubdtype(result[c].dtype, np.number)]
+            group_cols = [c for c in result.columns
+                          if c not in _excluded
+                          and self._get_group(c) == group
+                          and np.issubdtype(result[c].dtype, np.number)]
             if group_cols:
                 result[group_cols] = scaler.transform(result[group_cols].fillna(0))
         return result
@@ -921,12 +956,15 @@ class FeatureEngineerV9:
         return result
 
     def _add_granger_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """格兰杰因果特征 - 向量化"""
+        """格兰杰因果特征 - 滚动交叉相关"""
         result = df.copy()
-        for i, pos1 in enumerate(POSITIONS):
+        window = 10
+        for pos1 in POSITIONS:
             for pos2 in POSITIONS:
                 if pos1 != pos2:
-                    result[f'granger_{pos1}_{pos2}'] = df[pos1].shift(1).corr(df[pos2]).fillna(0)
+                    # 使用滚动相关（返回 Series），避免标量 .corr() 导致 .fillna() 报错
+                    rolling_corr = df[pos1].shift(1).rolling(window=window, min_periods=2).corr(df[pos2])
+                    result[f'granger_{pos1}_{pos2}'] = rolling_corr.fillna(0)
         return result
 
     def _add_time_series_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1475,9 +1513,12 @@ class FeatureEngineerV9:
 
         logger.info(f"_select_features 开始: n_features={n_features}, 总特征数={len(feature_cols)}")
 
+        # 仅包含 DataFrame 中实际存在的基础列，避免 KeyError
+        candidate_basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
+        basic_cols = [c for c in candidate_basic_cols if c in df.columns]
+
         if len(feature_cols) <= n_features:
             # 即使特征数量不足，也返回基础列 + 所有特征列
-            basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
             selected_cols = basic_cols + feature_cols
             logger.info(f"特征数量不足，返回所有 {len(feature_cols)} 个特征，总列数={len(selected_cols)}")
             return df[selected_cols]
@@ -1498,7 +1539,7 @@ class FeatureEngineerV9:
         logger.info(f"智能特征选择: 数据量={n_samples}, 总特征={n_total_features}, "
                    f"每位置选择约{optimal_features_per_pos}个特征")
 
-        basic_cols = ['period', 'full_number', 'wan', 'qian', 'bai', 'shi', 'ge']
+        # basic_cols 已在上方计算（仅包含 df 中实际存在的列）
         selected_features = []
         
         # 暂时禁用并行计算，避免卡住

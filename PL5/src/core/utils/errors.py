@@ -79,6 +79,30 @@ class DataParseError(DataError):
     pass
 
 
+class FeatureError(PL5BaseError):
+    """特征工程相关错误"""
+
+    def __init__(self, message: str, feature_name: str = "unknown",
+                 operation: str = "unknown", **kwargs):
+        super().__init__(message, **kwargs)
+        self.feature_name = feature_name
+        self.operation = operation
+        self.context.update({
+            "feature_name": feature_name,
+            "operation": operation
+        })
+
+
+class FeatureExtractionError(FeatureError):
+    """特征提取失败"""
+    pass
+
+
+class FeatureTransformationError(FeatureError):
+    """特征转换失败"""
+    pass
+
+
 class ModelError(PL5BaseError):
     """模型相关错误"""
 

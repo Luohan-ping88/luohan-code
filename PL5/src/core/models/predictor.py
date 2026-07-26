@@ -124,7 +124,8 @@ class CopulaModel:
         n = data.shape[1]
         # pandas corr(method='kendall') 内部使用快速排序 O(n·log(n))，
         # 比手写 O(n²) Python 循环快 100 倍以上
-        tau = pd.DataFrame(data).corr(method='kendall').values
+        # 注意：joblib 跨进程传递时 .values 返回的视图可能是只读的，需 copy()
+        tau = pd.DataFrame(data).corr(method='kendall').values.copy()
         np.fill_diagonal(tau, 1.0)
         self.kendall_tau = tau
         self._fitted = True
@@ -602,9 +603,12 @@ class PL5Predictor:
             p_fused = p_fused / (p_fused.sum() + 1e-12)
 
             top_indices = _top_k_from_proba(p_fused, top_k)
+            # 对 top-k 概率重新归一化，使其在选定的号码集合内和为 1.0
+            top_probs = np.array([p_fused[i] for i in top_indices], dtype=float)
+            top_probs = top_probs / (top_probs.sum() + 1e-12)
             result[pos] = {
                 "top_k": top_indices,
-                "probabilities": [float(p_fused[i]) for i in top_indices],
+                "probabilities": [float(p) for p in top_probs],
             }
 
         return result

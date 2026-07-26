@@ -243,7 +243,13 @@ class PL5DataCollectorV8:
     def fetch_from_network(self, source_name: str = 'lecai') -> Optional[str]:
         """从网络获取数据（带重试机制和增强错误分类）"""
         source = self.data_sources.get(source_name)
-        if not source or not source.get('enabled'):
+        if source is None:
+            # 数据源不存在 - 抛出 DataError 以便上层捕获并处理
+            raise DataError(
+                f"数据源 '{source_name}' 不存在，已知数据源: {list(self.data_sources.keys())}",
+                data_source=source_name,
+            )
+        if not source.get('enabled'):
             logger.warning(f"数据源 {source_name} 未启用")
             return None
         

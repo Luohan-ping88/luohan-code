@@ -64,12 +64,21 @@ def test_pattern_recognition():
                 if volatility_count > 0:
                     patterns.append(f"{pos} 波动率变化模式: {volatility_count} 次")
     
-    # 5. 黄金分割特征模式
+    # 5. 黄金分割-波动率范围移动识别模式（已集成模块）
     for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
         if pos in features.columns:
-            fib_mean = features.get(f'{pos}_fib_mean_5', None)
-            if fib_mean is not None:
-                patterns.append(f"{pos} 黄金分割特征模式")
+            grv_norm_pos = features.get(f'{pos}_grv_5_norm_pos', None)
+            if grv_norm_pos is not None:
+                # 检测是否出现突破/反转等明显移动模式
+                movement_cols = [c for c in features.columns
+                                 if c.startswith(f'{pos}_grv_5_movement_')]
+                if movement_cols:
+                    breakout_count = int(features.get(f'{pos}_grv_5_movement_breakout_up',
+                                                      pd.Series([0])).sum())
+                    if breakout_count > 0:
+                        patterns.append(f"{pos} 黄金分割突破上行模式: {breakout_count} 次")
+                    else:
+                        patterns.append(f"{pos} 黄金分割波动率范围模式")
     
     print(f"识别到 {len(patterns)} 种模式:")
     for pattern in patterns:

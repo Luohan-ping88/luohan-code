@@ -2777,7 +2777,7 @@ class EnhancedPL5Predictor:
             "features": {
                 "engineer_version": "FeatureEngineerV10",
                 "feature_groups": [
-                    "fibonacci", "markov", "fourier", "extreme", "pattern",
+                    "golden_ratio_volatility", "markov", "fourier", "extreme", "pattern",
                     "momentum", "entropy", "chaos", "cross_correlation",
                     "garch", "granger", "time_series", "statistical",
                     "nonlinear", "pattern_recognition", "deep_learning",

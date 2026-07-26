@@ -76,7 +76,8 @@ class DynamicFeatureSelector:
     def __init__(self, max_combinations: int = 5):
         self.max_combinations = max_combinations
         self.base_feature_groups = {
-            'fibonacci': [],      # 斐波那契特征
+            # 黄金分割已与波动率范围识别深度整合，不再作为独立特征组
+            'golden_ratio_volatility': [],  # 黄金分割-波动率范围移动识别集成特征
             'markov': [],         # 马尔可夫特征
             'fourier': [],        # 傅里叶特征
             'extreme': [],        # 极值特征

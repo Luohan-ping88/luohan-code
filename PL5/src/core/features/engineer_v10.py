@@ -339,7 +339,13 @@ class FeatureConfig:
     """特征配置管理器"""
 
     DEFAULT_CONFIG = {
-        'fibonacci': {'enabled': True, 'windows': [5, 8, 13], 'description': '黄金分割特征'},
+        # 黄金分割已与波动率范围识别深度整合，不再作为独立特征组
+        # 详见 golden_ratio_volatility.GoldenRatioVolatilityModule
+        'golden_ratio_volatility': {
+            'enabled': True,
+            'windows': [5, 8, 13, 21],
+            'description': '黄金分割-波动率范围移动识别集成特征',
+        },
         'entropy': {'enabled': False, 'windows': [10, 20, 30], 'description': '熵值特征'},
         'markov': {'enabled': True, 'order': 2, 'description': '马尔可夫特征'},
         'chaos': {'enabled': False, 'hurst_windows': [10, 20, 50], 'lyapunov': True, 'description': '混沌特征'},
@@ -428,19 +434,29 @@ class FeatureEngineerV10:
 
     # ===================== 特征计算方法（向量化优化） =====================
 
-    def _add_fibonacci_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """黄金分割特征 - 向量化版本"""
-        result = df.copy()
-        fib_windows = [5, 8, 13, 21]
+    def _add_golden_ratio_volatility_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """黄金分割-波动率范围移动识别集成特征
 
-        for pos in POSITIONS:
-            s = df[pos]
-            for window in fib_windows:
-                if len(df) >= window:
-                    result[f'{pos}_fib_mean_{window}'] = s.rolling(window=window, min_periods=1).mean()
-                    result[f'{pos}_fib_std_{window}'] = s.rolling(window=window, min_periods=1).std()
+        将黄金分割回撤位与滚动波动率范围（max-min）深度整合，
+        输出范围位置、距黄金位距离、移动模式、范围状态等多维特征。
+        """
+        from src.core.features.golden_ratio_volatility import (
+            GoldenRatioVolatilityModule, GoldenRatioVolatilityConfig,
+        )
 
-        return result
+        # 从 FeatureConfig 读取窗口配置（如有）
+        windows = [5, 8, 13, 21]
+        if self.config and 'golden_ratio_volatility' in self.config.config:
+            cfg_windows = self.config.config['golden_ratio_volatility'].get('windows')
+            if cfg_windows:
+                windows = list(cfg_windows)
+
+        module_cfg = GoldenRatioVolatilityConfig(
+            windows=tuple(windows),
+            positions=POSITIONS,
+        )
+        module = GoldenRatioVolatilityModule(config=module_cfg)
+        return module.transform(df)
 
     def _add_entropy_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """熵值特征 - 向量化版本"""
@@ -648,7 +664,7 @@ class FeatureEngineerV10:
     def _compute_feature_group(self, df: pd.DataFrame, group_name: str) -> pd.DataFrame:
         """计算单个特征组（供并行调用）"""
         dispatch = {
-            'fibonacci': self._add_fibonacci_features,
+            'golden_ratio_volatility': self._add_golden_ratio_volatility_features,
             'entropy': self._add_entropy_features,
             'markov': self._add_markov_features,
             'cross_period_interaction': self._add_cross_period_interaction_features,
@@ -711,7 +727,7 @@ class FeatureEngineerV10:
         result_df = df.copy()
 
         feature_groups = [
-            ('fibonacci', 'fibonacci'),
+            ('golden_ratio_volatility', 'golden_ratio_volatility'),
             ('markov', 'markov'),
             ('cross_period_interaction', 'cross_period_interaction'),
             ('fourier', 'fourier'),

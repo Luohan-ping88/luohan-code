@@ -275,8 +275,8 @@ class TestModuleCommunication:
         
         # 验证所有模块都能处理
         engineer = FeatureEngineerV9(use_config=False, enable_parallel=False)
-        result = engineer._add_fibonacci_features(df_format)
-        
+        result = engineer._add_golden_ratio_volatility_features(df_format)
+
         assert isinstance(result, pd.DataFrame)
         assert len(result) == len(df_format)
 

@@ -328,8 +328,8 @@ class TestFeatureConfig:
         """测试默认配置值"""
         config_path = temp_dir / 'feature_config.json'
         config = FeatureConfig(config_path=config_path)
-        
-        assert 'fibonacci' in config.config
+
+        assert 'golden_ratio_volatility' in config.config
         assert 'markov' in config.config
         assert 'fourier' in config.config
     
@@ -348,13 +348,13 @@ class TestFeatureConfig:
         """测试保存和加载配置"""
         config_path = temp_dir / 'feature_config.json'
         config = FeatureConfig(config_path=config_path)
-        
+
         # 修改配置
-        config.update_config('fibonacci', enabled=False)
-        
+        config.update_config('golden_ratio_volatility', enabled=False)
+
         # 重新加载
         config2 = FeatureConfig(config_path=config_path)
-        assert config2.config['fibonacci']['enabled'] is False
+        assert config2.config['golden_ratio_volatility']['enabled'] is False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -446,13 +446,15 @@ class TestFeatureEngineerV9:
         assert engineer.drift_detector is not None
     
     @pytest.mark.unit
-    def test_add_fibonacci_features(self, engineer, sample_pl5_data):
-        """测试添加黄金分割特征"""
-        result = engineer._add_fibonacci_features(sample_pl5_data)
-        
-        # 检查新特征列
-        assert any('fib_mean' in col for col in result.columns)
-        assert any('fib_std' in col for col in result.columns)
+    def test_add_golden_ratio_volatility_features(self, engineer, sample_pl5_data):
+        """测试添加黄金分割-波动率集成特征"""
+        result = engineer._add_golden_ratio_volatility_features(sample_pl5_data)
+
+        # 检查新特征列（集成模块输出 grv_ 前缀的特征）
+        assert any('grv_' in col for col in result.columns)
+        assert any('_norm_pos' in col for col in result.columns)
+        assert any('_range_width' in col for col in result.columns)
+        assert any('_movement_' in col for col in result.columns)
         assert len(result.columns) > len(sample_pl5_data.columns)
     
     @pytest.mark.unit
@@ -554,8 +556,8 @@ class TestFeatureEngineerEdgeCases:
         """测试空数据框"""
         engineer = FeatureEngineerV9(use_config=False, enable_parallel=False)
         empty_df = pd.DataFrame()
-        
-        result = engineer._add_fibonacci_features(empty_df)
+
+        result = engineer._add_golden_ratio_volatility_features(empty_df)
         assert isinstance(result, pd.DataFrame)
     
     @pytest.mark.unit
@@ -567,7 +569,7 @@ class TestFeatureEngineerEdgeCases:
             'wan': [5], 'qian': [4], 'bai': [3], 'shi': [2], 'ge': [1]
         })
         
-        result = engineer._add_fibonacci_features(single_df)
+        result = engineer._add_golden_ratio_volatility_features(single_df)
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
     

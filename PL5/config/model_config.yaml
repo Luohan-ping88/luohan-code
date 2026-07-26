@@ -58,12 +58,15 @@ bsts:
   learning_rate: 0.05
 feature_engineering:
   feature_groups:
-    fibonacci:
+    # 黄金分割已与波动率范围识别深度整合，不再作为独立特征组
+    # 详见 src/core/features/golden_ratio_volatility.py
+    golden_ratio_volatility:
       enabled: true
       windows:
       - 5
       - 8
       - 13
+      - 21
     entropy:
       enabled: false
       windows:

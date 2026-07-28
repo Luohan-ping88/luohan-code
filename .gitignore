@@ -1,0 +1,55 @@
+# 运行时状态与模型产物（运行时自动生成，不应入库）
+models/
+logs/
+health/
+workflows/
+backups/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env/
+.python-version
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 数据文件
+data/*.csv
+data/*.txt
+data/*.db
+data/backups/
+
+# 模型文件
+*.pkl
+*.joblib
+*.vector_index/
+
+# 测试缓存
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak
+*.backup

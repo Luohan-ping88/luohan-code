@@ -1,0 +1,88 @@
+{
+  "current_strategy": "stacking_dominant",
+  "switch_count": 1,
+  "eval_count": 10,
+  "last_switch_idx": 8,
+  "combo_mode": false,
+  "combo_weights": {},
+  "last_psi": 0.0,
+  "strategy_performance": {
+    "default": [
+      {
+        "period": "2026000",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.539753"
+      },
+      {
+        "period": "2026001",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.540107"
+      },
+      {
+        "period": "2026002",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.540378"
+      },
+      {
+        "period": "2026003",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.540994"
+      },
+      {
+        "period": "2026004",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.541511"
+      }
+    ],
+    "stacking_dominant": [
+      {
+        "period": "2026000",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.541995"
+      },
+      {
+        "period": "2026001",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.542523"
+      },
+      {
+        "period": "2026002",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.543019"
+      },
+      {
+        "period": "2026003",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.543569"
+      },
+      {
+        "period": "2026004",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-07-28T00:40:00.544089"
+      }
+    ],
+    "hmm_dominant": [],
+    "copula_dominant": [],
+    "voting_ensemble": []
+  }
+}

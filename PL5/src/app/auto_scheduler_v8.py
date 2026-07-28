@@ -1024,13 +1024,15 @@ class AutoSchedulerV8:
                 probs = prediction[pos]['probabilities']
 
                 if len(probs) >= 2:
-                    # 将top-1的概率衰减到与top-2相近
+                    original_top1_num = top_k[0]
                     original_top1_prob = probs[0]
                     original_top2_prob = probs[1]
 
-                    # 惩罚策略：让top-1和top-2概率接近，打破绝对 dominance
-                    new_top1_prob = (original_top1_prob + original_top2_prob) / 2
-                    new_top2_prob = new_top1_prob
+                    # 惩罚策略：将 top-1 概率降至 top-2 以下，真正打破 dominance
+                    penalty_factor = 0.7
+                    boost_factor = 1.2
+                    new_top1_prob = original_top1_prob * penalty_factor
+                    new_top2_prob = min(original_top2_prob * boost_factor, new_top1_prob * 1.1)
 
                     probs[0] = new_top1_prob
                     probs[1] = new_top2_prob
@@ -1040,16 +1042,14 @@ class AutoSchedulerV8:
                     if total > 0:
                         probs = [p / total for p in probs]
 
-                    # 重新排序top_k（因为概率变了）
-                    prob_num_pairs = list(zip(probs, top_k))
-                    prob_num_pairs.sort(key=lambda x: x[0], reverse=True)
-                    new_top_k = [num for _, num in prob_num_pairs]
-                    new_probs = [prob for prob, _ in prob_num_pairs]
+                    # 交换 top-1 和 top-2 的位置（确保排序变化生效）
+                    top_k[0], top_k[1] = top_k[1], top_k[0]
+                    probs[0], probs[1] = probs[1], probs[0]
 
-                    prediction[pos]['top_k'] = new_top_k
-                    prediction[pos]['probabilities'] = new_probs
+                    prediction[pos]['top_k'] = top_k
+                    prediction[pos]['probabilities'] = probs
                     prediction[pos]['repeat_penalty_applied'] = True
-                    prediction[pos]['original_top1'] = top_k[0]
+                    prediction[pos]['original_top1'] = original_top1_num
 
             logger.info("【重复号码惩罚】已应用概率修正:")
             for pos in positions:
@@ -1910,6 +1910,14 @@ class AutoSchedulerV8:
         except NetworkError as e:
             error_msg = f"网络错误导致发送失败: {e.to_dict()}"
             logger.error(error_msg)
+            if self.workflow_enabled and self.orchestrator:
+                self.orchestrator.fail_task(task_name, error_msg)
+            self._record_send_failure(start_time, error_msg, str(e))
+            return False
+        except OSError as e:
+            # 网络层错误（如SMTP不可达）：记录后优雅降级，不触发外层重试
+            error_msg = f"网络不可达导致发送失败: {e}"
+            logger.warning(error_msg)
             if self.workflow_enabled and self.orchestrator:
                 self.orchestrator.fail_task(task_name, error_msg)
             self._record_send_failure(start_time, error_msg, str(e))

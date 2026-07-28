@@ -5,6 +5,8 @@ V10.0版本 - 全彩色清晰版
 
 import smtplib
 import ssl
+import socket
+import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
@@ -12,21 +14,37 @@ from datetime import datetime
 import logging
 from src.core.utils.logger import logger
 
+# SMTP 连接超时（秒）
+SMTP_TIMEOUT = 30
+
 
 class EmailSender:
     """邮件发送器"""
-    
+
     def __init__(self, sender_email: str, auth_code: str, smtp_server: str = "smtp.qq.com", smtp_port: int = 465):
         self.sender_email = sender_email
         self.auth_code = auth_code
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-    
+
+    def _check_smtp_reachable(self) -> bool:
+        """预检查 SMTP 服务器网络可达性，避免长时间阻塞"""
+        if os.environ.get('CI') == 'true' or os.environ.get('SANDBOX_MODE') == 'true':
+            logger.warning("[EmailSender] 沙箱/CI环境检测到，跳过SMTP连接")
+            return False
+        try:
+            with socket.create_connection((self.smtp_server, self.smtp_port), timeout=5) as sock:
+                return True
+        except (socket.timeout, OSError) as e:
+            logger.warning(f"[EmailSender] SMTP服务器不可达 {self.smtp_server}:{self.smtp_port} - {e}")
+            return False
+
     def send_report(self, recipient_email: str, subject: str, html_content: str, text_content: str = None):
         """发送报告邮件
-        
+
         Raises:
             smtplib.SMTPException: SMTP通信错误，由外层 execute_with_retry 处理重试
+            OSError: 网络不可达错误
             Exception: 其他异常，同样由外层重试机制处理
         """
         # 创建邮件对象
@@ -34,21 +52,25 @@ class EmailSender:
         msg['From'] = self.sender_email
         msg['To'] = recipient_email
         msg['Subject'] = subject
-        
+
         # 添加纯文本内容
         if text_content:
             msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
-        
+
         # 添加HTML内容
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-        
-        # 连接SMTP服务器并发送
+
+        # 网络预检查
+        if not self._check_smtp_reachable():
+            raise OSError(f"SMTP服务器 {self.smtp_server}:{self.smtp_port} 不可达，跳过邮件发送")
+
+        # 连接SMTP服务器并发送（带超时）
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context) as server:
+        with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context, timeout=SMTP_TIMEOUT) as server:
             server.login(self.sender_email, self.auth_code)
             server.sendmail(self.sender_email, recipient_email, msg.as_string())
-        
-        logger.info(f"✓ 邮件发送成功: {recipient_email}")
+
+        logger.info(f"[EmailSender] 邮件发送成功: {recipient_email}")
         return True
 
 

@@ -1127,8 +1127,9 @@ class EnhancedPL5Predictor:
                     "Model not trained, returning uniform distribution"
                 )
                 logger.warning("[EnhancedPredictor] 模型未训练，返回均匀分布预测")
+                uniform_prob = 1.0 / top_k
                 return {pos: {"top_k": list(range(10))[:top_k],
-                            "probabilities": [0.1] * top_k,
+                            "probabilities": [uniform_prob] * top_k,
                             "uncertainty": 0.5,
                             "fallback": True} for pos in POSITIONS}
 
@@ -1291,16 +1292,17 @@ class EnhancedPL5Predictor:
                         }
                     }
 
-                    if self.thompson_sampler is not None:
-                        arm = POSITIONS.index(pos)
-                        self.thompson_sampler.update(arm, True)
+                    # 注意：不在预测阶段更新 Thompson 采样器状态
+                    # 原代码以硬编码 True 更新会导致采样器状态在只读操作中被污染，
+                    # 使后续预测产生非确定性。Thompson 更新应仅在评估实际命中后执行。
 
                     return pos, pos_result
                 except Exception as pos_error:
                     logger.error(f"[EnhancedPredictor] 位置 {pos} 预测异常: {pos_error}", exc_info=True)
+                    uniform_prob = 1.0 / top_k
                     return pos, {
                         "top_k": list(range(10))[:top_k],
-                        "probabilities": [0.1] * top_k,
+                        "probabilities": [uniform_prob] * top_k,
                         "uncertainty": 1.0,
                         "weights_used": {},
                         "error": str(pos_error),
@@ -1386,8 +1388,9 @@ class EnhancedPL5Predictor:
                 return cached_result
 
             logger.error(f"[EnhancedPredictor] 预测完全失败，使用均匀分布回退: {e}")
+            uniform_prob = 1.0 / top_k
             return {pos: {"top_k": list(range(10))[:top_k],
-                        "probabilities": [0.125] * top_k,
+                        "probabilities": [uniform_prob] * top_k,
                         "uncertainty": 1.0,
                         "fallback": True} for pos in POSITIONS}
 

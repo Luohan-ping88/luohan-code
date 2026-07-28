@@ -498,6 +498,24 @@ class EnhancedPL5Predictor:
         self._performance_window = self._mc.get_int('rl_optimizer.performance_window', 30)
         self._prediction_results_cache: List[Dict] = []
 
+        # 模型解释器（决策路径追踪 + 多维分析）
+        self.model_explainer: Optional[Any] = None
+        try:
+            from src.core.models.model_explainer import ModelExplainer
+            self.model_explainer = ModelExplainer()
+            logger.info("[EnhancedPredictor] 模型解释器已加载")
+        except Exception as e:
+            logger.warning(f"[EnhancedPredictor] 模型解释器加载失败: {e}")
+
+        # 策略自适应切换器
+        self.strategy_switcher: Optional[Any] = None
+        try:
+            from src.core.strategy_adaptive_switcher import StrategyAdaptiveSwitcher
+            self.strategy_switcher = StrategyAdaptiveSwitcher()
+            logger.info(f"[EnhancedPredictor] 策略自适应切换器已加载, 当前策略: {self.strategy_switcher.get_active_strategy()}")
+        except Exception as e:
+            logger.warning(f"[EnhancedPredictor] 策略切换器加载失败: {e}")
+
         rl_ts_cfg = self._mc.get_dict('rl_optimizer.thompson_sampling', {})
         self._thompson_weight_params: Dict[str, Dict[str, float]] = {
             "stacking": {"alpha": rl_ts_cfg.get('initial_alpha', 2.0), "beta": rl_ts_cfg.get('initial_beta', 3.0)},
@@ -1366,6 +1384,31 @@ class EnhancedPL5Predictor:
             )
 
             prediction_cache.store(f"pred_{time.time()}", result)
+
+            # 模型解释器: 生成决策路径追踪与多维分析
+            if self.model_explainer is not None:
+                try:
+                    explanation = self.model_explainer.explain_prediction(
+                        predictions=result,
+                        recent_data=recent_original_data,
+                        feature_values=features,
+                        feature_names=self.feature_cols if self.feature_cols else None,
+                        model_weights=self.weights,
+                        bayesian_applied=use_uncertainty and self.bayesian_quantifier is not None,
+                        period=None,
+                    )
+                    # 将解释信息附加到结果中（不改变预测值）
+                    for pos in result:
+                        result[pos]['explanation'] = {
+                            'confidence_level': explanation.get('multi_dimensional_analysis', {})
+                                .get('confidence', {}).get(pos, {}).get('confidence_level', 'unknown'),
+                            'temporal': explanation.get('multi_dimensional_analysis', {})
+                                .get('temporal', {}).get(pos, {}),
+                        }
+                    logger.debug("[EnhancedPredictor] 模型解释器分析完成")
+                except Exception as expl_err:
+                    logger.debug(f"[EnhancedPredictor] 模型解释器分析失败(非致命): {expl_err}")
+
             return result
 
         except Exception as e:

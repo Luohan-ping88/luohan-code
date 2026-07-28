@@ -569,9 +569,9 @@ class FeatureConfig:
 
     DEFAULT_CONFIG = {
         'fibonacci': {
-            'enabled': True,
+            'enabled': False,
             'windows': [5, 8, 13],
-            'description': '黄金分割特征'
+            'description': '黄金分割特征（已整合到波动率范围移动识别模块）'
         },
         'entropy': {
             'enabled': False,
@@ -615,9 +615,9 @@ class FeatureConfig:
             'description': '动量特征'
         },
         'garch': {
-            'enabled': False,
-            'windows': [20, 50],
-            'description': 'GARCH波动率特征'
+            'enabled': True,
+            'windows': [5, 8, 13, 20],
+            'description': '波动率范围移动识别特征（含黄金分割整合）'
         },
         'granger': {
             'enabled': False,
@@ -902,11 +902,50 @@ class FeatureEngineerV9:
         return result
 
     def _add_garch_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """GARCH波动率特征 - 向量化"""
+        """波动率范围移动识别特征（含黄金分割整合）- 向量化
+
+        整合说明:
+        - 原独立 fibonacci 特征组已移除，黄金分割比率整合到波动率范围移动识别中
+        - 使用斐波那契窗口 [5, 8, 13] 计算波动率，识别价格在黄金分割区间的移动
+        - 波动率范围 = 基于黄金分割比率的动态支撑/阻力区间
+        """
         result = df.copy()
+        fib_windows = [5, 8, 13]
+        golden_ratio = 0.618
+        golden_extension = 1.618
+
         for pos in POSITIONS:
-            returns = df[pos].diff().fillna(0)
+            s = df[pos].astype(np.float64)
+            returns = s.diff().fillna(0)
+
+            # 基础波动率
             result[f'{pos}_volatility_20'] = returns.rolling(window=20, min_periods=1).std()
+
+            # 黄金分割整合: 波动率范围移动识别
+            for window in fib_windows:
+                if len(df) < window:
+                    continue
+
+                rolling_mean = s.rolling(window=window, min_periods=1).mean()
+                rolling_std = s.rolling(window=window, min_periods=1).std()
+
+                # 黄金分割支撑位和阻力位
+                fib_support = rolling_mean - golden_ratio * rolling_std
+                fib_resist = rolling_mean + golden_ratio * rolling_std
+                # 黄金分割扩展位（1.618）
+                fib_ext_high = rolling_mean + golden_extension * rolling_std
+
+                # 波动率范围移动识别: 当前价格相对黄金分割区间的位置
+                result[f'{pos}_fib_vol_range_{window}'] = (
+                    (s - fib_support) / (fib_resist - fib_support + 1e-10)
+                )
+                # 黄金分割波动率（基于斐波那契窗口的波动率）
+                result[f'{pos}_fib_volatility_{window}'] = returns.rolling(window=window, min_periods=1).std()
+                # 黄金分割范围宽度（阻力-支撑，反映波动幅度）
+                result[f'{pos}_fib_range_width_{window}'] = fib_resist - fib_support
+                # 价格突破黄金分割扩展位的信号
+                result[f'{pos}_fib_breakout_{window}'] = (s > fib_ext_high).astype(int)
+
         return result
 
     def _add_granger_features(self, df: pd.DataFrame) -> pd.DataFrame:

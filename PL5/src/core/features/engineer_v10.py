@@ -339,7 +339,7 @@ class FeatureConfig:
     """特征配置管理器"""
 
     DEFAULT_CONFIG = {
-        'fibonacci': {'enabled': True, 'windows': [5, 8, 13], 'description': '黄金分割特征'},
+        'fibonacci': {'enabled': False, 'windows': [5, 8, 13], 'description': '黄金分割特征（已整合到波动率范围移动识别）'},
         'entropy': {'enabled': False, 'windows': [10, 20, 30], 'description': '熵值特征'},
         'markov': {'enabled': True, 'order': 2, 'description': '马尔可夫特征'},
         'chaos': {'enabled': False, 'hurst_windows': [10, 20, 50], 'lyapunov': True, 'description': '混沌特征'},
@@ -348,7 +348,7 @@ class FeatureConfig:
         'extreme': {'enabled': True, 'windows': [10, 20], 'description': '极值特征'},
         'pattern': {'enabled': True, 'patterns': ['consecutive', 'repeat'], 'description': '形态模式特征'},
         'momentum': {'enabled': True, 'windows': [3, 5], 'description': '动量特征'},
-        'garch': {'enabled': False, 'windows': [20, 50], 'description': 'GARCH波动率特征'},
+        'garch': {'enabled': True, 'windows': [5, 8, 13, 20], 'description': '波动率范围移动识别特征（含黄金分割整合）'},
         'granger': {'enabled': False, 'maxlag': 5, 'description': '格兰杰因果特征'},
         'time_series': {'enabled': True, 'description': '时间序列特征'},
         'statistical': {'enabled': True, 'description': '统计特征'},
@@ -429,16 +429,38 @@ class FeatureEngineerV10:
     # ===================== 特征计算方法（向量化优化） =====================
 
     def _add_fibonacci_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """黄金分割特征 - 向量化版本"""
+        """黄金分割特征 - 已整合到波动率范围移动识别（保留方法签名兼容，实际为空操作）"""
+        return df.copy()
+
+    def _add_garch_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """波动率范围移动识别特征（含黄金分割整合）- 向量化"""
         result = df.copy()
-        fib_windows = [5, 8, 13, 21]
+        fib_windows = [5, 8, 13]
+        golden_ratio = 0.618
+        golden_extension = 1.618
 
         for pos in POSITIONS:
-            s = df[pos]
+            s = df[pos].astype(np.float64)
+            returns = s.diff().fillna(0)
+
+            result[f'{pos}_volatility_20'] = returns.rolling(window=20, min_periods=1).std()
+
             for window in fib_windows:
-                if len(df) >= window:
-                    result[f'{pos}_fib_mean_{window}'] = s.rolling(window=window, min_periods=1).mean()
-                    result[f'{pos}_fib_std_{window}'] = s.rolling(window=window, min_periods=1).std()
+                if len(df) < window:
+                    continue
+                rolling_mean = s.rolling(window=window, min_periods=1).mean()
+                rolling_std = s.rolling(window=window, min_periods=1).std()
+
+                fib_support = rolling_mean - golden_ratio * rolling_std
+                fib_resist = rolling_mean + golden_ratio * rolling_std
+                fib_ext_high = rolling_mean + golden_extension * rolling_std
+
+                result[f'{pos}_fib_vol_range_{window}'] = (
+                    (s - fib_support) / (fib_resist - fib_support + 1e-10)
+                )
+                result[f'{pos}_fib_volatility_{window}'] = returns.rolling(window=window, min_periods=1).std()
+                result[f'{pos}_fib_range_width_{window}'] = fib_resist - fib_support
+                result[f'{pos}_fib_breakout_{window}'] = (s > fib_ext_high).astype(int)
 
         return result
 
@@ -656,6 +678,7 @@ class FeatureEngineerV10:
             'extreme': self._add_extreme_features,
             'pattern': self._add_pattern_features,
             'momentum': self._add_momentum_features,
+            'garch': self._add_garch_features,
             'time_series': self._add_time_series_features,
             'statistical': self._add_statistical_features,
             'nonlinear': self._add_nonlinear_features,

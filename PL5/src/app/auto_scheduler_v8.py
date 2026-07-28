@@ -790,6 +790,28 @@ class AutoSchedulerV8:
                     logger.info(f"  [反馈闭环] 使用实际命中率替代回测命中率做决策")
                     top3_accuracy = actual_top3  # 用实际命中率覆盖回测命中率
 
+                # 【策略自适应切换器闭环反馈】记录实际命中结果
+                try:
+                    from src.core.strategy_adaptive_switcher import StrategyAdaptiveSwitcher
+                    from src.core.data.collector import PL5DataCollector
+                    switcher = StrategyAdaptiveSwitcher()
+                    _collector = PL5DataCollector()
+                    _df = _collector.load_processed_data()
+                    latest_period = int(_df['period'].iloc[-1]) if _df is not None and len(_df) > 0 else None
+                    if latest_period and actual_hit_summary:
+                        switcher.record_outcome(
+                            strategy_used=switcher.get_active_strategy(),
+                            period=str(latest_period),
+                            top1_hit=actual_hit_summary.get('top1_accuracy', 0) > 0,
+                            top3_hit=actual_hit_summary.get('top3_accuracy', 0) > 0,
+                            top8_hit=actual_hit_summary.get('top8_accuracy', 0) > 0,
+                        )
+                        switch_status = switcher.get_status_report()
+                        logger.info(f"  [策略切换器] 当前策略: {switch_status['current_strategy']}, "
+                                   f"组合模式: {switch_status['combo_mode']}, 切换次数: {switch_status['switch_count']}")
+                except Exception as switch_err:
+                    logger.warning(f"  [策略切换器] 反馈记录失败(非致命): {switch_err}")
+
             # 智能决策阈值
             # Top-3准确率 > 0.4 → 表现很好，只需要策略微调
             # Top-3准确率 > 0.25 → 表现一般，可以策略微调或轻量训练

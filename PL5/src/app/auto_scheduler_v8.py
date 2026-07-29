@@ -2110,6 +2110,67 @@ class AutoSchedulerV8:
             logger.warning(f"【远程仓库同步】同步异常: {e}，使用本地代码继续执行")
             return True
 
+    def _update_post_run_config(self, results: Dict) -> None:
+        """
+        【V10.5新增】日循环任务完成后自动更新配置文件状态。
+        避免 training_status.json 和 scheduler_config_v8.json 中的
+        last_completed_period 等字段过期。
+
+        Args:
+            results: 任务执行结果字典
+        """
+        try:
+            project_root = Path(__file__).parent.parent.parent
+            today = datetime.now().strftime('%Y-%m-%d')
+            now_time = datetime.now().strftime('%H:%M')
+            is_training_ok = results.get('training', {}).get('status') == 'SUCCESS'
+
+            # 1. 更新 training_status.json
+            training_status_path = project_root / 'config' / 'training_status.json'
+            if training_status_path.exists():
+                try:
+                    with open(training_status_path, 'r', encoding='utf-8') as f:
+                        ts_config = json.load(f)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    ts_config = {}
+                ts_config['status'] = 'completed' if is_training_ok else 'partial'
+                ts_config['last_training_date'] = today
+                ts_config['last_training_time'] = now_time
+                # 从数据文件中获取最新期号
+                try:
+                    data_file = project_root / 'data' / 'processed' / 'pl5_processed.csv'
+                    if data_file.exists():
+                        import csv
+                        with open(data_file, 'r', encoding='utf-8-sig') as f:
+                            rows = list(csv.DictReader(f))
+                            if rows:
+                                latest_period = rows[-1].get('period', '')
+                                ts_config['last_completed_period'] = latest_period
+                except Exception:
+                    pass
+                ts_config['note'] = f'{today} 日循环任务自动更新'
+                ts_config['skip_recovery'] = True
+                with open(training_status_path, 'w', encoding='utf-8') as f:
+                    json.dump(ts_config, f, indent=4, ensure_ascii=False)
+                logger.info(f"【配置更新】training_status.json 已更新 (期号: {ts_config.get('last_completed_period', 'N/A')})")
+
+            # 2. 更新 scheduler_config_v8.json
+            scheduler_config_path = project_root / 'config' / 'scheduler_config_v8.json'
+            if scheduler_config_path.exists():
+                try:
+                    with open(scheduler_config_path, 'r', encoding='utf-8') as f:
+                        sched_config = json.load(f)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    sched_config = {}
+                sched_config['last_completed_period'] = ts_config.get('last_completed_period', sched_config.get('last_completed_period', ''))
+                sched_config['skip_recovery'] = True
+                with open(scheduler_config_path, 'w', encoding='utf-8') as f:
+                    json.dump(sched_config, f, indent=2, ensure_ascii=False)
+                logger.info(f"【配置更新】scheduler_config_v8.json 已更新 (期号: {sched_config.get('last_completed_period', 'N/A')})")
+
+        except Exception as e:
+            logger.warning(f"【配置更新】自动更新配置失败: {e}")
+
     def _push_results_to_remote(self) -> bool:
         """
         日循环任务完成后，将运行结果和配置变更推送到远程仓库。
@@ -2147,48 +2208,76 @@ class AutoSchedulerV8:
                     continue
                 filepath = line[3:].strip()
                 # 只提交报告、配置、源代码变更，不提交数据/模型/日志文件
-                if (filepath.startswith('PL5/results/') or
-                    filepath.startswith('results/') or
-                    filepath.startswith('PL5/src/config/') or
-                    filepath.startswith('src/config/') or
-                    filepath.startswith('PL5/src/core/models/small_sample') or
-                    filepath.startswith('PL5/src/app/auto_scheduler') or
-                    filepath.startswith('PL5/requirements') or
-                    filepath.startswith('PL5/Dockerfile') or
-                    filepath.startswith('PL5/src/core/features/') or
-                    filepath.startswith('PL5/src/core/data/') or
-                    filepath.startswith('PL5/src/core/models/')):
+                # 统一路径处理：同时匹配带 PL5/ 前缀和无前缀的路径
+                is_report = (filepath.startswith('PL5/results/') or
+                             filepath.startswith('results/'))
+                is_config = (filepath.startswith('PL5/config/') or
+                             filepath.startswith('config/') or
+                             filepath.startswith('PL5/src/config/') or
+                             filepath.startswith('src/config/'))
+                is_source = (filepath.startswith('PL5/src/') or
+                            filepath.startswith('src/'))
+                is_meta = (filepath.endswith('requirements.txt') or
+                           filepath.endswith('requirements.in') or
+                           filepath.endswith('Dockerfile') or
+                           filepath.endswith('.gitignore'))
+
+                if is_report or is_config or is_source or is_meta:
                     changed_files.append(filepath)
 
             if not changed_files:
                 logger.info("【远程仓库推送】无需要推送的代码/报告变更")
                 return True
 
-            logger.info(f"【远程仓库推送】发现 {len(changed_files)} 个文件变更")
+            logger.info(f"【远程仓库推送】发现 {len(changed_files)} 个文件变更: {', '.join(changed_files[:5])}{'...' if len(changed_files) > 5 else ''}")
 
             # 添加文件
             for f in changed_files:
-                subprocess.run(['git', 'add', f],
-                              capture_output=True, text=True, cwd=str(project_root), timeout=10)
+                add_result = subprocess.run(
+                    ['git', 'add', f],
+                    capture_output=True, text=True, cwd=project_root, timeout=10
+                )
+                if add_result.returncode != 0:
+                    logger.warning(f"【远程仓库推送】添加文件失败 {f}: {add_result.stderr.strip()}")
+
+            # 检查是否有暂存的文件
+            diff_check = subprocess.run(
+                ['git', 'diff', '--cached', '--name-only'],
+                capture_output=True, text=True, cwd=project_root, timeout=10
+            )
+            if not diff_check.stdout.strip():
+                logger.info("【远程仓库推送】无暂存文件，跳过提交")
+                return True
 
             # 提交
             commit_msg = f"auto: 日循环任务自动同步 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            subprocess.run(
+            commit_result = subprocess.run(
                 ['git', 'commit', '-m', commit_msg],
-                capture_output=True, text=True, cwd=str(project_root), timeout=30
+                capture_output=True, text=True, cwd=project_root, timeout=30
             )
 
-            # 推送
+            if commit_result.returncode != 0:
+                logger.warning(f"【远程仓库推送】提交失败: {commit_result.stderr.strip()}")
+                return False
+
+            # 推送 - 处理无token/认证失败情况
             push_result = subprocess.run(
                 ['git', 'push', 'origin', 'HEAD:main'],
-                capture_output=True, text=True, cwd=str(project_root), timeout=60
+                capture_output=True, text=True, cwd=project_root, timeout=60
             )
 
             if push_result.returncode == 0:
                 logger.info("【远程仓库推送】推送成功，远程仓库已更新")
                 return True
             else:
-                logger.warning(f"【远程仓库推送】推送失败: {push_result.stderr.strip()}")
+                error_msg = push_result.stderr.strip()
+                if 'could not read Username' in error_msg or 'Authentication failed' in error_msg:
+                    logger.warning("【远程仓库推送】认证失败（可能未配置token），变更已提交到本地")
+                elif 'terminal prompts disabled' in error_msg:
+                    logger.warning("【远程仓库推送】终端提示已禁用（需配置认证token），变更已提交到本地")
+                else:
+                    logger.warning(f"【远程仓库推送】推送失败: {error_msg}")
+                logger.info("【远程仓库推送】提示: 配置token后可手动执行 git push origin main")
                 return False
 
         except Exception as e:
@@ -2265,6 +2354,9 @@ class AutoSchedulerV8:
 
             self.current_status['last_successful_run'] = datetime.now().isoformat()
             self.save_current_status()
+
+            # 【V10.5修复】运行完成后自动更新配置文件状态
+            self._update_post_run_config(results)
 
             structured_logger.log_operation_success(
                 StructuredLogger.OPERATION_TASK_SCHEDULE,

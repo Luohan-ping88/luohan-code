@@ -44,9 +44,14 @@ class EmailSender:
 
         Raises:
             smtplib.SMTPException: SMTP通信错误，由外层 execute_with_retry 处理重试
-            OSError: 网络不可达错误
+            OSError: 网络不可达错误（非CI/沙箱环境）
             Exception: 其他异常，同样由外层重试机制处理
         """
+        # CI/沙箱环境：不抛出异常，直接记录警告并返回（走本地保存降级方案）
+        if os.environ.get('CI') == 'true' or os.environ.get('SANDBOX_MODE') == 'true':
+            logger.warning(f"[EmailSender] CI/沙箱环境，跳过邮件发送（收件人: {recipient_email}）")
+            return False
+
         # 创建邮件对象
         msg = MIMEMultipart('alternative')
         msg['From'] = self.sender_email
@@ -62,7 +67,8 @@ class EmailSender:
 
         # 网络预检查
         if not self._check_smtp_reachable():
-            raise OSError(f"SMTP服务器 {self.smtp_server}:{self.smtp_port} 不可达，跳过邮件发送")
+            logger.warning(f"[EmailSender] SMTP服务器不可达，跳过邮件发送（收件人: {recipient_email}）")
+            return False
 
         # 连接SMTP服务器并发送（带超时）
         context = ssl.create_default_context()

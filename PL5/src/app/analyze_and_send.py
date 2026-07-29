@@ -507,12 +507,17 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
     for attempt in range(max_retries):
         try:
             sender = EmailSender(sender_email, auth_code)
-            sender.send_report(
+            result = sender.send_report(
                 recipient_email=recipient_email,
                 subject=f"排列五第{period}期预测分析报告 V10.3 - {datetime.now().strftime('%Y-%m-%d')}",
                 html_content=html_report,
                 text_content=text_report
             )
+            if result is False:
+                # send_report 返回 False = 已在内部处理降级（CI/网络不可达），不再重试
+                logger.warning(f"  邮件发送已跳过（环境不支持或网络不可达），采用本地保存方案")
+                email_sent = False
+                break
             logger.info(f"  邮件发送成功: {recipient_email}")
             email_sent = True
             break

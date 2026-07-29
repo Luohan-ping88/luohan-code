@@ -2206,7 +2206,14 @@ class AutoSchedulerV8:
             for line in status_result.stdout.strip().split('\n'):
                 if not line:
                     continue
+                status_code = line[:2].strip()
                 filepath = line[3:].strip()
+                # 处理重命名格式: old -> new
+                if ' -> ' in filepath:
+                    filepath = filepath.split(' -> ')[-1].strip()
+                # 跳过已删除的文件（状态码包含 D）
+                if 'D' in status_code:
+                    continue
                 # 只提交报告、配置、源代码变更，不提交数据/模型/日志文件
                 # 统一路径处理：同时匹配带 PL5/ 前缀和无前缀的路径
                 is_report = (filepath.startswith('PL5/results/') or
@@ -2223,7 +2230,10 @@ class AutoSchedulerV8:
                            filepath.endswith('.gitignore'))
 
                 if is_report or is_config or is_source or is_meta:
-                    changed_files.append(filepath)
+                    # 额外检查：文件必须实际存在
+                    full_path = project_root / filepath
+                    if full_path.exists():
+                        changed_files.append(filepath)
 
             if not changed_files:
                 logger.info("【远程仓库推送】无需要推送的代码/报告变更")

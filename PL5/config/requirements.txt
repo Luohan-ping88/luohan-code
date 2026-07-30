@@ -14,13 +14,17 @@ schedule>=1.2.0
 psutil>=7.2.0
 watchdog>=3.0.0
 pybind11>=2.11.0
-pymc>=5.0.0
-arviz>=0.15.0
-copulae>=0.7.0
+# 注意: 以下包依赖 numba，目前不支持 Python 3.14（需 >=3.10,<3.14）
+# 生产管线非必需，缺失时将自动降级为替代模型
+# pymc>=5.0.0       # 贝叶斯 MCMC（可选，依赖 numba，暂不支持 Py3.14）
+# arviz>=0.15.0      # 贝叶斯可视化（可选，同上）
+# copulae>=0.7.0     # Copula 相关性模型（可选，依赖 numba，暂不支持 Py3.14）
 faiss-cpu>=1.7.4
-chromadb>=0.4.24
-langchain>=0.1.0
-torch>=2.13.0
+# chromadb>=0.4.24   # 向量数据库（可选，LLM RAG 专用，生产预测非必需）
+# langchain>=0.1.0   # LLM 编排（可选，生产预测非必需）
+# 深度学习（Mamba/iTransformer，Python 3.14 需使用 CPU 版安装 URL）
+# 安装方式: pip install torch --index-url https://download.pytorch.org/whl/cpu
+# torch>=2.13.0
 lightgbm>=4.7.0
 xgboost>=3.3.0
 catboost>=1.2.10

@@ -1,21 +1,25 @@
 {
-  "data_fetch_time": "22:00",
+  "data_fetch_time": "22:15",
   "evaluation_time": "22:15",
   "optimization_start": "22:45",
   "training_start": "00:30",
+  "training_deadline": "17:00",
+  "email_send_time": "20:15",
+  "incremental_training_time": "08:00",
   "incremental_training_morning": "08:00",
   "first_prediction_verification": "10:00",
   "incremental_training_noon": "12:00",
+  "second_prediction_verification": "13:00",
   "incremental_training_afternoon": "14:00",
+  "third_prediction_verification": "15:00",
   "deep_strategy_optimization": "16:00",
   "prediction_preview": "17:00",
   "final_prediction_time": "18:00",
   "final_prediction_verification_time": "19:00",
   "pre_sale_prediction_time": "20:00",
-  "email_send_time": "20:15",
-  "training_deadline": "17:00",
   "enabled": true,
   "monitoring_enabled": true,
+  "skip_recovery": true,
   "task_sequence": [
     {
       "name": "自动获取开奖数据",
@@ -53,9 +57,19 @@
       "description": "利用中午时间进行增量训练（二次佐证）"
     },
     {
+      "name": "二次预测验证",
+      "time": "13:00",
+      "description": "二次预测验证（二次佐证）"
+    },
+    {
       "name": "进行增量训练（下午）",
       "time": "14:00",
       "description": "利用下午时间进行增量训练，持续学习（三次佐证）"
+    },
+    {
+      "name": "三次预测验证",
+      "time": "15:00",
+      "description": "三次预测验证（三次佐证）"
     },
     {
       "name": "深度策略优化",

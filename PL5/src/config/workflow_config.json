@@ -1,16 +1,8 @@
 {
   "enabled": true,
-  "draw_time": "21:25",
-  "email_time": "20:00",
   "time_window": {
     "start": "00:00",
     "end": "17:30"
-  },
-  "time_strategy": {
-    "normal_threshold_hours": 4,
-    "critical_threshold_hours": 2,
-    "recovery_delay_hours": 3,
-    "email_buffer_minutes": 30
   },
   "retry": {
     "max_retries": 3,
@@ -22,22 +14,7 @@
     "enabled": true,
     "check_interval": 60,
     "early_execution_enabled": true,
-    "missed_task_catchup_enabled": true,
-    "time_based_optimization_enabled": true
-  },
-  "extra_tasks": {
-    "extra_training": {
-      "enabled": true,
-      "description": "额外模型训练"
-    },
-    "hyperparameter_tune": {
-      "enabled": true,
-      "description": "超参数调优"
-    },
-    "ensemble_refine": {
-      "enabled": true,
-      "description": "集成模型优化"
-    }
+    "missed_task_catchup_enabled": true
   },
   "state": {
     "persistence_enabled": true,
@@ -48,7 +25,7 @@
       "enabled": true,
       "priority": 1
     },
-    "training": {
+    "evaluation": {
       "enabled": true,
       "priority": 2
     },
@@ -56,33 +33,61 @@
       "enabled": true,
       "priority": 3
     },
-    "evaluation": {
+    "training": {
       "enabled": true,
       "priority": 4
     },
-    "incremental_training_morning": {
+    "send_report": {
       "enabled": true,
       "priority": 5
     },
-    "incremental_training_noon": {
+    "incremental_training": {
       "enabled": true,
       "priority": 6
     },
-    "final_prediction": {
+    "first_prediction_verification": {
       "enabled": true,
       "priority": 7
     },
-    "final_prediction_verification": {
+    "second_prediction_verification": {
       "enabled": true,
       "priority": 8
     },
-    "pre_sale_prediction": {
+    "third_prediction_verification": {
       "enabled": true,
       "priority": 9
     },
-    "send_report": {
+    "deep_strategy_optimization": {
       "enabled": true,
       "priority": 10
+    },
+    "prediction_preview": {
+      "enabled": true,
+      "priority": 11
+    },
+    "final_prediction": {
+      "enabled": true,
+      "priority": 12
+    },
+    "final_prediction_verification": {
+      "enabled": true,
+      "priority": 13
+    },
+    "pre_sale_prediction": {
+      "enabled": true,
+      "priority": 14
+    },
+    "extra_training": {
+      "enabled": true,
+      "priority": 15
+    },
+    "hyperparameter_tune": {
+      "enabled": true,
+      "priority": 16
+    },
+    "ensemble_refine": {
+      "enabled": true,
+      "priority": 17
     }
   }
 }

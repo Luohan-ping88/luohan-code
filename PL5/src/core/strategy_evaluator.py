@@ -220,10 +220,52 @@ class StrategyEvaluator:
             }
 
     def _apply_strategy_config(self, strategy: Dict):
-        """应用策略配置到预测器"""
-        # 这里可以根据策略配置调整预测器的行为
-        # 例如：调整模型权重、特征选择等
-        pass
+        """应用策略配置到预测器，使不同策略产生差异化预测
+
+        修复说明：
+            原实现为 pass，导致 6 个策略产生完全相同的预测结果，"策略评估"
+            形同虚设。这里通过设置预测器的 strategy_weights_override，
+            让 _get_dynamic_weights 在策略评估期间优先使用策略定义的权重，
+            而不是基于概率集中度计算出的"自信度"权重。
+        """
+        if not strategy:
+            return
+
+        # 1. 模型权重覆盖：策略定义的权重直接作用于预测器
+        model_weights = strategy.get('model_weights')
+        if model_weights:
+            # 同步到 predictor.weights 字典（RL 路径会使用）
+            self.predictor.weights = dict(model_weights)
+            # 设置策略权重覆盖标志，让 _get_dynamic_weights 优先使用策略权重
+            # 而不是用"概率集中度"覆盖它
+            setattr(self.predictor, 'strategy_weights_override',
+                    np.array([model_weights.get('stacking', 0.25),
+                              model_weights.get('hmm', 0.20),
+                              model_weights.get('copula', 0.15),
+                              model_weights.get('bsts', 0.10),
+                              model_weights.get('mamba', 0.15),
+                              model_weights.get('itransformer', 0.15)],
+                             dtype=float))
+        else:
+            # 清除覆盖标志，恢复默认动态权重
+            if hasattr(self.predictor, 'strategy_weights_override'):
+                self.predictor.strategy_weights_override = None
+
+        # 2. 特征选择策略
+        feature_selection = strategy.get('feature_selection', 'all')
+        if hasattr(self.engineer, 'feature_selection_method'):
+            self.engineer.feature_selection_method = feature_selection
+        # 标记当前特征选择模式，供 _build_feature_matrix 使用
+        self._current_feature_selection = feature_selection
+
+        # 3. 集成方法（投票 vs 加权平均）
+        ensemble_method = strategy.get('ensemble_method', 'weighted_average')
+        setattr(self.predictor, 'strategy_ensemble_method', ensemble_method)
+
+        logger.debug(
+            f"[StrategyEval] 应用策略配置: weights={model_weights}, "
+            f"features={feature_selection}, ensemble={ensemble_method}"
+        )
 
     def _backtest_position(self, position: str, df_raw: pd.DataFrame,
                            test_start_idx: int, test_window: int,

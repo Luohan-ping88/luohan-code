@@ -799,18 +799,71 @@ class AutoSchedulerV8:
                     _df = _collector.load_processed_data()
                     latest_period = int(_df['period'].iloc[-1]) if _df is not None and len(_df) > 0 else None
                     if latest_period and actual_hit_summary:
+                        # 【V10.6 修复】使用最新一期的位置级命中详情，
+                        # 而非聚合的"是否存在任何命中"（top8_accuracy>0 永远为真，
+                        # 因为 8/10=80% 随机基线下几乎总会命中至少一个位置）
+                        # 新语义：
+                        #   - top1_hit: 最新一期至少1个位置 Top-1 命中
+                        #   - top3_hit: 最新一期至少3个位置 Top-3 命中（60%位置命中）
+                        #   - top8_hit: 最新一期至少4个位置 Top-8 命中（达到80%随机基线）
                         switcher.record_outcome(
                             strategy_used=switcher.get_active_strategy(),
                             period=str(latest_period),
-                            top1_hit=actual_hit_summary.get('top1_accuracy', 0) > 0,
-                            top3_hit=actual_hit_summary.get('top3_accuracy', 0) > 0,
-                            top8_hit=actual_hit_summary.get('top8_accuracy', 0) > 0,
+                            top1_hit=bool(actual_hit_summary.get('latest_top1_hit', False)),
+                            top3_hit=bool(actual_hit_summary.get('latest_top3_hit', False)),
+                            top8_hit=bool(actual_hit_summary.get('latest_top8_hit', False)),
                         )
                         switch_status = switcher.get_status_report()
                         logger.info(f"  [策略切换器] 当前策略: {switch_status['current_strategy']}, "
                                    f"组合模式: {switch_status['combo_mode']}, 切换次数: {switch_status['switch_count']}")
                 except Exception as switch_err:
                     logger.warning(f"  [策略切换器] 反馈记录失败(非致命): {switch_err}")
+
+            # 【V10.6 知识图谱闭环】基于实际命中率分析，反馈到预测器
+            # 把"实际准确率"和"位置级命中率"应用到预测器的 model_actual_accuracy
+            # 和 model_weights，使下一次预测能基于真实表现调整动态权重。
+            # 这是真正的"自学习闭环"入口，原代码缺失此步骤导致知识图谱断裂。
+            if actual_hit_summary:
+                try:
+                    from src.core.feedback_learning import FeedbackAnalyzer
+                    from src.core.models.enhanced_predictor import EnhancedPL5Predictor
+                    feedback_analyzer = FeedbackAnalyzer()
+                    # 实例化预测器并加载模型（应用反馈需要模型已加载）
+                    feedback_predictor = EnhancedPL5Predictor()
+                    feedback_predictor.load_models()
+                    # 用 actual_hit_summary 构造一个简化版 analysis_result
+                    # （完整分析需要历史预测数据，这里只应用关键反馈）
+                    simplified_analysis = {
+                        'overall_analysis': {
+                            'top3_accuracy': actual_hit_summary.get('top3_accuracy', 0.0),
+                            'top8_accuracy': actual_hit_summary.get('top8_accuracy', 0.0),
+                            'top1_accuracy': actual_hit_summary.get('top1_accuracy', 0.0),
+                            'top5_accuracy': actual_hit_summary.get('top5_accuracy', 0.0),
+                        },
+                        'position_analysis': {},
+                    }
+                    # 从 latest_period_hits 提取位置级命中率（用作权重调整依据）
+                    latest_hits = actual_hit_summary.get('latest_period_hits', {})
+                    for pos, hit_info in latest_hits.items():
+                        simplified_analysis['position_analysis'][pos] = {
+                            'top8_accuracy': 1.0 if hit_info.get('top8_hit') else 0.0,
+                            'top3_accuracy': 1.0 if hit_info.get('top3_hit') else 0.0,
+                        }
+                    # 应用反馈到预测器（会持久化到 model_accuracy_feedback.json）
+                    applied = feedback_analyzer.apply_feedback_to_predictor(
+                        feedback_predictor, simplified_analysis
+                    )
+                    if applied.get('accuracy_updated') or applied.get('weights_adjusted'):
+                        logger.info(f"  [知识图谱闭环] 反馈已应用到预测器: "
+                                   f"accuracy_updated={applied.get('accuracy_updated')}, "
+                                   f"weights_adjusted={applied.get('weights_adjusted')}")
+                        if applied.get('weights_adjusted'):
+                            logger.info(f"  [知识图谱闭环] 模型权重调整详情: "
+                                       f"{applied['details'].get('weights_adjustment', {})}")
+                    else:
+                        logger.info(f"  [知识图谱闭环] 本次无需调整（命中率达标或数据不足）")
+                except Exception as feedback_err:
+                    logger.warning(f"  [知识图谱闭环] 反馈应用失败(非致命): {feedback_err}")
 
             # 智能决策阈值
             # Top-3准确率 > 0.4 → 表现很好，只需要策略微调
@@ -1176,6 +1229,43 @@ class AutoSchedulerV8:
             summary['top5_accuracy'] = summary['top5_hits'] / summary['total_position_tests']
             summary['top8_accuracy'] = summary['top8_hits'] / summary['total_position_tests']
 
+            # 【V10.6 修复】记录最新一期的位置级命中详情
+            # 用于策略切换器 record_outcome 的精确反馈，避免"聚合布尔值"语义错配
+            # 原代码传 top8_accuracy>0 表示"是否存在任何命中"，会假高命中率
+            latest_record = hit_records[-1] if hit_records else None
+            latest_period_hits = {}
+            if latest_record:
+                for pos, hit_info in latest_record.get('hits', {}).items():
+                    latest_period_hits[pos] = {
+                        'top1_hit': bool(hit_info.get('top1_hit', False)),
+                        'top3_hit': bool(hit_info.get('top3_hit', False)),
+                        'top5_hit': bool(hit_info.get('top5_hit', False)),
+                        'top8_hit': bool(hit_info.get('top8_hit', False)),
+                    }
+            summary['latest_period'] = latest_record.get('period') if latest_record else None
+            summary['latest_period_hits'] = latest_period_hits
+
+            # 计算最新一期的整体命中维度（用于策略切换器）
+            # 合理语义：本期5个位置中至少 N 个位置命中才算"命中"
+            #   - top1_hit: 至少1个位置 Top-1 命中
+            #   - top3_hit: 至少3个位置 Top-3 命中（60%）
+            #   - top8_hit: 至少4个位置 Top-8 命中（80%，达到随机基线）
+            if latest_period_hits:
+                top1_count = sum(1 for h in latest_period_hits.values() if h['top1_hit'])
+                top3_count = sum(1 for h in latest_period_hits.values() if h['top3_hit'])
+                top8_count = sum(1 for h in latest_period_hits.values() if h['top8_hit'])
+                summary['latest_top1_hit'] = top1_count >= 1
+                summary['latest_top3_hit'] = top3_count >= 3
+                summary['latest_top8_hit'] = top8_count >= 4
+                summary['latest_position_hits'] = {
+                    'top1': top1_count, 'top3': top3_count, 'top8': top8_count
+                }
+            else:
+                summary['latest_top1_hit'] = False
+                summary['latest_top3_hit'] = False
+                summary['latest_top8_hit'] = False
+                summary['latest_position_hits'] = {'top1': 0, 'top3': 0, 'top8': 0}
+
             logger.info("=" * 80)
             logger.info("【反馈闭环】实际命中率统计结果")
             logger.info("=" * 80)
@@ -1185,6 +1275,10 @@ class AutoSchedulerV8:
             logger.info(f"  Top-3 命中率: {summary['top3_hits']}/{summary['total_position_tests']} = {summary['top3_accuracy']:.4f}")
             logger.info(f"  Top-5 命中率: {summary['top5_hits']}/{summary['total_position_tests']} = {summary['top5_accuracy']:.4f}")
             logger.info(f"  Top-8 命中率: {summary['top8_hits']}/{summary['total_position_tests']} = {summary['top8_accuracy']:.4f}")
+            if latest_period_hits:
+                lp = summary['latest_position_hits']
+                logger.info(f"  最新一期 {summary['latest_period']} 位置命中: "
+                           f"Top-1={lp['top1']}/5, Top-3={lp['top3']}/5, Top-8={lp['top8']}/5")
             logger.info("=" * 80)
 
             # 保存到 feedback_learning_history

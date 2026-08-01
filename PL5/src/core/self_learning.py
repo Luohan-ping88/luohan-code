@@ -40,8 +40,29 @@ _DEFAULT_RETRAIN_THRESHOLD = 0.02
 _DEFAULT_WINDOW_SIZE = 10
 _DEFAULT_MIN_HISTORY = 3
 _DEFAULT_VOLATILITY_FACTOR = 3.0
-_DEFAULT_WARNING_ACCURACY = 0.12
-_DEFAULT_URGENT_ACCURACY = 0.08
+# 【V10.6 修复】阈值调整为 Top-3 评估维度（随机基线 30%）的合理水平
+# 原值 0.12/0.08 是针对 Top-1（基线 10%）设计的，导致 Top-3/Top-8 评估时
+# 几乎从不触发告警，自学习机制形同虚设。
+# 新值基于 Top-3 随机基线 0.30：
+#   - WARNING=0.25: 略低于基线，需要关注
+#   - URGENT=0.20: 明显低于基线，需要紧急重训练
+# 注：当评估的是 Top-8（基线 0.80）时，应通过 record_evaluation 的 k 参数
+# 动态调整阈值，使用 _K_RANDOM_BASELINE 映射。
+_DEFAULT_WARNING_ACCURACY = 0.25
+_DEFAULT_URGENT_ACCURACY = 0.20
+
+# 【V10.6 新增】不同 Top-k 的随机基线映射（10选k）
+# 用于根据评估的 k 值动态调整告警阈值
+_K_RANDOM_BASELINE = {
+    1: 0.10,   # 10选1
+    2: 0.20,   # 10选2
+    3: 0.30,   # 10选3（标准评估维度）
+    5: 0.50,   # 10选5
+    8: 0.80,   # 10选8（用户重点关注，基线已很高）
+}
+# 告警阈值与基线的偏移量（基线减去该值得到告警阈值）
+_WARNING_BASELINE_OFFSET = 0.05  # 比基线低5个百分点即告警
+_URGENT_BASELINE_OFFSET = 0.10   # 比基线低10个百分点即紧急
 
 
 class AlertLevel(Enum):
@@ -296,16 +317,44 @@ class SelfLearningSystem:
         self,
         accuracy: float,
         extra: Optional[Dict[str, Any]] = None,
+        k: int = 3,
     ) -> None:
+        """记录一次评估结果
+
+        Args:
+            accuracy: 本次评估的准确率（5个位置的平均命中率）
+            extra: 附加信息（如 hit_rate、reward 等）
+            k: 本次评估的 Top-k 维度（1/3/5/8），用于动态基线计算
+               - k=3 (默认): 随机基线 30%，标准评估维度
+               - k=8: 随机基线 80%，用户重点关注的指标
+        """
+        # 根据k值计算动态基线，便于后续告警判断时使用
+        baseline = _K_RANDOM_BASELINE.get(k, 0.30)
         entry = {
             "timestamp": datetime.now().isoformat(),
             "accuracy": float(accuracy),
+            "k": int(k),
+            "random_baseline": baseline,
             **(extra or {}),
         }
         self.learning_history.append(entry)
         if len(self.learning_history) > 200:
             self.learning_history = self.learning_history[-200:]
         self._save_history()
+
+    def get_dynamic_thresholds(self, k: int = 3) -> Tuple[float, float]:
+        """【V10.6 新增】根据 Top-k 动态计算告警阈值
+
+        Args:
+            k: Top-k 维度
+
+        Returns:
+            (warning_threshold, urgent_threshold)
+        """
+        baseline = _K_RANDOM_BASELINE.get(k, 0.30)
+        warning = max(0.0, baseline - _WARNING_BASELINE_OFFSET)
+        urgent = max(0.0, baseline - _URGENT_BASELINE_OFFSET)
+        return warning, urgent
 
     def record_suggestion_outcome(
         self,
@@ -527,16 +576,30 @@ class SelfLearningSystem:
         current_acc = perf["accuracy"]
         trend = mk_result.get("trend", perf.get("trend", "unknown"))
 
-        if current_acc <= self.urgent_accuracy:
+        # 【V10.6 修复】根据历史记录中最常见的 k 值动态计算告警阈值
+        # 原代码使用固定的 self.warning_accuracy/urgent_accuracy（0.25/0.20），
+        # 当评估的是 Top-8（基线 80%）时，0.25 阈值会永远触发误告警；
+        # 当评估的是 Top-1（基线 10%）时，0.25 阈值永远不会触发告警。
+        # 修复：从历史记录中推断当前评估的 k 维度，动态计算阈值。
+        recent_k_values = [e.get("k", 3) for e in self.learning_history[-10:] if isinstance(e, dict)]
+        inferred_k = max(set(recent_k_values), key=recent_k_values.count) if recent_k_values else 3
+        dyn_warning, dyn_urgent = self.get_dynamic_thresholds(inferred_k)
+        # 兼容旧逻辑：取动态阈值与实例阈值中较宽松者，避免误告警
+        effective_warning = max(dyn_warning, self.warning_accuracy)
+        effective_urgent = max(dyn_urgent, self.urgent_accuracy)
+
+        if current_acc <= effective_urgent:
             alert_level = AlertLevel.URGENT
             reasons.append(
-                f"URGENT: current accuracy {current_acc:.4f} below urgent line {self.urgent_accuracy}"
+                f"URGENT: current accuracy {current_acc:.4f} below urgent line {effective_urgent:.4f} "
+                f"(k={inferred_k}, baseline={_K_RANDOM_BASELINE.get(inferred_k, 0.30)})"
             )
-        elif current_acc <= self.warning_accuracy:
+        elif current_acc <= effective_warning:
             if alert_level != AlertLevel.URGENT:
                 alert_level = AlertLevel.WARNING
             reasons.append(
-                f"WARNING: current accuracy {current_acc:.4f} below warning line {self.warning_accuracy}"
+                f"WARNING: current accuracy {current_acc:.4f} below warning line {effective_warning:.4f} "
+                f"(k={inferred_k}, baseline={_K_RANDOM_BASELINE.get(inferred_k, 0.30)})"
             )
 
         if trend in ("declining", "decreasing"):
@@ -548,9 +611,13 @@ class SelfLearningSystem:
                 f"{'WARNING' if alert_level == AlertLevel.WARNING else 'URGENT'}: {label} declining trend "
                 f"(tau={mk_result.get('tau', 0):.4f}, p={mk_result.get('p_value', 1):.4f})"
             )
-            if is_significant and current_acc < 0.15:
+            # 【V10.6 修复】使用动态基线替代固定 0.15
+            baseline = _K_RANDOM_BASELINE.get(inferred_k, 0.30)
+            if is_significant and current_acc < baseline:
                 alert_level = AlertLevel.URGENT
-                reasons.append("Significant declining trend with low accuracy -> upgraded to URGENT")
+                reasons.append(
+                    f"Significant declining trend with accuracy below baseline {baseline:.2f} -> upgraded to URGENT"
+                )
 
         if comp_score["comprehensive_score"] < 0.15:
             if alert_level.value < AlertLevel.WARNING.value:

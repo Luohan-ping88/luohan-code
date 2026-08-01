@@ -498,6 +498,20 @@ class EnhancedPL5Predictor:
         self._performance_window = self._mc.get_int('rl_optimizer.performance_window', 30)
         self._prediction_results_cache: List[Dict] = []
 
+        # 【V10.6 新增】策略权重覆盖与实际准确率反馈闭环
+        # strategy_weights_override: 由 StrategyEvaluator 设置，None 表示使用动态权重
+        # model_actual_accuracy: 由反馈学习模块填充，记录每个模型最近N期的实际Top-3命中率
+        #   键: 'stacking'/'hmm'/'copula'/'bsts'/'mamba'/'itransformer'
+        #   值: 0.0~1.0 的实际命中率（None=无历史数据）
+        self.strategy_weights_override: Optional[np.ndarray] = None
+        self.strategy_ensemble_method: str = "weighted_average"
+        self.model_actual_accuracy: Dict[str, Optional[float]] = {
+            "stacking": None, "hmm": None, "copula": None,
+            "bsts": None, "mamba": None, "itransformer": None,
+        }
+        # 准确率反馈历史路径（持久化知识图谱）
+        self._accuracy_feedback_path = self.models_dir / "model_accuracy_feedback.json"
+
         # 模型解释器（决策路径追踪 + 多维分析）
         self.model_explainer: Optional[Any] = None
         try:
@@ -1667,7 +1681,19 @@ class EnhancedPL5Predictor:
     def _get_dynamic_weights(self, p_stacking: np.ndarray, p_hmm: np.ndarray, p_copula: np.ndarray, 
                             p_bsts: np.ndarray, p_mamba: np.ndarray, p_itransformer: np.ndarray) -> np.ndarray:
         """基于模型性能动态调整权重 - 强化随机性类型整合
-        
+
+        V10.6 修复（核心缺陷）:
+            原实现 calculate_model_quality 仅基于"概率分布集中度"（峰度×(1-熵)），
+            这会奖励"自信的错误"——模型越确信（即使错误），权重越高，与
+            实际预测准确率完全脱节。
+
+            修复方案:
+              1. 优先尊重策略权重覆盖（strategy_weights_override），
+                 使 StrategyEvaluator 的不同策略能产生差异化预测
+              2. 引入"实际准确率反馈"作为质量度量的核心维度（model_actual_accuracy），
+                 从持久化的知识图谱加载，让"准确的模型"获得更高权重
+              3. 概率集中度仅作为辅助维度（10%权重），不再单独决定权重
+
         Args:
             p_stacking: Stacking模型的预测概率
             p_hmm: HMM模型的预测概率
@@ -1675,58 +1701,148 @@ class EnhancedPL5Predictor:
             p_bsts: BSTS模型的预测概率
             p_mamba: Mamba模型的预测概率
             p_itransformer: iTransformer模型的预测概率
-            
+
         Returns:
-            np.ndarray: 动态调整后的权重
+            np.ndarray: 动态调整后的权重（已归一化）
         """
-        # 计算每个模型的预测质量指标
-        def calculate_model_quality(probs):
-            """计算模型预测质量"""
-            # 1. 概率分布的峰度（值越大，预测越集中）
-            peakiness = np.max(probs)
-            # 2. 概率分布的熵（值越小，预测越确定）
-            entropy = -np.sum(probs * np.log(probs + 1e-12))
-            # 3. 综合质量分数
-            quality = peakiness * (1 - entropy / np.log(10))
-            return quality
-        
-        # 计算每个模型的质量分数
-        quality_stacking = calculate_model_quality(p_stacking)
-        quality_hmm = calculate_model_quality(p_hmm)
-        quality_copula = calculate_model_quality(p_copula)
-        quality_bsts = calculate_model_quality(p_bsts)
-        quality_mamba = calculate_model_quality(p_mamba)
-        quality_itransformer = calculate_model_quality(p_itransformer)
-        
-        # 基础权重 - 考虑不同模型对不同类型随机性的捕捉能力
-        # Stacking: 认知随机 + 确定性规则的伪随机
-        # HMM: 混沌复杂系统的随机 + 初始条件敏感性
-        # Copula: 认知随机 + 混沌复杂系统的随机
-        # BSTS: 确定性规则的伪随机 + 趋势方向
-        # Mamba: 计算不可约 + 混沌复杂系统的随机
-        # iTransformer: 初始条件敏感性 + 趋势方向
-        base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15])
-        
-        # 质量分数
-        quality_scores = np.array([
-            quality_stacking,
-            quality_hmm,
-            quality_copula,
-            quality_bsts,
-            quality_mamba,
-            quality_itransformer
-        ])
-        
-        # 归一化质量分数
-        quality_scores = quality_scores / (np.sum(quality_scores) + 1e-12)
-        
-        # 动态权重 = 基础权重 * 质量分数
-        dynamic_weights = base_weights * quality_scores
-        
-        # 确保权重不为负
+        # ===== 路径1: 策略权重覆盖（StrategyEvaluator 设置时优先使用）=====
+        if self.strategy_weights_override is not None:
+            w = np.array(self.strategy_weights_override, dtype=float)
+            w = np.maximum(w, 0.01)
+            return w / (w.sum() + 1e-12)
+
+        # ===== 路径2: 基于实际准确率 + 概率集中度的综合权重 =====
+        # 模型顺序: [stacking, hmm, copula, bsts, mamba, itransformer]
+        model_names = ["stacking", "hmm", "copula", "bsts", "mamba", "itransformer"]
+
+        # 2.1 概率集中度（原逻辑保留，但仅作为辅助信号）
+        def calc_concentration(probs: np.ndarray) -> float:
+            """概率分布的集中度（峰度×(1-归一化熵)）"""
+            peakiness = float(np.max(probs))
+            entropy = float(-np.sum(probs * np.log(probs + 1e-12)))
+            # 归一化到 [0,1]，10类问题最大熵 = ln(10)
+            norm_entropy = entropy / np.log(10)
+            return peakiness * (1.0 - norm_entropy)
+
+        concentration_scores = np.array([
+            calc_concentration(p_stacking),
+            calc_concentration(p_hmm),
+            calc_concentration(p_copula),
+            calc_concentration(p_bsts),
+            calc_concentration(p_mamba),
+            calc_concentration(p_itransformer),
+        ], dtype=float)
+
+        # 2.2 实际准确率反馈（核心维度，权重 70%）
+        # Top-3随机基线 = 30%，所以 0.3 表示"和随机一样"，1.0 表示"完美预测"
+        # 用 (accuracy - 0.3) / 0.7 映射到 ~[0, 1] 区间，无历史数据时用 0.5 中性值
+        RANDOM_BASELINE_TOP3 = 0.30
+        accuracy_scores = np.array([
+            (self.model_actual_accuracy.get(name, None) - RANDOM_BASELINE_TOP3) / (1.0 - RANDOM_BASELINE_TOP3)
+            if self.model_actual_accuracy.get(name, None) is not None
+            else 0.5  # 无历史数据时使用中性值
+            for name in model_names
+        ], dtype=float)
+        # 钳制到 [0.05, 1.0]，避免完全归零和数值不稳定
+        accuracy_scores = np.clip(accuracy_scores, 0.05, 1.0)
+
+        # 2.3 基础权重（保留原模型设计意图）
+        base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15], dtype=float)
+
+        # 2.4 综合权重 = base_weights * (0.7 * accuracy + 0.3 * concentration)
+        #   - 准确率占主导（70%）：让"准确的模型"获得更高权重
+        #   - 集中度辅助（30%）：在准确率相同时偏向更确定的预测
+        combined_quality = 0.7 * accuracy_scores + 0.3 * concentration_scores
+        dynamic_weights = base_weights * combined_quality
+
+        # 2.5 确保非负并归一化
         dynamic_weights = np.maximum(dynamic_weights, 0.01)
-        
-        return dynamic_weights
+        return dynamic_weights / (dynamic_weights.sum() + 1e-12)
+
+    def update_model_accuracy_feedback(self, accuracy_map: Dict[str, float]) -> None:
+        """【V10.6 知识图谱闭环】更新模型实际准确率反馈并持久化
+
+        由反馈学习模块（FeedbackAnalyzer）在评估实际命中率后调用，
+        把"每个模型最近N期的实际Top-3命中率"写回预测器，使下一次
+        预测的动态权重能基于真实表现调整。
+
+        Args:
+            accuracy_map: {'stacking': 0.42, 'hmm': 0.31, ...} 实际命中率
+        """
+        if not accuracy_map:
+            return
+
+        updated = False
+        for name, acc in accuracy_map.items():
+            if name in self.model_actual_accuracy and acc is not None:
+                try:
+                    self.model_actual_accuracy[name] = float(np.clip(acc, 0.0, 1.0))
+                    updated = True
+                except (TypeError, ValueError):
+                    logger.warning(f"[EnhancedPredictor] 无效的准确率值 {name}={acc}")
+
+        if updated:
+            # 持久化到知识图谱文件
+            try:
+                import json
+                from datetime import datetime
+                record = {
+                    'timestamp': datetime.now().isoformat(),
+                    'model_accuracy': self.model_actual_accuracy,
+                }
+                # 追加到历史（保留最近 50 条用于趋势分析）
+                history = []
+                if self._accuracy_feedback_path.exists():
+                    try:
+                        with open(self._accuracy_feedback_path, 'r', encoding='utf-8') as f:
+                            history = json.load(f)
+                            if not isinstance(history, list):
+                                history = []
+                    except Exception:
+                        history = []
+                history.append(record)
+                history = history[-50:]
+                self._accuracy_feedback_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self._accuracy_feedback_path, 'w', encoding='utf-8') as f:
+                    json.dump(history, f, ensure_ascii=False, indent=2)
+                logger.info(
+                    f"[EnhancedPredictor] 模型准确率反馈已更新并持久化: {self.model_actual_accuracy}"
+                )
+            except Exception as e:
+                logger.warning(f"[EnhancedPredictor] 持久化准确率反馈失败: {e}")
+
+    def load_accuracy_feedback(self) -> bool:
+        """【V10.6 知识图谱闭环】从持久化文件加载历史准确率反馈
+
+        在预测器初始化时调用，使系统启动时即能基于历史学习而非"从零开始"。
+
+        Returns:
+            bool: 是否成功加载了历史反馈
+        """
+        try:
+            import json
+            if not self._accuracy_feedback_path.exists():
+                return False
+            with open(self._accuracy_feedback_path, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            if not isinstance(history, list) or not history:
+                return False
+            # 取最近一条记录
+            latest = history[-1]
+            model_acc = latest.get('model_accuracy', {})
+            loaded = False
+            for name in self.model_actual_accuracy:
+                if name in model_acc and model_acc[name] is not None:
+                    self.model_actual_accuracy[name] = float(model_acc[name])
+                    loaded = True
+            if loaded:
+                logger.info(
+                    f"[EnhancedPredictor] 加载历史准确率反馈: {self.model_actual_accuracy}"
+                )
+            return loaded
+        except Exception as e:
+            logger.warning(f"[EnhancedPredictor] 加载准确率反馈失败: {e}")
+            return False
 
     def _compute_enhanced_reward(self, prediction: Dict, actual: Dict) -> Tuple[float, Dict[str, float]]:
         """计算增强奖励 V3 - 多维度位置加权奖励函数
@@ -2604,6 +2720,12 @@ class EnhancedPL5Predictor:
                 }
             )
             logger.info(f"[EnhancedPredictor V10] 模型已加载: {load_path} (version={model_version})")
+            # 【V10.6 知识图谱闭环】模型加载成功后，自动加载历史准确率反馈
+            # 使系统启动时即能基于历史学习而非"从零开始"
+            try:
+                self.load_accuracy_feedback()
+            except Exception as acc_err:
+                logger.warning(f"[EnhancedPredictor] 加载历史准确率反馈失败(非致命): {acc_err}")
             return True
 
         except pickle.UnpicklingError as e:

@@ -182,10 +182,15 @@ class FeedbackAnalyzer:
         """识别策略问题"""
         issues = []
         
-        # 目标值设置
-        TARGET_TOP8 = 0.95  # 8码命中率目标
-        TARGET_TOP5 = 0.70  # 5码命中率目标
-        TARGET_TOP3 = 0.50  # 3码命中率目标
+        # 目标值设置（V10.6 修复）
+        # 原值 TARGET_TOP8=0.95 远超随机基线 80%，几乎不可能达成，导致持续无效告警
+        # 新值基于"比随机基线高10个百分点"的合理可达目标：
+        #   - Top-8 基线 80% → 目标 90%
+        #   - Top-5 基线 50% → 目标 60%
+        #   - Top-3 基线 30% → 目标 40%
+        TARGET_TOP8 = 0.90  # 8码命中率目标（随机基线80%）
+        TARGET_TOP5 = 0.60  # 5码命中率目标（随机基线50%）
+        TARGET_TOP3 = 0.40  # 3码命中率目标（随机基线30%）
         
         # 8码命中率分析
         overall_top8 = overall_analysis['top8_accuracy']
@@ -486,20 +491,20 @@ class FeedbackAnalyzer:
         overall = analysis_result.get('overall_analysis', {})
         report.append("【总体性能】")
         report.append(f"Top-1准确率: {overall.get('top1_accuracy', 0):.4f}")
-        report.append(f"Top-3准确率: {overall.get('top3_accuracy', 0):.4f} (目标: 0.50)")
-        report.append(f"Top-5准确率: {overall.get('top5_accuracy', 0):.4f} (目标: 0.70)")
-        report.append(f"Top-8准确率: {overall.get('top8_accuracy', 0):.4f} (目标: 0.95)")
+        report.append(f"Top-3准确率: {overall.get('top3_accuracy', 0):.4f} (目标: 0.40, 随机基线: 0.30)")
+        report.append(f"Top-5准确率: {overall.get('top5_accuracy', 0):.4f} (目标: 0.60, 随机基线: 0.50)")
+        report.append(f"Top-8准确率: {overall.get('top8_accuracy', 0):.4f} (目标: 0.90, 随机基线: 0.80)")
         report.append(f"测试总数: {overall.get('total_tests', 0)}")
-        
+
         # 位置性能
         position_analysis = analysis_result.get('position_analysis', {})
         report.append("\n【各位置性能】")
         for pos, analysis in position_analysis.items():
             report.append(f"{pos}位:")
             report.append(f"  Top-1: {analysis.get('top1_accuracy', 0):.4f}")
-            report.append(f"  Top-3: {analysis.get('top3_accuracy', 0):.4f} (目标: 0.50)")
-            report.append(f"  Top-5: {analysis.get('top5_accuracy', 0):.4f} (目标: 0.70)")
-            report.append(f"  Top-8: {analysis.get('top8_accuracy', 0):.4f} (目标: 0.95)")
+            report.append(f"  Top-3: {analysis.get('top3_accuracy', 0):.4f} (目标: 0.40)")
+            report.append(f"  Top-5: {analysis.get('top5_accuracy', 0):.4f} (目标: 0.60)")
+            report.append(f"  Top-8: {analysis.get('top8_accuracy', 0):.4f} (目标: 0.90)")
         
         # 策略问题
         issues = analysis_result.get('strategy_issues', [])
@@ -553,13 +558,124 @@ class FeedbackAnalyzer:
     def run_feedback_analysis(self, window_size: int = 20) -> Dict:
         """运行完整的反馈分析"""
         logger.info("开始运行反馈分析...")
-        
+
         analysis_result = self.analyze_strategy_performance(window_size)
         report = self.generate_feedback_report(analysis_result)
-        
+
         logger.info(f"\n{report}")
-        
+
         return analysis_result
+
+    def apply_feedback_to_predictor(self, predictor, analysis_result: Dict) -> Dict:
+        """【V10.6 知识图谱闭环】把反馈分析结果应用到预测器
+
+        这是真正的"自学习闭环"入口：基于实际命中率分析结果，更新预测器
+        的 model_actual_accuracy 字段，使下一次预测的动态权重能基于真实
+        表现调整。同时根据位置级命中率，对模型权重做小幅调整。
+
+        Args:
+            predictor: EnhancedPL5Predictor 实例
+            analysis_result: analyze_strategy_performance() 的返回值
+
+        Returns:
+            应用结果摘要
+        """
+        applied = {
+            'timestamp': datetime.now().isoformat(),
+            'accuracy_updated': False,
+            'weights_adjusted': False,
+            'details': {},
+        }
+
+        if not analysis_result:
+            return applied
+
+        try:
+            position_analysis = analysis_result.get('position_analysis', {})
+            overall = analysis_result.get('overall_analysis', {})
+
+            # 1. 把聚合 Top-3 命中率作为各模型的实际准确率反馈
+            #    （更精细的 per-model 准确率需在 predictor 内部记录，此处用聚合值近似）
+            top3_acc = overall.get('top3_accuracy', 0.0)
+            top8_acc = overall.get('top8_accuracy', 0.0)
+            if top3_acc > 0 or top8_acc > 0:
+                # 用 Top-3 准确率作为模型质量反馈的主信号
+                # 因为 Top-8 基线太高（80%），区分度低
+                accuracy_map = {
+                    'stacking': top3_acc,
+                    'hmm': top3_acc,
+                    'copula': top3_acc,
+                    'bsts': top3_acc,
+                    'mamba': top3_acc,
+                    'itransformer': top3_acc,
+                }
+                # 如果预测器支持 update_model_accuracy_feedback，调用它持久化
+                if hasattr(predictor, 'update_model_accuracy_feedback'):
+                    predictor.update_model_accuracy_feedback(accuracy_map)
+                    applied['accuracy_updated'] = True
+                    applied['details']['accuracy_feedback'] = accuracy_map
+                    logger.info(
+                        f"[FeedbackLearning] 已将实际准确率反馈到预测器: "
+                        f"top3={top3_acc:.4f}, top8={top8_acc:.4f}"
+                    )
+
+            # 2. 位置级权重微调：表现差的位置需要更多模型多样性
+            #    实现思路：找出命中率最低的位置，给该位置降低 stacking 主导权重
+            #    （因为 stacking 容易过拟合单一位置）
+            if position_analysis and hasattr(predictor, 'weights'):
+                pos_top8 = {pos: a.get('top8_accuracy', 0.0)
+                            for pos, a in position_analysis.items()}
+                if pos_top8:
+                    worst_pos = min(pos_top8, key=pos_top8.get)
+                    worst_acc = pos_top8[worst_pos]
+                    # 仅在 worst 位置的 Top-8 命中率显著低于平均时调整
+                    avg_top8 = sum(pos_top8.values()) / len(pos_top8)
+                    if worst_acc < avg_top8 - 0.05 and worst_acc < 0.85:
+                        # 降低 stacking 权重 10%，提升其他模型
+                        cur_weights = dict(predictor.weights)
+                        if 'stacking' in cur_weights and cur_weights['stacking'] > 0.15:
+                            delta = cur_weights['stacking'] * 0.10
+                            cur_weights['stacking'] -= delta
+                            # 把减少的权重平均分给其他5个模型
+                            others = [k for k in cur_weights if k != 'stacking']
+                            share = delta / len(others) if others else 0
+                            for k in others:
+                                cur_weights[k] += share
+                            predictor.weights = cur_weights
+                            applied['weights_adjusted'] = True
+                            applied['details']['weights_adjustment'] = {
+                                'worst_position': worst_pos,
+                                'worst_top8_accuracy': worst_acc,
+                                'avg_top8_accuracy': avg_top8,
+                                'new_weights': cur_weights,
+                            }
+                            logger.info(
+                                f"[FeedbackLearning] 位置 {worst_pos} 表现较差 "
+                                f"(Top-8={worst_acc:.4f} < avg={avg_top8:.4f})，"
+                                f"已调整模型权重: {cur_weights}"
+                            )
+
+            # 3. 持久化本次应用记录到 feedback_learning_history
+            try:
+                history_path = MODELS_DIR / "feedback_application_history.json"
+                existing = []
+                if history_path.exists():
+                    with open(history_path, 'r', encoding='utf-8') as f:
+                        existing = json.load(f)
+                        if not isinstance(existing, list):
+                            existing = []
+                existing.append(applied)
+                existing = existing[-50:]
+                with open(history_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logger.warning(f"[FeedbackLearning] 持久化应用记录失败: {e}")
+
+        except Exception as e:
+            logger.error(f"[FeedbackLearning] 应用反馈到预测器失败: {e}", exc_info=True)
+            applied['error'] = str(e)
+
+        return applied
 
 
 class FeedbackLearningSystem:

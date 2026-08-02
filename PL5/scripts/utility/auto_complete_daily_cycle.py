@@ -352,7 +352,7 @@ def generate_top8_report(final_pred, training_info, recent_draws, latest_period,
         lines.append("### 各轮佐证Top-3对比\n")
         rounds = list(vrs.keys())
         for pos in POSITIONS:
-            lines.append(f"\n**{POSITION_NAMES[pos]}位**:")
+            lines.append(f"\n**{POSITION_NAMES[pos]}**:")
             header = "| 佐证轮次 | " + " | ".join(f"Top-{i+1}" for i in range(3)) + " |"
             sep = "|---------|" + "|".join(["-------"] * 3) + "|"
             lines.append(header)
@@ -368,7 +368,7 @@ def generate_top8_report(final_pred, training_info, recent_draws, latest_period,
             lines.append("\n**各位置一致性**:")
             for p, s in pos_scores.items():
                 if isinstance(s, (int, float)):
-                    lines.append(f"- {POSITION_NAMES.get(p, p)}位: {s:.2%}")
+                    lines.append(f"- {POSITION_NAMES.get(p, p)}: {s:.2%}")
     else:
         lines.append("（佐证摘要数据缺失）")
 
@@ -377,7 +377,7 @@ def generate_top8_report(final_pred, training_info, recent_draws, latest_period,
     for pos in POSITIONS:
         p = preds.get(pos, {})
         tk = p.get('top_k', [])
-        lines.append(f"\n### {POSITION_NAMES[pos]}位预测详解\n")
+        lines.append(f"\n### {POSITION_NAMES[pos]}预测详解\n")
         lines.append(f"**Top-8号码**: {tk}")
         lines.append("\n| 排名 | 号码 |")
         lines.append("|------|------|")

@@ -39,7 +39,15 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent  # /workspace/PL5
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.models.complement_elimination import ComplementEliminationPredictor
+# 直接加载模块文件, 避免触发 src.core.models.__init__ 的重型依赖链
+import importlib.util
+_spec = importlib.util.spec_from_file_location(
+    "complement_elimination",
+    str(PROJECT_ROOT / "src" / "core" / "models" / "complement_elimination.py"),
+)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+ComplementEliminationPredictor = _mod.ComplementEliminationPredictor
 
 POSITIONS = ['wan', 'qian', 'bai', 'shi', 'ge']
 POSITION_NAMES = {'wan': '万位', 'qian': '千位', 'bai': '百位', 'shi': '十位', 'ge': '个位'}

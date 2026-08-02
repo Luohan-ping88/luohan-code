@@ -1307,6 +1307,8 @@ class AutoSchedulerV8:
                         continue
                     top_k = pred_data[pos].get('top_k', [])
                     actual_num = actual[pos]
+                    # 【V10.8】读取各模型独立的 Top-8 预测, 用于 per-model 准确率计算
+                    model_preds = pred_data[pos].get('model_predictions', {})
 
                     record['hits'][pos] = {
                         'actual': actual_num,
@@ -1314,7 +1316,16 @@ class AutoSchedulerV8:
                         'top3_hit': actual_num in top_k[:3] if len(top_k) >= 3 else False,
                         'top5_hit': actual_num in top_k[:5] if len(top_k) >= 5 else False,
                         'top8_hit': actual_num in top_k[:8] if len(top_k) >= 8 else False,
-                        'predicted_top_k': top_k
+                        'predicted_top_k': top_k,
+                        # 【V10.8】per-model Top-8 命中(布尔), 用于差异化权重反馈
+                        'model_top8_hits': {
+                            m: (actual_num in (mp[:8] if len(mp) >= 8 else mp))
+                            for m, mp in model_preds.items() if isinstance(mp, list)
+                        },
+                        'model_top3_hits': {
+                            m: (actual_num in (mp[:3] if len(mp) >= 3 else mp))
+                            for m, mp in model_preds.items() if isinstance(mp, list)
+                        },
                     }
 
                 hit_records.append(record)
@@ -1340,6 +1351,62 @@ class AutoSchedulerV8:
             summary['top3_accuracy'] = summary['top3_hits'] / summary['total_position_tests']
             summary['top5_accuracy'] = summary['top5_hits'] / summary['total_position_tests']
             summary['top8_accuracy'] = summary['top8_hits'] / summary['total_position_tests']
+
+            # 【V10.8 核心修复】计算 per-model 准确率并真正反馈到 predictor
+            # 这是闭环的关键: 让 model_actual_accuracy 不再永远是 None,
+            # 使动态权重能基于真实命中率差异化调整各模型权重
+            per_model_stats = {}  # {model_name: {'top3_hits': x, 'top8_hits': y, 'total': z}}
+            for r in hit_records:
+                for pos, hit_info in r.get('hits', {}).items():
+                    m_top3 = hit_info.get('model_top3_hits', {}) or {}
+                    m_top8 = hit_info.get('model_top8_hits', {}) or {}
+                    for m_name, did_hit3 in m_top3.items():
+                        if m_name not in per_model_stats:
+                            per_model_stats[m_name] = {'top3_hits': 0, 'top8_hits': 0, 'total': 0}
+                        per_model_stats[m_name]['total'] += 1
+                        if did_hit3:
+                            per_model_stats[m_name]['top3_hits'] += 1
+                        if m_top8.get(m_name, False):
+                            per_model_stats[m_name]['top8_hits'] += 1
+
+            per_model_accuracy = {}
+            for m_name, stats in per_model_stats.items():
+                if stats['total'] > 0:
+                    per_model_accuracy[m_name] = {
+                        'top3_accuracy': stats['top3_hits'] / stats['total'],
+                        'top8_accuracy': stats['top8_hits'] / stats['total'],
+                        'samples': stats['total'],
+                    }
+            summary['per_model_accuracy'] = per_model_accuracy
+
+            # 真正把 per-model 准确率反馈到 predictor 的 model_actual_accuracy
+            # 用 Top-3 准确率(随机基线30%, 区分度高)作为反馈主信号
+            if per_model_accuracy:
+                try:
+                    from src.core.models.enhanced_predictor import EnhancedPL5Predictor
+                    pred_for_feedback = EnhancedPL5Predictor()
+                    accuracy_map = {
+                        m: info['top3_accuracy']
+                        for m, info in per_model_accuracy.items()
+                    }
+                    if hasattr(pred_for_feedback, 'update_model_accuracy_feedback'):
+                        pred_for_feedback.update_model_accuracy_feedback(accuracy_map)
+                        logger.info(
+                            f"[反馈闭环] per-model 准确率已反馈到 predictor 并持久化: "
+                            f"{accuracy_map}"
+                        )
+                except Exception as fb_err:
+                    logger.warning(f"[反馈闭环] 反馈到 predictor 失败(非致命): {fb_err}")
+
+            logger.info("=" * 80)
+            logger.info("【V10.8 反馈闭环】per-model 实际命中率")
+            logger.info("=" * 80)
+            for m_name, info in per_model_accuracy.items():
+                logger.info(
+                    f"  {m_name}: Top-3={info['top3_accuracy']:.4f} "
+                    f"(随机基线0.30), Top-8={info['top8_accuracy']:.4f} "
+                    f"(随机基线0.80), samples={info['samples']}"
+                )
 
             # 【V10.6 修复】记录最新一期的位置级命中详情
             # 用于策略切换器 record_outcome 的精确反馈，避免"聚合布尔值"语义错配

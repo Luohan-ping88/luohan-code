@@ -340,11 +340,11 @@ class FeatureConfig:
 
     DEFAULT_CONFIG = {
         'fibonacci': {'enabled': False, 'windows': [5, 8, 13], 'description': '黄金分割特征（已整合到波动率范围移动识别）'},
-        'entropy': {'enabled': False, 'windows': [10, 20, 30], 'description': '熵值特征'},
-        'markov': {'enabled': True, 'order': 2, 'description': '马尔可夫特征'},
+        'entropy': {'enabled': True, 'windows': [10, 20, 30], 'description': '熵值特征(V10.8启用: 增强随机性捕捉)'},
+        'markov': {'enabled': True, 'order': 3, 'description': '马尔可夫特征(V10.8: 阶数提升到3, 捕捉更长程依赖)'},
         'chaos': {'enabled': False, 'hurst_windows': [10, 20, 50], 'lyapunov': True, 'description': '混沌特征'},
         'fourier': {'enabled': True, 'n_components': 3, 'description': '傅里叶特征'},
-        'cross_correlation': {'enabled': False, 'max_lag': 5, 'description': '互相关特征'},
+        'cross_correlation': {'enabled': True, 'max_lag': 5, 'description': '互相关特征(V10.8启用: 捕捉位置间关联)'},
         'extreme': {'enabled': True, 'windows': [10, 20], 'description': '极值特征'},
         'pattern': {'enabled': True, 'patterns': ['consecutive', 'repeat'], 'description': '形态模式特征'},
         'momentum': {'enabled': True, 'windows': [3, 5], 'description': '动量特征'},

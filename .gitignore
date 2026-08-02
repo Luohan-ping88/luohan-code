@@ -1,9 +1,11 @@
 # 运行时状态与模型产物（运行时自动生成，不应入库）
-models/
-logs/
-health/
-workflows/
-backups/
+# 注意: 只忽略 PL5 顶层的 models/logs/health/workflows/backups 目录,
+# 不要忽略源代码目录(如 PL5/src/core/models/)
+/PL5/models/
+/PL5/logs/
+/PL5/health/
+/PL5/workflows/
+/PL5/backups/
 
 # Python
 __pycache__/

@@ -37,6 +37,9 @@ lxml>=4.9.0
 PyYAML>=6.0
 python-dotenv>=1.0.0
 
+# --- 图数据库（知识图谱闭环，V10.7 新增）---
+kuzu>=0.11.0
+
 # --- 安全 ---
 cryptography>=41.0.0
 

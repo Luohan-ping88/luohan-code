@@ -865,6 +865,98 @@ class AutoSchedulerV8:
                 except Exception as feedback_err:
                     logger.warning(f"  [知识图谱闭环] 反馈应用失败(非致命): {feedback_err}")
 
+            # 【V10.7 图数据库知识图谱】将命中评估落图到 Kùzu 图数据库
+            # 这是真正的"图数据库式知识图谱"闭环：每次开奖后，把预测→命中→反馈
+            # 全链路写入图数据库，支持后续的图查询（归因/推理/审计）。
+            # 非致命：落图失败不影响主流程，仅记录警告。
+            if actual_hit_summary:
+                try:
+                    from src.core.knowledge_graph import KnowledgeGraphBuilder
+                    kg_builder = KnowledgeGraphBuilder()
+                    kg_builder.seed_builtin_data()
+
+                    latest_period = actual_hit_summary.get('latest_period')
+                    latest_hits = actual_hit_summary.get('latest_period_hits', {})
+                    per_model_acc = actual_hit_summary.get('per_model_accuracy', {})
+
+                    if latest_period and latest_hits:
+                        # 1. 构造命中记录列表
+                        kg_hit_records = []
+                        actual_numbers = {}
+                        for pos, hit_info in latest_hits.items():
+                            actual_val = hit_info.get('actual', -1)
+                            actual_numbers[pos] = actual_val
+                            kg_hit_records.append({
+                                'position': pos,
+                                'actual': actual_val,
+                                'top1_hit': hit_info.get('top1_hit', False),
+                                'top3_hit': hit_info.get('top3_hit', False),
+                                'top5_hit': hit_info.get('top5_hit', False),
+                                'top8_hit': hit_info.get('top8_hit', False),
+                            })
+
+                        # 2. 尝试从 prediction_history 找到对应期号的预测ID
+                        pred_id_for_kg = None
+                        try:
+                            from src.core.config import MODELS_DIR
+                            pred_hist_path = MODELS_DIR / "prediction_history.json"
+                            if pred_hist_path.exists():
+                                with open(pred_hist_path, 'r', encoding='utf-8') as f:
+                                    pred_hist = json.load(f)
+                                if isinstance(pred_hist, list):
+                                    for ph in pred_hist:
+                                        if str(ph.get('period')) == str(latest_period):
+                                            pred_id_for_kg = ph.get('pred_id') or f"PRED-{latest_period}"
+                                            # 3. 若预测记录尚未落图，先落图
+                                            kg_builder.record_prediction({
+                                                'period': str(latest_period),
+                                                'pred_id': pred_id_for_kg,
+                                                'strategy_name': ph.get('strategy_name', 'default'),
+                                                'weights_used': ph.get('weights_used', {}),
+                                                'ensemble_method': ph.get('ensemble_method', 'weighted_average'),
+                                                'feature_version': ph.get('feature_version', ''),
+                                                'timestamp': ph.get('timestamp', ''),
+                                                'predictions': ph.get('predictions', {}),
+                                            })
+                                            break
+                        except Exception as ph_err:
+                            logger.debug(f"  [图数据库] 读取预测历史失败: {ph_err}")
+
+                        # 4. 命中评估落图
+                        hit_count = kg_builder.record_actual_hits(
+                            period_id=str(latest_period),
+                            actual_numbers=actual_numbers,
+                            hit_records=kg_hit_records,
+                            per_model_accuracy=per_model_acc,
+                            pred_id=pred_id_for_kg,
+                        )
+                        logger.info(
+                            f"  [图数据库] 命中评估落图完成: period={latest_period}, "
+                            f"hit_records={hit_count}, pred_id={pred_id_for_kg}, "
+                            f"models_feedback={len(per_model_acc)}"
+                        )
+
+                        # 5. 记录数据分布快照（用于策略推理推荐）
+                        try:
+                            from src.core.data.collector import PL5DataCollector
+                            _collector = PL5DataCollector()
+                            _df = _collector.load_processed_data()
+                            if _df is not None and len(_df) > 0:
+                                recent_vals = _df['ge'].tail(30).values if 'ge' in _df.columns else []
+                                if len(recent_vals) > 0:
+                                    import numpy as np
+                                    kg_builder.record_data_distribution(
+                                        period_id=str(latest_period),
+                                        psi=0.0,  # PSI由漂移检测模块单独计算
+                                        mean=float(np.mean(recent_vals)),
+                                        std=float(np.std(recent_vals)),
+                                        drift_detected=False,
+                                    )
+                        except Exception as dist_err:
+                            logger.debug(f"  [图数据库] 分布落图失败: {dist_err}")
+                except Exception as kg_err:
+                    logger.warning(f"  [图数据库] 知识图谱落图失败(非致命): {kg_err}")
+
             # 智能决策阈值
             # Top-3准确率 > 0.4 → 表现很好，只需要策略微调
             # Top-3准确率 > 0.25 → 表现一般，可以策略微调或轻量训练
@@ -954,6 +1046,26 @@ class AutoSchedulerV8:
             # 生成优化建议
             suggestions = sls.generate_optimization_suggestions()
             logger.info(f"优化建议: {suggestions}")
+
+            # 【V10.7 图数据库知识图谱】自学习建议落图
+            # 把每条优化建议写入图数据库的 Suggestion 节点，
+            # 建立 OPTIMIZED_BY (Model->Suggestion) 和 APPLIED_PARAM (Suggestion->Parameter) 边
+            try:
+                from src.core.knowledge_graph import KnowledgeGraphBuilder
+                kg_builder = KnowledgeGraphBuilder()
+                kg_suggestion_count = 0
+                if isinstance(suggestions, list):
+                    for sug in suggestions:
+                        if isinstance(sug, dict):
+                            kg_builder.record_suggestion(sug)
+                            kg_suggestion_count += 1
+                        elif hasattr(sug, 'to_dict'):
+                            kg_builder.record_suggestion(sug.to_dict())
+                            kg_suggestion_count += 1
+                if kg_suggestion_count > 0:
+                    logger.info(f"  [图数据库] 自学习建议落图: {kg_suggestion_count} 条")
+            except Exception as kg_sug_err:
+                logger.warning(f"  [图数据库] 建议落图失败(非致命): {kg_sug_err}")
             
             # 测试不同策略的效果 - 这是最重要的！
             logger.info("  开始测试不同推理策略的效果...")

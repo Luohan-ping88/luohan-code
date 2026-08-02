@@ -28,6 +28,7 @@ models/*.joblib
 models/*.json
 models/vector_index/
 models/model_backups/
+models/knowledge_graph_kuzu/
 
 # 日志文件
 logs/*.log

@@ -227,6 +227,22 @@ class StrategyAdaptiveSwitcher:
             f"总切换次数: {self._switch_count})"
         )
 
+        # 【V10.7 图数据库知识图谱】策略切换事件落图
+        # 记录到 Kùzu 图数据库的 SWITCHED_TO 边，支持后续漂移×策略关联分析
+        try:
+            from src.core.knowledge_graph import KnowledgeGraphBuilder
+            kg_builder = KnowledgeGraphBuilder()
+            score_gap = scores.get(new_strategy, 0) - scores.get(old_strategy, 0)
+            kg_builder.record_strategy_switch(
+                from_strategy=old_strategy,
+                to_strategy=new_strategy,
+                period=str(self._eval_count),
+                reason=reason,
+                score_gap=float(score_gap),
+            )
+        except Exception as kg_err:
+            logger.debug(f"[StrategySwitcher] 策略切换落图失败(非致命): {kg_err}")
+
     def trigger_drift_reassessment(self, psi_value: float):
         """
         数据分布漂移触发全策略重评估

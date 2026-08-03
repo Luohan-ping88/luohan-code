@@ -208,6 +208,14 @@ class HiddenMarkovModel:
             )
             self.emission_models.append(gm)
 
+        # 在 EM 迭代前对所有发射模型进行初始拟合，确保 predict_proba 时 GMM 已 fitted。
+        # 避免因第一次 _e_step 使用未拟合 GMM 产生无效 gamma，进而导致 _m_step 静默跳过某些状态的 fit。
+        for s in range(self.n_states):
+            try:
+                self.emission_models[s].fit(observations)
+            except Exception as e:
+                logger.warning(f"[HMM.fit] 状态 {s} 初始发射模型拟合失败: {e}")
+
         self.initial_probs = np.ones(self.n_states) / self.n_states
         self._last_ll = float('-inf')
         self.converged = False
@@ -268,12 +276,19 @@ class HiddenMarkovModel:
         self.transition_matrix = xi / (xi.sum(axis=1, keepdims=True) + 1e-10)
 
         for s in range(self.n_states):
-            if gamma[:, s].sum() > 1:
-                weights = gamma[:, s] / (gamma[:, s].sum() + 1e-10)
+            weight_sum = float(gamma[:, s].sum())
+            if weight_sum > 1:
+                weights = gamma[:, s] / (weight_sum + 1e-10)
                 try:
                     self.emission_models[s].fit(observations, sample_weight=weights)
                 except Exception as e:
-                    logger.warning(f"[HMM._m_step] 状态 {s} 发射模型拟合失败: {e}")
+                    logger.warning(f"[HMM._m_step] 状态 {s} 发射模型加权拟合失败: {e}")
+            else:
+                # 权重不足时降级拟合：用全量数据均匀权重，避免静默跳过 fit 导致 GMM 未更新。
+                try:
+                    self.emission_models[s].fit(observations)
+                except Exception as e:
+                    logger.warning(f"[HMM._m_step] 状态 {s} 权重不足降级拟合失败: {e}")
 
     def _compute_log_likelihood(self, observations: np.ndarray, gamma: np.ndarray) -> float:
         ll = 0.0

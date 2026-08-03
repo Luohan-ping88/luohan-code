@@ -29,7 +29,7 @@ except ImportError:
     _HAS_XGBOOST = False
 
 from src.core.models.advanced_sequence import HiddenMarkovModel, MultivariateCopula, BayesianStructuralTimeSeries
-from src.core.config import ModelConfig, get_model_config
+from src.core.config import ModelConfig, get_model_config, MODELS_DIR
 
 _HAS_RL = False
 ModelWeightRLOptimizer = None
@@ -2634,7 +2634,7 @@ class EnhancedPL5Predictor:
         Returns:
             是否加载成功
         """
-        load_path = self.models_dir / MODEL_FILENAME
+        load_path = MODELS_DIR / MODEL_FILENAME
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_MODEL_LOAD,
             {"path": str(load_path)}

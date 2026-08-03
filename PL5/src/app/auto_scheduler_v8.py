@@ -1043,8 +1043,17 @@ class AutoSchedulerV8:
             evaluator = StrategyEvaluator()
             sls = SelfLearningSystem()
             
-            # 生成优化建议
-            suggestions = sls.generate_optimization_suggestions()
+            # 生成优化建议（结构化对象 + 字符串展示）
+            # 【修复】原 generate_optimization_suggestions 返回 List[str]，既非 dict
+            # 也无 to_dict 方法，导致下方 record_suggestion 永远不会被调用、
+            # Suggestion 表 0 条记录。改为直接获取结构化对象供落图使用。
+            structured_suggestions = sls.generate_structured_suggestions()
+            suggestions = [
+                f"[{s.priority.label}] {s.title}"
+                + (f" ({s.parameter_name}: {s.current_value} -> {s.recommended_value})" if s.parameter_name else "")
+                + f" - {s.description}"
+                for s in structured_suggestions
+            ]
             logger.info(f"优化建议: {suggestions}")
 
             # 【V10.7 图数据库知识图谱】自学习建议落图
@@ -1053,15 +1062,17 @@ class AutoSchedulerV8:
             try:
                 from src.core.knowledge_graph import KnowledgeGraphBuilder
                 kg_builder = KnowledgeGraphBuilder()
+                kg_builder.seed_builtin_data()
                 kg_suggestion_count = 0
-                if isinstance(suggestions, list):
-                    for sug in suggestions:
-                        if isinstance(sug, dict):
-                            kg_builder.record_suggestion(sug)
-                            kg_suggestion_count += 1
-                        elif hasattr(sug, 'to_dict'):
-                            kg_builder.record_suggestion(sug.to_dict())
-                            kg_suggestion_count += 1
+                for sug in structured_suggestions:
+                    sug_dict = sug.to_dict()
+                    # 补充 record_suggestion 所需的顶层字段（to_dict 将其嵌套在 parameter 中）
+                    if sug.parameter_name:
+                        sug_dict['parameter_name'] = sug.parameter_name
+                    if sug.recommended_value is not None:
+                        sug_dict['recommended_value'] = sug.recommended_value
+                    kg_builder.record_suggestion(sug_dict)
+                    kg_suggestion_count += 1
                 if kg_suggestion_count > 0:
                     logger.info(f"  [图数据库] 自学习建议落图: {kg_suggestion_count} 条")
             except Exception as kg_sug_err:
@@ -1174,6 +1185,32 @@ class AutoSchedulerV8:
             logger.info(f"[反馈闭环] 已记录{prediction_type}预测到prediction_history (期号: {period})")
         except Exception as e:
             logger.warning(f"[反馈闭环] 记录预测失败（非致命）: {e}")
+
+    def _record_prediction_to_kg(self, predictions: Dict, period: str, prediction_type: str = "final"):
+        """【V10.7 图数据库知识图谱】将当前运行产生的预测写入知识图谱。
+
+        修复：原代码仅在 task_evaluate 中通过 prediction_history 回填 Prediction
+        节点，首次运行时 prediction_history 为空导致 record_prediction 从未被
+        调用、知识图谱所有表 0 条记录。此处确保预测产生后立即落图，不依赖
+        prediction_history 是否为空。非致命：落图失败不影响主流程。
+        """
+        try:
+            from src.core.knowledge_graph import KnowledgeGraphBuilder
+            kg_builder = KnowledgeGraphBuilder()
+            kg_builder.seed_builtin_data()
+            pred_id = kg_builder.record_prediction({
+                'period': str(period),
+                'pred_id': f"PRED-{period}-{prediction_type}",
+                'strategy_name': 'default',
+                'weights_used': {},
+                'ensemble_method': 'weighted_average',
+                'feature_version': '',
+                'timestamp': datetime.now().isoformat(),
+                'predictions': predictions,
+            })
+            logger.info(f"[图数据库] {prediction_type}预测落图完成: period={period}, pred_id={pred_id}")
+        except Exception as kg_err:
+            logger.warning(f"[图数据库] {prediction_type}预测落图失败(非致命): {kg_err}")
 
     def _apply_repeat_penalty(self, prediction: Dict, last_period_numbers: Dict[str, int]) -> Tuple[Dict, bool]:
         """
@@ -2772,6 +2809,12 @@ class AutoSchedulerV8:
             next_period = str(int(data['period'].iloc[-1]) + 1)
             self._record_prediction(prediction, next_period, prediction_type="final")
 
+            # 【V10.7 修复】将当前运行产生的最终预测写入知识图谱
+            # 原代码仅在 task_evaluate 中通过 prediction_history 回填 Prediction 节点，
+            # 首次运行时 prediction_history 为空导致 record_prediction 被跳过、
+            # 知识图谱所有表 0 条记录。此处确保预测产生后立即落图。
+            self._record_prediction_to_kg(prediction, next_period, prediction_type="final")
+
             # 【V10.4新增/VR-02修复】基于佐证一致性调整预测置信度标记（回退机制）
             consistency_overall = consistency_scores['overall']
             confidence_level = 'medium'  # 默认中等置信度
@@ -3077,6 +3120,9 @@ class AutoSchedulerV8:
             # 【V10.5核心新增】记录预测到prediction_history
             next_period = str(int(data['period'].iloc[-1]) + 1)
             self._record_prediction(pre_sale_prediction, next_period, prediction_type="pre_sale")
+
+            # 【V10.7 修复】将售前预测写入知识图谱（首次运行也写入）
+            self._record_prediction_to_kg(pre_sale_prediction, next_period, prediction_type="pre_sale")
 
             # 保存售前预测结果
             pre_sale_info = {

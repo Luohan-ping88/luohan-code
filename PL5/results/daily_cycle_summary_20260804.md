@@ -1,13 +1,14 @@
 # 日循环任务执行摘要报告
 
 **执行日期**: 2026-08-04  
-**开始时间**: 2026-08-02T20:46:16.216469  
-**结束时间**: 2026-08-03T02:17:16.388402  
-**总耗时**: 约5小时31分  
+**开始时间**: 2026-08-04T14:00:11.150730  
+**结束时间**: 2026-08-04T20:05:40.174590  
+**总耗时**: 约6小时5分  
 **执行模式**: 生产模式（完整模式，无时限）  
 **任务总数**: 14  
-**成功数**: 14  
-**成功率**: 100.0%
+**成功数**: 13  
+**失败数（已修复）**: 1  
+**成功率**: 92.9%
 
 ---
 
@@ -15,21 +16,20 @@
 
 | 序号 | 任务名称 | 中文名 | 状态 | 开始时间 | 结束时间 | 耗时 |
 |------|---------|--------|------|---------|---------|------|
-| 1 | data_fetch | 数据获取 | ✅ 成功 | 20:46:16 | 20:46:16 | 约0秒 |
-| 2 | evaluation | 评估分析 | ✅ 成功 | 20:46:16 | 20:47:44 | 约1分27秒 |
-| 3 | optimization | 策略优化 | ✅ 成功 | 20:47:44 | 20:49:08 | 约1分23秒 |
-| 4 | training | 深度训练 | ✅ 成功 | 20:49:08 | 00:29:33 | 约3小时40分 |
-| 5 | incremental_training | 增量训练 | ✅ 成功 | 00:29:33 | 00:46:23 | 约16分50秒 |
-| 6 | first_prediction_verification | 首次预测验证 | ✅ 成功 | 00:46:23 | 01:02:40 | 约16分16秒 |
-| 7 | second_prediction_verification | 二次预测验证 | ✅ 成功 | 01:02:40 | 01:18:56 | 约16分16秒 |
-| 8 | third_prediction_verification | 三次预测验证 | ✅ 成功 | 01:18:56 | 01:35:17 | 约16分20秒 |
-| 9 | deep_strategy_optimization | 深度策略优化 | ✅ 成功 | 01:35:17 | 01:55:16 | 约19分59秒 |
-| 10 | prediction_preview | 预测预生成 | ✅ 成功 | 01:55:16 | 02:11:36 | 约16分19秒 |
-| 11 | final_prediction | 最终预测 | ✅ 成功 | 02:11:36 | 02:13:01 | 约1分25秒 |
-| 12 | final_prediction_verification | 最终预测验证 | ✅ 成功 | 02:13:01 | 02:14:26 | 约1分25秒 |
-| 13 | pre_sale_prediction | 售前预测 | ✅ 成功 | 02:14:26 | 02:15:51 | 约1分25秒 |
-| 14 | send_report | 发送报告 | ✅ 成功 | 02:15:51 | 02:17:16 | 约1分24秒 |
-
+| 1 | data_fetch | 数据获取 | ✅ 成功 | 14:00:11 | 14:00:11 | 约0秒 |
+| 2 | evaluation | 评估分析 | ✅ 成功 | 14:00:11 | 14:01:37 | 约1分25秒 |
+| 3 | optimization | 策略优化 | ✅ 成功 | 14:01:37 | 14:03:01 | 约1分24秒 |
+| 4 | training | 深度训练 | ✅ 成功 | 14:03:01 | 18:08:59 | 约4小时5分 |
+| 5 | incremental_training | 增量训练 | ✅ 成功 | 18:08:59 | 18:30:09 | 约21分10秒 |
+| 6 | first_prediction_verification | 首次预测验证 | ✅ 成功 | 18:30:09 | 18:46:56 | 约16分46秒 |
+| 7 | second_prediction_verification | 二次预测验证 | ✅ 成功 | 18:46:56 | 19:03:50 | 约16分54秒 |
+| 8 | third_prediction_verification | 三次预测验证 | ✅ 成功 | 19:03:50 | 19:20:50 | 约16分59秒 |
+| 9 | deep_strategy_optimization | 深度策略优化 | ✅ 成功 | 19:20:50 | 19:40:58 | 约20分7秒 |
+| 10 | prediction_preview | 预测预生成 | 🔧 失败(已修复) | 19:40:58 | 19:57:55 | 约16分57秒 |
+| 11 | final_prediction | 最终预测 | ✅ 成功 | 19:57:55 | 19:59:52 | 约1分56秒 |
+| 12 | final_prediction_verification | 最终预测验证 | ✅ 成功 | 19:59:52 | 20:01:48 | 约1分56秒 |
+| 13 | pre_sale_prediction | 售前预测 | ✅ 成功 | 20:01:48 | 20:03:44 | 约1分56秒 |
+| 14 | send_report | 发送报告 | ✅ 成功 | 20:03:44 | 20:05:40 | 约1分55秒 |
 
 ---
 
@@ -78,19 +78,25 @@
 
 ---
 
-## 四、出现的问题
+## 四、出现的问题与修复
 
-本次运行未出现致命错误。
+### 发现的问题:
+- **预测预生成失败**: 预测结果预生成失败: No module named 'src.core.features.version_manager'
 
-**备注**: torch 已安装（2.13.0+cpu），Mamba / iTransformer 模型可正常训练；全部 6 大模型（Stacking/HMM/Copula/BSTS/Mamba/iTransformer）+ 贝叶斯量化器完整启用。
+### 已自动修复的源代码问题:
+- **修复内容**: 修正 [auto_scheduler_v8.py:3496](file:///workspace/PL5/src/app/auto_scheduler_v8.py#L3496-L3496) 的模块导入错误，将 `from src.core.features.version_manager` 改为 `from src.core.features.feature_version_manager`
+- **修复验证**: 已通过 `python -c 'from src.core.features.feature_version_manager import get_feature_version_manager'` 验证导入成功
+- **影响分析**: 该bug导致预测预生成任务(p10)失败，但不影响后续的最终预测任务(p11-p14)，因为最终预测任务使用了不同的代码路径。已修复源代码，确保下次运行该任务成功。
+
+**备注**: 全部 6 大模型（Stacking/HMM/Copula/BSTS/Mamba/iTransformer）+ 贝叶斯量化器完整启用。
 
 ---
 
 ## 五、后续跟进事项
 
-1. **预测验证**: 等待预测期号开奖结果，验证命中准确性
+1. **预测验证**: 等待第2026207期开奖结果，验证命中准确性
 2. **模型监控**: 持续监控模型表现，准确率下降时进行增量训练
-3. **Git 同步**: 若推送失败（无 token），使用 `./push_to_github.sh <TOKEN>` 手动推送
+3. **修复验证**: 下一次日循环运行时确认 prediction_preview 任务修复生效（成功率恢复至100%）
 4. **邮件发送**: send_report 如失败已自动回退本地文件保存，生产环境确认 SMTP 出站正常
 5. **特征优化**: 评估特征重要性，剔除低贡献特征提升训练效率
 
@@ -99,16 +105,19 @@
 ## 六、环境配置
 
 - **Python版本**: 3.14.4
-- **已安装核心依赖**: numpy/pandas/scikit-learn/lightgbm/xgboost/catboost/hmmlearn/statsmodels/schedule/psutil/PyYAML/requests/beautifulsoup4/lxml/python-dotenv
-- **配置修复**: training_status.json 的 UTF-8 BOM 已去除；git 身份已配置
-- **运行模式**: 生产模式（无任何环节限时）
+- **已安装核心依赖**: numpy-2.5.1/pandas-3.0.5/scikit-learn-1.9.0/lightgbm-4.7.0/xgboost-3.4.0/catboost-1.2.10/hmmlearn-0.3.3/statsmodels-0.14.6/schedule-1.2.2/psutil-7.2.2/PyYAML-6.0.3/requests-2.34.2/beautifulsoup4-4.15.0/lxml-6.1.1/python-dotenv-1.2.2/faiss-cpu-1.15.0
+- **配置修复**: 已自动安装PyYAML/psutil等缺失依赖；Git身份和凭据已配置；training_status.json格式正常
+- **运行模式**: 生产模式（无任何环节限时，完整执行全部14个任务）
 
 ---
 
 ## 七、总结
 
-本次日循环任务以**生产模式**执行，14/14 个任务成功完成，总耗时 约5小时31分。
-最终预测结果已基于真实管线输出生成 Top-8 报告（见 results/top8_training_prediction_report_*.md）。
+本次日循环任务以**生产模式**执行，13/14 个任务成功完成，1个任务(p10 prediction_preview)因代码bug失败，总耗时 约6小时5分。
 
-**报告生成时间**: 2026-08-04 20:00:42
-**报告版本**: V1.0 (自动收尾生成)
+**源代码修复**: 已修复 [auto_scheduler_v8.py](file:///workspace/PL5/src/app/auto_scheduler_v8.py#L3496-L3496) 中的模块导入错误 (`version_manager` → `feature_version_manager`)，修复已验证通过。
+
+最终预测结果已基于真实管线输出生成 Top-8 报告（见 results/top8_training_prediction_report_2026207.md）。
+
+**报告生成时间**: 2026-08-04 20:11:00
+**报告版本**: V2.0 (基于真实运行数据重新生成，包含修复详情)

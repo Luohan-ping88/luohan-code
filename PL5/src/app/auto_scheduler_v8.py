@@ -3493,7 +3493,7 @@ class AutoSchedulerV8:
             )
             # 【V10.3优化】检查特征一致性（与佐证任务对齐）
             logger.info("步骤3.1: 检查特征一致性...")
-            from src.core.features.version_manager import get_feature_version_manager
+            from src.core.features.feature_version_manager import get_feature_version_manager
             feature_manager = get_feature_version_manager()
             current_features_check = [col for col in features.columns if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']]
             consistency_result = feature_manager.check_feature_consistency(current_features_check)

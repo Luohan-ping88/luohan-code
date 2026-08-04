@@ -3491,22 +3491,41 @@ class AutoSchedulerV8:
                 detect_drift=False,
                 enable_scaler=False
             )
+            # 【V10.3优化】检查特征一致性（与佐证任务对齐）
+            logger.info("步骤3.1: 检查特征一致性...")
+            from src.core.features.version_manager import get_feature_version_manager
+            feature_manager = get_feature_version_manager()
+            current_features_check = [col for col in features.columns if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']]
+            consistency_result = feature_manager.check_feature_consistency(current_features_check)
+            if not consistency_result['consistent']:
+                logger.warning(f"[prediction_preview] 特征一致性警告: {consistency_result.get('reason')}")
+                if 'added_features' in consistency_result:
+                    logger.warning(f"  新增特征数: {consistency_result.get('added_count', 0)}")
+                if 'removed_features' in consistency_result:
+                    logger.warning(f"  移除特征数: {consistency_result.get('removed_count', 0)}")
+            else:
+                logger.info(f"[prediction_preview] 特征一致性检查通过: 版本 {consistency_result.get('version_id', 'unknown')}")
+
             # 【BUG-3修复】与其他任务保持一致，排除 period/full_number/parse_line
             feature_cols = [col for col in features.columns
                             if col not in ['period', 'date', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']]
             
-            # 4. 加载模型
+            # 4. 加载模型并对齐特征（V1关键修复：使用模型存储的 feature_cols 而非全量特征）
             model_config = ModelConfig()
             predictor = EnhancedPL5Predictor(model_config)
+            predictor.load_models()  # 【prediction_preview BUG修复】显式加载模型，否则is_trained=False导致fallback均匀分布
             
-            # 【BUG-2关联修复】使用模型已训练的 feature_cols，确保训练-预测特征完全一致
-            if hasattr(predictor, 'feature_cols') and predictor.feature_cols:
-                available_feature_cols = [c for c in predictor.feature_cols if c in features.columns]
-                if available_feature_cols:
-                    feature_cols = available_feature_cols
-                    logger.info(f"[prediction_preview] 使用模型feature_cols({len(feature_cols)}个)")
-                else:
-                    logger.warning("[prediction_preview] 模型feature_cols与当前特征不匹配，使用过滤后的feature_cols")
+            if predictor.feature_cols and len(predictor.feature_cols) > 0:
+                # 用模型训练时的精确特征集，缺失列用0填充
+                missing = [c for c in predictor.feature_cols if c not in features.columns]
+                if missing:
+                    logger.warning(f"[prediction_preview] 模型特征列中有 {len(missing)} 个缺失，将用0填充: {missing[:3]}")
+                    for col in missing:
+                        features[col] = 0.0
+                feature_cols = predictor.feature_cols
+                logger.info(f"[prediction_preview] 使用模型训练时的 {len(feature_cols)} 个特征列")
+            else:
+                logger.warning("[prediction_preview] 模型无 feature_cols，使用全量特征 {len(feature_cols)} 个")
             
             # 5. 使用最新的特征进行预预测
             test_row = features.iloc[-1]

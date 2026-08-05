@@ -39,6 +39,49 @@ from src.core.workflow.intelligent_time_scheduler import IntelligentTimeSchedule
 
 logger = get_logger('scheduler')
 
+
+def _log_json_dump(data, path, tag: str, extra: dict = None):
+    """统一的 JSON 写入前后日志 + 失败诊断。
+
+    在关键节点(final_prediction、pre_sale、verification、preview、
+    feedback_history 等)调用，确保序列化失败时能精确定位是哪个嵌套
+    字段的哪种类型导致失败，避免再次出现静默吞异常。
+
+    Args:
+        data: 待序列化的对象
+        path: 写入路径(Path 或 str)
+        tag: 语义标签，如 "final_prediction"
+        extra: 额外诊断字段 dict
+    Returns:
+        True 写入成功，False 失败
+    """
+    import os as _os
+    extra_str = f" | extra={extra}" if extra else ""
+    logger.info(
+        f"[序列化-前] {tag} | path={path} | "
+        f"data_type={type(data).__name__}"
+        f"{extra_str}"
+    )
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        size = _os.path.getsize(path)
+        logger.info(f"[序列化-后] {tag} ✓ | size={size}B | path={_os.path.basename(path)}")
+        return True
+    except Exception as e:
+        # 延迟导入，避免循环依赖
+        try:
+            from src.core.feedback_learning import _diagnose_unserializable
+            diag = _diagnose_unserializable(data)
+        except Exception as diag_err:
+            diag = f"(诊断失败: {diag_err})"
+        logger.error(
+            f"[序列化-失败] {tag} ✗ | path={path} | err={e} | "
+            f"err_type={type(e).__name__} | diag={diag}"
+        )
+        return False
+
+
 # 任务依赖关系定义
 TASK_DEPENDENCIES = {
     'data_fetch': [],
@@ -1519,9 +1562,23 @@ class AutoSchedulerV8:
                     existing = existing[-100:]
                 with open(feedback_path, 'w', encoding='utf-8') as f:
                     json.dump(existing, f, indent=2, ensure_ascii=False, default=str)
+                import os as _os
+                _fb_size = _os.path.getsize(feedback_path)
+                logger.info(
+                    f"[序列化-后] feedback_learning_history ✓ | "
+                    f"size={_fb_size}B | records={len(existing)} | path={feedback_path.name}"
+                )
                 logger.info(f"[反馈闭环] 已保存命中率评估到 {feedback_path}")
             except Exception as e:
-                logger.warning(f"[反馈闭环] 保存feedback_learning_history失败: {e}")
+                try:
+                    from src.core.feedback_learning import _diagnose_unserializable
+                    diag = _diagnose_unserializable(existing)
+                except Exception as diag_err:
+                    diag = f"(诊断失败: {diag_err})"
+                logger.warning(
+                    f"[反馈闭环] 保存feedback_learning_history失败: {e} | "
+                    f"err_type={type(e).__name__} | diag={diag}"
+                )
 
             return summary
 
@@ -2868,8 +2925,13 @@ class AutoSchedulerV8:
                 prediction_info['last_period_numbers'] = last_period_numbers
             
             prediction_path = LOGS_DIR / "final_prediction.json"
-            with open(prediction_path, 'w', encoding='utf-8') as f:
-                json.dump(prediction_info, f, indent=2, ensure_ascii=False, default=str)
+            _log_json_dump(
+                prediction_info, prediction_path, "final_prediction",
+                extra={
+                    'next_period': prediction_info.get('next_period'),
+                    'positions': list(prediction.keys()),
+                }
+            )
             
             logger.info("✓ 最终预测完成")
             logger.info(f"预测期号: {prediction_info['next_period']}")
@@ -3003,8 +3065,13 @@ class AutoSchedulerV8:
             
             # 保存验证结果
             verification_path = LOGS_DIR / "prediction_verification.json"
-            with open(verification_path, 'w', encoding='utf-8') as f:
-                json.dump(verification_info, f, indent=2, ensure_ascii=False, default=str)
+            _log_json_dump(
+                verification_info, verification_path, "prediction_verification",
+                extra={
+                    'next_period': verification_info.get('next_period'),
+                    'positions': list(verification_prediction.keys()),
+                }
+            )
             
             logger.info("✓ 最终预测验证完成")
             logger.info(f"验证期号: {verification_info['next_period']}")
@@ -3134,8 +3201,13 @@ class AutoSchedulerV8:
             }
             
             pre_sale_path = LOGS_DIR / "pre_sale_prediction.json"
-            with open(pre_sale_path, 'w', encoding='utf-8') as f:
-                json.dump(pre_sale_info, f, indent=2, ensure_ascii=False, default=str)
+            _log_json_dump(
+                pre_sale_info, pre_sale_path, "pre_sale_prediction",
+                extra={
+                    'next_period': pre_sale_info.get('next_period'),
+                    'positions': list(pre_sale_prediction.keys()),
+                }
+            )
             
             logger.info("✓ 售前最终预测完成")
             logger.info(f"预测期号: {pre_sale_info['next_period']}")
@@ -3579,8 +3651,13 @@ class AutoSchedulerV8:
             }
             
             preview_path = LOGS_DIR / "prediction_preview.json"
-            with open(preview_path, 'w', encoding='utf-8') as f:
-                json.dump(preview_info, f, indent=2, ensure_ascii=False, default=str)
+            _log_json_dump(
+                preview_info, preview_path, "prediction_preview",
+                extra={
+                    'next_period': preview_info.get('next_period'),
+                    'positions': list(preview_prediction.keys()),
+                }
+            )
             
             logger.info("✓ 预测结果预生成完成（五次佐证）")
             logger.info(f"预测期号: {preview_info['next_period']}")

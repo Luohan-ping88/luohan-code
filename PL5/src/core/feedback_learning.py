@@ -21,6 +21,37 @@ _FEEDBACK_HISTORY_PATH = MODELS_DIR / "feedback_learning_history.json"
 _PREDICTION_HISTORY_PATH = MODELS_DIR / "prediction_history.json"
 
 
+def _diagnose_unserializable(obj, depth: int = 0, max_depth: int = 4) -> str:
+    """诊断定位第一个无法 JSON 序列化的字段，返回可读路径。
+
+    用于在 json.dump 失败时快速定位是哪个嵌套字段的哪种类型导致失败，
+    避免再次出现"日志报成功但文件未落盘"的静默故障。
+    """
+    if depth > max_depth:
+        return "..."
+    try:
+        json.dumps(obj, default=str)
+        return "ok(default=str 可处理)"
+    except Exception as e:
+        # 先看是否整体类型不支持
+        tname = type(obj).__name__
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                try:
+                    json.dumps(v, default=str)
+                except Exception:
+                    return f"dict[{k!r}] -> {_diagnose_unserializable(v, depth + 1, max_depth)}"
+            return f"dict(失败但子项均OK? err={e})"
+        if isinstance(obj, (list, tuple)):
+            for i, v in enumerate(obj):
+                try:
+                    json.dumps(v, default=str)
+                except Exception:
+                    return f"list[{i}] -> {_diagnose_unserializable(v, depth + 1, max_depth)}"
+            return f"list(失败但元素均OK? err={e})"
+        return f"{tname}({obj!r}) err={e}"
+
+
 class FeedbackAnalyzer:
     """反馈分析器 - 分析策略导致命中率低的原因"""
 
@@ -52,19 +83,44 @@ class FeedbackAnalyzer:
 
     def _save_feedback_history(self):
         """保存反馈学习历史"""
+        import os
+        logger.info(
+            f"[序列化-前] feedback_history | path={_FEEDBACK_HISTORY_PATH} | "
+            f"records={len(self.feedback_history)}"
+        )
         try:
             with open(_FEEDBACK_HISTORY_PATH, 'w', encoding='utf-8') as f:
                 json.dump(self.feedback_history, f, indent=2, ensure_ascii=False, default=str)
+            size = os.path.getsize(_FEEDBACK_HISTORY_PATH)
+            logger.info(
+                f"[序列化-后] feedback_history ✓ | size={size}B | path={_FEEDBACK_HISTORY_PATH.name}"
+            )
         except Exception as e:
-            logger.error(f"保存反馈学习历史失败: {e}")
+            # 诊断:定位第一个无法序列化的字段
+            diag = _diagnose_unserializable(self.feedback_history)
+            logger.error(
+                f"保存反馈学习历史失败: {e} | type={type(e).__name__} | diag={diag}"
+            )
 
     def _save_prediction_history(self):
         """保存预测历史"""
+        import os
+        logger.info(
+            f"[序列化-前] prediction_history | path={_PREDICTION_HISTORY_PATH} | "
+            f"records={len(self.prediction_history)}"
+        )
         try:
             with open(_PREDICTION_HISTORY_PATH, 'w', encoding='utf-8') as f:
                 json.dump(self.prediction_history, f, indent=2, ensure_ascii=False, default=str)
+            size = os.path.getsize(_PREDICTION_HISTORY_PATH)
+            logger.info(
+                f"[序列化-后] prediction_history ✓ | size={size}B | path={_PREDICTION_HISTORY_PATH.name}"
+            )
         except Exception as e:
-            logger.error(f"保存预测历史失败: {e}")
+            diag = _diagnose_unserializable(self.prediction_history)
+            logger.error(
+                f"保存预测历史失败: {e} | type={type(e).__name__} | diag={diag}"
+            )
 
     def analyze_strategy_performance(self, window_size: int = 20) -> Dict:
         """分析策略性能，重点关注8码命中率"""
@@ -544,6 +600,20 @@ class FeedbackAnalyzer:
 
     def update_prediction_history(self, predictions: Dict, period: str):
         """更新预测历史"""
+        # 入参类型诊断：记录 predictions 的关键字段类型，便于排查 numpy 类型泄漏
+        pred_types = {}
+        for pos, pdata in (predictions or {}).items():
+            if isinstance(pdata, dict):
+                top_k = pdata.get('top_k', [])
+                pred_types[pos] = {
+                    'top_k_type': type(top_k).__name__,
+                    'top_k_first_type': type(top_k[0]).__name__ if len(top_k) > 0 else 'N/A',
+                    'has_model_predictions': 'model_predictions' in pdata,
+                }
+        logger.info(
+            f"[序列化-入参] update_prediction_history | period={period} | "
+            f"pred_positions={list(pred_types.keys())} | types={pred_types}"
+        )
         prediction_record = {
             'timestamp': datetime.now().isoformat(),
             'period': period,

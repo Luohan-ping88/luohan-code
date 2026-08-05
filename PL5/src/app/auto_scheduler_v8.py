@@ -1835,7 +1835,25 @@ class AutoSchedulerV8:
                 if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']
             ]
             logger.info(f"  特征工程完成: {len(feature_cols)} 个特征")
-            
+
+            # 【V10.8】特征与数据诊断（特征空间覆盖度 + 样本量饱和 + 频域）
+            # 无副作用：仅诊断和报告，不修改训练流程
+            try:
+                from src.core.features.diagnostics import run_full_diagnostics
+                feature_matrix = df_features[feature_cols].values
+                labels = df[['wan', 'qian', 'bai', 'shi', 'ge']].values
+                positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+                series_dict = {pos: df[pos].values for pos in positions}
+                self._diagnostics_result = run_full_diagnostics(
+                    feature_matrix=feature_matrix,
+                    feature_names=feature_cols,
+                    labels=labels,
+                    series_dict=series_dict,
+                )
+            except Exception as diag_err:
+                logger.warning(f"特征与数据诊断失败（非致命）: {diag_err}", exc_info=True)
+                self._diagnostics_result = {"error": str(diag_err)}
+
             predictor = EnhancedPL5Predictor()
             loaded = predictor.load_models()
             
@@ -1954,7 +1972,24 @@ class AutoSchedulerV8:
                 if col not in ['date', 'period', 'full_number', 'parse_line', 'wan', 'qian', 'bai', 'shi', 'ge']
             ]
             logger.info(f"  特征工程完成: {len(feature_cols)} 个特征")
-            
+
+            # 【V10.8】特征与数据诊断（特征空间覆盖度 + 样本量饱和 + 频域）
+            try:
+                from src.core.features.diagnostics import run_full_diagnostics
+                feature_matrix = df_features[feature_cols].values
+                labels = df[['wan', 'qian', 'bai', 'shi', 'ge']].values
+                positions = ['wan', 'qian', 'bai', 'shi', 'ge']
+                series_dict = {pos: df[pos].values for pos in positions}
+                self._diagnostics_result = run_full_diagnostics(
+                    feature_matrix=feature_matrix,
+                    feature_names=feature_cols,
+                    labels=labels,
+                    series_dict=series_dict,
+                )
+            except Exception as diag_err:
+                logger.warning(f"特征与数据诊断失败（非致命）: {diag_err}", exc_info=True)
+                self._diagnostics_result = {"error": str(diag_err)}
+
             self.log_status("深度学习", "检查训练策略", 30)
             sls = SelfLearningSystem()
             should_retrain, reason = sls.should_trigger_retrain()

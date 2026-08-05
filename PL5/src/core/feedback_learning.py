@@ -54,7 +54,7 @@ class FeedbackAnalyzer:
         """保存反馈学习历史"""
         try:
             with open(_FEEDBACK_HISTORY_PATH, 'w', encoding='utf-8') as f:
-                json.dump(self.feedback_history, f, indent=2, ensure_ascii=False)
+                json.dump(self.feedback_history, f, indent=2, ensure_ascii=False, default=str)
         except Exception as e:
             logger.error(f"保存反馈学习历史失败: {e}")
 
@@ -62,7 +62,7 @@ class FeedbackAnalyzer:
         """保存预测历史"""
         try:
             with open(_PREDICTION_HISTORY_PATH, 'w', encoding='utf-8') as f:
-                json.dump(self.prediction_history, f, indent=2, ensure_ascii=False)
+                json.dump(self.prediction_history, f, indent=2, ensure_ascii=False, default=str)
         except Exception as e:
             logger.error(f"保存预测历史失败: {e}")
 

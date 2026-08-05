@@ -1,11 +1,26 @@
 # 运行时状态与模型产物（运行时自动生成，不应入库）
 # 注意: 只忽略 PL5 顶层的 models/logs/health/workflows/backups 目录,
 # 不要忽略源代码目录(如 PL5/src/core/models/)
-/PL5/models/
-/PL5/logs/
+# V10.7 修复: 改为 /* 形式(忽略目录内容但保留目录),以便白名单 ! 规则能生效
+/PL5/models/*
+/PL5/logs/*
 /PL5/health/
 /PL5/workflows/
 /PL5/backups/
+
+# === V10.7 复盘闭环白名单：必须跟踪的关键状态文件 ===
+# 这些文件是预测-开奖复盘对比的核心数据，不能被忽略
+!/PL5/models/prediction_history.json
+!/PL5/models/feedback_learning_history.json
+!/PL5/logs/final_prediction.json
+!/PL5/logs/training_info.json
+!/PL5/logs/pre_sale_prediction.json
+!/PL5/logs/first_prediction_verification.json
+!/PL5/logs/second_prediction_verification.json
+!/PL5/logs/third_prediction_verification.json
+!/PL5/logs/final_prediction_verification.json
+!/PL5/logs/prediction_verification.json
+!/PL5/logs/best_feature_config.json
 
 # Python
 __pycache__/

@@ -39,6 +39,20 @@ logs/performance/
 logs/reports/
 logs/sentinel/
 
+# === V10.7 复盘闭环白名单：必须跟踪的关键状态文件 ===
+# 这些文件是预测-开奖复盘对比的核心数据，不能被忽略
+!models/prediction_history.json
+!models/feedback_learning_history.json
+!logs/final_prediction.json
+!logs/training_info.json
+!logs/pre_sale_prediction.json
+!logs/first_prediction_verification.json
+!logs/second_prediction_verification.json
+!logs/third_prediction_verification.json
+!logs/final_prediction_verification.json
+!logs/prediction_verification.json
+!logs/best_feature_config.json
+
 # 备份文件
 backups/
 *.zip

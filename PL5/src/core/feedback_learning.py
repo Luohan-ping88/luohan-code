@@ -667,7 +667,7 @@ class FeedbackAnalyzer:
                 existing.append(applied)
                 existing = existing[-50:]
                 with open(history_path, 'w', encoding='utf-8') as f:
-                    json.dump(existing, f, indent=2, ensure_ascii=False)
+                    json.dump(existing, f, indent=2, ensure_ascii=False, default=str)
             except Exception as e:
                 logger.warning(f"[FeedbackLearning] 持久化应用记录失败: {e}")
 
@@ -714,7 +714,7 @@ class FeedbackLearningSystem:
         learning_report_path = LOGS_DIR / f"feedback_learning_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         try:
             with open(learning_report_path, 'w', encoding='utf-8') as f:
-                json.dump(learning_report, f, indent=2, ensure_ascii=False)
+                json.dump(learning_report, f, indent=2, ensure_ascii=False, default=str)
             logger.info(f"学习报告已保存: {learning_report_path}")
         except Exception as e:
             logger.error(f"保存学习报告失败: {e}")
@@ -752,7 +752,7 @@ class FeedbackLearningSystem:
         eight_code_report_path = LOGS_DIR / f"eight_code_optimization_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         try:
             with open(eight_code_report_path, 'w', encoding='utf-8') as f:
-                json.dump(eight_code_report, f, indent=2, ensure_ascii=False)
+                json.dump(eight_code_report, f, indent=2, ensure_ascii=False, default=str)
             logger.info(f"8码优化报告已保存: {eight_code_report_path}")
         except Exception as e:
             logger.error(f"保存8码优化报告失败: {e}")

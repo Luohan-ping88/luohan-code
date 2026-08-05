@@ -279,7 +279,7 @@ class AutoSchedulerV8:
     def save_config(self):
         """保存配置"""
         with open(self.config_file, 'w', encoding='utf-8') as f:
-            json.dump(self.config, f, indent=2, ensure_ascii=False)
+            json.dump(self.config, f, indent=2, ensure_ascii=False, default=str)
     
     def load_workflow_config(self):
         """加载智能工作流配置"""
@@ -321,7 +321,7 @@ class AutoSchedulerV8:
         """保存智能工作流配置"""
         if self.workflow_config:
             with open(self.workflow_config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.workflow_config, f, indent=2, ensure_ascii=False)
+                json.dump(self.workflow_config, f, indent=2, ensure_ascii=False, default=str)
     
     def init_orchestrator(self):
         if self.workflow_enabled:
@@ -457,7 +457,7 @@ class AutoSchedulerV8:
         try:
             status_file = LOGS_DIR / "scheduler_v8_status.json"
             with open(status_file, 'w', encoding='utf-8') as f:
-                json.dump(self.current_status, f, indent=2, ensure_ascii=False)
+                json.dump(self.current_status, f, indent=2, ensure_ascii=False, default=str)
         except Exception as e:
             logger.error(f"保存当前状态失败: {e}")
     
@@ -1518,7 +1518,7 @@ class AutoSchedulerV8:
                 if len(existing) > 100:
                     existing = existing[-100:]
                 with open(feedback_path, 'w', encoding='utf-8') as f:
-                    json.dump(existing, f, indent=2, ensure_ascii=False)
+                    json.dump(existing, f, indent=2, ensure_ascii=False, default=str)
                 logger.info(f"[反馈闭环] 已保存命中率评估到 {feedback_path}")
             except Exception as e:
                 logger.warning(f"[反馈闭环] 保存feedback_learning_history失败: {e}")
@@ -1628,7 +1628,7 @@ class AutoSchedulerV8:
             for config_dir in [LOGS_DIR, MODELS_DIR]:
                 best_config_path = config_dir / "best_feature_config.json"
                 with open(best_config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config_data, f, indent=2, ensure_ascii=False)
+                    json.dump(config_data, f, indent=2, ensure_ascii=False, default=str)
                 logger.info(f"[_save_feature_config] 特征配置已保存到: {best_config_path}")
         except Exception as e:
             logger.warning(f"[_save_feature_config] 保存特征配置失败: {e}")
@@ -2018,7 +2018,7 @@ class AutoSchedulerV8:
             
             training_info_path = LOGS_DIR / "training_info.json"
             with open(training_info_path, 'w', encoding='utf-8') as f:
-                json.dump(training_info, f, indent=2, ensure_ascii=False)
+                json.dump(training_info, f, indent=2, ensure_ascii=False, default=str)
             
             if self.workflow_enabled and self.orchestrator:
                 self.orchestrator.complete_task(task_name, training_info)
@@ -2206,7 +2206,7 @@ class AutoSchedulerV8:
 
             report_info_path = LOGS_DIR / "report_info.json"
             with open(report_info_path, 'w', encoding='utf-8') as f:
-                json.dump(report_info, f, indent=2, ensure_ascii=False)
+                json.dump(report_info, f, indent=2, ensure_ascii=False, default=str)
 
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             structured_logger.log_operation_success(
@@ -2461,7 +2461,7 @@ class AutoSchedulerV8:
                 ts_config['note'] = f'{today} 日循环任务自动更新'
                 ts_config['skip_recovery'] = True
                 with open(training_status_path, 'w', encoding='utf-8') as f:
-                    json.dump(ts_config, f, indent=4, ensure_ascii=False)
+                    json.dump(ts_config, f, indent=4, ensure_ascii=False, default=str)
                 logger.info(f"【配置更新】training_status.json 已更新 (期号: {ts_config.get('last_completed_period', 'N/A')})")
 
             # 2. 更新 scheduler_config_v8.json
@@ -2475,7 +2475,7 @@ class AutoSchedulerV8:
                 sched_config['last_completed_period'] = ts_config.get('last_completed_period', sched_config.get('last_completed_period', ''))
                 sched_config['skip_recovery'] = True
                 with open(scheduler_config_path, 'w', encoding='utf-8') as f:
-                    json.dump(sched_config, f, indent=2, ensure_ascii=False)
+                    json.dump(sched_config, f, indent=2, ensure_ascii=False, default=str)
                 logger.info(f"【配置更新】scheduler_config_v8.json 已更新 (期号: {sched_config.get('last_completed_period', 'N/A')})")
 
         except Exception as e:
@@ -2869,7 +2869,7 @@ class AutoSchedulerV8:
             
             prediction_path = LOGS_DIR / "final_prediction.json"
             with open(prediction_path, 'w', encoding='utf-8') as f:
-                json.dump(prediction_info, f, indent=2, ensure_ascii=False)
+                json.dump(prediction_info, f, indent=2, ensure_ascii=False, default=str)
             
             logger.info("✓ 最终预测完成")
             logger.info(f"预测期号: {prediction_info['next_period']}")
@@ -3004,7 +3004,7 @@ class AutoSchedulerV8:
             # 保存验证结果
             verification_path = LOGS_DIR / "prediction_verification.json"
             with open(verification_path, 'w', encoding='utf-8') as f:
-                json.dump(verification_info, f, indent=2, ensure_ascii=False)
+                json.dump(verification_info, f, indent=2, ensure_ascii=False, default=str)
             
             logger.info("✓ 最终预测验证完成")
             logger.info(f"验证期号: {verification_info['next_period']}")
@@ -3135,7 +3135,7 @@ class AutoSchedulerV8:
             
             pre_sale_path = LOGS_DIR / "pre_sale_prediction.json"
             with open(pre_sale_path, 'w', encoding='utf-8') as f:
-                json.dump(pre_sale_info, f, indent=2, ensure_ascii=False)
+                json.dump(pre_sale_info, f, indent=2, ensure_ascii=False, default=str)
             
             logger.info("✓ 售前最终预测完成")
             logger.info(f"预测期号: {pre_sale_info['next_period']}")
@@ -3290,7 +3290,7 @@ class AutoSchedulerV8:
             
             output_path = LOGS_DIR / output_file
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(verification_info, f, indent=2, ensure_ascii=False)
+                json.dump(verification_info, f, indent=2, ensure_ascii=False, default=str)
             
             logger.info(f"✓ {round_name} 完成")
             logger.info(f"预测期号: {verification_info['next_period']}")
@@ -3415,7 +3415,7 @@ class AutoSchedulerV8:
             
             deep_optimization_path = LOGS_DIR / "deep_strategy_optimization.json"
             with open(deep_optimization_path, 'w', encoding='utf-8') as f:
-                json.dump(deep_optimization_info, f, indent=2, ensure_ascii=False)
+                json.dump(deep_optimization_info, f, indent=2, ensure_ascii=False, default=str)
             
             sls.flush()
             self.log_status("深度策略优化", "完成", 100)
@@ -3580,7 +3580,7 @@ class AutoSchedulerV8:
             
             preview_path = LOGS_DIR / "prediction_preview.json"
             with open(preview_path, 'w', encoding='utf-8') as f:
-                json.dump(preview_info, f, indent=2, ensure_ascii=False)
+                json.dump(preview_info, f, indent=2, ensure_ascii=False, default=str)
             
             logger.info("✓ 预测结果预生成完成（五次佐证）")
             logger.info(f"预测期号: {preview_info['next_period']}")

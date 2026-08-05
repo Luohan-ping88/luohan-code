@@ -1220,14 +1220,33 @@ class AutoSchedulerV8:
     # =========================================================================
 
     def _record_prediction(self, predictions: Dict, period: str, prediction_type: str = "final"):
-        """记录预测结果到 prediction_history.json，用于后续开奖对比"""
+        """记录预测结果到 prediction_history.json，用于后续开奖对比
+
+        V10.8: 改用 safe_update_prediction_history，获得分层异常捕获
+        + 堆栈记录 + 内存回滚能力，避免静默失败。
+        """
         try:
             from src.core.feedback_learning import FeedbackAnalyzer
             analyzer = FeedbackAnalyzer()
-            analyzer.update_prediction_history(predictions, period)
-            logger.info(f"[反馈闭环] 已记录{prediction_type}预测到prediction_history (期号: {period})")
+            ok = analyzer.safe_update_prediction_history(predictions, period)
+            if ok:
+                logger.info(
+                    f"[反馈闭环] 已记录{prediction_type}预测到prediction_history "
+                    f"(期号: {period}) ✓"
+                )
+            else:
+                # safe_ 已记录详细 ERROR 日志（含堆栈+诊断），此处仅摘要
+                logger.warning(
+                    f"[反馈闭环] 记录{prediction_type}预测失败(已知序列化错误) "
+                    f"(期号: {period}) ✗ - 见 [序列化-已知错误] 日志"
+                )
         except Exception as e:
-            logger.warning(f"[反馈闭环] 记录预测失败（非致命）: {e}")
+            # safe_update_prediction_history 上抛的非预期异常
+            logger.error(
+                f"[反馈闭环] 记录{prediction_type}预测发生非预期异常 "
+                f"(期号: {period}) | err_type={type(e).__name__} | err={e}",
+                exc_info=True
+            )
 
     def _record_prediction_to_kg(self, predictions: Dict, period: str, prediction_type: str = "final"):
         """【V10.7 图数据库知识图谱】将当前运行产生的预测写入知识图谱。

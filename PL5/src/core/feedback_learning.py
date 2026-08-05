@@ -103,24 +103,21 @@ class FeedbackAnalyzer:
             )
 
     def _save_prediction_history(self):
-        """保存预测历史"""
+        """保存预测历史（异常上抛，由调用方决定是否捕获）"""
         import os
         logger.info(
             f"[序列化-前] prediction_history | path={_PREDICTION_HISTORY_PATH} | "
             f"records={len(self.prediction_history)}"
         )
-        try:
-            with open(_PREDICTION_HISTORY_PATH, 'w', encoding='utf-8') as f:
-                json.dump(self.prediction_history, f, indent=2, ensure_ascii=False, default=str)
-            size = os.path.getsize(_PREDICTION_HISTORY_PATH)
-            logger.info(
-                f"[序列化-后] prediction_history ✓ | size={size}B | path={_PREDICTION_HISTORY_PATH.name}"
-            )
-        except Exception as e:
-            diag = _diagnose_unserializable(self.prediction_history)
-            logger.error(
-                f"保存预测历史失败: {e} | type={type(e).__name__} | diag={diag}"
-            )
+        # 不再在此处捕获异常：让 safe_update_prediction_history 的分层
+        # try/except 精确处理。原 update_prediction_history 通过自身的
+        # 外层 try/except 保持向后兼容的静默行为。
+        with open(_PREDICTION_HISTORY_PATH, 'w', encoding='utf-8') as f:
+            json.dump(self.prediction_history, f, indent=2, ensure_ascii=False, default=str)
+        size = os.path.getsize(_PREDICTION_HISTORY_PATH)
+        logger.info(
+            f"[序列化-后] prediction_history ✓ | size={size}B | path={_PREDICTION_HISTORY_PATH.name}"
+        )
 
     def analyze_strategy_performance(self, window_size: int = 20) -> Dict:
         """分析策略性能，重点关注8码命中率"""
@@ -599,7 +596,19 @@ class FeedbackAnalyzer:
         return "\n".join(report)
 
     def update_prediction_history(self, predictions: Dict, period: str):
-        """更新预测历史"""
+        """更新预测历史（原静默行为：异常被吞掉只记日志，不上抛）"""
+        try:
+            self._update_prediction_history_core(predictions, period)
+        except Exception as e:
+            # 保留向后兼容：原调用方不预期异常上抛
+            logger.error(
+                f"[update_prediction_history] 发生异常(静默吞掉) | "
+                f"period={period} | err_type={type(e).__name__} | err={e}",
+                exc_info=True
+            )
+
+    def _update_prediction_history_core(self, predictions: Dict, period: str):
+        """update_prediction_history 的核心实现（异常上抛，供 safe_ 版本复用）"""
         # 入参类型诊断：记录 predictions 的关键字段类型，便于排查 numpy 类型泄漏
         pred_types = {}
         for pos, pdata in (predictions or {}).items():
@@ -619,11 +628,95 @@ class FeedbackAnalyzer:
             'period': period,
             'predictions': predictions
         }
-        
+
+        # ── 主流程：内存追加 + 落盘 ──
         self.prediction_history.append(prediction_record)
         if len(self.prediction_history) > 100:
             self.prediction_history = self.prediction_history[-100:]
         self._save_prediction_history()
+
+    def safe_update_prediction_history(self, predictions: Dict, period: str) -> bool:
+        """【V10.8 增强】带分层异常捕获的预测历史更新。
+
+        在 update_prediction_history 基础上增加专门的异常捕获块，处理
+        非预期的序列化错误并记录完整堆栈，避免静默失败。
+
+        异常分层策略：
+        - TypeError / ValueError: 已知的序列化类型错误（numpy 等），
+          记录诊断信息但不上抛（可恢复，下一次循环重试）
+        - 其它 Exception: 非预期错误，记录完整堆栈 + 诊断 + 内存回滚，
+          上抛调用方决定是否继续
+
+        Returns:
+            True 成功，False 已知错误被吞掉
+        """
+        import traceback
+        before_len = len(self.prediction_history)
+
+        # 入参类型诊断
+        pred_types = {}
+        for pos, pdata in (predictions or {}).items():
+            if isinstance(pdata, dict):
+                top_k = pdata.get('top_k', [])
+                pred_types[pos] = {
+                    'top_k_type': type(top_k).__name__,
+                    'top_k_first_type': type(top_k[0]).__name__ if len(top_k) > 0 else 'N/A',
+                    'has_model_predictions': 'model_predictions' in pdata,
+                }
+        logger.info(
+            f"[序列化-入参] safe_update_prediction_history | period={period} | "
+            f"pred_positions={list(pred_types.keys())} | types={pred_types}"
+        )
+
+        prediction_record = {
+            'timestamp': datetime.now().isoformat(),
+            'period': period,
+            'predictions': predictions
+        }
+
+        # 主流程：内存追加 + 落盘
+        try:
+            self.prediction_history.append(prediction_record)
+            if len(self.prediction_history) > 100:
+                self.prediction_history = self.prediction_history[-100:]
+            self._save_prediction_history()
+            return True
+
+        except (TypeError, ValueError) as ser_err:
+            # 已知序列化错误：numpy/非JSON类型。记录诊断 + 堆栈，回滚内存
+            diag = _diagnose_unserializable([prediction_record])
+            logger.error(
+                f"[序列化-已知错误] safe_update_prediction_history 失败 | "
+                f"period={period} | err_type={type(ser_err).__name__} | "
+                f"err={ser_err} | diag={diag}",
+                exc_info=True  # 记录完整堆栈
+            )
+            # 内存回滚：移除刚追加但未能落盘的记录
+            if len(self.prediction_history) > before_len:
+                self.prediction_history.pop()
+            logger.warning(
+                f"[序列化-回滚] 已回滚 prediction_history | "
+                f"before={before_len} after={len(self.prediction_history)}"
+            )
+            return False
+
+        except Exception as unexpected_err:
+            # 非预期错误：记录完整堆栈 + 诊断，上抛让调用方决策
+            diag = _diagnose_unserializable([prediction_record])
+            stack = traceback.format_exc()
+            logger.error(
+                f"[序列化-非预期错误] safe_update_prediction_history 发生非预期异常 | "
+                f"period={period} | err_type={type(unexpected_err).__name__} | "
+                f"err={unexpected_err} | diag={diag} | stack=\n{stack}"
+            )
+            # 内存回滚
+            if len(self.prediction_history) > before_len:
+                self.prediction_history.pop()
+            logger.warning(
+                f"[序列化-回滚] 已回滚 prediction_history | "
+                f"before={before_len} after={len(self.prediction_history)}"
+            )
+            raise
 
     def run_feedback_analysis(self, window_size: int = 20) -> Dict:
         """运行完整的反馈分析"""

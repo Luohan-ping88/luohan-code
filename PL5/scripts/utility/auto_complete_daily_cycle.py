@@ -270,8 +270,25 @@ def generate_summary_report(run_date_str, tasks, training_info, recent_draws,
         lines.append("本次运行未出现致命错误。")
     else:
         lines.extend(issues)
-    # torch 备注
-    lines.append("\n**备注**: torch 已安装（2.13.0+cpu），Mamba / iTransformer 模型可正常训练；全部 6 大模型（Stacking/HMM/Copula/BSTS/Mamba/iTransformer）+ 贝叶斯量化器完整启用。")
+    # torch 备注（【修复】动态检测而非硬编码）
+    try:
+        import torch as _torch
+        _torch_ver = getattr(_torch, '__version__', 'N/A')
+        _torch_ok = True
+    except Exception:
+        _torch_ok = False
+        _torch_ver = '未安装'
+    # 从 training_info 的 models 字段读取真实启用状态（缺省时基于全局默认推断）
+    md = (training_info or {}).get('models', {}) if isinstance(training_info, dict) else {}
+    if md:
+        model_list = []
+        for _k in ('stacking', 'hmm', 'copula', 'bsts', 'mamba', 'itransformer', 'bayesian_quantifier'):
+            if md.get(_k):
+                model_list.append(_k)
+        enabled_desc = f"{len(model_list)} 个组件已启用: {', '.join(model_list)}" if model_list else "models 字段为空"
+    else:
+        enabled_desc = "模型启用详情见 predictor"
+    lines.append(f"\n**备注**: torch={_torch_ver}（{'已安装，Mamba/iTransformer 可训练' if _torch_ok else '未安装，Mamba/iTransformer 将自动降级'}）；{enabled_desc}。")
 
     # 跟进
     lines.append("\n---\n\n## 五、后续跟进事项\n")

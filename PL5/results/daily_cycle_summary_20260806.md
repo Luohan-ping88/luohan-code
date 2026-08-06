@@ -41,6 +41,14 @@
 - **特征数量**: 670
 - **数据量**: 7683
 - **最新期号**: 2026208
+- **模型状态**:
+  - stacking: 已启用
+  - hmm: 已启用
+  - copula: 已启用
+  - bsts: 已启用
+  - mamba: 已启用
+  - itransformer: 已启用
+  - bayesian_quantifier: 已启用
 
 ---
 
@@ -82,7 +90,7 @@
 
 本次运行未出现致命错误。
 
-**备注**: torch 已安装（2.13.0+cpu），Mamba / iTransformer 模型可正常训练；全部 6 大模型（Stacking/HMM/Copula/BSTS/Mamba/iTransformer）+ 贝叶斯量化器完整启用。
+**备注**: torch=2.13.0+cpu（已安装，Mamba/iTransformer 可训练）；7 个组件已启用: stacking, hmm, copula, bsts, mamba, itransformer, bayesian_quantifier。
 
 ---
 
@@ -110,5 +118,5 @@
 本次日循环任务以**生产模式**执行，14/14 个任务成功完成，总耗时 约6小时28分。
 最终预测结果已基于真实管线输出生成 Top-8 报告（见 results/top8_training_prediction_report_*.md）。
 
-**报告生成时间**: 2026-08-06 20:44:27
+**报告生成时间**: 2026-08-06 20:47:37
 **报告版本**: V1.0 (自动收尾生成)

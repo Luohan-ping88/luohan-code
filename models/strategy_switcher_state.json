@@ -1,0 +1,24 @@
+{
+  "current_strategy": "default",
+  "switch_count": 0,
+  "eval_count": 1,
+  "last_switch_idx": -999,
+  "combo_mode": false,
+  "combo_weights": {},
+  "last_psi": 0.0,
+  "strategy_performance": {
+    "default": [
+      {
+        "period": "2026208",
+        "top1": 1,
+        "top3": 0,
+        "top8": 0,
+        "timestamp": "2026-08-06T14:17:20.093991"
+      }
+    ],
+    "stacking_dominant": [],
+    "hmm_dominant": [],
+    "copula_dominant": [],
+    "voting_ensemble": []
+  }
+}

@@ -2087,13 +2087,24 @@ class AutoSchedulerV8:
             logger.info("  深度学习训练完成")
             
             # 保存训练信息（【修复BUG-04】latest_period 强制转 str，防止 numpy.int64 序列化失败）
+            # 【修复BUG-05】新增 models 字段，与 main.py cmd_train 保持一致，
+            # 供 daily_cycle_summary 和 top8_report 的训练模型信息章节展示
             training_info = {
                 'model_version': 'V10.3',
                 'training_time': (datetime.now() - start_time).total_seconds(),
                 'feature_count': len(feature_cols),
                 'data_count': len(df),
                 'latest_period': str(df['period'].iloc[-1]),
-                'training_status': 'SUCCESS'
+                'training_status': 'SUCCESS',
+                'models': {
+                    'stacking': bool(getattr(predictor, 'stacking', None)),
+                    'hmm': bool(getattr(predictor, 'hmm_models', None)),
+                    'copula': getattr(predictor, 'copula_model', None) is not None,
+                    'bsts': bool(getattr(predictor, 'bsts_models', None)),
+                    'mamba': getattr(predictor, 'mamba_predictor', None) is not None,
+                    'itransformer': getattr(predictor, 'itransformer_predictor', None) is not None,
+                    'bayesian_quantifier': getattr(predictor, 'bayesian_quantifier', None) is not None,
+                }
             }
             
             training_info_path = LOGS_DIR / "training_info.json"

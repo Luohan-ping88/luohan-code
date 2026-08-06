@@ -430,9 +430,12 @@ def git_commit_and_push(report_files):
     except Exception:
         pass
 
-    # 添加：报告、配置、可能的代码变更
+    # 添加：报告、配置、源代码修复、可能的代码变更
+    # 【修复BUG-06】将 src/ 加入 add_paths，确保源代码修复（如 auto_scheduler_v8.py 的 models 字段修复）
+    # 会被自动提交，而不是只提交特定文件
     add_paths = ['results/', 'config/', 'logs/training_info.json', 'logs/final_prediction.json',
-                 'scripts/utility/auto_complete_daily_cycle.py', 'requirements.txt']
+                 'scripts/utility/auto_complete_daily_cycle.py', 'requirements.txt',
+                 'src/']
     for p in add_paths:
         subprocess.run(['git', 'add', p], cwd=str(PROJECT_ROOT),
                        capture_output=True, text=True, timeout=15)

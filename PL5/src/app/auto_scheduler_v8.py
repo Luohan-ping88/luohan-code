@@ -1180,11 +1180,85 @@ class AutoSchedulerV8:
         """记录预测结果到 prediction_history.json，用于后续开奖对比"""
         try:
             from src.core.feedback_learning import FeedbackAnalyzer
+            from src.core.config import MODELS_DIR
+            MODELS_DIR.mkdir(parents=True, exist_ok=True)
             analyzer = FeedbackAnalyzer()
             analyzer.update_prediction_history(predictions, period)
-            logger.info(f"[反馈闭环] 已记录{prediction_type}预测到prediction_history (期号: {period})")
+            # 写入验证
+            pred_hist_path = MODELS_DIR / "prediction_history.json"
+            if pred_hist_path.exists():
+                logger.info(f"[反馈闭环] 已记录{prediction_type}预测到prediction_history (期号: {period}), 共{len(analyzer.prediction_history)}条")
+            else:
+                logger.error(f"[反馈闭环] 预测记录写入后文件不存在! 路径={pred_hist_path}")
         except Exception as e:
-            logger.warning(f"[反馈闭环] 记录预测失败（非致命）: {e}")
+            logger.error(f"[反馈闭环] 记录预测失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _backfill_prediction_history_from_reports(self, analyzer, df) -> int:
+        """从 results/prediction_*_report.txt 历史报告回填 prediction_history。
+        当 prediction_history.json 不存在或为空时自动调用，确保反馈闭环不断链。
+        """
+        import re
+        from src.core.config import RESULTS_DIR
+        try:
+            report_files = sorted(RESULTS_DIR.glob("prediction_*_report.txt"))
+            if not report_files:
+                logger.warning("[反馈闭环] 未找到历史预测报告文件")
+                return 0
+
+            positions_map = [('万位', 'wan'), ('千位', 'qian'), ('百位', 'bai'), ('十位', 'shi'), ('个位', 'ge')]
+            df_periods = set(df['period'].astype(str).tolist())
+            backfilled = 0
+
+            for rf in report_files:
+                try:
+                    text = rf.read_text(encoding='utf-8')
+                    # 提取期号
+                    period_match = re.search(r'第(\d+)期', text)
+                    if not period_match:
+                        continue
+                    period = period_match.group(1)
+
+                    # 跳过尚未开奖的期号（不在 df 中）
+                    if period not in df_periods:
+                        continue
+
+                    # 跳过已存在的记录
+                    if any(r.get('period') == period for r in analyzer.prediction_history):
+                        continue
+
+                    # 解析各位置 Top-8
+                    preds = {}
+                    for pos_cn, pos_key in positions_map:
+                        pattern = rf'{pos_cn}:\s*\n\s*推荐8个号码:\s*\[([0-9, ]+)\]'
+                        m = re.search(pattern, text)
+                        if m:
+                            nums = [int(x.strip()) for x in m.group(1).split(',')]
+                            preds[pos_key] = {'top_k': nums}
+
+                    if len(preds) == 5:
+                        record = {
+                            'timestamp': f'{period[:4]}-01-01T00:00:00',
+                            'period': period,
+                            'predictions': preds,
+                            'source': 'backfill_from_report'
+                        }
+                        analyzer.prediction_history.append(record)
+                        backfilled += 1
+                except Exception:
+                    continue
+
+            if backfilled > 0:
+                # 保留最近100条
+                if len(analyzer.prediction_history) > 100:
+                    analyzer.prediction_history = analyzer.prediction_history[-100:]
+                analyzer._save_prediction_history()
+                logger.info(f"[反馈闭环] 回填完成: {backfilled} 条记录已写入 prediction_history.json")
+            return backfilled
+        except Exception as e:
+            logger.error(f"[反馈闭环] 回填预测历史失败: {e}")
+            return 0
 
     def _record_prediction_to_kg(self, predictions: Dict, period: str, prediction_type: str = "final"):
         """【V10.7 图数据库知识图谱】将当前运行产生的预测写入知识图谱。
@@ -1309,8 +1383,14 @@ class AutoSchedulerV8:
             analyzer = FeedbackAnalyzer()
             predictions = analyzer.prediction_history
             if not predictions:
-                logger.warning("[反馈闭环] prediction_history为空，无法评估实际命中率")
-                return {}
+                logger.warning("[反馈闭环] prediction_history为空，尝试从历史报告回填...")
+                backfilled = self._backfill_prediction_history_from_reports(analyzer, df)
+                if backfilled > 0:
+                    predictions = analyzer.prediction_history
+                    logger.info(f"[反馈闭环] 从历史报告回填 {backfilled} 条预测记录，继续评估")
+                else:
+                    logger.warning("[反馈闭环] 回填失败，prediction_history仍为空，无法评估实际命中率")
+                    return {}
 
             logger.info(f"[反馈闭环] 加载到 {len(predictions)} 条预测历史记录")
 

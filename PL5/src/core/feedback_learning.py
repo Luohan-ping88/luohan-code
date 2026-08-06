@@ -53,16 +53,24 @@ class FeedbackAnalyzer:
     def _save_feedback_history(self):
         """保存反馈学习历史"""
         try:
+            MODELS_DIR.mkdir(parents=True, exist_ok=True)
             with open(_FEEDBACK_HISTORY_PATH, 'w', encoding='utf-8') as f:
                 json.dump(self.feedback_history, f, indent=2, ensure_ascii=False)
+            if not _FEEDBACK_HISTORY_PATH.exists():
+                logger.error(f"[反馈闭环] 反馈历史写入后验证失败: {_FEEDBACK_HISTORY_PATH}")
         except Exception as e:
             logger.error(f"保存反馈学习历史失败: {e}")
 
     def _save_prediction_history(self):
         """保存预测历史"""
         try:
+            MODELS_DIR.mkdir(parents=True, exist_ok=True)
             with open(_PREDICTION_HISTORY_PATH, 'w', encoding='utf-8') as f:
                 json.dump(self.prediction_history, f, indent=2, ensure_ascii=False)
+            if not _PREDICTION_HISTORY_PATH.exists():
+                logger.error(f"[反馈闭环] 预测历史写入后验证失败: {_PREDICTION_HISTORY_PATH}")
+            else:
+                logger.debug(f"[反馈闭环] 预测历史已保存: {len(self.prediction_history)} 条 -> {_PREDICTION_HISTORY_PATH}")
         except Exception as e:
             logger.error(f"保存预测历史失败: {e}")
 

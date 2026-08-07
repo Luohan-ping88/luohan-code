@@ -1,7 +1,7 @@
 # Top-8码详细训练预测分析报告
 
 **预测期号**: 2026210  
-**生成时间**: 2026-08-07 15:14:40  
+**生成时间**: 2026-08-07 21:50:04  
 **模型版本**: V10.3  
 **训练模式**: 生产模式（完整训练+强化训练）  
 **报告版本**: V1.0 (基于真实管线输出自动生成)
@@ -14,21 +14,21 @@
 
 **关键指标**:
 - 训练数据量: 7684
-- 特征数量: 672
-- 训练耗时: 约27分32秒
+- 特征数量: 670
+- 训练耗时: 约4小时13分
 - 训练状态: SUCCESS
-- 佐证整体一致性: 100.00%
+- 佐证整体一致性: 73.33%
 - 置信度等级: high
 
 ### 最终预测Top-8速查表
 
 | 位置 | Top-1 | Top-2 | Top-3 | Top-4 | Top-5 | Top-6 | Top-7 | Top-8 |
 |------|-------|-------|-------|-------|-------|-------|-------|-------|
-| 万位 | 9 | 2 | 5 | 3 | 0 | 6 | 4 | 1 |
-| 千位 | 8 | 4 | 5 | 9 | 1 | 2 | 3 | 0 |
-| 百位 | 2 | 8 | 3 | 0 | 7 | 5 | 4 | 9 |
-| 十位 | 7 | 5 | 9 | 3 | 8 | 2 | 1 | 4 |
-| 个位 | 3 | 7 | 2 | 9 | 1 | 0 | 5 | 6 |
+| 万位 | 3 | 9 | 5 | 2 | 1 | 0 | 6 | 7 |
+| 千位 | 9 | 8 | 5 | 4 | 2 | 1 | 3 | 0 |
+| 百位 | 3 | 2 | 8 | 0 | 7 | 5 | 4 | 9 |
+| 十位 | 5 | 7 | 3 | 9 | 1 | 2 | 6 | 4 |
+| 个位 | 2 | 7 | 3 | 9 | 1 | 0 | 8 | 5 |
 
 ---
 
@@ -62,45 +62,55 @@
 **万位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_prediction_verification | 9 | 2 | 5 |
-| second_prediction_verification | 9 | 2 | 5 |
-| third_prediction_verification | 9 | 2 | 5 |
+| first_verification | 9 | 3 | 2 |
+| second_verification | 9 | 3 | 2 |
+| third_verification | 9 | 3 | 5 |
+| deep_strategy |  |  |  |
+| prediction_preview | 9 | 3 | 5 |
 
 **千位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_prediction_verification | 8 | 4 | 5 |
-| second_prediction_verification | 8 | 4 | 5 |
-| third_prediction_verification | 8 | 4 | 5 |
+| first_verification | 8 | 9 | 4 |
+| second_verification | 8 | 9 | 1 |
+| third_verification | 8 | 9 | 1 |
+| deep_strategy |  |  |  |
+| prediction_preview | 8 | 9 | 1 |
 
 **百位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_prediction_verification | 2 | 8 | 3 |
-| second_prediction_verification | 2 | 8 | 3 |
-| third_prediction_verification | 2 | 8 | 3 |
+| first_verification | 2 | 3 | 8 |
+| second_verification | 2 | 3 | 8 |
+| third_verification | 2 | 8 | 3 |
+| deep_strategy |  |  |  |
+| prediction_preview | 2 | 3 | 8 |
 
 **十位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_prediction_verification | 7 | 5 | 9 |
-| second_prediction_verification | 7 | 5 | 9 |
-| third_prediction_verification | 7 | 5 | 9 |
+| first_verification | 7 | 3 | 9 |
+| second_verification | 7 | 9 | 3 |
+| third_verification | 7 | 3 | 1 |
+| deep_strategy |  |  |  |
+| prediction_preview | 7 | 5 | 9 |
 
 **个位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_prediction_verification | 3 | 7 | 2 |
-| second_prediction_verification | 3 | 7 | 2 |
-| third_prediction_verification | 3 | 7 | 2 |
+| first_verification | 7 | 2 | 3 |
+| second_verification | 7 | 2 | 3 |
+| third_verification | 7 | 3 | 2 |
+| deep_strategy |  |  |  |
+| prediction_preview | 7 | 2 | 3 |
 
-**整体一致性**: 100.00%
+**整体一致性**: 73.33%
 
 **各位置一致性**:
-- 万位: 100.00%
-- 千位: 100.00%
+- 万位: 66.67%
+- 千位: 66.67%
 - 百位: 100.00%
-- 十位: 100.00%
+- 十位: 33.33%
 - 个位: 100.00%
 
 ---
@@ -110,88 +120,88 @@
 
 ### 万位预测详解
 
-**Top-8号码**: [9, 2, 5, 3, 0, 6, 4, 1]
+**Top-8号码**: [3, 9, 5, 2, 1, 0, 6, 7]
+
+| 排名 | 号码 |
+|------|------|
+| Top-1 | ** 3 ** |
+| Top-2 | ** 9 ** |
+| Top-3 | ** 5 ** |
+| Top-4 | 2 |
+| Top-5 | 1 |
+| Top-6 | 0 |
+| Top-7 | 6 |
+| Top-8 | 7 |
+
+**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+
+### 千位预测详解
+
+**Top-8号码**: [9, 8, 5, 4, 2, 1, 3, 0]
 
 | 排名 | 号码 |
 |------|------|
 | Top-1 | ** 9 ** |
-| Top-2 | ** 2 ** |
+| Top-2 | ** 8 ** |
 | Top-3 | ** 5 ** |
-| Top-4 | 3 |
-| Top-5 | 0 |
-| Top-6 | 6 |
-| Top-7 | 4 |
-| Top-8 | 1 |
-
-**模型权重**: stacking=0.61, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
-
-### 千位预测详解
-
-**Top-8号码**: [8, 4, 5, 9, 1, 2, 3, 0]
-
-| 排名 | 号码 |
-|------|------|
-| Top-1 | ** 8 ** |
-| Top-2 | ** 4 ** |
-| Top-3 | ** 5 ** |
-| Top-4 | 9 |
-| Top-5 | 1 |
-| Top-6 | 2 |
+| Top-4 | 4 |
+| Top-5 | 2 |
+| Top-6 | 1 |
 | Top-7 | 3 |
 | Top-8 | 0 |
 
-**模型权重**: stacking=0.60, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.61, hmm=0.07, copula=0.07, bsts=0.07, mamba=0.07, itransformer=0.09
 
 ### 百位预测详解
 
-**Top-8号码**: [2, 8, 3, 0, 7, 5, 4, 9]
+**Top-8号码**: [3, 2, 8, 0, 7, 5, 4, 9]
 
 | 排名 | 号码 |
 |------|------|
-| Top-1 | ** 2 ** |
-| Top-2 | ** 8 ** |
-| Top-3 | ** 3 ** |
+| Top-1 | ** 3 ** |
+| Top-2 | ** 2 ** |
+| Top-3 | ** 8 ** |
 | Top-4 | 0 |
 | Top-5 | 7 |
 | Top-6 | 5 |
 | Top-7 | 4 |
 | Top-8 | 9 |
 
-**模型权重**: stacking=0.59, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 十位预测详解
 
-**Top-8号码**: [7, 5, 9, 3, 8, 2, 1, 4]
+**Top-8号码**: [5, 7, 3, 9, 1, 2, 6, 4]
 
 | 排名 | 号码 |
 |------|------|
-| Top-1 | ** 7 ** |
-| Top-2 | ** 5 ** |
-| Top-3 | ** 9 ** |
-| Top-4 | 3 |
-| Top-5 | 8 |
+| Top-1 | ** 5 ** |
+| Top-2 | ** 7 ** |
+| Top-3 | ** 3 ** |
+| Top-4 | 9 |
+| Top-5 | 1 |
 | Top-6 | 2 |
-| Top-7 | 1 |
+| Top-7 | 6 |
 | Top-8 | 4 |
 
-**模型权重**: stacking=0.53, hmm=0.09, copula=0.09, bsts=0.09, mamba=0.09, itransformer=0.09
+**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 个位预测详解
 
-**Top-8号码**: [3, 7, 2, 9, 1, 0, 5, 6]
+**Top-8号码**: [2, 7, 3, 9, 1, 0, 8, 5]
 
 | 排名 | 号码 |
 |------|------|
-| Top-1 | ** 3 ** |
+| Top-1 | ** 2 ** |
 | Top-2 | ** 7 ** |
-| Top-3 | ** 2 ** |
+| Top-3 | ** 3 ** |
 | Top-4 | 9 |
 | Top-5 | 1 |
 | Top-6 | 0 |
-| Top-7 | 5 |
-| Top-8 | 6 |
+| Top-7 | 8 |
+| Top-8 | 5 |
 
-**模型权重**: stacking=0.51, hmm=0.10, copula=0.10, bsts=0.10, mamba=0.10, itransformer=0.10
+**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ---
 
@@ -207,5 +217,5 @@
 
 ---
 
-**报告生成时间**: 2026-08-07 15:14:40
+**报告生成时间**: 2026-08-07 21:50:04
 **预测期号**: 2026210

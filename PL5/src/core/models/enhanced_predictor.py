@@ -277,7 +277,23 @@ class StackingEnsemble:
         )
 
     def fit_position_models(self, data: pd.DataFrame, feature_cols: List[str]) -> "StackingEnsemble":
-        X = data[feature_cols].fillna(0).values
+        # 【修复BUG-NUM03】过滤非数值特征列，避免类型转换错误
+        df_features = data[feature_cols].copy()
+        numeric_cols = []
+        for col in feature_cols:
+            if col not in df_features.columns:
+                continue
+            if pd.api.types.is_numeric_dtype(df_features[col].dtype):
+                numeric_cols.append(col)
+            else:
+                try:
+                    converted = pd.to_numeric(df_features[col], errors='coerce')
+                    if converted.notna().sum() > len(converted) * 0.9:
+                        df_features[col] = converted.fillna(0)
+                        numeric_cols.append(col)
+                except Exception:
+                    pass
+        X = df_features[numeric_cols].fillna(0).values.astype(float)
         cv_folds = self.meta_config.get("cv_folds", 5)
         tscv = TimeSeriesSplit(n_splits=cv_folds)
 
@@ -593,15 +609,46 @@ class EnhancedPL5Predictor:
                     logger.debug("[训练步骤] 模型未训练，执行完整训练")
                     incremental = False
             
-            X = df[feature_cols].fillna(0).values
+            # 【修复BUG-NUM01】过滤掉非数值类型的特征列，避免 string to float 错误
+            # 例如日期字符串列（如 '2004-11-14'）会导致 sklearn 训练失败
+            df_features = df[feature_cols].copy()
+            
+            # 检查并转换每一列，非数值列将被排除或转换
+            numeric_feature_cols = []
+            for col in feature_cols:
+                if col not in df_features.columns:
+                    continue
+                col_dtype = df_features[col].dtype
+                if pd.api.types.is_numeric_dtype(col_dtype):
+                    numeric_feature_cols.append(col)
+                else:
+                    # 尝试转换为数值，失败则丢弃该列
+                    try:
+                        converted = pd.to_numeric(df_features[col], errors='coerce')
+                        if converted.notna().sum() > len(converted) * 0.9:  # 90%以上可转换则保留
+                            df_features[col] = converted.fillna(0)
+                            numeric_feature_cols.append(col)
+                        else:
+                            logger.warning(f"[EnhancedPredictor] 丢弃非数值特征列: {col} (dtype={col_dtype})")
+                    except Exception:
+                        logger.warning(f"[EnhancedPredictor] 丢弃无法转换的特征列: {col} (dtype={col_dtype})")
+            
+            # 保证 feature_cols 和 self.feature_cols 同步更新为数值列
+            feature_cols = numeric_feature_cols
+            self.feature_cols = feature_cols
+            
+            if len(feature_cols) == 0:
+                raise ValueError(f"[EnhancedPredictor] 经过数值过滤后无有效特征列，请检查特征工程")
+            
+            X = df_features[feature_cols].fillna(0).values.astype(float)
             actual_dim = X.shape[1]
 
             if actual_dim == 0:
                 raise ValueError(f"[EnhancedPredictor] 特征维度为0, 请检查feature_cols: {feature_cols}")
 
             self.trained_feature_dim = actual_dim
-            logger.debug(f"[训练步骤] 特征维度: {actual_dim}, 特征列数: {len(feature_cols)}")
-            logger.info(f"[EnhancedPredictor V10] 训练特征维度: {actual_dim}, 特征列数: {len(feature_cols)}")
+            logger.debug(f"[训练步骤] 特征维度: {actual_dim}, 原始特征列数: {len(feature_cols)}, 有效数值列数: {len(numeric_feature_cols)}")
+            logger.info(f"[EnhancedPredictor V10] 训练特征维度: {actual_dim}, 有效特征列数: {len(feature_cols)}")
 
             missing_cols = [c for c in feature_cols if c not in df.columns]
             if missing_cols:
@@ -845,7 +892,26 @@ class EnhancedPL5Predictor:
     def _fit_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                             pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """训练单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
+        # 【修复BUG-NUM02】同 fit() 函数：确保只使用数值类型特征列，避免 string to float 错误
+        df_features = df[feature_cols].copy()
+        numeric_cols = []
+        for col in feature_cols:
+            if col not in df_features.columns:
+                continue
+            if pd.api.types.is_numeric_dtype(df_features[col].dtype):
+                numeric_cols.append(col)
+            else:
+                try:
+                    converted = pd.to_numeric(df_features[col], errors='coerce')
+                    if converted.notna().sum() > len(converted) * 0.9:
+                        df_features[col] = converted.fillna(0)
+                        numeric_cols.append(col)
+                except Exception:
+                    pass
+        if not numeric_cols:
+            raise ValueError(f"Position {pos}: 过滤后无有效数值特征列")
+        
+        X = df_features[numeric_cols].fillna(0).values.astype(float)
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 
@@ -1030,7 +1096,25 @@ class EnhancedPL5Predictor:
     def _incremental_update_position_models(self, df: pd.DataFrame, feature_cols: List[str],
                                           pos: str, resource_usage: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """增量更新单个位置的所有模型 - 增强版"""
-        X = df[feature_cols].fillna(0).values
+        # 【修复BUG-NUM04】增量更新也需过滤非数值特征列
+        df_features = df[feature_cols].copy()
+        numeric_cols = []
+        for col in feature_cols:
+            if col not in df_features.columns:
+                continue
+            if pd.api.types.is_numeric_dtype(df_features[col].dtype):
+                numeric_cols.append(col)
+            else:
+                try:
+                    converted = pd.to_numeric(df_features[col], errors='coerce')
+                    if converted.notna().sum() > len(converted) * 0.9:
+                        df_features[col] = converted.fillna(0)
+                        numeric_cols.append(col)
+                except Exception:
+                    pass
+        if not numeric_cols:
+            raise ValueError(f"Incremental update Position {pos}: 无有效数值列")
+        X = df_features[numeric_cols].fillna(0).values.astype(float)
         y = df[pos].values.astype(int)
         seq = df[pos].values.reshape(-1, 1)
 

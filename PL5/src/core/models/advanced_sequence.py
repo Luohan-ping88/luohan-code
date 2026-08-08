@@ -1,8 +1,11 @@
 """
 高级时序模型模块 - 真正的HMM和多元Copula
+【修复】hmmlearn/sklearn >= 1.9 兼容: GaussianMixture.fit() 不再支持 sample_weight，
+自动检测并降级为加权自助采样(weighted bootstrap)策略。
 """
 
 import numpy as np
+import inspect
 from typing import Dict, Tuple, Optional, List
 from sklearn.mixture import GaussianMixture
 from scipy import stats
@@ -11,6 +14,39 @@ import logging
 from src.core.config import ModelConfig, get_model_config
 
 logger = logging.getLogger(__name__)
+
+# 【修复】全局缓存 GMM.fit() 是否支持 sample_weight 参数，避免每轮反复探测
+_GMM_FIT_SUPPORTS_SAMPLE_WEIGHT: Optional[bool] = None
+
+
+def _gmm_fit_supports_sample_weight() -> bool:
+    """检测 GaussianMixture.fit() 是否接受 sample_weight 参数（仅检测一次并缓存）"""
+    global _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT
+    if _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT is not None:
+        return _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT
+    try:
+        params = inspect.signature(GaussianMixture.fit).parameters
+        _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT = 'sample_weight' in params
+    except Exception:
+        _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT = False
+    return _GMM_FIT_SUPPORTS_SAMPLE_WEIGHT
+
+
+def _weighted_bootstrap_fit(model: GaussianMixture, observations: np.ndarray,
+                            weights: np.ndarray, n_resample: int = None) -> None:
+    """
+    当 GMM.fit() 不支持 sample_weight 时的替代品：
+    根据权重对观测进行有放回自助采样，然后对重采样后的数据集执行无权重 fit。
+    """
+    n_obs = len(observations)
+    if n_resample is None:
+        n_resample = max(n_obs, 500)
+    weights = np.asarray(weights, dtype=np.float64).ravel()
+    weights = weights / (weights.sum() + 1e-12)
+    rng = np.random.default_rng(42)
+    indices = rng.choice(n_obs, size=n_resample, replace=True, p=weights)
+    resampled = observations[indices]
+    model.fit(resampled)
 
 
 class HiddenMarkovModel:
@@ -279,10 +315,20 @@ class HiddenMarkovModel:
             weight_sum = float(gamma[:, s].sum())
             if weight_sum > 1:
                 weights = gamma[:, s] / (weight_sum + 1e-10)
+                # 【修复】兼容 sklearn >= 1.9：GMM.fit() 不再接受 sample_weight 参数
                 try:
-                    self.emission_models[s].fit(observations, sample_weight=weights)
+                    if _gmm_fit_supports_sample_weight():
+                        self.emission_models[s].fit(observations, sample_weight=weights)
+                    else:
+                        # 自动降级：加权自助采样 -> fit
+                        _weighted_bootstrap_fit(self.emission_models[s], observations, weights)
                 except Exception as e:
                     logger.warning(f"[HMM._m_step] 状态 {s} 发射模型加权拟合失败: {e}")
+                    # 最终兜底：均匀数据 fit
+                    try:
+                        self.emission_models[s].fit(observations)
+                    except Exception as e2:
+                        logger.warning(f"[HMM._m_step] 状态 {s} 兜底拟合仍失败: {e2}")
             else:
                 # 权重不足时降级拟合：用全量数据均匀权重，避免静默跳过 fit 导致 GMM 未更新。
                 try:

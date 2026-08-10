@@ -433,12 +433,24 @@ def git_commit_and_push(report_files):
     # 添加：报告、配置、源代码修复、可能的代码变更
     # 【修复BUG-06】将 src/ 加入 add_paths，确保源代码修复（如 auto_scheduler_v8.py 的 models 字段修复）
     # 会被自动提交，而不是只提交特定文件
-    add_paths = ['results/', 'config/', 'logs/training_info.json', 'logs/final_prediction.json',
-                 'scripts/utility/auto_complete_daily_cycle.py', 'requirements.txt',
-                 'src/']
+    # 【修复BUG-07】logs/ 目录被父级/.gitignore 的 /PL5/logs/ 和 PL5/.gitignore 的 logs/*.json 双重忽略，
+    # 因此 logs/training_info.json 和 logs/final_prediction.json 无法通过 git add 添加。
+    # 改为使用 -f 强制添加，并检查返回码，失败时记录警告而非静默忽略。
+    add_paths = ['results/', 'config/', 'scripts/utility/auto_complete_daily_cycle.py',
+                 'requirements.txt', 'src/']
     for p in add_paths:
         subprocess.run(['git', 'add', p], cwd=str(PROJECT_ROOT),
                        capture_output=True, text=True, timeout=15)
+
+    # 尝试强制添加 logs/ 下的关键数据文件（可能被 .gitignore 忽略）
+    logs_force_add = ['logs/training_info.json', 'logs/final_prediction.json']
+    for p in logs_force_add:
+        r = subprocess.run(['git', 'add', '-f', p], cwd=str(PROJECT_ROOT),
+                           capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            log(f"⚠ logs 文件无法添加(被.gitignore忽略): {p} - {r.stderr.strip()[:100]}")
+        else:
+            log(f"✓ 已强制添加 logs 文件: {p}")
 
     # 检查是否有变更
     st = subprocess.run(['git', 'status', '--porcelain'], cwd=str(PROJECT_ROOT),

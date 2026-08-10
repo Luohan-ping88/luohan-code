@@ -6,8 +6,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, Optional
 
-import kuzu
+try:
+    import kuzu
+    KUZU_AVAILABLE = True
+except ImportError:
+    KUZU_AVAILABLE = False
+    kuzu = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -101,21 +107,28 @@ class KnowledgeGraphSchema:
 
     def __init__(self, db_path: Path | None = None):
         self.db_path = Path(db_path) if db_path else KG_DB_PATH
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db: kuzu.Database | None = None
+        if KUZU_AVAILABLE:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db: Optional["kuzu.Database"] = None
+        if not KUZU_AVAILABLE:
+            logger.warning("[KG_Schema] kuzu 模块未安装，知识图谱功能已禁用（Schema初始化将跳过）")
 
     @property
-    def db(self) -> kuzu.Database:
+    def db(self):
+        if not KUZU_AVAILABLE:
+            raise RuntimeError("kuzu module not available")
         if self._db is None:
             self._db = kuzu.Database(str(self.db_path))
         return self._db
 
     def init_schema(self, force: bool = False) -> None:
-        """初始化所有节点表和关系表
+        """初始化所有节点表和关系表。kuzu未安装时静默跳过。
 
         Args:
             force: True 时先 DROP 已有表再重建（谨慎使用，会丢数据）
         """
+        if not KUZU_AVAILABLE:
+            return
         conn = kuzu.Connection(self.db)
 
         if force:
@@ -166,7 +179,9 @@ class KnowledgeGraphSchema:
         return m.group(1) if m else None
 
     def get_stats(self) -> dict:
-        """获取图谱统计信息（各表节点/边数量）"""
+        """获取图谱统计信息（各表节点/边数量）。kuzu未安装时返回空统计。"""
+        if not KUZU_AVAILABLE:
+            return {"node_tables": {}, "rel_tables": {}, "kuzu_available": False}
         conn = kuzu.Connection(self.db)
         stats = {"node_tables": {}, "rel_tables": {}}
 

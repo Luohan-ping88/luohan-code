@@ -11,9 +11,14 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import kuzu
+try:
+    import kuzu
+    KUZU_AVAILABLE = True
+except ImportError:
+    KUZU_AVAILABLE = False
+    kuzu = None  # type: ignore
 
-from .kg_schema import KnowledgeGraphSchema, get_schema
+from .kg_schema import KnowledgeGraphSchema, get_schema  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +60,24 @@ class KnowledgeGraphBuilder:
     }
 
     def __init__(self, schema: KnowledgeGraphSchema | None = None):
-        self.schema = schema or get_schema()
-        self._conn: kuzu.Connection | None = None
+        self.schema = schema or get_schema() if KUZU_AVAILABLE else None
+        self._conn: "kuzu.Connection | None" = None
         self._seeded = False
+        if not KUZU_AVAILABLE:
+            logger.warning("[KG_Builder] kuzu 模块未安装，知识图谱功能已禁用（所有写入操作将静默跳过）")
 
     @property
-    def conn(self) -> kuzu.Connection:
+    def conn(self):
+        if not KUZU_AVAILABLE:
+            raise RuntimeError("kuzu module not available")
         if self._conn is None:
             self._conn = kuzu.Connection(self.schema.db)
         return self._conn
 
     def seed_builtin_data(self, force: bool = False) -> None:
-        """播种内置模型/策略/位置节点（幂等）"""
+        """播种内置模型/策略/位置节点（幂等）。kuzu未安装时静默跳过。"""
+        if not KUZU_AVAILABLE:
+            return
         if self._seeded and not force:
             return
         for name, mtype in self.BUILTIN_MODELS:
@@ -86,7 +97,9 @@ class KnowledgeGraphBuilder:
     # ============================================================
 
     def upsert_node(self, table: str, props: Dict[str, Any]) -> bool:
-        """幂等写入节点：已存在则跳过，不存在则创建"""
+        """幂等写入节点：已存在则跳过，不存在则创建。kuzu未安装时静默跳过。"""
+        if not KUZU_AVAILABLE:
+            return False
         pk_field = self._PK_FIELDS.get(table, "id")
         pk_value = props.get(pk_field)
         if pk_value is None:
@@ -114,7 +127,9 @@ class KnowledgeGraphBuilder:
         to_table: str, to_pk_field: str, to_pk_value: Any,
         props: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """幂等写入关系：已存在则跳过"""
+        """幂等写入关系：已存在则跳过。kuzu未安装时静默跳过。"""
+        if not KUZU_AVAILABLE:
+            return False
         if self._rel_exists(rel_table, from_table, from_pk_field, from_pk_value, to_table, to_pk_field, to_pk_value):
             return False
 
@@ -147,13 +162,15 @@ class KnowledgeGraphBuilder:
     # ============================================================
 
     def record_prediction(self, prediction: Dict[str, Any]) -> str:
-        """记录一次预测到图谱
+        """记录一次预测到图谱。kuzu未安装时静默返回占位pred_id。
 
         创建: Prediction + PredictionDetail + Period + 各关系边
         Returns: pred_id
         """
         period_id = str(prediction.get("period", ""))
         pred_id = prediction.get("pred_id") or f"PRED-{period_id}-{uuid.uuid4().hex[:8]}"
+        if not KUZU_AVAILABLE:
+            return pred_id  # 静默跳过，仍返回可用的id供主流程记录
         ts = prediction.get("timestamp") or _ts()
         strategy_name = prediction.get("strategy_name", "default")
         weights_used = prediction.get("weights_used", {}) or {}
@@ -212,11 +229,13 @@ class KnowledgeGraphBuilder:
         per_model_accuracy: Optional[Dict[str, Dict[str, float]]] = None,
         pred_id: Optional[str] = None,
     ) -> int:
-        """记录实际开奖与命中评估到图谱
+        """记录实际开奖与命中评估到图谱。kuzu未安装时静默返回0。
 
         创建: HitRecord + HIT_AT + ACTUAL_OF + RESULTED_IN + FEEDBACK_TO
         Returns: HitRecord 数量
         """
+        if not KUZU_AVAILABLE:
+            return 0
         ts = _ts()
         count = 0
 
@@ -264,14 +283,18 @@ class KnowledgeGraphBuilder:
         return count
 
     def record_strategy_switch(self, from_strategy: str, to_strategy: str, period: str, reason: str, score_gap: float = 0.0) -> None:
-        """记录策略切换事件"""
+        """记录策略切换事件。kuzu未安装时静默跳过。"""
+        if not KUZU_AVAILABLE:
+            return
         self.upsert_rel("SWITCHED_TO", "Strategy", "name", from_strategy, "Strategy", "name", to_strategy,
                         props={"period": str(period), "reason": reason, "score_gap": float(score_gap), "timestamp": _ts()})
         logger.info(f"[KG_Builder] 策略切换落图: {from_strategy} -> {to_strategy} (reason={reason})")
 
     def record_suggestion(self, suggestion: Dict[str, Any]) -> str:
-        """记录自学习优化建议到图谱"""
+        """记录自学习优化建议到图谱。kuzu未安装时静默返回占位sugg_id。"""
         sugg_id = suggestion.get("sugg_id") or suggestion.get("id") or f"SUG-{uuid.uuid4().hex[:8]}"
+        if not KUZU_AVAILABLE:
+            return sugg_id
         self.upsert_node("Suggestion", {
             "sugg_id": sugg_id, "category": str(suggestion.get("category", "")),
             "priority": int(suggestion.get("priority", 1)), "status": str(suggestion.get("status", "pending")),
@@ -296,8 +319,10 @@ class KnowledgeGraphBuilder:
         return sugg_id
 
     def record_data_distribution(self, period_id: str, psi: float, mean: float, std: float, drift_detected: bool = False) -> str:
-        """记录数据分布快照"""
+        """记录数据分布快照。kuzu未安装时静默返回占位dist_id。"""
         dist_id = f"DIST-{period_id}"
+        if not KUZU_AVAILABLE:
+            return dist_id
         self.upsert_node("DataDistribution", {
             "dist_id": dist_id, "period_id": period_id,
             "psi": float(psi), "mean": float(mean), "std": float(std),
@@ -307,7 +332,9 @@ class KnowledgeGraphBuilder:
         return dist_id
 
     def record_strategy_performance(self, strategy_name: str, dist_id: str, top8_acc: float, top3_acc: float, samples: int) -> None:
-        """记录策略在某种数据分布下的表现（PERFORMED_AT 关系）"""
+        """记录策略在某种数据分布下的表现（PERFORMED_AT 关系）。kuzu未安装时静默跳过。"""
+        if not KUZU_AVAILABLE:
+            return
         self.upsert_rel("PERFORMED_AT", "Strategy", "name", strategy_name, "DataDistribution", "dist_id", dist_id,
                         props={"top8_acc": float(top8_acc), "top3_acc": float(top3_acc), "samples": int(samples)})
 
@@ -316,6 +343,8 @@ class KnowledgeGraphBuilder:
     # ============================================================
 
     def _node_exists(self, table: str, pk_field: str, pk_value: Any) -> bool:
+        if not KUZU_AVAILABLE:
+            return False
         cypher = f"MATCH (n:{table} {{{pk_field}: $pk}}) RETURN count(n)"
         try:
             r = self.conn.execute(cypher, {"pk": pk_value})
@@ -325,6 +354,8 @@ class KnowledgeGraphBuilder:
 
     def _rel_exists(self, rel_table: str, from_table: str, from_pk_field: str, from_pk_value: Any,
                     to_table: str, to_pk_field: str, to_pk_value: Any) -> bool:
+        if not KUZU_AVAILABLE:
+            return False
         cypher = (
             f"MATCH (a:{from_table} {{{from_pk_field}: $fpk}})"
             f"-[r:{rel_table}]->"
@@ -337,7 +368,7 @@ class KnowledgeGraphBuilder:
             return False
 
     def _update_period_actuals(self, period_id: str, actual_numbers: Dict[str, int]) -> None:
-        if not actual_numbers:
+        if not KUZU_AVAILABLE or not actual_numbers:
             return
         set_clauses = []
         params: Dict[str, Any] = {"pid": period_id}

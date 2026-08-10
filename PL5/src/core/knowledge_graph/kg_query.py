@@ -13,27 +13,38 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-import kuzu
+try:
+    import kuzu
+    KUZU_AVAILABLE = True
+except ImportError:
+    KUZU_AVAILABLE = False
+    kuzu = None  # type: ignore
 
-from .kg_schema import KnowledgeGraphSchema, get_schema
+from .kg_schema import KnowledgeGraphSchema, get_schema  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeGraphQuery:
-    """知识图谱查询器"""
+    """知识图谱查询器。kuzu未安装时所有方法返回空结果。"""
 
     def __init__(self, schema: KnowledgeGraphSchema | None = None):
-        self.schema = schema or get_schema()
-        self._conn: kuzu.Connection | None = None
+        self.schema = schema or get_schema() if KUZU_AVAILABLE else None
+        self._conn: Optional["kuzu.Connection"] = None
+        if not KUZU_AVAILABLE:
+            logger.warning("[KG_Query] kuzu 模块未安装，所有知识图谱查询将返回空结果")
 
     @property
-    def conn(self) -> kuzu.Connection:
+    def conn(self):
+        if not KUZU_AVAILABLE:
+            raise RuntimeError("kuzu module not available")
         if self._conn is None:
             self._conn = kuzu.Connection(self.schema.db)
         return self._conn
 
     def _execute(self, cypher: str, params: Optional[Dict[str, Any]] = None) -> List[List[Any]]:
+        if not KUZU_AVAILABLE:
+            return []
         try:
             r = self.conn.execute(cypher, params or {})
             rows = []

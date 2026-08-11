@@ -1,0 +1,839 @@
+{
+  "prediction_time": "2026-08-11T20:47:36.352826",
+  "latest_period": 2026213,
+  "next_period": "2026214",
+  "predictions": {
+    "shi": {
+      "top_k": [
+        3,
+        7,
+        9,
+        2,
+        1,
+        6,
+        0,
+        5
+      ],
+      "probabilities": [
+        0.10878868467063242,
+        0.09889880424602947,
+        0.13349495959411065,
+        0.1331954305820875,
+        0.13299600912039705,
+        0.13116464396644897,
+        0.13102796270325967,
+        0.13043350511703433
+      ],
+      "inclusion_probabilities": [
+        0.5668484390784924,
+        0.06226563087970064,
+        0.0575847008514505,
+        0.04583111625632883,
+        0.03800577404914226,
+        0.04479591848471672,
+        0.04241699154340547,
+        0.04905894442813888
+      ],
+      "uncertainty": 0.7084985790175572,
+      "weights_used": {
+        "stacking": 0.6171979940281697,
+        "hmm": 0.07656040119436605,
+        "copula": 0.07656040119436605,
+        "bsts": 0.07656040119436605,
+        "mamba": 0.07656040119436605,
+        "itransformer": 0.07656040119436605
+      },
+      "model_predictions": {
+        "stacking": [
+          7,
+          6,
+          5,
+          8,
+          4,
+          3,
+          2,
+          9
+        ],
+        "hmm": [
+          3,
+          7,
+          2,
+          8,
+          4,
+          6,
+          1,
+          5
+        ],
+        "copula": [
+          5,
+          4,
+          6,
+          3,
+          7,
+          2,
+          8,
+          1
+        ],
+        "bsts": [
+          9,
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2
+        ],
+        "mamba": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          7,
+          5,
+          8
+        ],
+        "itransformer": [
+          9,
+          3,
+          0,
+          5,
+          2,
+          1,
+          8,
+          4
+        ]
+      },
+      "exclusion_probabilities": [
+        0.10015013978924907,
+        0.08574347032567196,
+        0.08574347032567196,
+        0.08574347032567196,
+        0.12219047032500259,
+        0.10543871623842868,
+        0.09962346755079074,
+        0.12167638223406745,
+        0.10794694255927356,
+        0.08574347032567196
+      ],
+      "complement_confidence": {
+        "exclusion_entropy": 0.9959954733379699,
+        "top2_exclusion_mass": 0.24386685255907004,
+        "exclusion_lift_vs_random": 1.21933426279535,
+        "high_confidence": true
+      },
+      "explanation": {
+        "confidence_level": "low",
+        "temporal": {
+          "predicted_top1": 7,
+          "frequency_in_recent_10": 0.2,
+          "temperature": "warm",
+          "continuity_with_last": true,
+          "trend_direction": "down",
+          "last_number": 7
+        }
+      },
+      "repeat_penalty_applied": true,
+      "original_top1": 7,
+      "confidence_level": "high"
+    },
+    "wan": {
+      "top_k": [
+        3,
+        7,
+        1,
+        2,
+        6,
+        4,
+        9,
+        8
+      ],
+      "probabilities": [
+        0.1093481468087831,
+        0.09940740618980282,
+        0.13376615205270115,
+        0.13353808862164737,
+        0.13284249560877098,
+        0.13094473539042847,
+        0.13019752582999944,
+        0.1299554494978666
+      ],
+      "inclusion_probabilities": [
+        0.5744067616236057,
+        0.05883878738277789,
+        0.05249823439021739,
+        0.04355692811757256,
+        0.0518170509474503,
+        0.04776266585003387,
+        0.039129916042534414,
+        0.054542675124711226
+      ],
+      "uncertainty": 0.6999051700702024,
+      "weights_used": {
+        "stacking": 0.6178650574069718,
+        "hmm": 0.07642698851860565,
+        "copula": 0.07642698851860565,
+        "bsts": 0.07642698851860565,
+        "mamba": 0.07642698851860565,
+        "itransformer": 0.07642698851860565
+      },
+      "model_predictions": {
+        "stacking": [
+          7,
+          6,
+          5,
+          4,
+          3,
+          8,
+          9,
+          2
+        ],
+        "hmm": [
+          7,
+          3,
+          2,
+          8,
+          4,
+          6,
+          1,
+          5
+        ],
+        "copula": [
+          5,
+          4,
+          6,
+          3,
+          7,
+          2,
+          8,
+          1
+        ],
+        "bsts": [
+          9,
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2
+        ],
+        "mamba": [
+          8,
+          9,
+          5,
+          6,
+          3,
+          4,
+          2,
+          0
+        ],
+        "itransformer": [
+          1,
+          3,
+          8,
+          7,
+          6,
+          9,
+          4,
+          2
+        ]
+      },
+      "exclusion_probabilities": [
+        0.10916160544527964,
+        0.08379111267986537,
+        0.08379111267986537,
+        0.08379111267986537,
+        0.10247565174398819,
+        0.11143685748370245,
+        0.0900613048999229,
+        0.11885279148078408,
+        0.11051658833756393,
+        0.10612186256866273
+      ],
+      "complement_confidence": {
+        "exclusion_entropy": 0.9964624577015266,
+        "top2_exclusion_mass": 0.23028964896448653,
+        "exclusion_lift_vs_random": 1.1514482448224326,
+        "high_confidence": false
+      },
+      "explanation": {
+        "confidence_level": "low",
+        "temporal": {
+          "predicted_top1": 7,
+          "frequency_in_recent_10": 0.2,
+          "temperature": "warm",
+          "continuity_with_last": true,
+          "trend_direction": "up",
+          "last_number": 7
+        }
+      },
+      "repeat_penalty_applied": true,
+      "original_top1": 7,
+      "confidence_level": "high"
+    },
+    "bai": {
+      "top_k": [
+        3,
+        0,
+        7,
+        8,
+        6,
+        1,
+        2,
+        5
+      ],
+      "probabilities": [
+        0.10986442518601813,
+        0.0998767501691074,
+        0.1336501091872642,
+        0.13361375363019953,
+        0.13122543031529524,
+        0.1311277372861149,
+        0.13082358531414134,
+        0.1298182089118592
+      ],
+      "inclusion_probabilities": [
+        0.5650130226848936,
+        0.05454233722725018,
+        0.04205448410017382,
+        0.04062878036904852,
+        0.04741185247478688,
+        0.04147411189507612,
+        0.05146034886392657,
+        0.044786981548348474
+      ],
+      "uncertainty": 0.7108157483366655,
+      "weights_used": {
+        "stacking": 0.6213980064945079,
+        "hmm": 0.07572039870109845,
+        "copula": 0.07572039870109845,
+        "bsts": 0.07572039870109845,
+        "mamba": 0.07572039870109845,
+        "itransformer": 0.07572039870109845
+      },
+      "model_predictions": {
+        "stacking": [
+          0,
+          1,
+          2,
+          9,
+          3,
+          4,
+          8,
+          5
+        ],
+        "hmm": [
+          7,
+          2,
+          3,
+          6,
+          8,
+          1,
+          4,
+          5
+        ],
+        "copula": [
+          4,
+          5,
+          3,
+          6,
+          2,
+          7,
+          1,
+          8
+        ],
+        "bsts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "mamba": [
+          4,
+          9,
+          8,
+          6,
+          3,
+          5,
+          2,
+          0
+        ],
+        "itransformer": [
+          9,
+          3,
+          2,
+          0,
+          4,
+          1,
+          5,
+          6
+        ]
+      },
+      "exclusion_probabilities": [
+        0.11229895953945408,
+        0.09986336501931567,
+        0.1037304935891726,
+        0.08250997647418379,
+        0.11132481991058425,
+        0.10951044127549332,
+        0.10023512734700625,
+        0.08250997647418379,
+        0.08250997647418379,
+        0.11550686389592252
+      ],
+      "complement_confidence": {
+        "exclusion_entropy": 0.9965778200501796,
+        "top2_exclusion_mass": 0.2278058234353766,
+        "exclusion_lift_vs_random": 1.139029117176883,
+        "high_confidence": false
+      },
+      "explanation": {
+        "confidence_level": "low",
+        "temporal": {
+          "predicted_top1": 0,
+          "frequency_in_recent_10": 0.1,
+          "temperature": "warm",
+          "continuity_with_last": true,
+          "trend_direction": "up",
+          "last_number": 0
+        }
+      },
+      "repeat_penalty_applied": true,
+      "original_top1": 0,
+      "confidence_level": "high"
+    },
+    "ge": {
+      "top_k": [
+        2,
+        1,
+        0,
+        9,
+        8,
+        5,
+        4,
+        6
+      ],
+      "probabilities": [
+        0.10763668266980546,
+        0.09785152969982314,
+        0.1338007100830537,
+        0.13352118165603946,
+        0.13244304263741832,
+        0.13195696683960553,
+        0.13157944736304797,
+        0.1312104390512064
+      ],
+      "inclusion_probabilities": [
+        0.49065255565785554,
+        0.059981590465488364,
+        0.05109275178197735,
+        0.04014794575858026,
+        0.049925791995871924,
+        0.052826827496906835,
+        0.06338240782653914,
+        0.07386008470434606
+      ],
+      "uncertainty": 0.7840386051913394,
+      "weights_used": {
+        "stacking": 0.5663436885858487,
+        "hmm": 0.08673126228283023,
+        "copula": 0.08673126228283023,
+        "bsts": 0.08673126228283023,
+        "mamba": 0.08673126228283023,
+        "itransformer": 0.08673126228283023
+      },
+      "model_predictions": {
+        "stacking": [
+          1,
+          2,
+          0,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "hmm": [
+          3,
+          7,
+          2,
+          8,
+          4,
+          6,
+          1,
+          5
+        ],
+        "copula": [
+          4,
+          5,
+          3,
+          6,
+          2,
+          7,
+          1,
+          8
+        ],
+        "bsts": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "mamba": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          1,
+          8,
+          0
+        ],
+        "itransformer": [
+          6,
+          4,
+          0,
+          3,
+          7,
+          2,
+          8,
+          5
+        ]
+      },
+      "exclusion_probabilities": [
+        0.08450375643005936,
+        0.12070390478186603,
+        0.08450375643005936,
+        0.11170644582615845,
+        0.10202060969307482,
+        0.0975493425481621,
+        0.10641932022114314,
+        0.11441031358108669,
+        0.09367879405783076,
+        0.08450375643005936
+      ],
+      "complement_confidence": {
+        "exclusion_entropy": 0.9965599240994082,
+        "top2_exclusion_mass": 0.2351142183629527,
+        "exclusion_lift_vs_random": 1.1755710918147635,
+        "high_confidence": false
+      },
+      "explanation": {
+        "confidence_level": "low",
+        "temporal": {
+          "predicted_top1": 1,
+          "frequency_in_recent_10": 0.2,
+          "temperature": "warm",
+          "continuity_with_last": true,
+          "trend_direction": "down",
+          "last_number": 1
+        }
+      },
+      "repeat_penalty_applied": true,
+      "original_top1": 1,
+      "confidence_level": "high"
+    },
+    "qian": {
+      "top_k": [
+        5,
+        4,
+        2,
+        6,
+        0,
+        8,
+        7,
+        9
+      ],
+      "probabilities": [
+        0.1092441779313296,
+        0.09931288902848145,
+        0.13420631799303123,
+        0.13237361480644497,
+        0.13196945207346755,
+        0.13120264029990317,
+        0.13119633017168134,
+        0.13049457769566064
+      ],
+      "inclusion_probabilities": [
+        0.5259529269407072,
+        0.06338961147314384,
+        0.050215450101685113,
+        0.05146181111200493,
+        0.042381620572346276,
+        0.05379526711256177,
+        0.055064529045265424,
+        0.047402738198256855
+      ],
+      "uncertainty": 0.7512359042985216,
+      "weights_used": {
+        "stacking": 0.5863652757333445,
+        "hmm": 0.08272694485333106,
+        "copula": 0.08272694485333106,
+        "bsts": 0.08272694485333106,
+        "mamba": 0.08272694485333106,
+        "itransformer": 0.08272694485333106
+      },
+      "model_predictions": {
+        "stacking": [
+          4,
+          3,
+          2,
+          5,
+          1,
+          6,
+          7,
+          0
+        ],
+        "hmm": [
+          2,
+          7,
+          3,
+          6,
+          8,
+          1,
+          4,
+          5
+        ],
+        "copula": [
+          5,
+          4,
+          6,
+          3,
+          7,
+          2,
+          8,
+          1
+        ],
+        "bsts": [
+          9,
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2
+        ],
+        "mamba": [
+          4,
+          8,
+          9,
+          3,
+          1,
+          6,
+          5,
+          0
+        ],
+        "itransformer": [
+          5,
+          3,
+          8,
+          9,
+          7,
+          1,
+          4,
+          0
+        ]
+      },
+      "exclusion_probabilities": [
+        0.09568389012529994,
+        0.10956866659255618,
+        0.08161151423301674,
+        0.11143338400305867,
+        0.11257736088991754,
+        0.08161151423301674,
+        0.09449386040088698,
+        0.10326365672472193,
+        0.10299607177512764,
+        0.10676008102189777
+      ],
+      "complement_confidence": {
+        "exclusion_entropy": 0.9973884554153462,
+        "top2_exclusion_mass": 0.22401074489297623,
+        "exclusion_lift_vs_random": 1.1200537244648812,
+        "high_confidence": false
+      },
+      "explanation": {
+        "confidence_level": "low",
+        "temporal": {
+          "predicted_top1": 4,
+          "frequency_in_recent_10": 0.1,
+          "temperature": "warm",
+          "continuity_with_last": true,
+          "trend_direction": "down",
+          "last_number": 4
+        }
+      },
+      "repeat_penalty_applied": true,
+      "original_top1": 4,
+      "confidence_level": "high"
+    }
+  },
+  "feature_config": {
+    "select_top": null,
+    "feature_selection_method": "rfe"
+  },
+  "verification_consistency": {
+    "overall": 0.8,
+    "positions": {
+      "wan": 0.6666666666666666,
+      "qian": 1.0,
+      "bai": 0.6666666666666666,
+      "shi": 0.6666666666666666,
+      "ge": 1.0
+    },
+    "verification_count": 4
+  },
+  "confidence_level": "high",
+  "low_confidence_warning": false,
+  "verification_results_summary": {
+    "first_verification": {
+      "timestamp": "",
+      "predictions": {
+        "wan": [
+          7,
+          1,
+          3
+        ],
+        "qian": [
+          4,
+          2,
+          5
+        ],
+        "bai": [
+          0,
+          3,
+          8
+        ],
+        "shi": [
+          7,
+          2,
+          3
+        ],
+        "ge": [
+          1,
+          2,
+          0
+        ]
+      }
+    },
+    "second_verification": {
+      "timestamp": "",
+      "predictions": {
+        "wan": [
+          7,
+          3,
+          2
+        ],
+        "qian": [
+          4,
+          2,
+          5
+        ],
+        "bai": [
+          0,
+          3,
+          7
+        ],
+        "shi": [
+          7,
+          9,
+          3
+        ],
+        "ge": [
+          1,
+          2,
+          0
+        ]
+      }
+    },
+    "third_verification": {
+      "timestamp": "",
+      "predictions": {
+        "wan": [
+          7,
+          3,
+          1
+        ],
+        "qian": [
+          4,
+          2,
+          5
+        ],
+        "bai": [
+          0,
+          3,
+          7
+        ],
+        "shi": [
+          7,
+          3,
+          2
+        ],
+        "ge": [
+          1,
+          2,
+          0
+        ]
+      }
+    },
+    "deep_strategy": {
+      "timestamp": "",
+      "predictions": {
+        "wan": [],
+        "qian": [],
+        "bai": [],
+        "shi": [],
+        "ge": []
+      }
+    },
+    "prediction_preview": {
+      "timestamp": "",
+      "predictions": {
+        "wan": [
+          7,
+          2,
+          3
+        ],
+        "qian": [
+          4,
+          2,
+          5
+        ],
+        "bai": [
+          0,
+          3,
+          7
+        ],
+        "shi": [
+          7,
+          3,
+          9
+        ],
+        "ge": [
+          1,
+          2,
+          0
+        ]
+      }
+    }
+  },
+  "repeat_penalty_applied": true,
+  "last_period_numbers": {
+    "wan": 7,
+    "qian": 4,
+    "bai": 0,
+    "shi": 7,
+    "ge": 1
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "model_version": "V10.3",
+  "training_time": 17326.307318,
+  "feature_count": 670,
+  "data_count": 7688,
+  "latest_period": "2026213",
+  "training_status": "SUCCESS",
+  "models": {
+    "stacking": true,
+    "hmm": true,
+    "copula": true,
+    "bsts": true,
+    "mamba": true,
+    "itransformer": true,
+    "bayesian_quantifier": true
+  }
+}

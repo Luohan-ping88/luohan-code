@@ -19,6 +19,6 @@
   "pre_sale_prediction_time": "20:00",
   "enabled": true,
   "monitoring_enabled": true,
-  "skip_recovery": true,
+  "skip_recovery": false,
   "last_completed_period": "2026212"
 }

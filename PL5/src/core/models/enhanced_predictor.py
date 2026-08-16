@@ -2718,7 +2718,7 @@ class EnhancedPL5Predictor:
         Returns:
             是否加载成功
         """
-        load_path = MODELS_DIR / MODEL_FILENAME
+        load_path = self.models_dir / MODEL_FILENAME
         structured_logger.log_operation_start(
             StructuredLogger.OPERATION_MODEL_LOAD,
             {"path": str(load_path)}

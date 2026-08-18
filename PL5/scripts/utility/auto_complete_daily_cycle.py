@@ -485,23 +485,37 @@ def main():
     log_file = sys.argv[2] if len(sys.argv) > 2 else None
     run_date_str = datetime.now().strftime('%Y-%m-%d')
 
-    log(f"自动收尾处理器启动, 等待 final_prediction.json (pipeline_pid={pid})")
+    # 【修复】记录监控启动时刻。final_prediction.json 可能是上个日循环遗留的陈旧文件，
+    # 不能仅凭 "文件存在" 就认为当前管线已产出结果。必须等待一份
+    # 修改时间晚于本监控器启动时刻的"新鲜" final_prediction.json。
+    watch_started = time.time()
+    log(f"自动收尾处理器启动, 等待 final_prediction.json (pipeline_pid={pid}, watch_started={watch_started})")
+
+    def is_fresh_final_pred():
+        """final_prediction.json 存在且其修改时间晚于监控启动时刻方视为本次管线的产出"""
+        if not FINAL_PRED.exists():
+            return False
+        try:
+            return FINAL_PRED.stat().st_mtime > watch_started
+        except Exception:
+            return False
 
     # 等待 final_prediction.json 出现 或 主管线进程退出
     waited = 0
     while True:
-        if FINAL_PRED.exists():
-            log("✓ final_prediction.json 已生成")
+        if is_fresh_final_pred():
+            log("✓ final_prediction.json 已生成（本次管线产出）")
             break
         if pid and not _pid_alive(pid):
-            log(f"✗ 主管线进程 {pid} 已退出，且未生成 final_prediction.json")
+            log(f"✗ 主管线进程 {pid} 已退出，且未生成新鲜 final_prediction.json")
             break
         time.sleep(60)
         waited += 60
         if waited % 600 == 0:
-            log(f"仍在等待... 已等待 {waited//60} 分钟, final_prediction={'yes' if FINAL_PRED.exists() else 'no'}")
+            log(f"仍在等待... 已等待 {waited//60} 分钟, fresh_final_prediction={'yes' if is_fresh_final_pred() else 'no'}")
 
-    pipeline_ok = FINAL_PRED.exists()
+    # 【修复】只有“新鲜”的 final_prediction.json 才算管线成功，避免读取上次循环的陈旧结果
+    pipeline_ok = is_fresh_final_pred()
 
     # 读取真实数据
     final_pred = read_json(FINAL_PRED) if pipeline_ok else None

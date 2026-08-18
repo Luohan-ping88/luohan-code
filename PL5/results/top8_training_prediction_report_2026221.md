@@ -1,7 +1,7 @@
 # Top-8码详细训练预测分析报告
 
-**预测期号**: 2026219  
-**生成时间**: 2026-08-18 14:19:30  
+**预测期号**: 2026221  
+**生成时间**: 2026-08-18 20:37:31  
 **模型版本**: V10.3  
 **训练模式**: 生产模式（完整训练+强化训练）  
 **报告版本**: V1.0 (基于真实管线输出自动生成)
@@ -10,32 +10,32 @@
 
 ## 一、执行摘要
 
-本次针对第2026219期排列5的Top-8码预测，基于真实日循环管线输出。
+本次针对第2026221期排列5的Top-8码预测，基于真实日循环管线输出。
 
 **关键指标**:
-- 训练数据量: 7693
+- 训练数据量: 7695
 - 特征数量: 670
-- 训练耗时: 约4小时13分
+- 训练耗时: 约4小时26分
 - 训练状态: SUCCESS
-- 佐证整体一致性: 93.33%
+- 佐证整体一致性: 86.67%
 - 置信度等级: high
 
 ### 最终预测Top-8速查表
 
 | 位置 | Top-1 | Top-2 | Top-3 | Top-4 | Top-5 | Top-6 | Top-7 | Top-8 |
 |------|-------|-------|-------|-------|-------|-------|-------|-------|
-| 万位 | 1 | 0 | 2 | 4 | 3 | 6 | 5 | 8 |
-| 千位 | 6 | 7 | 0 | 8 | 9 | 3 | 4 | 2 |
-| 百位 | 6 | 9 | 1 | 8 | 2 | 5 | 0 | 7 |
-| 十位 | 2 | 5 | 8 | 1 | 4 | 9 | 7 | 3 |
-| 个位 | 4 | 0 | 2 | 5 | 9 | 7 | 3 | 8 |
+| 万位 | 1 | 4 | 3 | 2 | 5 | 8 | 7 | 6 |
+| 千位 | 9 | 8 | 0 | 3 | 4 | 2 | 5 | 7 |
+| 百位 | 6 | 2 | 1 | 8 | 5 | 0 | 4 | 7 |
+| 十位 | 8 | 9 | 2 | 3 | 7 | 4 | 0 | 6 |
+| 个位 | 4 | 9 | 2 | 5 | 7 | 3 | 1 | 8 |
 
 ---
 
 ## 二、训练数据概览
 
-- 总期数: 7693
-- 最新期号: 2026218
+- 总期数: 7695
+- 最新期号: 2026220
 
 ### 最近10期开奖回顾
 
@@ -62,56 +62,56 @@
 **万位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_verification | 0 | 3 | 6 |
-| second_verification | 0 | 6 | 3 |
-| third_verification | 0 | 3 | 4 |
+| first_verification | 4 | 3 | 2 |
+| second_verification | 4 | 1 | 3 |
+| third_verification | 4 | 3 | 1 |
 | deep_strategy |  |  |  |
-| prediction_preview | 0 | 1 | 3 |
+| prediction_preview | 4 | 3 | 2 |
 
 **千位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_verification | 7 | 6 | 0 |
-| second_verification | 7 | 6 | 0 |
-| third_verification | 7 | 6 | 0 |
+| first_verification | 8 | 9 | 0 |
+| second_verification | 8 | 9 | 0 |
+| third_verification | 8 | 0 | 9 |
 | deep_strategy |  |  |  |
-| prediction_preview | 7 | 6 | 0 |
+| prediction_preview | 8 | 9 | 0 |
 
 **百位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_verification | 9 | 6 | 1 |
-| second_verification | 9 | 6 | 1 |
-| third_verification | 9 | 6 | 1 |
+| first_verification | 2 | 6 | 1 |
+| second_verification | 2 | 1 | 6 |
+| third_verification | 2 | 6 | 1 |
 | deep_strategy |  |  |  |
-| prediction_preview | 9 | 6 | 1 |
+| prediction_preview | 2 | 6 | 1 |
 
 **十位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_verification | 5 | 8 | 2 |
-| second_verification | 5 | 8 | 2 |
-| third_verification | 5 | 2 | 8 |
+| first_verification | 9 | 2 | 8 |
+| second_verification | 9 | 2 | 8 |
+| third_verification | 9 | 8 | 2 |
 | deep_strategy |  |  |  |
-| prediction_preview | 5 | 8 | 2 |
+| prediction_preview | 9 | 2 | 8 |
 
 **个位**:
 | 佐证轮次 | Top-1 | Top-2 | Top-3 |
 |---------|-------|-------|-------|
-| first_verification | 0 | 5 | 2 |
-| second_verification | 0 | 5 | 2 |
-| third_verification | 0 | 2 | 5 |
+| first_verification | 9 | 2 | 7 |
+| second_verification | 9 | 5 | 7 |
+| third_verification | 9 | 7 | 2 |
 | deep_strategy |  |  |  |
-| prediction_preview | 0 | 2 | 5 |
+| prediction_preview | 9 | 4 | 7 |
 
-**整体一致性**: 93.33%
+**整体一致性**: 86.67%
 
 **各位置一致性**:
 - 万位: 66.67%
 - 千位: 100.00%
 - 百位: 100.00%
 - 十位: 100.00%
-- 个位: 100.00%
+- 个位: 66.67%
 
 ---
 
@@ -120,88 +120,88 @@
 
 ### 万位预测详解
 
-**Top-8号码**: [1, 0, 2, 4, 3, 6, 5, 8]
+**Top-8号码**: [1, 4, 3, 2, 5, 8, 7, 6]
 
 | 排名 | 号码 |
 |------|------|
 | Top-1 | ** 1 ** |
-| Top-2 | ** 0 ** |
-| Top-3 | ** 2 ** |
-| Top-4 | 4 |
-| Top-5 | 3 |
-| Top-6 | 6 |
-| Top-7 | 5 |
-| Top-8 | 8 |
+| Top-2 | ** 4 ** |
+| Top-3 | ** 3 ** |
+| Top-4 | 2 |
+| Top-5 | 5 |
+| Top-6 | 8 |
+| Top-7 | 7 |
+| Top-8 | 6 |
 
-**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.59, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 千位预测详解
 
-**Top-8号码**: [6, 7, 0, 8, 9, 3, 4, 2]
+**Top-8号码**: [9, 8, 0, 3, 4, 2, 5, 7]
 
 | 排名 | 号码 |
 |------|------|
-| Top-1 | ** 6 ** |
-| Top-2 | ** 7 ** |
+| Top-1 | ** 9 ** |
+| Top-2 | ** 8 ** |
 | Top-3 | ** 0 ** |
-| Top-4 | 8 |
-| Top-5 | 9 |
-| Top-6 | 3 |
-| Top-7 | 4 |
-| Top-8 | 2 |
+| Top-4 | 3 |
+| Top-5 | 4 |
+| Top-6 | 2 |
+| Top-7 | 5 |
+| Top-8 | 7 |
 
-**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.59, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 百位预测详解
 
-**Top-8号码**: [6, 9, 1, 8, 2, 5, 0, 7]
+**Top-8号码**: [6, 2, 1, 8, 5, 0, 4, 7]
 
 | 排名 | 号码 |
 |------|------|
 | Top-1 | ** 6 ** |
-| Top-2 | ** 9 ** |
+| Top-2 | ** 2 ** |
 | Top-3 | ** 1 ** |
 | Top-4 | 8 |
-| Top-5 | 2 |
-| Top-6 | 5 |
-| Top-7 | 0 |
+| Top-5 | 5 |
+| Top-6 | 0 |
+| Top-7 | 4 |
 | Top-8 | 7 |
 
-**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.59, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 十位预测详解
 
-**Top-8号码**: [2, 5, 8, 1, 4, 9, 7, 3]
+**Top-8号码**: [8, 9, 2, 3, 7, 4, 0, 6]
 
 | 排名 | 号码 |
 |------|------|
-| Top-1 | ** 2 ** |
-| Top-2 | ** 5 ** |
-| Top-3 | ** 8 ** |
-| Top-4 | 1 |
-| Top-5 | 4 |
-| Top-6 | 9 |
-| Top-7 | 7 |
-| Top-8 | 3 |
+| Top-1 | ** 8 ** |
+| Top-2 | ** 9 ** |
+| Top-3 | ** 2 ** |
+| Top-4 | 3 |
+| Top-5 | 7 |
+| Top-6 | 4 |
+| Top-7 | 0 |
+| Top-8 | 6 |
 
 **模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ### 个位预测详解
 
-**Top-8号码**: [4, 0, 2, 5, 9, 7, 3, 8]
+**Top-8号码**: [4, 9, 2, 5, 7, 3, 1, 8]
 
 | 排名 | 号码 |
 |------|------|
 | Top-1 | ** 4 ** |
-| Top-2 | ** 0 ** |
+| Top-2 | ** 9 ** |
 | Top-3 | ** 2 ** |
 | Top-4 | 5 |
-| Top-5 | 9 |
-| Top-6 | 7 |
-| Top-7 | 3 |
+| Top-5 | 7 |
+| Top-6 | 3 |
+| Top-7 | 1 |
 | Top-8 | 8 |
 
-**模型权重**: stacking=0.62, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
+**模型权重**: stacking=0.60, hmm=0.08, copula=0.08, bsts=0.08, mamba=0.08, itransformer=0.08
 
 ---
 
@@ -217,5 +217,5 @@
 
 ---
 
-**报告生成时间**: 2026-08-18 14:19:30
-**预测期号**: 2026219
+**报告生成时间**: 2026-08-18 20:37:31
+**预测期号**: 2026221

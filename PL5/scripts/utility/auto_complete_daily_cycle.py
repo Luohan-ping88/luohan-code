@@ -85,64 +85,54 @@ def read_json(path, default=None):
 
 
 def load_today_tasks(run_date_str):
-    """读取任务历史，筛选最近一次完整的日循环（从 data_fetch 到 send_report）
+    """读取任务历史，筛选最近一次日循环（从 data_fetch 到 send_report）
     
     支持跨天的日循环（如晚上开始，凌晨结束）。
-    策略：从后往前查找，找到最近的 send_report(SUCCESS)，
-    然后往前找直到 data_fetch(SUCCESS)，中间的所有任务构成本次循环。
+    策略：以最近一次 data_fetch(SUCCESS) 作为当前日循环的起点锚点，
+    收集该锚点之后的所有任务记录（包括收尾任务尚未写入历史的情况），
+    按 task_name 去重保留最后一次记录。
+    
+    【修复BUG-08】不再以 send_report 为锚点。原因：自动收尾处理器在
+    final_prediction.json 新鲜生成后立即触发，此时本轮 send_report 可能
+    尚未写入历史，若以 send_report 为锚点会错误回退到上一个日循环
+    （例如把 08-07 的数据当作 08-18 的报告数据）。
     """
     hist = read_json(TASK_HISTORY, [])
     if not isinstance(hist, list):
         return []
     
-    # 策略1：查找最近一次完整日循环（send_report 往前到 data_fetch）
-    cycle_tasks = []
-    found_send = False
+    # 【修复BUG-08】以最近一次 data_fetch(SUCCESS) 作为当前日循环起点锚点
+    anchor = None
     for rec in reversed(hist):
         if not isinstance(rec, dict):
             continue
-        task_name = rec.get('task_name', '')
-        status = rec.get('status', '')
-        
-        if not found_send and task_name == 'send_report' and status == 'SUCCESS':
-            found_send = True
-            cycle_tasks.insert(0, rec)
+        if rec.get('task_name') == 'data_fetch' and rec.get('status') == 'SUCCESS':
+            anchor = rec
+            break
+    if anchor is None:
+        return []
+    
+    try:
+        anchor_dt = datetime.fromisoformat(anchor.get('start_time'))
+    except Exception:
+        anchor_dt = None
+    if anchor_dt is None:
+        return []
+    
+    # 收集锚点之后的所有任务记录
+    cycle_tasks = []
+    for rec in hist:
+        if not isinstance(rec, dict):
             continue
-        
-        if found_send:
-            cycle_tasks.insert(0, rec)
-            if task_name == 'data_fetch' and status == 'SUCCESS':
-                break
-    
-    # 策略2：如果策略1没找到完整循环，回退到按日期筛选（最近24小时）
-    if not cycle_tasks or cycle_tasks[0].get('task_name') != 'data_fetch':
+        st = rec.get('start_time')
         try:
-            day_start = datetime.fromisoformat(run_date_str + "T00:00:00")
+            st_dt = datetime.fromisoformat(st)
         except Exception:
-            day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        # 往前推1天以覆盖跨天场景
-        from datetime import timedelta
-        day_start = day_start - timedelta(hours=12)
-        today = []
-        for rec in hist:
-            if not isinstance(rec, dict):
-                continue
-            st = rec.get('start_time')
-            try:
-                st_dt = datetime.fromisoformat(st)
-            except Exception:
-                continue
-            if st_dt >= day_start:
-                today.append(rec)
-        # 去重：同一 task_name 保留最后一条
-        seen = {}
-        for rec in today:
-            seen[rec.get('task_name')] = rec
-        cycle_tasks = list(seen.values())
-        cycle_tasks.sort(key=lambda r: r.get('start_time', ''))
-        return cycle_tasks
+            continue
+        if st_dt >= anchor_dt:
+            cycle_tasks.append(rec)
     
-    # 对策略1找到的循环任务去重（同一任务保留最后一次成功的）
+    # 去重：同一 task_name 保留最后一条（覆盖重试场景）
     seen = {}
     for rec in cycle_tasks:
         seen[rec.get('task_name')] = rec

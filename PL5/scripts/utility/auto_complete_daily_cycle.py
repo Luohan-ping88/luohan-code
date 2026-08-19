@@ -504,6 +504,38 @@ def main():
         if waited % 600 == 0:
             log(f"仍在等待... 已等待 {waited//60} 分钟, fresh_final_prediction={'yes' if is_fresh_final_pred() else 'no'}")
 
+    # 【修复BUG-09】final_prediction.json 在任务11(final_prediction)即写入，
+    # 但完整日循环还需执行 final_prediction_verification / pre_sale_prediction /
+    # send_report 三个收尾任务。若此时立即生成摘要，任务清单会缺失最后 3 项
+    # （例如 08-19 只捕获 11/14 项）。因此需继续等待：
+    #   1. 主管线进程退出（run_full_pipeline 返回），或
+    #   2. send_report 记录已写入 task_history_v8.json
+    # 取二者先到者，确保摘要覆盖完整日循环。
+    def is_cycle_finished():
+        if pid and not _pid_alive(pid):
+            return True  # 主管线已退出 → 循环完成
+        try:
+            hist = read_json(TASK_HISTORY, [])
+            for rec in reversed(hist or []):
+                if not isinstance(rec, dict):
+                    continue
+                if rec.get('task_name') == 'send_report' and rec.get('status') == 'SUCCESS':
+                    st = rec.get('start_time') or ''
+                    try:
+                        if datetime.fromisoformat(st) >= datetime.fromisoformat(
+                                datetime.fromtimestamp(watch_started).isoformat()):
+                            return True
+                    except Exception:
+                        return True
+        except Exception:
+            pass
+        return False
+
+    while not is_cycle_finished():
+        log(f"final_prediction 已生成，等待日循环收尾任务(send_report)完成... 已等待 {waited//60} 分钟")
+        time.sleep(60)
+        waited += 60
+
     # 【修复】只有“新鲜”的 final_prediction.json 才算管线成功，避免读取上次循环的陈旧结果
     pipeline_ok = is_fresh_final_pred()
 

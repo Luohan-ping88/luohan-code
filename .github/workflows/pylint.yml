@@ -1,0 +1,23 @@
+名称：Pylint: Pylint
+
+on: [push]: [push]
+
+职位：:
+  构建：:
+    运行环境：ubuntu-latest: ubuntu-latest
+    策略：:
+      矩阵：:
+        python-version: ["3.8", "3.9", "3.10"]: ["3.8", "3.9", "3.10"]
+    步骤：:
+    - 使用：actions/checkout@v4uses: actions/checkout@v4
+    - name: 设置 Python ${{ matrix.python-version }}name: Set up Python ${{ matrix.python-version }}
+      使用：actions/setup-python@v3: actions/setup-python@v3
+      使用：:
+        python-version: ${{ matrix.python-version }}: ${{ matrix.python-version }}
+    - 名称：安装依赖项name: Install dependencies
+      运行：|: |
+        python -m pip install --upgrade pip
+        pip install pylint
+    - 名称：使用 pylint 分析代码name: Analysing the code with pylint
+      运行：|: |
+        pylint $(git ls-files '*.py')

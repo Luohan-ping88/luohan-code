@@ -1438,7 +1438,13 @@ class SelfLearningSystem:
         )
         return summary
 
-    def get_suggestion_statistics(self) -> Dict[str, Any]:
+    def generate_suggestion_report(self) -> List[str]:
+        """生成优化建议的易读文本报告（多行字符串）。
+
+        修复：原代码因误将本报告方法命名为 get_suggestion_statistics，
+        遮蔽了返回统计字典的同名方法，并造成内部无限自递归。
+        现改名还原为独立的报告方法；统计字典仍由 get_suggestion_statistics 提供。
+        """
         structured = self.generate_structured_suggestions()
         text_lines: List[str] = []
 

@@ -97,10 +97,9 @@ class ClosedLoopMemoryStore:
                 self.data[key] = _sliding_truncate(merged)
 
     def append(self, key: str, record: Any) -> None:
-        """向指定键追加一条记录。"""
+        """向指定键追加一条记录（key 不存在时自动初始化，不会丢数据）。"""
         if key not in self.data or not isinstance(self.data[key], list):
-            self.data.setdefault(key, record if isinstance(record, list) else [])
-            return
+            self.data[key] = []
         self.data[key].append(record)
         self.data[key] = _sliding_truncate(self.data[key])
 

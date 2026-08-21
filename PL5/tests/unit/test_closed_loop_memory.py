@@ -22,6 +22,12 @@ def test_append_and_read():
     assert len(store2.get("evaluations")) == 1
     assert store2.get("actions")[0]["type"] == "update_param"
 
+def test_append_new_key_single_record_not_lost():
+    store = ClosedLoopMemoryStore(path=TMP)
+    store.append("custom", {"k": 1})
+    store.append("custom", {"k": 2})
+    assert store.get("custom") == [{"k": 1}, {"k": 2}]
+
 def test_merge_legacy_files(tmp_path):
     legacy = tmp_path / "learning_history.json"
     legacy.write_text(json.dumps([{"accuracy": 0.4}]), encoding="utf-8")

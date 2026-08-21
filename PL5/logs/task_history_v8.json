@@ -2,22 +2,6 @@
   {
     "task_name": "first_prediction_verification",
     "status": "SUCCESS",
-    "start_time": "2026-04-25T16:11:49.086972",
-    "end_time": "2026-04-25T16:13:04.351458",
-    "duration": 75.264486,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T16:14:04.368821",
-    "end_time": "2026-04-25T16:15:19.758683",
-    "duration": 75.389862,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
     "start_time": "2026-04-25T16:16:19.783273",
     "end_time": "2026-04-25T16:17:34.993753",
     "duration": 75.21048,
@@ -6397,6 +6381,22 @@
     "start_time": "2026-08-21T15:24:57.356872",
     "end_time": "2026-08-21T15:24:57.986312",
     "duration": 0.62944,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-08-21T15:24:57.993659",
+    "end_time": "2026-08-21T15:26:24.944878",
+    "duration": 86.951219,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-08-21T15:26:24.954126",
+    "end_time": "2026-08-21T15:27:50.979909",
+    "duration": 86.025783,
     "error_message": null
   }
 ]

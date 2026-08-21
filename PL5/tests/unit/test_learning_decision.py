@@ -24,3 +24,26 @@ def test_update_param_confidence_threshold():
     cands = [_sug(1, 0.40, 0.05)]  # 0.40 < 0.55 → 被过滤
     actions = dm.select_actions(cands)
     assert actions == []
+
+
+def test_adaptive_threshold_positive_gain_lowers_gate():
+    # 历史效果增益为正 → 降低门槛，0.50 应能通过（默认门槛 0.55）
+    dm = DecisionModule(avg_effect_gain=0.4)
+    cands = [_sug(1, 0.50, 0.05)]
+    assert dm.select_actions(cands) != []
+
+
+def test_adaptive_threshold_negative_gain_raises_gate():
+    # 历史效果增益为负 → 提高门槛，0.60 应被过滤（默认门槛 0.55）
+    dm = DecisionModule(avg_effect_gain=-0.4)
+    cands = [_sug(1, 0.60, 0.05)]
+    assert dm.select_actions(cands) == []
+
+
+def test_set_avg_effect_gain_updates_gate():
+    dm = DecisionModule()
+    cands = [_sug(1, 0.50, 0.05)]
+    # 默认门槛 0.55 → 0.50 被过滤
+    assert dm.select_actions(cands) == []
+    dm.set_avg_effect_gain(0.4)  # 门槛降为 0.45 → 0.50 通过
+    assert dm.select_actions(list(cands)) != []

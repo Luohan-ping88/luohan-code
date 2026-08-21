@@ -1137,10 +1137,17 @@ class AutoSchedulerV8:
             try:
                 from src.core.learning_loop import LearningLoopEngine
 
-                # retrain 动作适配器：置重训标志，实际重训交由训练任务执行
+                # retrain 动作适配器：写入持久化强制重训标志，实际重训交由训练任务消费执行
+                _scheduler = self
+
                 class _ClosedLoopRetrainAdapter:
                     def trigger_retrain(self):
-                        logger.info("[闭环V11] 建议触发重训（已置标志，待训练任务执行）")
+                        logger.info("[闭环V11] 决策触发重训：写入 force_retrain 标志，待训练任务执行")
+                        try:
+                            _scheduler.config['force_retrain'] = True
+                            _scheduler.save_config()
+                        except Exception as cfg_err:
+                            logger.warning(f"[闭环V11] 写入 force_retrain 标志失败（非致命）: {cfg_err}")
 
                 _loop = LearningLoopEngine(
                     self_learning=sls,  # 复用运行中实例，避免思考/执行快照不一致
@@ -1150,7 +1157,12 @@ class AutoSchedulerV8:
                 if not _period:
                     logger.warning("[闭环V11] 缺少 last_completed_period，跳过本周期闭环（保持幂等）")
                 else:
-                    _loop_result = _loop.run_once({"period": _period})
+                    # 传入本周期实测准确率，供效果回填（baseline → 下一周期回填真实 Δaccuracy）
+                    try:
+                        _current_acc = (sls.check_performance_alert() or {}).get("current_accuracy")
+                    except Exception as acc_err:
+                        _current_acc = None
+                    _loop_result = _loop.run_once({"period": _period, "current_accuracy": _current_acc})
                     logger.info(f"[闭环V11] 决策动作: {_loop_result['actions']}")
                     if _loop_result.get("reasoning"):
                         logger.info(f"[闭环V11] 决策依据: {_loop_result['reasoning']}")
@@ -2051,6 +2063,13 @@ class AutoSchedulerV8:
             self.log_status("深度学习", "检查训练策略", 30)
             sls = SelfLearningSystem()
             should_retrain, reason = sls.should_trigger_retrain()
+            # 【闭环V11】消费自学习闭环写入的强制重训标志，触发一次真实全量训练
+            if self.config.get('force_retrain'):
+                should_retrain = True
+                reason = f"[闭环V11 自学习决策强制重训] {reason}"
+                self.config['force_retrain'] = False
+                self.save_config()
+                logger.info(f"  闭环V11 已消费 force_retrain 标志，本轮执行全量训练")
             
             predictor = EnhancedPL5Predictor()
             

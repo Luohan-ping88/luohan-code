@@ -9,6 +9,7 @@
 记忆库写入失败由 ClosedLoopMemoryStore.save 降级处理，绝不中断闭环。
 """
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -58,8 +59,28 @@ class LearningLoopEngine:
             collector=collector,
         )
 
+    def _backfill_pending_effects(self, current_accuracy: Optional[float]) -> None:
+        """用本轮实测准确率回填上一轮动作的 delta_accuracy（真实效果，非占位 0.0）。
+
+        上轮执行动作时只记录 baseline_accuracy，本轮拿到最新准确率后，
+        计算 delta_accuracy = 当前准确率 - baseline_accuracy 并回填 recorded_at，
+        形成"执行 → 验证 → 回填"的真实效果闭环。
+        """
+        if current_accuracy is None:
+            return
+        for effect in self.memory.get("effects"):
+            if not isinstance(effect, dict):
+                continue
+            if effect.get("delta_accuracy") is not None:
+                continue
+            baseline = effect.get("baseline_accuracy")
+            if baseline is None:
+                continue
+            effect["delta_accuracy"] = float(current_accuracy) - float(baseline)
+            effect["recorded_at"] = datetime.now().isoformat()
+
     def _self_correct(self) -> None:
-        """读取记忆库 effects，若有 delta_accuracy 记录则计算均值写入 meta。"""
+        """读取记忆库 effects，若有 delta_accuracy 记录则计算均值写入 meta，并喂给决策模块。"""
         effects = self.memory.get("effects")
         deltas = [
             e.get("delta_accuracy")
@@ -67,7 +88,9 @@ class LearningLoopEngine:
             if isinstance(e, dict) and e.get("delta_accuracy") is not None
         ]
         if deltas:
-            self.memory.set_meta("avg_effect_gain", sum(deltas) / len(deltas))
+            avg_effect_gain = sum(deltas) / len(deltas)
+            self.memory.set_meta("avg_effect_gain", avg_effect_gain)
+            self.decision.set_avg_effect_gain(avg_effect_gain)
 
     def run_once(self, cycle_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行一轮完整闭环，返回 {"actions", "skipped", ...}。
@@ -75,10 +98,14 @@ class LearningLoopEngine:
         cycle_data: 循环数据，至少应包含可选的 "period" 键用于去重。
         """
         period = cycle_data.get("period")
+        current_accuracy = cycle_data.get("current_accuracy")
         meta = self.memory.data.get("meta", {})
         if period is not None and period == meta.get("last_period"):
             return {"actions": [], "skipped": True, "reason": "period already processed"}
 
+        # ① 效果回填：先用本轮准确率验证上一轮动作的真实效果
+        self._backfill_pending_effects(current_accuracy)
+        # ② 自校正：计算 avg_effect_gain 并喂给决策模块
         self._self_correct()
         ctx = self.think.think()
         decided = self.decision.decide(ctx.candidates)
@@ -104,7 +131,8 @@ class LearningLoopEngine:
         if any(isinstance(res, dict) and res.get("executed") for res in results):
             self.memory.append("effects", {
                 "event_id": len(self.memory.get("actions")),
-                "delta_accuracy": 0.0,
+                "baseline_accuracy": current_accuracy,
+                "delta_accuracy": None,
                 "recorded_at": None,
             })
 

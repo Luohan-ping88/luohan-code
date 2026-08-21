@@ -65,6 +65,44 @@ class ThinkModule:
             comp = {"comprehensive_score": 0.0, "metrics_available": []}
         return perf, comp
 
+    def _think_parameter_suggestions(self) -> List[RankedAction]:
+        """学以致用：把参数类结构化建议转成 UPDATE_PARAM 候选动作。
+
+        从 SelfLearningSystem 的 pending 建议中筛选带 parameter 的记录，
+        使用其持久化的稳定 id（内容级去重会复用旧 id），供 ActModule 应用。
+        """
+        actions: List[RankedAction] = []
+        try:
+            self.self_learning.generate_structured_suggestions()
+        except Exception as exc:  # noqa: BLE001 建议生成失败不阻塞思考
+            logger.warning("[ThinkModule] generate_structured_suggestions 失败: %s", exc)
+            return actions
+
+        history = getattr(self.self_learning, "suggestion_history", []) or []
+        for rec in reversed(history):
+            if not isinstance(rec, dict):
+                continue
+            if rec.get("status") != "pending":
+                continue
+            param = rec.get("parameter")
+            if not isinstance(param, dict) or not param.get("name"):
+                continue
+            expected = rec.get("effect_estimation") or {}
+            improvement_range = expected.get("improvement_range") or [0.0, 0.0, 0.0]
+            mid = improvement_range[1] if len(improvement_range) > 1 else 0.0
+            actions.append(RankedAction(
+                action_type=ActionType.UPDATE_PARAM.value,
+                priority=int(rec.get("priority", 1)),
+                confidence=float(rec.get("confidence_level", 0.0)),
+                estimated_improvement_mid=float(mid),
+                name=rec.get("category", param.get("name", "update_param")),
+                param_name=param.get("name"),
+                recommended_value=param.get("recommended_value"),
+                suggestion_id=rec.get("id"),
+                reasoning=rec.get("reasoning", ""),
+            ))
+        return actions
+
     def think(self) -> ThinkContext:
         """执行三层思考，返回 ThinkContext。"""
         ctx = ThinkContext()
@@ -93,6 +131,16 @@ class ThinkModule:
             ctx.reasoning.append(
                 f"规则层: 告警级别 '{alert_level}' 触发动作 {[a.value for a in action_types]}"
             )
+
+        # 第 1.5 层：参数建议（学以致用），命中参数知识库规则则产出 UPDATE_PARAM 候选
+        try:
+            param_actions = self._think_parameter_suggestions()
+        except Exception as exc:  # noqa: BLE001 参数建议失败不阻塞思考
+            logger.warning("[ThinkModule] 参数建议生成失败: %s", exc)
+            param_actions = []
+        ctx.candidates.extend(param_actions)
+        if param_actions:
+            ctx.reasoning.append(f"参数层: 生成 {len(param_actions)} 个参数调整候选（学以致用）")
 
         # 第 2 层：统计层，接入反馈分析
         if self.feedback_analyzer is not None:

@@ -35,3 +35,27 @@ def test_no_llm_no_crash():
     think = ThinkModule(self_learning=FakeSL(), feedback_analyzer=FakeFeedback(), llm=None)
     ctx = think.think()
     assert ctx.reasoning
+
+def test_parameter_suggestion_produces_update_param():
+    class FakeSLParams(FakeSL):
+        def __init__(self):
+            self.suggestion_history = [{
+                "id": "SUG-PARAM1",
+                "status": "pending",
+                "category": "parameter_n_estimators",
+                "priority": 2,
+                "confidence_level": 0.7,
+                "parameter": {"name": "n_estimators", "recommended_value": 150},
+                "effect_estimation": {"improvement_range": [0.01, 0.04, 0.08]},
+                "reasoning": "test rule",
+            }]
+        def generate_structured_suggestions(self):
+            return []
+
+    think = ThinkModule(self_learning=FakeSLParams(), feedback_analyzer=FakeFeedback(), llm=None)
+    ctx = think.think()
+    updates = [a for a in ctx.candidates if a.action_type == ActionType.UPDATE_PARAM.value]
+    assert updates
+    assert updates[0].suggestion_id == "SUG-PARAM1"
+    assert updates[0].param_name == "n_estimators"
+    assert updates[0].recommended_value == 150

@@ -2,30 +2,6 @@
   {
     "task_name": "first_prediction_verification",
     "status": "SUCCESS",
-    "start_time": "2026-04-25T15:59:43.357303",
-    "end_time": "2026-04-25T16:00:59.114359",
-    "duration": 75.757056,
-    "error_message": null
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-25T16:01:59.127646",
-    "end_time": "2026-04-25T16:07:18.313306",
-    "duration": 319.18566,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T16:07:18.323354",
-    "end_time": "2026-04-25T16:08:33.927799",
-    "duration": 75.604445,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
     "start_time": "2026-04-25T16:09:33.949087",
     "end_time": "2026-04-25T16:10:49.069244",
     "duration": 75.120157,
@@ -6397,6 +6373,30 @@
     "start_time": "2026-08-18T20:39:59.108969",
     "end_time": "2026-08-18T20:41:24.954133",
     "duration": 85.845164,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-08-21T14:57:10.618727",
+    "end_time": "2026-08-21T14:57:11.266439",
+    "duration": 0.647712,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-08-21T14:57:11.273517",
+    "end_time": "2026-08-21T14:58:37.739399",
+    "duration": 86.465882,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-08-21T14:58:37.747913",
+    "end_time": "2026-08-21T15:00:03.938013",
+    "duration": 86.1901,
     "error_message": null
   }
 ]

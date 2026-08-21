@@ -50,3 +50,11 @@ def test_monitor_noop():
         estimated_improvement_mid=0.0, name="monitor",
     ))
     assert res["executed"] is False
+
+def test_fix_data_dataframe_nonempty():
+    act = ActModule(self_learning=FakeSL(), engine=FakeEngine(), collector=FakeCollector())
+    res = act.act(RankedAction(
+        action_type=ActionType.FIX_DATA.value, priority=2, confidence=0.8,
+        estimated_improvement_mid=0.02, name="fix",
+    ))
+    assert res["executed"] is True

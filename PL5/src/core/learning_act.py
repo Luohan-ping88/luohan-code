@@ -102,7 +102,17 @@ class ActModule:
                 "message": "no collector",
             }
         result = self.collector.update_data()
-        executed = bool(result) and not getattr(result, "empty", False)
+        if result is None:
+            executed = False
+        else:
+            empty = getattr(result, "empty", None)
+            if empty is not None:  # pandas DataFrame/Series
+                executed = not empty
+            else:
+                try:
+                    executed = len(result) > 0
+                except TypeError:  # 无常量化对象，视为有数据
+                    executed = True
         return {
             "action_type": ActionType.FIX_DATA.value,
             "executed": executed,

@@ -96,16 +96,17 @@ class LearningLoopEngine:
             self.memory.set_meta("last_period", period)
             self.memory.set_meta("run_count", int(meta.get("run_count", 0)) + 1)
 
-        # 更新 LLM 使用计数：reasoning 中含 "LLM:" 前缀则该轮计一次
-        if any(isinstance(r, str) and r.startswith("LLM:") for r in ctx.reasoning):
+        # 更新 LLM 使用计数：reasoning 中含 "LLM增强" 则该轮计一次
+        if any(isinstance(r, str) and "LLM增强" in r for r in ctx.reasoning):
             self.memory.set_meta("llm_usage", int(meta.get("llm_usage", 0)) + 1)
 
-        # 追加一条 effects 占位记录
-        self.memory.append("effects", {
-            "event_id": len(self.memory.get("actions")),
-            "delta_accuracy": 0.0,
-            "recorded_at": None,
-        })
+        # 仅在确有动作执行时追加 effects 占位，避免无动作轮次用 0.0 稀释自校正信号
+        if any(isinstance(res, dict) and res.get("executed") for res in results):
+            self.memory.append("effects", {
+                "event_id": len(self.memory.get("actions")),
+                "delta_accuracy": 0.0,
+                "recorded_at": None,
+            })
 
         # 保存失败由 ClosedLoopMemoryStore.save 内部降级，不再中断
         self.memory.save()

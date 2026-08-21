@@ -1147,12 +1147,15 @@ class AutoSchedulerV8:
                     engine=_ClosedLoopRetrainAdapter(),
                 )
                 _period = str(self.config.get('last_completed_period', ''))
-                _loop_result = _loop.run_once({"period": _period}) if _period else _loop.run_once({})
-                logger.info(f"[闭环V11] 决策动作: {_loop_result['actions']}")
-                if _loop_result.get("reasoning"):
-                    logger.info(f"[闭环V11] 决策依据: {_loop_result['reasoning']}")
-                if _loop_result.get("skipped"):
-                    logger.info(f"[闭环V11] 本周期已处理，跳过: {_loop_result.get('reason', '')}")
+                if not _period:
+                    logger.warning("[闭环V11] 缺少 last_completed_period，跳过本周期闭环（保持幂等）")
+                else:
+                    _loop_result = _loop.run_once({"period": _period})
+                    logger.info(f"[闭环V11] 决策动作: {_loop_result['actions']}")
+                    if _loop_result.get("reasoning"):
+                        logger.info(f"[闭环V11] 决策依据: {_loop_result['reasoning']}")
+                    if _loop_result.get("skipped"):
+                        logger.info(f"[闭环V11] 本周期已处理，跳过: {_loop_result.get('reason', '')}")
             except Exception as _loop_err:
                 logger.warning(f"[闭环V11] 闭环运行失败（非致命）: {_loop_err}")
 

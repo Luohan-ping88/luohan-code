@@ -1159,6 +1159,69 @@ class AutoSchedulerV8:
             except Exception as _loop_err:
                 logger.warning(f"[闭环V11] 闭环运行失败（非致命）: {_loop_err}")
 
+            # 【复盘闭环 §6】预测 vs 开奖回溯，按状态空间沉淀经验
+            try:
+                from src.core.retrospective import ReviewEngine
+                from src.core.feedback_learning import FeedbackAnalyzer
+                from src.core.data.collector import PL5DataCollector
+
+                _review = ReviewEngine()
+                _row_data = PL5DataCollector().load_processed_data()
+                _preds = FeedbackAnalyzer().prediction_history
+
+                _review_result = {
+                    "state": {}, "attribution": [], "actions": [], "matches": [], "stored": False,
+                }
+                if _preds and _row_data is not None and not getattr(_row_data, "empty", True):
+                    # 构造 (预测记录 → 对应开奖) 对照：仅取已在开奖中回填的期号
+                    _view_preds, _opens = [], []
+                    _row_df = _row_data  # pandas DataFrame
+                    for _rec in _preds:
+                        _period = _rec.get("period")
+                        _row_match = _row_df[_row_df["period"].astype(str) == str(_period)]
+                        _pred_data = _rec.get("predictions", {})
+                        if _row_match.empty or not _pred_data:
+                            continue
+                        _shi_pred = _pred_data.get("shi", {})
+                        if not isinstance(_shi_pred, dict) or not _shi_pred.get("top_k"):
+                            continue
+                        _view_preds.append(_rec)
+                        _opens.append([int(_row_match["ge"].iloc[0])])
+                    _context = {
+                        "strategy": best_strategy.get('name', 'default') if isinstance(best_strategy, dict) else 'default',
+                        "feature_stats": {},
+                        "switcher_status": {},
+                    }
+                    if _view_preds and _opens:
+                        _latest_shi = (_view_preds[-1].get("predictions") or {}).get("shi", {})
+                        _latest_topk = (_latest_shi.get("top_k") if isinstance(_latest_shi, dict) else None) or []
+                        _review_result = _review.run_review(
+                            period=str(self.config.get('last_completed_period', '')),
+                            predictions={
+                                "recent_preds": _view_preds,
+                                "actual_opens": _opens,
+                                "top_k": _latest_topk,
+                            },
+                            context=_context,
+                        )
+                        logger.info(f"[复盘闭环§6] 状态空间: {_review_result['state']}")
+                        logger.info(f"[复盘闭环§6] 归因: {_review_result['attribution']}")
+                        if _review_result["actions"]:
+                            logger.info(f"[复盘闭环§6] 复盘调整动作: {_review_result['actions']}")
+                            _review_notes = [
+                                f"[复盘] {a.get('domain')}: {a.get('value', '')} ({a.get('reason', '')})"
+                                for a in _review_result['actions']
+                            ]
+                            suggestions = (suggestions if isinstance(suggestions, list) else []) + _review_notes
+                        if _review_result["matches"]:
+                            logger.info(f"[复盘闭环§6] 命中同态历史经验 {len(_review_result['matches'])} 条")
+                    else:
+                        logger.info("[复盘闭环§6] 无已开奖的预测记录可对照，跳过复盘（非致命）")
+                else:
+                    logger.info("[复盘闭环§6] 缺少预测/开奖数据，跳过复盘（非致命）")
+            except Exception as _review_err:
+                logger.warning(f"[复盘闭环§6] 复盘运行失败（非致命）: {_review_err}")
+
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  策略优化完成，耗时: {final_elapsed:.2f} 小时")
 

@@ -834,3 +834,32 @@ git commit -m "feat: 闭环回归冒烟通过"
 - **max_depth 取整坑**：已确认存在于 `SelfLearningSystem.apply_suggestion`（1316-1317 行），计划改为验证契约（Task 4 Step 4b），不重写。
 - **Placeholder 扫描**：所有步骤含实际代码与命令，无 "add handling" 类占位。
 - **类型一致性**：`RankedAction`/`ActionType`/`ThinkContext` 在 Task 2/3/4/5 中字段一致（`action_type` 用 `ActionType.*.value` 字符串，`DecisionModule.classify` 用 `ActionType(action_type)` 兼容）。
+
+---
+
+## Task 8: 状态空间复盘闭环（ReviewEngine）——预测 vs 开奖回溯
+
+> 对应设计文档 §6。补齐 VERIFY 的"回看学习"侧：预测结果 vs 实际开奖对比，归因到推理策略/特征工程/学习率/超参数四个可调域，结合状态空间 S 检索历史同态经验产出调整动作，并沉淀 (S, A, Δ) 经验跨周期复用。
+
+**Files:**
+- Create: `src/core/retrospective.py`
+- Modify: `src/core/closed_loop_memory.py`（initial_data / _load 增加 `experiences` 键）
+- Modify: `src/app/auto_scheduler_v8.py`（task_evaluate 闭环V11之后接入复盘）
+- Test: `tests/unit/test_retrospective.py`
+- Docs: `docs/superpowers/specs/2026-08-21-self-learning-closed-loop-design.md` §6
+
+**逻辑闭环**：`build_state_vector`(状态S) → `attribute_discrepancy`(归因四域) → `match_state`(同态经验检索) → `propose_adjustments`(产出动作) → `record_experience`(沉淀经验)。
+
+- [x] **Step 1: 写失败测试**（`tests/unit/test_retrospective.py`，6 项用例）→ 初始 ImportError（RED）
+- [x] **Step 2: 实现 `src/core/retrospective.py`**（ReviewEngine，全异常降级）→ 6 passed（GREEN）
+- [x] **Step 3: 扩展记忆库 `experiences` 键**（`closed_loop_memory.py`）
+- [x] **Step 4: 接线 `auto_scheduler_v8.py::task_evaluate`**：复用 `FeedbackAnalyzer().prediction_history` + `PL5DataCollector().load_processed_data()` 构造(预测→开奖)对照，调用 `run_review`；复盘动作合并进 `suggestions`；全部 try/except 非致命
+  - 修复真实数据嵌套格式 bug（`_extract_top_k` 兼容 `predictions.shi.top_k`）
+  - `run_review` 自动提取最近一期 top_k 作归因输入
+- [x] **Step 5: 冒烟验证**：真实数据（25 条预测对照）状态空间命中率 top1/3/8 = 0.08/0.32/0.88 正常提取；构造错配样本归因到 strategy/feature/hyperparam/learning_rate 四域并成功沉淀经验
+- [x] **Step 6: 回归测试**：`test_retrospective.py` + `test_closed_loop_memory.py` 共 9 passed
+- [ ] **Step 7: 提交**
+  ```bash
+  git add src/core/retrospective.py src/core/closed_loop_memory.py src/app/auto_scheduler_v8.py tests/unit/test_retrospective.py docs/superpowers/specs/2026-08-21-self-learning-closed-loop-design.md docs/superpowers/plans/2026-08-21-self-learning-closed-loop.md
+  git commit -m "feat: 状态空间复盘闭环 ReviewEngine (预测vs开奖回溯+同态经验复用)"
+  ```

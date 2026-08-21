@@ -129,8 +129,64 @@
 
 **性能**：闭环为增量计算（聚合已有 stats，不做全量重训练外的重计算）；LLM 仅在重决策调用并加超时。
 
+### §6 复盘闭环（Retrospective）——预测 vs 开奖回溯，按状态空间调整
+
+> 本节为 V11 之后的缺口补齐，是本设计的核心增强：让闭环真正"回看并学习"。
+
+**问题**：前几节定义了"执行闭环"（THINK→DECIDE→ACT→VERIFY），但 VERIFY 只回收了动作效果指标，**没有把预测结果与实际开奖做对比、并回溯到"推理策略/特征工程/学习率/超参数"这些可调杠杆**，更没有形成"数据处于某状态空间时该往哪调"的可复用经验。因此模型无法通过复盘积累优弱点、无法越用越聪明。
+
+**复盘闭环的四个环节**：
+
+```
+开奖结果送达
+   │  ① 对比：预测 top_k vs 实际开奖 → 逐模型/逐策略命中差分
+   ▼
+② 归因：差分源自哪一处可调杠杆
+   ├─ 推理策略（模型权重/集成方式）→ strategy_switcher
+   ├─ 特征工程（窗口/特征数/回看深度）→ feature_config_manager
+   ├─ 学习率 / 更新幅度 → self_learning
+   └─ 超参数（max_depth 等 6 项）→ apply_suggestion
+   │
+   ▼
+③ 状态空间 S：刻画"数据当时处在什么状态"
+   = 数据可观测特征(波动率/冷热分布/跨度·和值/特征区分度/PSI漂移) + 近期命中率(top1/3/8)
+   → 检索历史经验库中"同态 (S') 下，哪个动作 A' 有效(Δ>0)"
+   → 决定本次该用哪类杠杆、往哪个方向调
+   │
+   ▼
+④ 沉淀经验：记录 (状态S, 动作A, 效果Δ) → 存入记忆库，供下次同态匹配复用
+```
+
+**实现**：新增 `src/core/retrospective.py` 的 `ReviewEngine`：
+
+- `build_state_vector(recent_preds, actual_opens, feature_stats, switcher_status) -> dict`
+  构造状态向量 S（数据分布特征 + 近端命中率 + 漂移）。
+- `attribute_discrepancy(pred_topk, actual, ctx)` —
+  按"哪类杠杆"做归因差分，输出候选调整域及其强度。
+- `match_state(state, experiences, top_k=5)` —
+  对历史 `(S', A', Δ)` 做相似度检索，返回同态下历史有效的动作。
+- `propose_adjustments(state, attribution)` —
+  结合归因 + 同态经验，产出本次动作（策略切换 / 特征调整 / 学习率 / 超参）。
+- `record_experience(state, actions, outcome_delta)` —
+  规范化沉淀一条经验，写回记忆库。
+
+**记忆库扩展**：在 `closed_loop_memory.json` 增加 `experiences` 键：
+```
+"experiences": [   // 复盘沉淀的 (状态, 动作集, 效果) 经验，滑窗截断
+  {"state": {...}, "actions": [...], "delta_accuracy": 0.05,
+   "state_snapshot": {...}, "period": "2026221", "timestamp": "..."}
+]
+```
+
+**接入点**：在 `auto_scheduler_v8.py` 开奖反馈闭环拿到实际命中率之后调用
+`ReviewEngine.run_review(period, predictions, actual, context)`，其结果——
+- 若命中同态有效经验 → 输出可执行调整动作，交回 DECIDE/ACT。
+- 记录本次 `(S, A, Δ)` 经验入库。
+
+**测试**：单测覆盖状态向量构造、归因差分、同态匹配检索、经验读写与滑窗；冒烟验证接入主流程无异常。
+
 ## 不做的事（YAGNI）
 
-- 不引入外部向量/图数据库作为长期记忆（现有知识图谱已可为可选增强）。
+- 不引入外部向量/图数据库作为长期记忆（现有知识图谱已可为可选增强；状态经验用确定性相似度检索即可）。
 - 不做纯 LLM 驱动（避免强外部依赖与费用）。
-- 不改写已有 `FeedbackAnalyzer`/`SelfLearningSystem` 的既有能力，仅接线与补缺口。
+- 不改写已有 `FeedbackAnalyzer`/`SelfLearningSystem`/`strategy_adaptive_switcher` 的既有能力，仅接线与补缺口。

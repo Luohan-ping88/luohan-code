@@ -24,6 +24,7 @@ def _initial_data() -> Dict[str, Any]:
         "evaluations": [],
         "actions": [],
         "effects": [],
+        "experiences": [],
         "meta": {"last_period": None, "llm_usage": 0, "run_count": 0},
     }
 
@@ -67,7 +68,7 @@ class ClosedLoopMemoryStore:
             for key, value in raw.items():
                 if key in ("version", "meta"):
                     base[key] = value
-                elif key in ("evaluations", "actions", "effects"):
+                elif key in ("evaluations", "actions", "effects", "experiences"):
                     base[key] = value if isinstance(value, list) else []
             self.data = base
         except Exception as exc:  # noqa: BLE001 加载失败不崩溃

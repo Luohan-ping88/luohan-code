@@ -2695,6 +2695,92 @@ class AutoSchedulerV8:
             logger.warning(f"【远程仓库推送】推送异常: {e}")
             return False
 
+    def _execute_task_handler(self, task_name: str, task_handler: Any) -> bool:
+        """统一执行单个任务处理器，返回是否成功（与 run_full_pipeline 语义一致）。"""
+        if task_name == 'data_fetch':
+            return self.execute_with_retry(self.task_fetch_data, 'data_fetch')
+        if task_name == 'evaluation':
+            result = self.execute_with_retry(self.task_evaluate, 'evaluation')
+            return result is not None and isinstance(result, tuple)
+        if task_name == 'send_report':
+            return self.execute_with_retry(self.task_send_report, 'send_report')
+        # 通用处理器（增量训练/佐证链/调优任务统一调用）
+        return self.execute_with_retry(task_handler, task_name)
+
+    def _repair_task(self, task_name: str) -> bool:
+        """
+        针对失败任务执行通用自动修复，为「失败→修复→重跑→继续」闭环提供支撑。
+        返回 True 表示已执行了修复动作（未抛出异常），False 表示修复本身也失败。
+        覆盖的通用故障源：
+          1. 重置该任务的重试计数（避免上一轮残留拉高失败判定）
+          2. 清理工作流编排器中的进行中/错误状态，解除任务卡死
+          3. 清理本次运行可能遗留的陈旧 final_prediction.json，防止被误判为管线产出
+          4. 修复数据文件 UTF-8 BOM（历史故障源，幂等无害）
+        """
+        fixed_actions = []
+        try:
+            if self.retry_manager:
+                self.retry_manager.reset_retry_count(task_name)
+                fixed_actions.append("重置重试计数")
+
+            if self.orchestrator is not None:
+                try:
+                    state = self.orchestrator.state
+                    tasks_state = (state or {}).get("tasks", {})
+                    if task_name in tasks_state:
+                        tasks_state[task_name]["status"] = "pending"
+                        fixed_actions.append("重置任务状态为pending")
+                    if self.orchestrator.state is not None and \
+                            self.orchestrator.state.get("current_task") == task_name:
+                        self.orchestrator.state["current_task"] = None
+                        fixed_actions.append("清除进行中任务")
+                    if hasattr(self.orchestrator, "_save_state"):
+                        self.orchestrator._save_state()
+                except Exception as e:
+                    logger.warning(f"[自动修复] 重置编排器状态失败({task_name}): {e}")
+
+            final_pred = Path(LOGS_DIR) / "final_prediction.json"
+            if final_pred.exists():
+                final_pred.unlink()
+                fixed_actions.append("清理陈旧final_prediction.json")
+
+            # 数据文件 BOM 修复（幂等）
+            for cfg_path in (Path(DATA_DIR).parent / "processed" / "pl5_processed.csv",
+                             Path("config") / "training_status.json"):
+                try:
+                    if cfg_path.exists():
+                        data = cfg_path.read_bytes()
+                        if data.startswith(b'\xef\xbb\xbf'):
+                            cfg_path.write_bytes(data[3:])
+                            fixed_actions.append(f"去除BOM:{cfg_path.name}")
+                except Exception:
+                    pass
+
+            logger.info(f"[自动修复] 任务 {task_name} 已执行修复: {'; '.join(fixed_actions) if fixed_actions else '通用状态重置'}")
+            return True
+        except Exception as e:
+            logger.warning(f"[自动修复] 任务 {task_name} 修复失败: {e}")
+            return False
+
+    def _repair_and_rerun_task(self, task_name: str, task_handler: Any, max_fix_rounds: int = 2) -> bool:
+        """
+        「失败→自动修复→重跑该环节→继续」闭环。
+        任务在一次执行失败后，先执行通用修复，再重新执行该任务；
+        最多修复重跑 max_fix_rounds 轮，任一轮成功即视为该环节通过。
+        """
+        for round_no in range(1, max_fix_rounds + 1):
+            logger.warning(f"[自动修复] 第 {round_no}/{max_fix_rounds} 轮：修复并重跑任务 {task_name}")
+            self._repair_task(task_name)
+            try:
+                success = self._execute_task_handler(task_name, task_handler)
+                if success:
+                    logger.info(f"[自动修复] 任务 {task_name} 修复后重跑成功 (第{round_no}轮)")
+                    return True
+                logger.warning(f"[自动修复] 任务 {task_name} 修复后重跑仍未成功 (第{round_no}轮)")
+            except Exception as e:
+                logger.warning(f"[自动修复] 任务 {task_name} 修复后重跑异常 (第{round_no}轮): {e}")
+        return False
+
     def run_full_pipeline(self):
         """运行完整流程 - 增强版，带结构化日志和错误分类"""
         logger.info("\n" + "=" * 80)
@@ -2727,18 +2813,7 @@ class AutoSchedulerV8:
                         results[task_name] = {"status": "SKIPPED", "reason": "no handler"}
                         continue
 
-                    success = False
-                    if task_name == 'data_fetch':
-                        success = self.execute_with_retry(self.task_fetch_data, 'data_fetch')
-                    elif task_name == 'evaluation':
-                        result = self.execute_with_retry(self.task_evaluate, 'evaluation')
-                        success = result is not None and isinstance(result, tuple)
-                    elif task_name == 'send_report':
-                        success = self.execute_with_retry(self.task_send_report, 'send_report')
-                    else:
-                        # 通用处理器（增量训练/佐证链/调优任务统一调用）
-                        success = self.execute_with_retry(task_handler, task_name)
-
+                    success = self._execute_task_handler(task_name, task_handler)
                     results[task_name] = {"status": "SUCCESS" if success else "FAILED"}
 
                     if not success:
@@ -2746,18 +2821,28 @@ class AutoSchedulerV8:
                 except DataError as e:
                     logger.error(f"[数据错误] 任务 {task_name}: {e.to_dict()}")
                     results[task_name] = {"status": "FAILED", "error_type": "DataError", "detail": str(e)}
+                    if self._repair_and_rerun_task(task_name, task_handler):
+                        results[task_name] = {"status": "SUCCESS", "auto_repaired": True}
                 except ModelError as e:
                     logger.error(f"[模型错误] 任务 {task_name}: {e.to_dict()}")
                     results[task_name] = {"status": "FAILED", "error_type": "ModelError", "detail": str(e)}
+                    if self._repair_and_rerun_task(task_name, task_handler):
+                        results[task_name] = {"status": "SUCCESS", "auto_repaired": True}
                 except NetworkError as e:
                     logger.error(f"[网络错误] 任务 {task_name}: {e.to_dict()}")
                     results[task_name] = {"status": "FAILED", "error_type": "NetworkError", "detail": str(e)}
+                    if self._repair_and_rerun_task(task_name, task_handler):
+                        results[task_name] = {"status": "SUCCESS", "auto_repaired": True}
                 except ConfigError as e:
                     logger.warning(f"[配置警告] 任务 {task_name}: {e.to_dict()}")
                     results[task_name] = {"status": "SUCCESS_WITH_WARNING", "error_type": "ConfigWarning", "detail": str(e)}
                 except Exception as e:
                     logger.error(f"[未知异常] 任务 {task_name}: {str(e)}", exc_info=True)
                     results[task_name] = {"status": "FAILED", "error_type": "Unknown", "detail": str(e)}
+                    if self._repair_and_rerun_task(task_name, task_handler):
+                        results[task_name] = {"status": "SUCCESS", "auto_repaired": True}
+                    else:
+                        logger.error(f"任务 {task_name} 自动修复重跑后仍失败，已记录，继续后续任务")
 
             duration_sec = (datetime.now() - start_time).total_seconds()
             success_count = sum(1 for r in results.values() if r.get('status') in ('SUCCESS', 'SUCCESS_WITH_WARNING'))

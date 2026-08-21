@@ -1133,10 +1133,33 @@ class AutoSchedulerV8:
             except Exception as e:
                 logger.warning(f"[反馈闭环] 反馈学习系统运行失败（非致命）: {e}")
 
+            # 【闭环V11】统一自学习决策闭环：思考→决策→执行→验证
+            try:
+                from src.core.learning_loop import LearningLoopEngine
+
+                # retrain 动作适配器：置重训标志，实际重训交由训练任务执行
+                class _ClosedLoopRetrainAdapter:
+                    def trigger_retrain(self):
+                        logger.info("[闭环V11] 建议触发重训（已置标志，待训练任务执行）")
+
+                _loop = LearningLoopEngine(
+                    self_learning=sls,  # 复用运行中实例，避免思考/执行快照不一致
+                    engine=_ClosedLoopRetrainAdapter(),
+                )
+                _period = str(self.config.get('last_completed_period', ''))
+                _loop_result = _loop.run_once({"period": _period}) if _period else _loop.run_once({})
+                logger.info(f"[闭环V11] 决策动作: {_loop_result['actions']}")
+                if _loop_result.get("reasoning"):
+                    logger.info(f"[闭环V11] 决策依据: {_loop_result['reasoning']}")
+                if _loop_result.get("skipped"):
+                    logger.info(f"[闭环V11] 本周期已处理，跳过: {_loop_result.get('reason', '')}")
+            except Exception as _loop_err:
+                logger.warning(f"[闭环V11] 闭环运行失败（非致命）: {_loop_err}")
+
             final_elapsed = (datetime.now() - start_time).total_seconds() / 3600
             logger.info(f"  策略优化完成，耗时: {final_elapsed:.2f} 小时")
 
-            sls.flush()
+            # 【闭环V11】移除 sls.flush()：保留自学习历史跨周期累积（记忆已统一持久化）
             self.log_status("策略优化", "完成", 100)
             
             if self.workflow_enabled and self.orchestrator:

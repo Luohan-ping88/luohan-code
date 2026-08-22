@@ -1710,6 +1710,23 @@ class AutoSchedulerV8:
             logger.error(f"[反馈闭环] 实际命中率评估异常: {e}", exc_info=True)
             return {}
 
+    @staticmethod
+    def _memory_pressure() -> bool:
+        """内存压力检测：可用内存低于 1.2GB 视为紧张，用于跳过重内存操作。
+
+        Returns:
+            bool: 内存是否紧张。
+        """
+        try:
+            import psutil
+            avail_mb = psutil.virtual_memory().available / (1024 * 1024)
+            if avail_mb < 1200:
+                logger.warning(f"[内存加固] 可用内存 {avail_mb:.0f}MB < 1200MB，判定内存紧张")
+                return True
+            return False
+        except Exception:  # noqa: BLE001 psutil 不可用时视为不紧张
+            return False
+
     def _get_best_feature_config(self, force_validate: bool = False) -> dict:
         """【V10.4修复】获取最佳特征配置，支持缓存过期和强制验证
         
@@ -1724,39 +1741,50 @@ class AutoSchedulerV8:
         from datetime import timedelta
         
         # 【V10.4新增】检查是否需要强制验证
-        if not force_validate:
-            # 检查缓存是否存在且未过期
+        # 【内存加固】即使 force_validate=True，只要存在 24h 内有效缓存且当前内存紧张，
+        # 也直接复用缓存，避免进入 6 组合全量训练段被 OOM(SIGKILL) 强杀。
+        if not force_validate or self._memory_pressure():
+            # 查找未过期缓存（任一目录命中即返回；过期则继续查下一目录）
             for config_dir in [LOGS_DIR, MODELS_DIR]:
                 best_config_path = config_dir / "best_feature_config.json"
-                if best_config_path.exists():
+                if not best_config_path.exists():
+                    continue
+                try:
+                    with open(best_config_path, 'r', encoding='utf-8') as f:
+                        config_data = json.load(f)
+                except Exception as e:
+                    logger.warning(f"[_get_best_feature_config] 读取缓存失败: {e}")
+                    continue
+
+                # 检查缓存是否过期（超过24小时）
+                cache_expired = False
+                last_updated_str = config_data.get('last_updated', '')
+                if last_updated_str:
                     try:
-                        with open(best_config_path, 'r', encoding='utf-8') as f:
-                            config_data = json.load(f)
-                        
-                        # 【V10.4新增】检查缓存是否过期（超过24小时）
-                        last_updated_str = config_data.get('last_updated', '')
-                        if last_updated_str:
-                            try:
-                                last_updated = datetime.fromisoformat(last_updated_str)
-                                cache_age = datetime.now() - last_updated
-                                if cache_age > timedelta(hours=24):
-                                    logger.info(f"[_get_best_feature_config] 缓存已过期（{cache_age.total_seconds()/3600:.1f}小时），将执行动态验证")
-                                    force_validate = True
-                                    break
-                            except Exception as e:
-                                logger.warning(f"[_get_best_feature_config] 解析缓存时间失败: {e}")
-                        
-                        # 缓存有效，直接返回
-                        if not force_validate:
-                            if 'best_config' in config_data:
-                                best_config = config_data['best_config']
-                                logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {best_config}")
-                                return best_config
-                            else:
-                                logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {config_data}")
-                                return config_data
+                        last_updated = datetime.fromisoformat(last_updated_str)
+                        cache_age = datetime.now() - last_updated
+                        if cache_age > timedelta(hours=24):
+                            logger.info(f"[_get_best_feature_config] 缓存已过期（{cache_age.total_seconds()/3600:.1f}小时），将执行动态验证")
+                            cache_expired = True
                     except Exception as e:
-                        logger.warning(f"[_get_best_feature_config] 读取缓存失败: {e}")
+                        logger.warning(f"[_get_best_feature_config] 解析缓存时间失败: {e}")
+                if cache_expired:
+                    continue
+
+                # 缓存有效，直接返回（force_validate 仅在内存紧张时被缓存覆盖）
+                if 'best_config' in config_data:
+                    best_config = config_data['best_config']
+                    logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {best_config}")
+                    return best_config
+                logger.info(f"[_get_best_feature_config] 从缓存加载最佳特征配置: {config_data}")
+                return config_data
+
+            if self._memory_pressure():
+                logger.info("[_get_best_feature_config] 内存紧张且无有效缓存，使用配置默认值跳过强制验证")
+                return {
+                    'select_top': get_model_config().get('feature_engineering.selection.select_top', 100),
+                    'feature_selection_method': 'rfe'
+                }
         
         # 【V10.4修复】执行动态特征验证
         logger.info("=" * 60)

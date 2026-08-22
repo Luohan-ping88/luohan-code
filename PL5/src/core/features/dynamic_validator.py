@@ -4,6 +4,7 @@
 用于依据开奖数据的变化采用动态的多维特征组验证训练策略
 """
 
+import gc
 import logging
 import numpy as np
 import pandas as pd
@@ -18,6 +19,13 @@ from src.core.config import MODEL_CONFIG, MODELS_DIR, LOGS_DIR, get_model_config
 
 logger = logging.getLogger(__name__)
 
+# 【内存加固】动态验证的内存保护参数
+# 每个特征组合的完整训练是内存峰值来源，通过抽样与限组合显著降内存，
+# 避免 5.8G/无swap 环境下被内核 OOM(SIGKILL) 强杀。
+MAX_VALIDATION_SAMPLES = 2500   # 训练抽样上限（保留最近 N 行）
+MAX_COMBINATIONS = 3            # 参与验证的特征组合上限（全量6组→3组代表）
+MEMORY_SAFE_THRESHOLD_MB = 1200  # 可用内存低于该值时跳过验证、降级默认配置
+
 
 def _get_config_select_top():
     """从配置文件读取 select_top 默认值，而非硬编码 None"""
@@ -27,6 +35,32 @@ def _get_config_select_top():
         return val
     except Exception:
         return 100
+
+
+def _available_memory_mb() -> Optional[float]:
+    """返回当前可用内存(MB)；无法探测时返回 None。"""
+    try:
+        import psutil
+        return float(psutil.virtual_memory().available) / (1024 * 1024)
+    except Exception:  # noqa: BLE001 psutil 不可用时视为无限制
+        return None
+
+
+def _memory_guard_active() -> bool:
+    """内存守卫：可用内存低于阈值时返回 True，调用方应降级。
+
+    无法探测内存时视为安全（不阻塞）。
+    """
+    avail = _available_memory_mb()
+    if avail is None:
+        return False
+    if avail < MEMORY_SAFE_THRESHOLD_MB:
+        logger.warning(
+            "[DynamicValidator] 内存守卫触发: 可用 %.0fMB < %dMB，跳过动态验证降级默认配置",
+            avail, MEMORY_SAFE_THRESHOLD_MB,
+        )
+        return True
+    return False
 
 
 class DynamicFeatureValidator:
@@ -122,7 +156,16 @@ class DynamicFeatureValidator:
             else:
                 train_data = df_features.iloc[:-test_size]
                 test_data = df_features.iloc[-test_size:]
-            
+
+            # 【内存加固】训练抽样：仅保留最近 MAX_VALIDATION_SAMPLES 行，
+            # 显著降低单组合完整训练的内存峰值（全量 7 模型 × 6 组合极易 OOM）。
+            if len(train_data) > MAX_VALIDATION_SAMPLES:
+                logger.info(
+                    "[内存加固] 训练数据抽样 %d -> %d 行（保留最近数据）",
+                    len(train_data), MAX_VALIDATION_SAMPLES,
+                )
+                train_data = train_data.tail(MAX_VALIDATION_SAMPLES)
+
             # 训练模型
             predictor = EnhancedPL5Predictor()
             predictor.fit(train_data, feature_cols)
@@ -211,15 +254,23 @@ class DynamicFeatureValidator:
         """
         logger.info("开始寻找最佳特征组合...")
         
-        # 生成特征组合策略
+        # 【内存加固】限制参与验证的组合数，避免 6 组全量训练导致内存峰值
         feature_combinations = self.generate_feature_combinations()
-        
+        if len(feature_combinations) > MAX_COMBINATIONS:
+            logger.warning(
+                "[内存加固] 特征组合数 %d -> %d（减少全量训练次数，防 OOM）",
+                len(feature_combinations), MAX_COMBINATIONS,
+            )
+            feature_combinations = feature_combinations[:MAX_COMBINATIONS]
+
         # 验证每个特征组合
         validation_results = []
         for config in feature_combinations:
             result = self.validate_feature_combination(df, config)
             if 'error' not in result:
                 validation_results.append(result)
+            # 【内存加固】每组合验证后主动回收，避免跨组合内存累积
+            gc.collect()
         
         # 选择最佳特征组合
         if validation_results:
@@ -274,6 +325,18 @@ class DynamicFeatureValidator:
             return {
                 'success': False,
                 'error': '无法加载数据'
+            }
+
+        # 【内存加固】入口内存守卫：可用内存不足时直接降级默认配置，
+        # 避免进入 6 组全量训练段被内核 OOM(SIGKILL) 强杀。
+        if _memory_guard_active():
+            return {
+                'success': False,
+                'error': '可用内存不足，跳过动态特征验证（内存守卫）',
+                'best_config': {
+                    'select_top': _get_config_select_top(),
+                    'feature_selection_method': 'rfe'
+                },
             }
         
         # 寻找最佳特征组合

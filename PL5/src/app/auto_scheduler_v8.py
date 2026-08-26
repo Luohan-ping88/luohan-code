@@ -3168,10 +3168,13 @@ class AutoSchedulerV8:
                 'verification_results_summary': {
                     k: {
                         'timestamp': v.get('timestamp', ''),
-                        'predictions': {pos: v.get('predictions', {}).get(pos, {}).get('top_k', [])[:3]
+                        'predictions': {pos: list((v.get('predictions', {}).get(pos, {}) or {}).get('top_k', [])[:3])
                                        for pos in positions}
                     }
-                    for k, v in verification_results.items() if v
+                    # 【修复】deep_strategy_optimization.json 为策略优化结果，不含 predictions 字段，
+                    # 过滤掉无预测数据的佐证轮次，避免 Top-8 报告中该轮出现空白行
+                    for k, v in verification_results.items()
+                    if v and v.get('predictions') and any(v.get('predictions', {}).get(pos) for pos in positions)
                 }
             }
             

@@ -2,118 +2,6 @@
   {
     "task_name": "first_prediction_verification",
     "status": "SUCCESS",
-    "start_time": "2026-04-25T16:54:31.814629",
-    "end_time": "2026-04-25T16:55:47.296787",
-    "duration": 75.482158,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T16:56:47.318006",
-    "end_time": "2026-04-25T16:58:02.473932",
-    "duration": 75.155926,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T16:59:02.494729",
-    "end_time": "2026-04-25T17:00:17.708097",
-    "duration": 75.213368,
-    "error_message": null
-  },
-  {
-    "task_name": "prediction_preview",
-    "status": "FAILED",
-    "start_time": "2026-04-25T17:01:17.734506",
-    "end_time": "2026-04-25T17:01:51.648039",
-    "duration": 33.913533,
-    "error_message": "预测结果预生成失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:01:51.659122",
-    "end_time": "2026-04-25T17:03:07.546049",
-    "duration": 75.886927,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:04:07.561333",
-    "end_time": "2026-04-25T17:05:22.961784",
-    "duration": 75.400451,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:06:22.979716",
-    "end_time": "2026-04-25T17:07:38.004244",
-    "duration": 75.024528,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:08:38.024382",
-    "end_time": "2026-04-25T17:09:54.355105",
-    "duration": 76.330723,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:10:54.373595",
-    "end_time": "2026-04-25T17:12:09.692514",
-    "duration": 75.318919,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:13:09.713250",
-    "end_time": "2026-04-25T17:14:25.705041",
-    "duration": 75.991791,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:15:25.725381",
-    "end_time": "2026-04-25T17:16:37.996264",
-    "duration": 72.270883,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:17:38.013535",
-    "end_time": "2026-04-25T17:18:49.848310",
-    "duration": 71.834775,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:19:49.868570",
-    "end_time": "2026-04-25T17:21:05.489048",
-    "duration": 75.620478,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-25T17:22:05.519338",
-    "end_time": "2026-04-25T17:23:21.409968",
-    "duration": 75.89063,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
     "start_time": "2026-04-25T17:24:21.429088",
     "end_time": "2026-04-25T17:25:36.936768",
     "duration": 75.50768,
@@ -6397,6 +6285,118 @@
     "start_time": "2026-08-24T19:04:32.333230",
     "end_time": "2026-08-24T19:05:57.999217",
     "duration": 85.665987,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T15:08:39.581086",
+    "end_time": "2026-08-28T15:08:40.224165",
+    "duration": 0.643079,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T15:08:40.233064",
+    "end_time": "2026-08-28T15:10:05.912615",
+    "duration": 85.679551,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T15:10:05.923855",
+    "end_time": "2026-08-28T15:11:30.011519",
+    "duration": 84.087664,
+    "error_message": null
+  },
+  {
+    "task_name": "training",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T15:11:30.020204",
+    "end_time": "2026-08-28T17:08:13.686514",
+    "duration": 7003.66631,
+    "error_message": null
+  },
+  {
+    "task_name": "incremental_training",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T17:08:13.713831",
+    "end_time": "2026-08-28T17:28:47.471486",
+    "duration": 1233.757655,
+    "error_message": null
+  },
+  {
+    "task_name": "first_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T17:28:47.499439",
+    "end_time": "2026-08-28T17:45:34.455688",
+    "duration": 1006.956249,
+    "error_message": null
+  },
+  {
+    "task_name": "second_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T17:45:34.527559",
+    "end_time": "2026-08-28T18:02:10.780221",
+    "duration": 996.252662,
+    "error_message": null
+  },
+  {
+    "task_name": "third_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:02:10.831639",
+    "end_time": "2026-08-28T18:18:54.548486",
+    "duration": 1003.716847,
+    "error_message": null
+  },
+  {
+    "task_name": "deep_strategy_optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:18:54.606477",
+    "end_time": "2026-08-28T18:39:06.109590",
+    "duration": 1211.503113,
+    "error_message": null
+  },
+  {
+    "task_name": "prediction_preview",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:39:06.154465",
+    "end_time": "2026-08-28T18:55:53.219046",
+    "duration": 1007.064581,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:55:53.288642",
+    "end_time": "2026-08-28T18:57:40.294672",
+    "duration": 107.00603,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:57:40.312955",
+    "end_time": "2026-08-28T18:59:26.788213",
+    "duration": 106.475258,
+    "error_message": null
+  },
+  {
+    "task_name": "pre_sale_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T18:59:26.826034",
+    "end_time": "2026-08-28T19:01:13.819759",
+    "duration": 106.993725,
+    "error_message": null
+  },
+  {
+    "task_name": "send_report",
+    "status": "SUCCESS",
+    "start_time": "2026-08-28T19:01:13.839866",
+    "end_time": "2026-08-28T19:03:00.508668",
+    "duration": 106.668802,
     "error_message": null
   }
 ]

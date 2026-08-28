@@ -214,10 +214,14 @@ class ResourceManager:
         std_disk = np.std(disk_usages)
         
         # 动态调整阈值
-        # 阈值 = 平均值 + 2 * 标准差，但不超过最大阈值
+        # CPU/内存: 阈值 = 平均值 + 2 * 标准差，但不超过上限阈值
         new_cpu_threshold = min(90.0, avg_cpu + 2 * std_cpu)
         new_memory_threshold = min(85.0, avg_memory + 2 * std_memory)
-        new_disk_threshold = min(95.0, avg_disk + 2 * std_disk)
+
+        # 磁盘: 使用率单调递增且方差小，avg+2*std 会逼近当前值导致误报。
+        # 改为基于历史最大值加安全裕度，并保证不低于安全下限(70%)。
+        max_disk_observed = max(disk_usages)
+        new_disk_threshold = min(95.0, max(70.0, max_disk_observed + 10.0))
         
         # 只在阈值变化较大时更新
         if abs(new_cpu_threshold - self.cpu_threshold) > 5:

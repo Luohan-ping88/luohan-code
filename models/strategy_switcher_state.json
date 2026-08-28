@@ -1,7 +1,7 @@
 {
   "current_strategy": "default",
   "switch_count": 0,
-  "eval_count": 6,
+  "eval_count": 7,
   "last_switch_idx": -999,
   "combo_mode": false,
   "combo_weights": {},
@@ -49,6 +49,13 @@
         "top3": 0,
         "top8": 0,
         "timestamp": "2026-08-24T15:09:45.878481"
+      },
+      {
+        "period": "2026230",
+        "top1": 0,
+        "top3": 0,
+        "top8": 1,
+        "timestamp": "2026-08-28T15:10:05.471756"
       }
     ],
     "stacking_dominant": [],

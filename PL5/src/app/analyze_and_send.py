@@ -354,7 +354,7 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
             'first_verification':  'first_prediction_verification.json',
             'second_verification': 'second_prediction_verification.json',
             'third_verification':  'third_prediction_verification.json',
-            'final_verification':  'final_prediction_verification.json',
+            'final_verification':  'prediction_verification.json',
             'deep_strategy':       'deep_strategy_optimization.json',
         }
         for key, filename in verification_files.items():

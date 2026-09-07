@@ -19,6 +19,7 @@ from datetime import datetime
 
 from src.core.config import DATA_DIR, MODELS_DIR
 from src.core.models.enhanced_predictor import EnhancedPL5Predictor
+from src.core.models.model_version_manager import MODEL_FILENAME
 from src.core.data.collector import PL5DataCollector
 from src.core.features.engineer import FeatureEngineer
 
@@ -150,11 +151,14 @@ class StrategyEvaluator:
 
             # 加载模型（只需加载一次）
             if not self.predictor.load_models():
-                logger.warning("模型加载失败")
+                model_path = self.predictor.models_dir / MODEL_FILENAME
+                reason = ('模型文件不存在（模型尚未训练）' if not model_path.exists()
+                          else '模型加载异常（文件损坏或格式不兼容）')
+                logger.warning(f"模型加载失败: {reason}")
                 return {
                     'strategy_name': strategy_name,
                     'success': False,
-                    'error': '模型加载失败'
+                    'error': f'模型加载失败: {reason}'
                 }
 
             # 应用策略配置
@@ -423,6 +427,32 @@ class StrategyEvaluator:
             }
 
         n_total = len(df_raw)
+
+        # 【修复】模型可用性预检：日循环任务中 evaluation/optimization 阶段
+        # 先于 training 执行，此时模型尚未生成，若直接评估会全部"模型加载失败"
+        # 并产生误导性报告。此处优雅跳过并明确标记，等待训练完成后由
+        # deep_strategy_optimization 等任务执行策略评估。
+        model_path = self.predictor.models_dir / MODEL_FILENAME
+        if not model_path.exists():
+            logger.warning("=" * 80)
+            logger.warning("【策略评估跳过】模型文件不存在（模型尚未训练/生成）")
+            logger.warning(f"  模型路径: {model_path}")
+            logger.warning("  处理: 跳过策略评估，等待训练完成后由后续任务执行")
+            logger.warning("=" * 80)
+            evaluation_result = {
+                'timestamp': datetime.now().isoformat(),
+                'test_window': test_window,
+                'strategies': {},
+                'best_strategy': None,
+                'model_missing': True,
+                'error': '模型尚未训练（模型文件不存在），跳过策略评估',
+                'total_elapsed_minutes': 0
+            }
+            self.evaluation_history.append(evaluation_result)
+            if len(self.evaluation_history) > 10:
+                self.evaluation_history = self.evaluation_history[-10:]
+            self._save_history()
+            return evaluation_result
         
         # 先快速完成第一阶段：只评估最后一期
         logger.info("=" * 80)
@@ -533,11 +563,14 @@ class StrategyEvaluator:
         try:
             # 加载模型（只需加载一次）
             if not self.predictor.load_models():
-                logger.warning("模型加载失败")
+                model_path = self.predictor.models_dir / MODEL_FILENAME
+                reason = ('模型文件不存在（模型尚未训练）' if not model_path.exists()
+                          else '模型加载异常（文件损坏或格式不兼容）')
+                logger.warning(f"模型加载失败: {reason}")
                 return {
                     'strategy_name': strategy_name,
                     'success': False,
-                    'error': '模型加载失败'
+                    'error': f'模型加载失败: {reason}'
                 }
 
             # 应用策略配置

@@ -253,8 +253,17 @@ def analyze_and_send(verification_results=None, precomputed_predictions=None):
     # Copula 分析（使用真实模型数据）
     copula_data = {'mean_tau': 0.0, 'strongest_pair': 'N/A', 'max_tau': 0.0}
     if hasattr(predictor, 'copula_model') and predictor.copula_model is not None:
-        if hasattr(predictor.copula_model, 'kendall_tau') and predictor.copula_model.kendall_tau is not None:
-            tau = predictor.copula_model.kendall_tau
+        tau = getattr(predictor.copula_model, 'kendall_tau', None)
+        # 【修复】兼容旧版本训练模型：模型缺失 kendall_tau 属性时，基于近期数据实时计算
+        if tau is None:
+            try:
+                recent_matrix = np.asarray(df[positions].values[-120:], dtype=float)
+                tau = predictor.copula_model._compute_kendall_tau(recent_matrix)
+                logger.info("  Copula kendall_tau 缺失，已基于近期数据实时计算")
+            except Exception as copula_err:
+                logger.warning(f"  Copula kendall_tau 计算失败: {copula_err}")
+                tau = None
+        if tau is not None:
             copula_data = {
                 'mean_tau': float(np.mean(np.abs(tau))),
                 'max_tau': 0.0,
@@ -443,7 +452,7 @@ Kendall's tau: {analysis_data['copula']['max_tau']:.4f}
   置信度: {top_probs}
 """
     
-    text_report += """
+    text_report += f"""
 【七、高阶数理方法应用】
 1. Stacking集成模型 (RF+GB+ET+AdaBoost) — 多基模型集成
 2. 隐马尔可夫模型(HMM) — GMM发射概率+自适应状态数

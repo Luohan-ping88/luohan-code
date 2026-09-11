@@ -409,6 +409,62 @@ class HiddenMarkovModel:
 
         return prob
 
+    def predict_states(self, observations: np.ndarray) -> np.ndarray:
+        """返回观测序列对应的最可能隐状态序列（后验概率最大）。
+
+        Args:
+            observations: 观测数据
+
+        Returns:
+            np.ndarray: 每个观测时刻最可能的隐状态索引
+        """
+        if not self.fitted:
+            return np.array([], dtype=int)
+        observations = np.asarray(observations).reshape(-1, 1)
+        alpha = self.initial_probs.copy()
+        states = []
+        for obs in observations:
+            new_alpha = np.zeros(self.n_states)
+            for s in range(self.n_states):
+                try:
+                    emission = (np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                                if self.emission_models else 0.1)
+                except Exception:
+                    emission = 0.1
+                new_alpha[s] = emission * np.sum(
+                    alpha.reshape(-1, 1) * self.transition_matrix[:, s]
+                )
+            alpha = new_alpha / (new_alpha.sum() + 1e-10)
+            states.append(int(np.argmax(alpha)))
+        return np.array(states, dtype=int)
+
+    def get_state_probabilities(self, observations: np.ndarray) -> np.ndarray:
+        """返回观测序列末尾时刻的隐状态后验概率分布。
+
+        Args:
+            observations: 观测数据
+
+        Returns:
+            np.ndarray: 长度为 n_states 的后验概率向量
+        """
+        if not self.fitted:
+            return np.ones(self.n_states) / self.n_states
+        observations = np.asarray(observations).reshape(-1, 1)
+        alpha = self.initial_probs.copy()
+        for obs in observations:
+            new_alpha = np.zeros(self.n_states)
+            for s in range(self.n_states):
+                try:
+                    emission = (np.exp(self.emission_models[s].score_samples(obs.reshape(1, -1))[0])
+                                if self.emission_models else 0.1)
+                except Exception:
+                    emission = 0.1
+                new_alpha[s] = emission * np.sum(
+                    alpha.reshape(-1, 1) * self.transition_matrix[:, s]
+                )
+            alpha = new_alpha / (new_alpha.sum() + 1e-10)
+        return alpha
+
     def score(self, observations: np.ndarray) -> float:
         """计算模型对观测数据的对数似然值
         
@@ -484,6 +540,7 @@ class MultivariateCopula:
         self.auto_select = auto_select if auto_select is not False else copula_cfg.get('auto_select', False)
 
         self.correlation_matrix: Optional[np.ndarray] = None
+        self.kendall_tau: Optional[np.ndarray] = None
         self.marginals: Dict[int, Dict] = {}
         self.fitted = False
         self.n_positions = 5
@@ -694,6 +751,7 @@ class MultivariateCopula:
             }
 
         kendall_tau = self._compute_kendall_tau(data)
+        self.kendall_tau = kendall_tau.copy()
 
         if self.copula_type == 'auto' or self.auto_select:
             return self.select_best_copula(data)

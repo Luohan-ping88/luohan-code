@@ -9,10 +9,108 @@ import os
 import psutil
 import time
 import json
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 
 from src.core.utils import logger
+
+
+@dataclass
+class PerformanceMetrics:
+    """性能指标数据类（同时兼容 alert_system 的属性访问与 get_summary 的字典式访问）。
+
+    字段同时包含告警规则（config/alert_rules.json）引用的文档字段名与
+    PerformanceMonitor.get_metrics() 实际采集的运行时键名。
+    """
+    timestamp: str = ''
+    # 运行时实际采集字段（与 get_metrics() 一致）
+    cpu_usage: float = 0.0
+    memory_usage: float = 0.0
+    memory_used: int = 0
+    memory_total: int = 0
+    disk_usage: float = 0.0
+    disk_used: int = 0
+    disk_total: int = 0
+    network_sent: int = 0
+    network_recv: int = 0
+    network_sent_rate: float = 0.0
+    network_recv_rate: float = 0.0
+    load_avg: list = None
+    process_count: int = 0
+    # 告警规则引用的文档字段名（docs/performance/PERFORMANCE_MONITORING.md）
+    cpu_percent: float = 0.0
+    memory_percent: float = 0.0
+    memory_used_mb: float = 0.0
+    memory_total_mb: float = 0.0
+    disk_percent: float = 0.0
+    disk_io_read_mb: float = 0.0
+    disk_io_write_mb: float = 0.0
+    training_duration_sec: float = 0.0
+    prediction_duration_sec: float = 0.0
+    cache_hit_rate: float = 0.0
+    cache_hits: int = 0
+    cache_misses: int = 0
+    process_cpu_percent: float = 0.0
+    process_memory_mb: float = 0.0
+    thread_count: int = 0
+    open_files: int = 0
+    network_sent_mb: float = 0.0
+    network_recv_mb: float = 0.0
+    error_rate: float = 0.0
+    model_accuracy: float = 0.0
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+    def __getitem__(self, key):
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise KeyError(key)
+
+
+# 全局单例，供 monitor/alert_system.py 的 get_global_monitor() 使用
+_GLOBAL_MONITOR = None
+
+
+def get_global_monitor() -> "PerformanceMonitor":
+    """返回全局唯一的性能监控实例。"""
+    global _GLOBAL_MONITOR
+    if _GLOBAL_MONITOR is None:
+        _GLOBAL_MONITOR = PerformanceMonitor()
+    return _GLOBAL_MONITOR
+
+
+def _to_perf_metrics(d: dict) -> PerformanceMetrics:
+    """将 get_metrics() 返回的 dict 转换为 PerformanceMetrics 对象。
+
+    同时填充运行时键名与告警规则使用的文档字段名，使
+    alert_system 的属性访问（getattr）与现有调用方的 .get()/[] 访问均可用。
+    """
+    m = PerformanceMetrics()
+    m.timestamp = d.get('timestamp', '')
+    m.cpu_usage = d.get('cpu_usage', 0.0)
+    m.cpu_percent = d.get('cpu_usage', 0.0)
+    m.memory_usage = d.get('memory_usage', 0.0)
+    m.memory_percent = d.get('memory_usage', 0.0)
+    m.memory_used = d.get('memory_used', 0)
+    m.memory_total = d.get('memory_total', 0)
+    m.memory_used_mb = d.get('memory_used', 0) / 1048576.0
+    m.memory_total_mb = d.get('memory_total', 0) / 1048576.0
+    m.disk_usage = d.get('disk_usage', 0.0)
+    m.disk_percent = d.get('disk_usage', 0.0)
+    m.disk_used = d.get('disk_used', 0)
+    m.disk_total = d.get('disk_total', 0)
+    m.network_sent = d.get('network_sent', 0)
+    m.network_recv = d.get('network_recv', 0)
+    m.network_sent_rate = d.get('network_sent_rate', 0.0)
+    m.network_recv_rate = d.get('network_recv_rate', 0.0)
+    m.network_sent_mb = d.get('network_sent', 0) / 1048576.0
+    m.network_recv_mb = d.get('network_recv', 0) / 1048576.0
+    m.load_avg = d.get('load_avg', [0, 0, 0])
+    m.process_count = d.get('process_count', 0)
+    return m
+
 
 class PerformanceMonitor:
     """性能监控器"""
@@ -127,33 +225,38 @@ class PerformanceMonitor:
         return net_metrics
     
     def _save_metrics(self, metrics):
-        """保存性能指标"""
+        """保存性能指标（转换为 PerformanceMetrics 对象存储，
+        以兼容 monitor/alert_system.py 的属性访问）"""
         try:
-            # 添加到历史
-            self.metrics_history.append(metrics)
-            
+            # 转换为对象后添加到历史
+            self.metrics_history.append(_to_perf_metrics(metrics))
+
             # 限制历史记录数
             if len(self.metrics_history) > self.max_history:
                 self.metrics_history = self.metrics_history[-self.max_history:]
-            
+
             # 每10次保存一次到文件
             if len(self.metrics_history) % 10 == 0:
                 self._save_to_file()
-                
+
         except Exception as e:
             logger.error(f"保存性能指标失败: {e}")
-    
+
     def _save_to_file(self):
         """保存到文件"""
         try:
             date_str = datetime.now().strftime('%Y%m%d')
             metrics_file = self.data_dir / f'performance_{date_str}.jsonl'
-            
+
             # 追加模式写入
             with open(metrics_file, 'a', encoding='utf-8') as f:
                 for metric in self.metrics_history[-10:]:  # 只保存最近10条
-                    f.write(json.dumps(metric, ensure_ascii=False) + '\n')
-                    
+                    # 对象转换为 dict 后再序列化（兼容 dataclass 与 dict 两种形态）
+                    if isinstance(metric, PerformanceMetrics):
+                        f.write(json.dumps(asdict(metric), ensure_ascii=False, default=str) + '\n')
+                    else:
+                        f.write(json.dumps(metric, ensure_ascii=False, default=str) + '\n')
+
         except Exception as e:
             logger.error(f"保存性能数据到文件失败: {e}")
     

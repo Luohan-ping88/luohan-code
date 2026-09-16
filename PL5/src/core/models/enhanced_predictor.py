@@ -18,6 +18,13 @@ from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 try:
     from lightgbm import LGBMClassifier
+    import lightgbm as _lightgbm
+    # 【修复】LightGBM 4.x 中 "No further splits with positive gain" 等警告
+    # 经 lightgbm 内部 logger 直接输出到 stderr，即使 verbose=-1 仍会刷屏日志。
+    # 将内部 logger 级别提升至 ERROR，仅保留真正的错误信息。
+    _lgb_logger = logging.getLogger(_lightgbm.__name__)
+    if _lgb_logger is not None:
+        _lgb_logger.setLevel(logging.ERROR)
     _HAS_LIGHTGBM = True
 except ImportError:
     _HAS_LIGHTGBM = False

@@ -5,9 +5,11 @@
 import pandas as pd
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 # 验证数据文件
 print("=== 数据文件验证 ===")
-data_path = Path("c:/Users/Administrator/Desktop/PL5/data/processed/pl5_processed.csv")
+data_path = PROJECT_ROOT / 'data' / 'processed' / 'pl5_processed.csv'
 df = pd.read_csv(data_path)
 
 print(f"数据文件: {data_path}")
@@ -20,7 +22,7 @@ print(f"是否有重复期号: {df['period'].duplicated().any()}")
 
 # 验证模型目录
 print("\n=== 模型目录验证 ===")
-models_dir = Path("c:/Users/Administrator/Desktop/PL5/models")
+models_dir = PROJECT_ROOT / 'models'
 if models_dir.exists():
     print(f"模型目录存在: {models_dir}")
     model_files = list(models_dir.glob("*.pkl"))

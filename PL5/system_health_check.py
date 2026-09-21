@@ -3,7 +3,8 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, 'e:/PL5')
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 print('=' * 80)
 print('系统健康检查报告')
@@ -12,7 +13,7 @@ print()
 
 # 1. 配置文件检查
 print('【1. 配置文件检查】')
-config_file = Path('e:/PL5/src/config/scheduler_config_v8.json')
+config_file = PROJECT_ROOT / 'src' / 'config' / 'scheduler_config_v8.json'
 try:
     with open(config_file, 'r', encoding='utf-8') as f:
         config = json.load(f)
@@ -40,7 +41,7 @@ task_methods = [
     'task_prediction_preview'
 ]
 
-scheduler_file = Path('e:/PL5/src/app/auto_scheduler_v8.py')
+scheduler_file = PROJECT_ROOT / 'src' / 'app' / 'auto_scheduler_v8.py'
 with open(scheduler_file, 'r', encoding='utf-8') as f:
     scheduler_code = f.read()
 
@@ -79,7 +80,7 @@ print()
 
 # 4. 智能调度器检查
 print('【4. 智能调度器检查】')
-scheduler_file = Path('e:/PL5/src/core/workflow/intelligent_time_scheduler.py')
+scheduler_file = PROJECT_ROOT / 'src' / 'core' / 'workflow' / 'intelligent_time_scheduler.py'
 try:
     with open(scheduler_file, 'r', encoding='utf-8') as f:
         scheduler_code = f.read()
@@ -109,14 +110,14 @@ import py_compile
 
 # 检查 auto_scheduler_v8.py
 try:
-    py_compile.compile('e:/PL5/src/app/auto_scheduler_v8.py', doraise=True)
+    py_compile.compile(str(PROJECT_ROOT / 'src' / 'app' / 'auto_scheduler_v8.py'), doraise=True)
     print('✓ auto_scheduler_v8.py 语法正确')
 except py_compile.PyCompileError as e:
     print(f'✗ auto_scheduler_v8.py 语法错误: {e}')
 
 # 检查 intelligent_time_scheduler.py
 try:
-    py_compile.compile('e:/PL5/src/core/workflow/intelligent_time_scheduler.py', doraise=True)
+    py_compile.compile(str(PROJECT_ROOT / 'src' / 'core' / 'workflow' / 'intelligent_time_scheduler.py'), doraise=True)
     print('✓ intelligent_time_scheduler.py 语法正确')
 except py_compile.PyCompileError as e:
     print(f'✗ intelligent_time_scheduler.py 语法错误: {e}')

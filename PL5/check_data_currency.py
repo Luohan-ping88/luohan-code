@@ -2,11 +2,15 @@
 """
 检查数据文件的最新期号
 """
+import os
 import pandas as pd
 from pathlib import Path
 
+# 基于脚本位置解析项目根目录（跨平台，兼容 Windows/Linux）
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 # 加载数据
-data_path = Path("c:/Users/Administrator/Desktop/PL5/data/processed/pl5_processed.csv")
+data_path = PROJECT_ROOT / "data" / "processed" / "pl5_processed.csv"
 df = pd.read_csv(data_path)
 
 # 打印数据信息

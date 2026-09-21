@@ -3,9 +3,12 @@
 验证数据文件的最新期号
 """
 import pandas as pd
+import os
+
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 # 加载数据
-df = pd.read_csv('c:/Users/Administrator/Desktop/PL5/data/processed/pl5_processed.csv')
+df = pd.read_csv(os.path.join(PROJECT_ROOT, 'data', 'processed', 'pl5_processed.csv'))
 
 # 打印关键信息
 print(f"数据总行数: {len(df)}")

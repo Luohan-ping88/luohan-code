@@ -2,7 +2,8 @@ import pickle
 import json
 from pathlib import Path
 
-LOGS_DIR = Path("e:/PL5/logs")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
 
 # 找到所有可能是二进制JSON的文件
 BINARY_FILES = [

@@ -1,5 +1,7 @@
 import json
-with open('e:/PL5/logs/workflow_state.json', 'r', encoding='utf-8') as f:
+import os
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+with open(os.path.join(PROJECT_ROOT, 'logs', 'workflow_state.json'), 'r', encoding='utf-8') as f:
     state = json.load(f)
 pending = [t for t, v in state.get('tasks', {}).items() if v.get('status') == 'pending']
 completed = [t for t, v in state.get('tasks', {}).items() if v.get('status') == 'completed']

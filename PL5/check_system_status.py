@@ -5,6 +5,8 @@ import pickle
 import glob
 from datetime import datetime
 
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
+
 PL5_PATHS = ['\\PL5\\', '/PL5/', 'e:\\PL5', 'E:\\PL5']
 PL5_IDS = ['auto_scheduler_v8', 'process_watchdog', 'prevent_sleep', 'pl5_intelligent_system', 'start_sentinel', 'launch_simple', 'src.app.auto_scheduler_v8']
 
@@ -73,7 +75,7 @@ def main():
     print()
     
     # 检查调度器状态
-    status_file = 'logs/scheduler_v8_status.json'
+    status_file = os.path.join(PROJECT_ROOT, 'logs', 'scheduler_v8_status.json')
     if os.path.exists(status_file):
         try:
             with open(status_file, 'r', encoding='utf-8') as f:
@@ -91,7 +93,7 @@ def main():
         print()
     
     # 检查工作流状态
-    workflow_file = 'logs/workflow_state.pkl'
+    workflow_file = os.path.join(PROJECT_ROOT, 'logs', 'workflow_state.pkl')
     if os.path.exists(workflow_file):
         try:
             with open(workflow_file, 'rb') as f:
@@ -121,7 +123,7 @@ def main():
     print('=' * 80)
     print()
     
-    log_dir = 'logs'
+    log_dir = os.path.join(PROJECT_ROOT, 'logs')
     if os.path.exists(log_dir):
         files = os.listdir(log_dir)
         print(f'✅ logs目录存在，包含 {len(files)} 个文件:')

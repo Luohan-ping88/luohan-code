@@ -2,7 +2,8 @@ import pickle
 import json
 from pathlib import Path
 
-LOGS_DIR = Path("e:/PL5/logs")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
 
 # 查找所有.pkl文件
 pkl_files = list(LOGS_DIR.glob("*.pkl"))

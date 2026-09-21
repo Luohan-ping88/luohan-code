@@ -2,7 +2,8 @@ import pickle
 import json
 from pathlib import Path
 
-LOGS_DIR = Path("e:/PL5/logs")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = PROJECT_ROOT / "logs"
 
 pkl_files = [
     "workflow_state.pkl",

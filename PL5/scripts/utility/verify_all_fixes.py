@@ -1,6 +1,8 @@
 """全面验证修复后的日循环逻辑"""
+import os
 import sys
-sys.path.insert(0, 'e:/PL5')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
 from datetime import datetime, timedelta
 
 print("=" * 70)

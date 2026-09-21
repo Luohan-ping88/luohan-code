@@ -1,7 +1,8 @@
+import os
 import json
 from datetime import datetime
 
-path = r"E:\PL5\models\suggestion_history.json"
+path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "suggestion_history.json")
 
 with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)

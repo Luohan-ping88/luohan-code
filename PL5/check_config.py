@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import sys
-sys.path.insert(0, "e:/PL5")
 import os
+import sys
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, PROJECT_ROOT)
 
 # 检查配置文件
-yaml_path = "config/model_config.yaml"
-json_path = "config/model_config.json"
+yaml_path = os.path.join(PROJECT_ROOT, "config", "model_config.yaml")
+json_path = os.path.join(PROJECT_ROOT, "config", "model_config.json")
 print(f"model_config.yaml 存在: {os.path.exists(yaml_path)}")
 print(f"model_config.json 存在: {os.path.exists(json_path)}")
 

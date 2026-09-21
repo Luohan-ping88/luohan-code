@@ -1,7 +1,7 @@
 """端到端验证: 修复后日循环能否完整执行14个任务"""
-import sys
-sys.path.insert(0, 'e:/PL5')
-import os, json, tempfile
+import os, sys, json, tempfile
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
 from datetime import datetime, timedelta
 
 # 模拟创建旧状态（所有任务COMPLETED，cycle_date=May 3）

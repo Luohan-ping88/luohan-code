@@ -5,6 +5,9 @@
 import requests
 import pandas as pd
 from datetime import datetime
+import os
+
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 def test_fetch_from_network():
     """测试从网络获取数据"""
@@ -42,7 +45,7 @@ def test_fetch_from_network():
                     print(f"  期号: {period}, 号码: {wan}{qian}{bai}{shi}{ge}")
 
             # 保存到本地
-            with open('c:/Users/Administrator/Desktop/PL5/data/raw/pl5_history.txt', 'w', encoding='utf-8') as f:
+            with open(os.path.join(PROJECT_ROOT, 'data', 'raw', 'pl5_history.txt'), 'w', encoding='utf-8') as f:
                 f.write(response.text)
             print("\n数据已保存到本地文件")
 

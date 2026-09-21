@@ -1,5 +1,7 @@
 import os
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
 files = [
     'workflow_state (2).json',
     'workflow_state (3).json',
@@ -11,7 +13,7 @@ files = [
     'workflow_state_backup_20260428_112113.json',
 ]
 for f in files:
-    path = f'e:/PL5/logs/{f}'
+    path = os.path.join(PROJECT_ROOT, 'logs', f)
     if os.path.exists(path):
         size = os.path.getsize(path)
         with open(path, 'rb') as fh:

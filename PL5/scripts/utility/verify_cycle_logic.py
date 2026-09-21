@@ -1,5 +1,7 @@
+import os
 import sys
-sys.path.insert(0, 'e:/PL5')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, PROJECT_ROOT)
 from datetime import datetime, time, timedelta
 from src.core.workflow.orchestrator import DATA_FETCH_TIME, SEND_REPORT_TIME, IntelligentWorkflowOrchestrator
 

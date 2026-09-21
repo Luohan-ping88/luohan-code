@@ -5,7 +5,8 @@
 import pandas as pd
 from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).parent))
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core.data.collector import PL5DataCollectorV8
 
@@ -25,7 +26,7 @@ def main():
     print(f"最后5期: {df['period'].tail(5).values}")
 
     # 保存处理后的数据
-    output_path = Path("c:/Users/Administrator/Desktop/PL5/data/processed/pl5_processed.csv")
+    output_path = PROJECT_ROOT / 'data' / 'processed' / 'pl5_processed.csv'
     df.to_csv(output_path, index=False, encoding='utf-8')
     print(f"处理后的数据已保存到: {output_path}")
 

@@ -2796,6 +2796,25 @@ class AutoSchedulerV8:
                 logger.info("【远程仓库推送】无暂存文件，跳过提交")
                 return True
 
+            # 【修复BUG】提交前确保 git 身份已配置，避免 "Author identity unknown" 提交失败
+            try:
+                name_check = subprocess.run(
+                    ['git', 'config', 'user.name'],
+                    capture_output=True, text=True, cwd=project_root, timeout=10
+                )
+                email_check = subprocess.run(
+                    ['git', 'config', 'user.email'],
+                    capture_output=True, text=True, cwd=project_root, timeout=10
+                )
+                if not name_check.stdout.strip():
+                    subprocess.run(['git', 'config', 'user.name', 'PL5 Auto System'],
+                                   capture_output=True, text=True, cwd=project_root, timeout=10)
+                if not email_check.stdout.strip():
+                    subprocess.run(['git', 'config', 'user.email', 'pl5-auto@users.noreply.github.com'],
+                                   capture_output=True, text=True, cwd=project_root, timeout=10)
+            except Exception as _id_exc:
+                logger.warning(f"【远程仓库推送】git 身份配置异常: {_id_exc}")
+
             # 提交
             commit_msg = f"auto: 日循环任务自动同步 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             commit_result = subprocess.run(

@@ -171,7 +171,12 @@ class DynamicFeatureValidator:
             predictor.fit(train_data, feature_cols)
             
             # 验证模型
-            total_hits = 0
+            # 【训推优化】弃用单一 Top-8 准确率（随机基线80%，偏向过拟合全量特征），
+            # 改为分别统计 Top-1/Top-3/Top-8 命中，用"超越随机基线的提升度"复合评分：
+            #   score = 0.5*max(0, top1 - 0.1) + 0.3*max(0, top3 - 0.3) + 0.2*max(0, top8 - 0.8)
+            # 该指标在 10 分类（0-9）下奖励真正击败随机性的模型，而非奖励"覆盖更宽"。
+            RANDOM_TOP1, RANDOM_TOP3, RANDOM_TOP8 = 0.10, 0.30, 0.80
+            hits = {'top1': 0, 'top3': 0, 'top8': 0}
             total_tests = 0
             
             for i, row in test_data.iterrows():
@@ -207,18 +212,28 @@ class DynamicFeatureValidator:
                     use_uncertainty=False
                 )
                 
-                # 验证预测结果
+                # 验证预测结果（分别统计 Top-1/Top-3/Top-8 命中）
                 for pos in ['wan', 'qian', 'bai', 'shi', 'ge']:
                     actual_value = int(row[pos])
                     if pos in predictions and 'top_k' in predictions[pos]:
                         top_k = predictions[pos]['top_k']
-                        if actual_value in top_k:
-                            total_hits += 1
                         total_tests += 1
+                        if len(top_k) >= 1 and actual_value == int(top_k[0]):
+                            hits['top1'] += 1
+                        if len(top_k) >= 3 and actual_value in [int(v) for v in top_k[:3]]:
+                            hits['top3'] += 1
+                        if len(top_k) >= 8 and actual_value in [int(v) for v in top_k[:8]]:
+                            hits['top8'] += 1
             
-            # 计算准确率
-            accuracy = total_hits / total_tests if total_tests > 0 else 0
-            
+            # 计算准确率与复合评分
+            n = total_tests if total_tests > 0 else 1
+            acc = {k: v / n for k, v in hits.items()}
+            lift_top1 = max(0.0, acc['top1'] - RANDOM_TOP1)
+            lift_top3 = max(0.0, acc['top3'] - RANDOM_TOP3)
+            lift_top8 = max(0.0, acc['top8'] - RANDOM_TOP8)
+            score = 0.5 * lift_top1 + 0.3 * lift_top3 + 0.2 * lift_top8
+            accuracy = acc['top8']  # 保留字段兼容：accuracy 仍为 Top-8 命中率
+
             result = {
                 'name': config['name'],
                 'description': config['description'],
@@ -226,12 +241,19 @@ class DynamicFeatureValidator:
                 'feature_selection_method': config['feature_selection_method'],
                 'feature_count': len(feature_cols),
                 'accuracy': accuracy,
-                'hits': total_hits,
+                'top1_accuracy': acc['top1'],
+                'top3_accuracy': acc['top3'],
+                'top8_accuracy': acc['top8'],
+                'lift_score': score,
+                'hits': hits,
                 'tests': total_tests,
                 'timestamp': datetime.now().isoformat()
             }
             
-            logger.info(f"特征组合 {config['name']} 验证完成，准确率: {accuracy:.4f}")
+            logger.info(
+                f"特征组合 {config['name']} 验证完成，Top1={acc['top1']:.4f} Top3={acc['top3']:.4f} "
+                f"Top8={acc['top8']:.4f} lift_score={score:.4f}"
+            )
             return result
             
         except Exception as e:

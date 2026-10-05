@@ -20,14 +20,16 @@ stacking:
     auto_select: true
     enable_meta_features: true
   model_weights:
-    stacking: 0.25
-    hmm: 0.10
-    copula: 0.10
-    bsts: 0.10
-    bayesian: 0.10
-    evm: 0.10
-    mamba: 0.125
-    itransformer: 0.125
+    # 【训推优化】再平衡模型权重：降低 stacking 主导权重(0.25→0.16)，
+    # 将权重份额向 mamba/itransformer 等时序模型倾斜，总和保持 1.0。
+    stacking: 0.16
+    hmm: 0.12
+    copula: 0.12
+    bsts: 0.12
+    mamba: 0.20
+    itransformer: 0.20
+    bayesian: 0.04
+    evm: 0.04
 hmm:
   n_states: 4
   n_mixtures: 2

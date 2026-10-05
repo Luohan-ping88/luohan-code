@@ -127,6 +127,18 @@ class StackingEnsemble:
                     "random_state": rs, "n_jobs": n_jobs
                 }
             },
+            # 【训推优化】增加 ExtraTrees 基学习器提升集成多样性。
+            # 原始随机森林与提升树高度相关，ExtraTrees 的随机特征/阈值切分
+            # 能显著降低基学习器间的误差相关性，使 Stacking 元学习器学到互补信号，
+            # 减少"全模型同涨同跌"导致的融合退化。
+            "et": {
+                "class": ExtraTreesClassifier,
+                "params": {
+                    "n_estimators": n_est, "max_depth": max_d,
+                    "random_state": rs + 7, "n_jobs": n_jobs,
+                    "min_samples_leaf": 3, "max_features": 0.7,
+                }
+            },
         }
 
         # 添加一个额外模型以保持多样性
@@ -1907,7 +1919,13 @@ class EnhancedPL5Predictor:
         accuracy_scores = np.clip(accuracy_scores, 0.05, 1.0)
 
         # 2.3 基础权重（保留原模型设计意图）
-        base_weights = np.array([0.25, 0.20, 0.15, 0.10, 0.15, 0.15], dtype=float)
+        # 【训推优化】改为从 config/model_config.yaml 的 stacking.model_weights 读取，
+        # 修复原硬编码 [0.25, 0.20, ...] 与配置不一致导致"改配置不生效"的缺陷，
+        # 并按融合模型顺序映射后归一化。stacking 基础权重已从 0.25 调降至 0.16，
+        # 避免集成被单一模型主导。
+        cfg_weights = np.array([self.weights.get(name, 0.10) for name in model_names], dtype=float)
+        cfg_weights = np.maximum(cfg_weights, 0.01)
+        base_weights = cfg_weights / (cfg_weights.sum() + 1e-12)
 
         # 2.4 综合权重 = base_weights * (0.7 * accuracy + 0.3 * concentration)
         #   - 准确率占主导（70%）：让"准确的模型"获得更高权重
@@ -1915,9 +1933,22 @@ class EnhancedPL5Predictor:
         combined_quality = 0.7 * accuracy_scores + 0.3 * concentration_scores
         dynamic_weights = base_weights * combined_quality
 
-        # 2.5 确保非负并归一化
-        dynamic_weights = np.maximum(dynamic_weights, 0.01)
-        return dynamic_weights / (dynamic_weights.sum() + 1e-12)
+        # 2.5 【训推优化】权重上限约束：防止单模型主导
+        #   原实现无上限，stacking 权重可被准确率反馈放大至 0.62，
+        #   融合退化为"单模型预测"，其余模型形同虚设。
+        #   迭代式"裁剪超限权重 + 归一化"，确保任意单模型权重不超过
+        #   MAX_SINGLE_MODEL_WEIGHT，同时保留 MIN_MODEL_WEIGHT 的多样性下限。
+        MAX_SINGLE_MODEL_WEIGHT = 0.35
+        MIN_MODEL_WEIGHT = 0.02
+        for _ in range(12):
+            dynamic_weights = np.maximum(dynamic_weights, MIN_MODEL_WEIGHT)
+            dynamic_weights = dynamic_weights / (dynamic_weights.sum() + 1e-12)
+            if dynamic_weights.max() <= MAX_SINGLE_MODEL_WEIGHT:
+                break
+            dynamic_weights = np.minimum(dynamic_weights, MAX_SINGLE_MODEL_WEIGHT)
+
+        dynamic_weights = dynamic_weights / (dynamic_weights.sum() + 1e-12)
+        return dynamic_weights
 
     def update_model_accuracy_feedback(self, accuracy_map: Dict[str, float]) -> None:
         """【V10.6 知识图谱闭环】更新模型实际准确率反馈并持久化

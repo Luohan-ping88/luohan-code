@@ -1,7 +1,7 @@
 {
   "current_strategy": "default",
   "switch_count": 0,
-  "eval_count": 11,
+  "eval_count": 13,
   "last_switch_idx": -999,
   "combo_mode": false,
   "combo_weights": {},
@@ -84,6 +84,20 @@
         "top3": 0,
         "top8": 0,
         "timestamp": "2026-09-21T15:09:52.764406"
+      },
+      {
+        "period": "2026264",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-10-05T15:09:17.186095"
+      },
+      {
+        "period": "2026264",
+        "top1": 1,
+        "top3": 1,
+        "top8": 1,
+        "timestamp": "2026-10-05T15:11:25.177268"
       }
     ],
     "stacking_dominant": [],

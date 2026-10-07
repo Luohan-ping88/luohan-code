@@ -1,37 +1,5 @@
 [
   {
-    "task_name": "final_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-26T19:00:48.407120",
-    "end_time": "2026-04-26T19:01:40.568347",
-    "duration": 52.161227,
-    "error_message": null
-  },
-  {
-    "task_name": "pre_sale_prediction",
-    "status": "SUCCESS",
-    "start_time": "2026-04-26T20:00:43.707334",
-    "end_time": "2026-04-26T20:01:35.959837",
-    "duration": 52.252503,
-    "error_message": null
-  },
-  {
-    "task_name": "send_report",
-    "status": "SUCCESS",
-    "start_time": "2026-04-26T20:15:36.501840",
-    "end_time": "2026-04-26T20:32:29.398686",
-    "duration": 1012.896846,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-26T22:00:38.500325",
-    "end_time": "2026-04-26T22:00:39.137462",
-    "duration": 0.637137,
-    "error_message": null
-  },
-  {
     "task_name": "evaluation",
     "status": "SUCCESS",
     "start_time": "2026-04-26T22:15:39.670827",
@@ -6397,6 +6365,38 @@
     "start_time": "2026-09-21T19:02:23.476729",
     "end_time": "2026-09-21T19:03:49.159016",
     "duration": 85.682287,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-07T15:17:12.412452",
+    "end_time": "2026-10-07T15:17:13.053468",
+    "duration": 0.641016,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-07T15:18:40.403803",
+    "end_time": "2026-10-07T15:18:41.014023",
+    "duration": 0.61022,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-10-07T15:18:41.021145",
+    "end_time": "2026-10-07T15:18:42.348827",
+    "duration": 1.327682,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-07T15:18:42.356220",
+    "end_time": "2026-10-07T15:18:42.598311",
+    "duration": 0.242091,
     "error_message": null
   }
 ]

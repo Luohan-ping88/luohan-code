@@ -20,6 +20,7 @@
   "enabled": true,
   "monitoring_enabled": true,
   "skip_recovery": true,
+  "last_completed_period": "2026264",
   "task_sequence": [
     {
       "name": "自动获取开奖数据",
@@ -101,6 +102,5 @@
       "time": "20:15",
       "description": "发送训练报告和最终预测到邮箱"
     }
-  ],
-  "last_completed_period": "2026266"
+  ]
 }

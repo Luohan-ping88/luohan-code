@@ -329,11 +329,18 @@ class FeedbackAnalyzer:
             })
         
         # 性能趋势分析
+        # 【V10.8修复】过滤旧格式/缺失 overall_analysis 的历史记录，防止 KeyError
         if len(self.feedback_history) >= 3:
-            recent_analyses = self.feedback_history[-3:]
-            recent_top8 = [a['overall_analysis']['top8_accuracy'] for a in recent_analyses]
+            recent_analyses = [
+                a for a in self.feedback_history[-3:]
+                if 'overall_analysis' in a and 'top8_accuracy' in a.get('overall_analysis', {})
+            ]
+            if len(recent_analyses) >= 3:
+                recent_top8 = [a['overall_analysis']['top8_accuracy'] for a in recent_analyses]
+            else:
+                recent_top8 = None
             
-            if recent_top8[-1] < recent_top8[0] * 0.9:
+            if recent_top8 and recent_top8[-1] < recent_top8[0] * 0.9:
                 issues.append({
                     'severity': 'high',
                     'category': 'trend_issue',

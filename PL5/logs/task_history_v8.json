@@ -1,141 +1,5 @@
 [
   {
-    "task_name": "training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T09:02:28.119715",
-    "end_time": "2026-04-27T09:57:16.529764",
-    "duration": 3288.410049,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T09:58:16.553388",
-    "end_time": "2026-04-27T10:16:45.810022",
-    "duration": 1109.256634,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:17:45.974817",
-    "end_time": "2026-04-27T10:22:37.279887",
-    "duration": 291.30507,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:22:37.935705",
-    "end_time": "2026-04-27T10:27:06.193945",
-    "duration": 268.25824,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:28:07.055126",
-    "end_time": "2026-04-27T10:32:19.173728",
-    "duration": 252.118602,
-    "error_message": null
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-27T10:33:19.690333",
-    "end_time": "2026-04-27T10:39:35.385335",
-    "duration": 375.695002,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-27T10:40:35.399716",
-    "end_time": "2026-04-27T10:46:00.437084",
-    "duration": 325.037368,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:57:11.912234",
-    "end_time": "2026-04-27T10:57:12.461653",
-    "duration": 0.549419,
-    "error_message": null
-  },
-  {
-    "task_name": "evaluation",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:58:12.475518",
-    "end_time": "2026-04-27T10:58:48.577542",
-    "duration": 36.102024,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:07:40.334590",
-    "end_time": "2026-04-27T11:07:40.820746",
-    "duration": 0.486156,
-    "error_message": null
-  },
-  {
-    "task_name": "evaluation",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:08:29.335446",
-    "end_time": "2026-04-27T11:09:05.155113",
-    "duration": 35.819667,
-    "error_message": null
-  },
-  {
-    "task_name": "optimization",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:10:05.179849",
-    "end_time": "2026-04-27T11:10:38.537078",
-    "duration": 33.357229,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:30:51.724172",
-    "end_time": "2026-04-27T11:30:52.302334",
-    "duration": 0.578162,
-    "error_message": null
-  },
-  {
-    "task_name": "training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:30:52.307857",
-    "end_time": "2026-04-27T12:13:19.534064",
-    "duration": 2547.226207,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T12:14:19.551909",
-    "end_time": "2026-04-27T12:30:06.976620",
-    "duration": 947.424711,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T12:30:06.988741",
-    "end_time": "2026-04-27T13:02:56.881448",
-    "duration": 1969.892707,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T13:02:56.905035",
-    "end_time": "2026-04-27T13:39:59.873744",
-    "duration": 2222.968709,
-    "error_message": null
-  },
-  {
     "task_name": "first_prediction_verification",
     "status": "SUCCESS",
     "start_time": "2026-04-27T13:40:59.919175",
@@ -6397,6 +6261,142 @@
     "start_time": "2026-10-12T19:17:12.730131",
     "end_time": "2026-10-12T19:18:37.690160",
     "duration": 84.960029,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:04.530017",
+    "end_time": "2026-10-14T15:25:05.101927",
+    "duration": 0.57191,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:05.109075",
+    "end_time": "2026-10-14T15:25:06.867047",
+    "duration": 1.757972,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:06.876685",
+    "end_time": "2026-10-14T15:25:07.132804",
+    "duration": 0.256119,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:54.550173",
+    "end_time": "2026-10-14T15:25:55.176097",
+    "duration": 0.625924,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:55.183253",
+    "end_time": "2026-10-14T15:25:56.693674",
+    "duration": 1.510421,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:56.702037",
+    "end_time": "2026-10-14T15:25:56.884956",
+    "duration": 0.182919,
+    "error_message": null
+  },
+  {
+    "task_name": "training",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T15:25:56.892141",
+    "end_time": "2026-10-14T17:36:06.860480",
+    "duration": 7809.968339,
+    "error_message": null
+  },
+  {
+    "task_name": "incremental_training",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T17:36:06.886376",
+    "end_time": "2026-10-14T17:56:20.676221",
+    "duration": 1213.789845,
+    "error_message": null
+  },
+  {
+    "task_name": "first_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T17:56:20.703096",
+    "end_time": "2026-10-14T18:12:42.616915",
+    "duration": 981.913819,
+    "error_message": null
+  },
+  {
+    "task_name": "second_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T18:12:42.667871",
+    "end_time": "2026-10-14T18:29:06.918906",
+    "duration": 984.251035,
+    "error_message": null
+  },
+  {
+    "task_name": "third_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T18:29:06.975629",
+    "end_time": "2026-10-14T18:45:31.164475",
+    "duration": 984.188846,
+    "error_message": null
+  },
+  {
+    "task_name": "deep_strategy_optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T18:45:31.218954",
+    "end_time": "2026-10-14T19:05:54.625230",
+    "duration": 1223.406276,
+    "error_message": null
+  },
+  {
+    "task_name": "prediction_preview",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T19:05:54.674894",
+    "end_time": "2026-10-14T19:22:21.785212",
+    "duration": 987.110318,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T19:22:21.861368",
+    "end_time": "2026-10-14T19:23:46.977576",
+    "duration": 85.116208,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T19:23:46.995398",
+    "end_time": "2026-10-14T19:25:11.685908",
+    "duration": 84.69051,
+    "error_message": null
+  },
+  {
+    "task_name": "pre_sale_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T19:25:11.703892",
+    "end_time": "2026-10-14T19:26:36.759658",
+    "duration": 85.055766,
+    "error_message": null
+  },
+  {
+    "task_name": "send_report",
+    "status": "SUCCESS",
+    "start_time": "2026-10-14T19:26:36.779610",
+    "end_time": "2026-10-14T19:28:01.147849",
+    "duration": 84.368239,
     "error_message": null
   }
 ]

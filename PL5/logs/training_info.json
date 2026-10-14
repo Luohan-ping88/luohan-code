@@ -1,9 +1,9 @@
 {
   "model_version": "V10.3",
-  "training_time": 7865.570503,
+  "training_time": 7809.965876,
   "feature_count": 670,
-  "data_count": 7746,
-  "latest_period": "2026271",
+  "data_count": 7748,
+  "latest_period": "2026273",
   "training_status": "SUCCESS",
   "models": {
     "stacking": true,

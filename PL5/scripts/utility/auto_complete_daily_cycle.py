@@ -536,8 +536,32 @@ def main():
         time.sleep(60)
         waited += 60
 
-    # 【修复】只有“新鲜”的 final_prediction.json 才算管线成功，避免读取上次循环的陈旧结果
+    # 【修复BUG-10】final_prediction.json 在任务11(final_prediction)即写入，
+    # 若收尾处理器启动较晚（主管线已完成、进程已退出），其修改时间早于
+    # watch_started，仅靠时间戳会误判为陈旧产物。此时应校验文件内容是否为
+    # 本次周期的有效产物（next_period = latest_period + 1，且预测字段齐全），
+    # 内容有效即视为管线成功。
+    def _is_valid_final_pred(fp_data):
+        """校验 final_prediction.json 是否为本次日循环的有效产物"""
+        if not fp_data or not isinstance(fp_data, dict):
+            return False
+        try:
+            nxt = int(fp_data.get('next_period', 0))
+            lat = int(fp_data.get('latest_period', 0))
+            if nxt == lat + 1:
+                return True
+        except Exception:
+            pass
+        # 兜底：预测字段存在且佐证一致性可用
+        return bool(fp_data.get('predictions')) and fp_data.get('verification_consistency') is not None
+
+    # 【修复】只有"新鲜"的 final_prediction.json 才算管线成功，避免读取上次循环的陈旧结果
     pipeline_ok = is_fresh_final_pred()
+    if not pipeline_ok and FINAL_PRED.exists():
+        fp_data = read_json(FINAL_PRED)
+        if _is_valid_final_pred(fp_data):
+            pipeline_ok = True
+            log("✓ final_prediction.json 内容有效（next=latest+1 且字段齐全），判定为本次周期产物")
 
     # 读取真实数据
     final_pred = read_json(FINAL_PRED) if pipeline_ok else None

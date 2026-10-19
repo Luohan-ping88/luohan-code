@@ -19,9 +19,10 @@ from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 try:
     from lightgbm import LGBMClassifier
     import lightgbm as _lightgbm
-    # 【修复】LightGBM 4.x 中 "No further splits with positive gain" 等警告
-    # 经 lightgbm 内部 logger 直接输出到 stderr，即使 verbose=-1 仍会刷屏日志。
-    # 将内部 logger 级别提升至 ERROR，仅保留真正的错误信息。
+    # 【修复】LightGBM 4.x 中 "No further splits with positive gain" 等警告由原生 C++
+    # 层直接写入 stderr 文件描述符，绕过 Python logging；此处提升 logger 级别仅作为
+    # 补充防御。真正的根治方案是确保所有 LGBMClassifier 均使用 verbose=-1（见
+    # fit_position_models 中的 set_params 修复），避免 verbose=0 覆盖静默配置。
     _lgb_logger = logging.getLogger(_lightgbm.__name__)
     if _lgb_logger is not None:
         _lgb_logger.setLevel(logging.ERROR)
@@ -968,10 +969,13 @@ class EnhancedPL5Predictor:
             # 添加早停机制和学习率调度
             if hasattr(clf, 'set_params'):
                 # 为支持早停的模型设置参数
+                # 【修复】LightGBM 4.x 原生 C++ 警告（如 "No further splits"）直接写入
+                # stderr 文件描述符，绕过 Python logging，仅当 verbose=-1 时才彻底静默。
+                # 此前此处设置 verbose=0 会覆盖模型配置的 verbose=-1，导致训练日志被警告刷屏。
                 if 'n_estimators' in clf.get_params():
                     params = {
                         'n_estimators': 200,
-                        'verbose': 0
+                        'verbose': -1
                     }
                     # 只有支持早停的模型才添加early_stopping_rounds参数
                     if 'early_stopping_rounds' in clf.get_params():

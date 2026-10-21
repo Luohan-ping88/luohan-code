@@ -1,229 +1,5 @@
 [
   {
-    "task_name": "training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T09:02:28.119715",
-    "end_time": "2026-04-27T09:57:16.529764",
-    "duration": 3288.410049,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T09:58:16.553388",
-    "end_time": "2026-04-27T10:16:45.810022",
-    "duration": 1109.256634,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:17:45.974817",
-    "end_time": "2026-04-27T10:22:37.279887",
-    "duration": 291.30507,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:22:37.935705",
-    "end_time": "2026-04-27T10:27:06.193945",
-    "duration": 268.25824,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:28:07.055126",
-    "end_time": "2026-04-27T10:32:19.173728",
-    "duration": 252.118602,
-    "error_message": null
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-27T10:33:19.690333",
-    "end_time": "2026-04-27T10:39:35.385335",
-    "duration": 375.695002,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-27T10:40:35.399716",
-    "end_time": "2026-04-27T10:46:00.437084",
-    "duration": 325.037368,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:57:11.912234",
-    "end_time": "2026-04-27T10:57:12.461653",
-    "duration": 0.549419,
-    "error_message": null
-  },
-  {
-    "task_name": "evaluation",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T10:58:12.475518",
-    "end_time": "2026-04-27T10:58:48.577542",
-    "duration": 36.102024,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:07:40.334590",
-    "end_time": "2026-04-27T11:07:40.820746",
-    "duration": 0.486156,
-    "error_message": null
-  },
-  {
-    "task_name": "evaluation",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:08:29.335446",
-    "end_time": "2026-04-27T11:09:05.155113",
-    "duration": 35.819667,
-    "error_message": null
-  },
-  {
-    "task_name": "optimization",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:10:05.179849",
-    "end_time": "2026-04-27T11:10:38.537078",
-    "duration": 33.357229,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:30:51.724172",
-    "end_time": "2026-04-27T11:30:52.302334",
-    "duration": 0.578162,
-    "error_message": null
-  },
-  {
-    "task_name": "training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T11:30:52.307857",
-    "end_time": "2026-04-27T12:13:19.534064",
-    "duration": 2547.226207,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T12:14:19.551909",
-    "end_time": "2026-04-27T12:30:06.976620",
-    "duration": 947.424711,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T12:30:06.988741",
-    "end_time": "2026-04-27T13:02:56.881448",
-    "duration": 1969.892707,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T13:02:56.905035",
-    "end_time": "2026-04-27T13:39:59.873744",
-    "duration": 2222.968709,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T13:40:59.919175",
-    "end_time": "2026-04-27T14:18:58.356924",
-    "duration": 2278.437749,
-    "error_message": null
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T14:19:58.385424",
-    "end_time": "2026-04-27T14:35:11.057974",
-    "duration": 912.67255,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T14:48:19.813954",
-    "end_time": "2026-04-27T14:48:21.063063",
-    "duration": 1.249109,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T15:25:02.183626",
-    "end_time": "2026-04-27T15:25:03.809848",
-    "duration": 1.626222,
-    "error_message": null
-  },
-  {
-    "task_name": "data_fetch",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T15:40:17.875964",
-    "end_time": "2026-04-27T15:40:18.472327",
-    "duration": 0.596363,
-    "error_message": null
-  },
-  {
-    "task_name": "evaluation",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T15:40:18.477205",
-    "end_time": "2026-04-27T15:40:55.190493",
-    "duration": 36.713288,
-    "error_message": null
-  },
-  {
-    "task_name": "training",
-    "status": "FAILED",
-    "start_time": "2026-04-27T15:40:55.216263",
-    "end_time": "2026-04-27T17:11:04.045407",
-    "duration": 5408.829144,
-    "error_message": "训练失败: [ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
-  },
-  {
-    "task_name": "incremental_training",
-    "status": "FAILED",
-    "start_time": "2026-04-27T17:11:04.106264",
-    "end_time": "2026-04-27T17:11:53.657368",
-    "duration": 49.551104,
-    "error_message": "增量训练失败: [ModelTrainingError:high] Position wan training failed: could not convert string to float: '2004-11-14'"
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T17:11:53.662368",
-    "end_time": "2026-04-27T17:13:15.852549",
-    "duration": 82.190181,
-    "error_message": null
-  },
-  {
-    "task_name": "first_prediction_verification",
-    "status": "SUCCESS",
-    "start_time": "2026-04-27T17:13:15.859620",
-    "end_time": "2026-04-27T17:14:49.649351",
-    "duration": 93.789731,
-    "error_message": null
-  },
-  {
-    "task_name": "deep_strategy_optimization",
-    "status": "FAILED",
-    "start_time": "2026-04-27T17:15:49.666199",
-    "end_time": "2026-04-27T17:22:52.411637",
-    "duration": 422.745438,
-    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
-  },
-  {
     "task_name": "prediction_preview",
     "status": "FAILED",
     "start_time": "2026-04-27T17:22:52.416785",
@@ -6397,6 +6173,230 @@
     "start_time": "2026-10-12T19:17:12.730131",
     "end_time": "2026-10-12T19:18:37.690160",
     "duration": 84.960029,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:29:07.898840",
+    "end_time": "2026-10-21T15:29:08.580721",
+    "duration": 0.681881,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:29:08.588236",
+    "end_time": "2026-10-21T15:29:10.771714",
+    "duration": 2.183478,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:29:10.782084",
+    "end_time": "2026-10-21T15:29:11.066280",
+    "duration": 0.284196,
+    "error_message": null
+  },
+  {
+    "task_name": "training",
+    "status": "FAILED",
+    "start_time": "2026-10-21T15:29:11.074443",
+    "end_time": "2026-10-21T15:36:09.872878",
+    "duration": 418.798435,
+    "error_message": "训练失败(模型/数据错误): [ModelTrainingError:high] Position wan training failed: The 'verbose' parameter of RandomForestClassifier must be an int in the range [0, inf), an instance of 'bool' or an instance of 'numpy.bool'. Got -1 instead."
+  },
+  {
+    "task_name": "incremental_training",
+    "status": "FAILED",
+    "start_time": "2026-10-21T15:36:09.881129",
+    "end_time": "2026-10-21T15:38:00.303525",
+    "duration": 110.422396,
+    "error_message": "增量训练失败: [ModelTrainingError:high] Position wan training failed: The 'verbose' parameter of RandomForestClassifier must be an int in the range [0, inf), an instance of 'bool' or an instance of 'numpy.bool'. Got -1 instead."
+  },
+  {
+    "task_name": "first_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:38:00.310564",
+    "end_time": "2026-10-21T15:39:47.007941",
+    "duration": 106.697377,
+    "error_message": null
+  },
+  {
+    "task_name": "second_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:39:47.016291",
+    "end_time": "2026-10-21T15:41:33.843395",
+    "duration": 106.827104,
+    "error_message": null
+  },
+  {
+    "task_name": "third_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:41:33.850472",
+    "end_time": "2026-10-21T15:43:19.580720",
+    "duration": 105.730248,
+    "error_message": null
+  },
+  {
+    "task_name": "deep_strategy_optimization",
+    "status": "FAILED",
+    "start_time": "2026-10-21T15:43:19.589594",
+    "end_time": "2026-10-21T15:45:50.096502",
+    "duration": 150.506908,
+    "error_message": "深度策略优化失败: 'NoneType' object has no attribute 'get'"
+  },
+  {
+    "task_name": "prediction_preview",
+    "status": "FAILED",
+    "start_time": "2026-10-21T15:45:50.103211",
+    "end_time": "2026-10-21T15:45:50.113025",
+    "duration": 0.009814,
+    "error_message": "预测结果预生成失败: 'NoneType' object has no attribute 'get'"
+  },
+  {
+    "task_name": "final_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:45:50.120079",
+    "end_time": "2026-10-21T15:47:35.960597",
+    "duration": 105.840518,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:47:35.967483",
+    "end_time": "2026-10-21T15:49:21.269960",
+    "duration": 105.302477,
+    "error_message": null
+  },
+  {
+    "task_name": "pre_sale_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:49:21.276789",
+    "end_time": "2026-10-21T15:51:06.992753",
+    "duration": 105.715964,
+    "error_message": null
+  },
+  {
+    "task_name": "send_report",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T15:51:06.999829",
+    "end_time": "2026-10-21T15:52:52.570356",
+    "duration": 105.570527,
+    "error_message": null
+  },
+  {
+    "task_name": "data_fetch",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T16:00:43.487772",
+    "end_time": "2026-10-21T16:00:44.103940",
+    "duration": 0.616168,
+    "error_message": null
+  },
+  {
+    "task_name": "evaluation",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T16:00:44.111223",
+    "end_time": "2026-10-21T16:00:45.660560",
+    "duration": 1.549337,
+    "error_message": null
+  },
+  {
+    "task_name": "optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T16:00:45.668887",
+    "end_time": "2026-10-21T16:00:45.915391",
+    "duration": 0.246504,
+    "error_message": null
+  },
+  {
+    "task_name": "training",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T16:00:45.922611",
+    "end_time": "2026-10-21T18:18:10.333678",
+    "duration": 8244.411067,
+    "error_message": null
+  },
+  {
+    "task_name": "incremental_training",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T18:18:10.361066",
+    "end_time": "2026-10-21T18:38:30.066498",
+    "duration": 1219.705432,
+    "error_message": null
+  },
+  {
+    "task_name": "first_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T18:38:30.086321",
+    "end_time": "2026-10-21T18:54:52.409374",
+    "duration": 982.323053,
+    "error_message": null
+  },
+  {
+    "task_name": "second_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T18:54:52.457199",
+    "end_time": "2026-10-21T19:11:19.724701",
+    "duration": 987.267502,
+    "error_message": null
+  },
+  {
+    "task_name": "third_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T19:11:19.775888",
+    "end_time": "2026-10-21T19:27:47.705879",
+    "duration": 987.929991,
+    "error_message": null
+  },
+  {
+    "task_name": "deep_strategy_optimization",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T19:27:47.764204",
+    "end_time": "2026-10-21T19:48:10.543305",
+    "duration": 1222.779101,
+    "error_message": null
+  },
+  {
+    "task_name": "prediction_preview",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T19:48:10.592976",
+    "end_time": "2026-10-21T20:04:38.586053",
+    "duration": 987.993077,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T20:04:38.649031",
+    "end_time": "2026-10-21T20:06:03.852120",
+    "duration": 85.203089,
+    "error_message": null
+  },
+  {
+    "task_name": "final_prediction_verification",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T20:06:03.870911",
+    "end_time": "2026-10-21T20:07:29.033261",
+    "duration": 85.16235,
+    "error_message": null
+  },
+  {
+    "task_name": "pre_sale_prediction",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T20:07:29.054459",
+    "end_time": "2026-10-21T20:08:54.570122",
+    "duration": 85.515663,
+    "error_message": null
+  },
+  {
+    "task_name": "send_report",
+    "status": "SUCCESS",
+    "start_time": "2026-10-21T20:08:54.589396",
+    "end_time": "2026-10-21T20:10:19.631066",
+    "duration": 85.04167,
     "error_message": null
   }
 ]

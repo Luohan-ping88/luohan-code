@@ -1,8 +1,8 @@
 {
-    "note": "2026-10-19 日循环任务自动更新",
+    "note": "2026-10-21 日循环任务自动更新",
     "skip_recovery": true,
-    "last_completed_period": "2026278",
-    "last_training_time": "19:10",
-    "last_training_date": "2026-10-19",
-    "status": "completed"
+    "last_completed_period": "2026280",
+    "last_training_time": "15:52",
+    "last_training_date": "2026-10-21",
+    "status": "partial"
 }

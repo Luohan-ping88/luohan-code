@@ -3726,14 +3726,15 @@ class AutoSchedulerV8:
                 time.sleep(30)  # 每次测试间隔
             
             # 分析所有测试结果，找出最优策略
+            # 【修复BUG-20261021】best_strategy 可能为 None（模型未生成时评估全部失败），添加防御
             best_strategy_name = None
             best_score = -1
             for result_data in all_results:
-                strategy = result_data['result'].get('best_strategy', {})
-                score = strategy.get('score', 0)
+                best_strategy = result_data['result'].get('best_strategy') or {}
+                score = best_strategy.get('score', 0)
                 if score > best_score:
                     best_score = score
-                    best_strategy_name = strategy.get('name')
+                    best_strategy_name = best_strategy.get('name')
             
             logger.info(f"\n🏆 深度优化完成，最佳策略: {best_strategy_name}, 得分: {best_score:.4f}")
             
@@ -3806,7 +3807,9 @@ class AutoSchedulerV8:
             logger.info("步骤1: 最终验证推理策略...")
             evaluator = StrategyEvaluator()
             evaluation_result = evaluator.evaluate_all_strategies(test_window=25)
-            logger.info(f"  当前最佳策略: {evaluation_result.get('best_strategy', {}).get('name', '未知')}")
+            # 【修复BUG-20261021】best_strategy 可能为 None，添加防御
+            best_strategy = evaluation_result.get('best_strategy') or {}
+            logger.info(f"  当前最佳策略: {best_strategy.get('name', '未知')}")
             
             # 2. 加载数据
             collector = PL5DataCollector()

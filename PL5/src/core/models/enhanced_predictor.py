@@ -973,9 +973,12 @@ class EnhancedPL5Predictor:
                 # stderr 文件描述符，绕过 Python logging，仅当 verbose=-1 时才彻底静默。
                 # 此前此处设置 verbose=0 会覆盖模型配置的 verbose=-1，导致训练日志被警告刷屏。
                 if 'n_estimators' in clf.get_params():
+                    # 【修复BUG-20261021】RandomForest 等 sklearn 模型的 verbose 仅接受 >=0 的整数，
+                    # 只有 LightGBM 支持 verbose=-1（彻底静默）。按模型类型区分设置。
+                    is_lightgbm = clf.__class__.__name__ == 'LGBMClassifier'
                     params = {
                         'n_estimators': 200,
-                        'verbose': -1
+                        'verbose': -1 if is_lightgbm else 0
                     }
                     # 只有支持早停的模型才添加early_stopping_rounds参数
                     if 'early_stopping_rounds' in clf.get_params():

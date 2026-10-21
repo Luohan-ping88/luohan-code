@@ -499,6 +499,11 @@ def main():
         if pid and not _pid_alive(pid):
             log(f"✗ 主管线进程 {pid} 已退出，且未生成新鲜 final_prediction.json")
             break
+        # 【修复BUG-20261021】未传入主管线 PID 时 os.kill(0,0) 恒为真导致无限等待。
+        # 增加有界超时，超时后转入 final_prediction.json 内容有效性校验兜底判定。
+        if not pid and waited >= 3600:
+            log("⚠ 未提供主管线 PID 且等待超时（60 分钟），转入内容校验判定")
+            break
         time.sleep(60)
         waited += 60
         if waited % 600 == 0:
@@ -532,6 +537,11 @@ def main():
         return False
 
     while not is_cycle_finished():
+        # 【修复BUG-20261021】未传入主管线 PID 且收尾等待超时（65 分钟）时，
+        # 按现有数据继续生成报告，避免无限挂死。
+        if not pid and waited >= 3900:
+            log("⚠ 未提供主管线 PID 且收尾等待超时（65 分钟），按现有数据继续")
+            break
         log(f"final_prediction 已生成，等待日循环收尾任务(send_report)完成... 已等待 {waited//60} 分钟")
         time.sleep(60)
         waited += 60

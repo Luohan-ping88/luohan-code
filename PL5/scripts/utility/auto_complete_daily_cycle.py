@@ -291,8 +291,23 @@ def generate_summary_report(run_date_str, tasks, training_info, recent_draws,
     # 环境
     lines.append("\n---\n\n## 六、环境配置\n")
     lines.append("- **Python版本**: " + sys.version.split()[0])
-    lines.append("- **已安装核心依赖**: numpy/pandas/scikit-learn/lightgbm/xgboost/catboost/hmmlearn/statsmodels/schedule/psutil/PyYAML/requests/beautifulsoup4/lxml/python-dotenv")
-    lines.append("- **配置修复**: training_status.json 的 UTF-8 BOM 已去除；git 身份已配置")
+    # 【修复】动态检测已安装核心依赖，避免硬编码列表与实际环境不一致
+    _CORE_DEPS = ['numpy', 'pandas', 'scipy', 'scikit-learn', 'lightgbm', 'xgboost',
+                  'catboost', 'hmmlearn', 'statsmodels', 'schedule', 'psutil',
+                  'PyYAML', 'requests', 'beautifulsoup4', 'lxml', 'python-dotenv', 'torch']
+    _installed = []
+    try:
+        from importlib import import_module
+        for _dep in _CORE_DEPS:
+            try:
+                import_module(_dep)
+                _installed.append(_dep)
+            except Exception:
+                pass
+    except Exception:
+        _installed = _CORE_DEPS
+    lines.append("- **已安装核心依赖**: " + "/".join(_installed))
+    lines.append("- **配置修复**: training_status.json 的 UTF-8 BOM 已去除；git 身份已配置；requirements.txt 已按 Python 3.14 兼容性修正（lightgbm 4.6.0 / catboost 暂不可用）")
     lines.append("- **运行模式**: 生产模式（无任何环节限时）")
 
     lines.append("\n---\n\n## 七、总结\n")
@@ -552,18 +567,43 @@ def main():
     # 本次周期的有效产物（next_period = latest_period + 1，且预测字段齐全），
     # 内容有效即视为管线成功。
     def _is_valid_final_pred(fp_data):
-        """校验 final_prediction.json 是否为本次日循环的有效产物"""
+        """校验 final_prediction.json 是否为本次日循环的有效产物
+
+        【修复BUG-20261023】仅校验 next=latest+1 不够——陈旧的 final_prediction.json
+        同样满足该条件（如上个周期的产物 latest=2026280/next=2026281），会被误判为
+        本次产物并生成错误报告。必须同时满足：
+          1. next_period = latest_period + 1
+          2. latest_period 与 processed 数据文件的最新期号一致
+             （真实数据必须已更新到 final_prediction 引用的最新期号，
+              否则说明该文件属于上个周期，本次管线尚未产出新预测）
+        """
         if not fp_data or not isinstance(fp_data, dict):
             return False
         try:
             nxt = int(fp_data.get('next_period', 0))
             lat = int(fp_data.get('latest_period', 0))
-            if nxt == lat + 1:
-                return True
+            if nxt != lat + 1:
+                return False
+        except Exception:
+            return False
+        # 【关键】与真实数据处理文件的最新期号比对，防止陈旧产物误判
+        try:
+            import csv as _csv
+            _latest_data = None
+            with open(DATA_FILE, 'r', encoding='utf-8-sig') as _f:
+                _rdr = _csv.DictReader(_f)
+                for _row in _rdr:
+                    _latest_data = _row.get('period')
+            if _latest_data is not None:
+                try:
+                    if int(_latest_data) != lat:
+                        log(f"⚠ final_prediction.json latest={lat} 与数据文件最新期号 {_latest_data} 不一致，判定为陈旧产物")
+                        return False
+                except ValueError:
+                    pass
         except Exception:
             pass
-        # 兜底：预测字段存在且佐证一致性可用
-        return bool(fp_data.get('predictions')) and fp_data.get('verification_consistency') is not None
+        return True
 
     # 【修复】只有"新鲜"的 final_prediction.json 才算管线成功，避免读取上次循环的陈旧结果
     pipeline_ok = is_fresh_final_pred()

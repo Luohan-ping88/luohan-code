@@ -14,9 +14,11 @@ statsmodels>=0.14.6
 hmmlearn>=0.3.3
 
 # --- 树模型 ---
-lightgbm>=4.7.0
+# 注意: Python 3.14 下 lightgbm 最高可用 4.6.0（4.7.0 尚无 cp314 轮子）
+lightgbm>=4.5.0
 xgboost>=3.3.0
-catboost>=1.2.10
+# catboost 暂不支持 Python 3.14（无 cp314 轮子且源码编译失败），核心管线未引用该库
+# catboost>=1.2.10
 
 # --- 调度与监控 ---
 schedule>=1.2.0

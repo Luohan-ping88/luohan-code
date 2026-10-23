@@ -25,9 +25,11 @@ faiss-cpu>=1.7.4
 # 深度学习（Mamba/iTransformer，Python 3.14 需使用 CPU 版安装 URL）
 # 安装方式: pip install torch --index-url https://download.pytorch.org/whl/cpu
 # torch>=2.13.0
-lightgbm>=4.7.0
+# 注意: Python 3.14 下 lightgbm 最高可用 4.6.0（4.7.0 尚无 cp314 轮子）
+lightgbm>=4.5.0
 xgboost>=3.3.0
-catboost>=1.2.10
+# catboost 暂不支持 Python 3.14（无 cp314 轮子且源码编译失败），核心管线未引用该库
+# catboost>=1.2.10
 PyYAML>=6.0
 python-dotenv>=1.0.0
 cryptography>=41.0.0
